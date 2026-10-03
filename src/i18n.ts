@@ -1,0 +1,208 @@
+import { blankRanks, blankRarities, formValues, numberText, rarityScale, rules } from './rules.ts';
+import type { Rarity, UpgradeId } from './rules.ts';
+
+export type Language = 'ko' | 'en' | 'zh' | 'ja';
+export const languages: { id: Language; label: string; html: string }[] = [
+  { id: 'ko', label: '한국어', html: 'ko' },
+  { id: 'en', label: 'ENG', html: 'en' },
+  { id: 'zh', label: '中文', html: 'zh-CN' },
+  { id: 'ja', label: '日本語', html: 'ja' },
+];
+type Info = { name: string; short: string; description: string };
+
+const ko = {
+  language: '언어', guide: '도움말', settings: '설정', close: '닫기', pause: '일시정지',
+  sound: '사운드', effects: '시각 효과', on: '켬', off: '끔', reduced: '간소화', normal: '기본',
+  audioFailed: '소리가 켜지지 않았어요. 한 번 더 눌러 주세요.', storageFailed: '진행 상황을 저장할 수 없어요.',
+  growth: '레벨 업', auto: '자동', resume: '계속하기', quit: '그만하기',
+  quitTitle: '이번 판을 그만할까요?', quitNote: '지금까지의 진행은 사라져요.', quitConfirm: '그만하기', back: '취소',
+  hud: '플레이 상태', stats: '능력치', arena: '전자의 원형 궤도', loadout: '보유 스킬', empty: '빈 스킬 슬롯', rank: '단계',
+  xp: '경험치', charge: '특이점', energy: '누적 경험치', ready: '생성 준비 완료', danger: '충돌 위험', collapse: '충돌', success: '블랙홀 생성', failure: '소멸',
+  choices: '스킬 선택', newSkill: '새 스킬', completed: '최대 레벨', level: '레벨', mass: '질량', score: '점수',
+  details: '상세 기록', seed: '시드', early: '중앙 충돌', final: '마지막 충돌',
+  particle: '입자', small: '소형', dense: '고밀도', generated: '등장', killed: '처치', absorbed: '흡수', remaining: '남음',
+  best: '최고 기록', retry: '다시하기', newRun: '새 게임', guideTitle: '플레이 방법',
+  guideEnergy: '적을 처치해 경험치를 모으세요. 경험치가 차면 레벨이 오르고 스킬을 고를 수 있어요.',
+  guideGoal: (goal: number) => `놓친 입자는 중앙에 쌓여 궤도를 좁혀요. 충돌 전까지 경험치 ${goal}을 모으면 블랙홀이 탄생해요. 한 판은 최대 10분이에요.`,
+  guideChoice: '이동과 공격은 자동이에요. 레벨이 오르면 세 스킬 중 하나를 고르세요. 고르지 않으면 8초 뒤 자동으로 선택해요.',
+  guideRarity: '희귀도가 높을수록 범위와 타격 수, 강화 효과가 커져요. 한 번 얻은 희귀도는 그대로 유지돼요.',
+  guideLimits: '번개 스킬은 네 종류까지 배울 수 있어요. 가속을 강화하면 더 빨리 움직이고 좁아진 궤도를 넓힐 수 있어요. 다른 화면을 보는 동안은 멈추고, 돌아오면 자동 저장된 판을 이어 해요.',
+  countdown: (n: number) => `${n}초 뒤 자동 선택`, missing: (n: number) => `경험치 ${n} 부족`,
+  rankUp: (a: number, b: number) => `${a}→${b}단계`, seconds: '초',
+  rarities: { common: '일반', rare: '희귀', epic: '에픽', legendary: '전설' } as Record<Rarity, string>,
+  upgrades: {
+    power: { name: '고압 방전', short: '공격력', description: '모든 번개의 피해량이 늘어나요.' },
+    rate: { name: '고속 펄스', short: '공격 속도', description: '기본 번개와 위성 전자가 더 자주 공격해요.' },
+    accel: { name: '가속 코일', short: '가속', description: '이동 속도가 빨라지고 궤도가 넓어져요.' },
+    area: { name: '광역 방전', short: '광역 방전', description: '번개가 맞은 곳 주변까지 공격해요.' },
+    repeat: { name: '연속 번개', short: '연속 번개', description: '같은 적에게 번개를 여러 번 내리쳐요.' },
+    multi: { name: '갈래 번개', short: '갈래 번개', description: '번개가 갈라져 여러 적을 한꺼번에 공격해요.' },
+    chain: { name: '연쇄 번개', short: '연쇄 번개', description: '번개가 가까운 적에게 차례로 옮겨 가요.' },
+    pierce: { name: '관통 번개', short: '관통 번개', description: '번개가 일직선으로 뻗어 뒤에 있는 적까지 관통해요.' },
+    satellite: { name: '위성 전자', short: '위성 전자', description: '주변을 도는 위성 전자가 함께 공격해요.' },
+    trail: { name: '전기 잔상', short: '전기 잔상', description: '지나간 길에 전기가 남아 닿은 적을 공격해요.' },
+    burst: { name: '전류 폭발', short: '전류 폭발', description: '적을 처치하면 폭발해 주변 적도 공격해요.' },
+  } as Record<UpgradeId, Info>,
+  metric: { radius: '반경', damage: '피해량', speed: '이동 속도', rate: '공격 속도', range: '거리', length: '길이', width: '너비',
+    hits: (n: string) => `${n}회 타격`, targets: (n: string) => `동시에 ${n}개`, links: (n: string) => `${n}회 연쇄`, satellites: (n: string) => `위성 ${n}개` },
+  change: { rate: '공격 간격 ↓', accel: '속도·궤도 ↑', area: ['주변까지 공격', '공격 범위 ↑'], pierce: ['일직선 관통', '길이·너비 ↑'],
+    trail: ['경로에 피해', '범위·지속 ↑'], burst: ['처치하면 폭발', '폭발 범위 ↑'], repeat: '연타', multi: '갈래', satellite: '개' },
+};
+type Copy = typeof ko;
+
+const en: Copy = {
+  language: 'Language', guide: 'Help', settings: 'Settings', close: 'Close', pause: 'Pause',
+  sound: 'Sound', effects: 'Effects', on: 'On', off: 'Off', reduced: 'Reduced', normal: 'Full',
+  audioFailed: 'Sound unavailable. Tap to retry.', storageFailed: 'Could not save.',
+  growth: 'Level up', auto: 'Auto', resume: 'Resume', quit: 'End run',
+  quitTitle: 'End this run?', quitNote: 'Your current progress will be lost.', quitConfirm: 'End run', back: 'Cancel',
+  hud: 'Run stats', stats: 'Stats', arena: 'Electron orbit', loadout: 'Skills', empty: 'Empty skill slot', rank: 'Rank',
+  xp: 'XP', charge: 'Singularity', energy: 'Total XP', ready: 'Ready to collapse', danger: 'Collision risk', collapse: 'Collision', success: 'Singularity', failure: 'Dissipated',
+  choices: 'Choose a skill', newSkill: 'New skill', completed: 'Max level', level: 'Level', mass: 'Mass', score: 'Score',
+  details: 'Details', seed: 'Seed', early: 'Early collision', final: 'Final convergence',
+  particle: 'Particle', small: 'Small', dense: 'Dense', generated: 'Spawned', killed: 'Destroyed', absorbed: 'Absorbed', remaining: 'Left',
+  best: 'Best run', retry: 'Retry', newRun: 'New run', guideTitle: 'Lightning & gravity',
+  guideEnergy: 'Destroy enemies to earn XP. Fill the XP bar to level up and choose a skill.',
+  guideGoal: (goal) => `Missed particles gather at the center and shrink your orbit. Collect ${goal} XP before collision to form a black hole. Each run lasts up to 10 minutes.`,
+  guideChoice: 'Movement and attacks are automatic. Pick one of three skills when you level up. After 8 seconds, the highlighted card is picked for you.',
+  guideRarity: 'Higher rarities increase range, hit counts and upgrade strength. Acquired rarity never decreases.',
+  guideLimits: 'Learn up to four lightning skills. Speed upgrades also widen your orbit. Switching away pauses the game; returning or reloading resumes your saved run.',
+  countdown: (n) => `Auto-pick in ${n}s`, missing: (n) => `${n} more XP needed`,
+  rankUp: (a, b) => `Rank ${a}→${b}`, seconds: 's',
+  rarities: { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' },
+  upgrades: {
+    power: { name: 'High Voltage', short: 'Power', description: 'Increase damage of all lightning' },
+    rate: { name: 'Rapid Pulse', short: 'Fire rate', description: 'Basic lightning and satellites fire faster' },
+    accel: { name: 'Acceleration', short: 'Speed', description: 'Increase speed and restore orbit radius' },
+    area: { name: 'Arc Discharge', short: 'Arc', description: 'Discharge around the impact point' },
+    repeat: { name: 'Repeat Discharge', short: 'Repeat', description: 'Strike the same target repeatedly' },
+    multi: { name: 'Forked Lightning', short: 'Fork', description: 'Strike several targets at once' },
+    chain: { name: 'Chain Lightning', short: 'Chain', description: 'Link lightning between targets' },
+    pierce: { name: 'Piercing Beam', short: 'Pierce', description: 'Pierce beyond the primary target' },
+    satellite: { name: 'Satellite Electron', short: 'Orbit', description: 'Satellites discharge independently' },
+    trail: { name: 'Charge Trail', short: 'Trail', description: 'Leave damaging charge along your path' },
+    burst: { name: 'Collapse Burst', short: 'Burst', description: 'Explode when a target is destroyed' },
+  },
+  metric: { radius: 'Radius', damage: 'Damage', speed: 'Speed', rate: 'Fire rate', range: 'Range', length: 'Length', width: 'Width',
+    hits: (n) => `${n} hits`, targets: (n) => `${n} targets`, links: (n) => `${n} jumps`, satellites: (n) => `${n} orbs` },
+  change: { rate: 'Interval ↓', accel: 'Speed · orbit ↑', area: ['Area damage', 'Radius ↑'], pierce: ['Pierce through', 'Beam size ↑'],
+    trail: ['Charged trail', 'Range · time ↑'], burst: ['Burst on kill', 'Radius ↑'], repeat: ' hits', multi: ' beams', satellite: ' orbs' },
+};
+
+const zh: Copy = {
+  language: '语言', guide: '技能说明', settings: '设置', close: '关闭', pause: '暂停',
+  sound: '声音', effects: '特效', on: '开启', off: '关闭', reduced: '简化', normal: '完整',
+  audioFailed: '无法开启声音，请再次点击。', storageFailed: '无法保存。',
+  growth: '升级', auto: '自动', resume: '继续', quit: '结束',
+  quitTitle: '结束本局？', quitNote: '本局进度将丢失。', quitConfirm: '结束本局', back: '取消',
+  hud: '成长状态', stats: '基础强化', arena: '电子圆形轨道', loadout: '已持有技能', empty: '空技能槽', rank: '等级',
+  xp: '经验', charge: '奇点', energy: '总经验', ready: '可形成黑洞', danger: '碰撞危险', collapse: '碰撞', success: '黑洞形成', failure: '消散',
+  choices: '选择技能', newSkill: '新技能', completed: '等级已满', level: '等级', mass: '质量', score: '分数',
+  details: '详情', seed: '种子', early: '提前碰撞', final: '最终收敛',
+  particle: '粒子', small: '小型', dense: '凝聚', generated: '生成', killed: '分解', absorbed: '吸收', remaining: '剩余',
+  best: '最佳记录', retry: '重试', newRun: '新的一局', guideTitle: '闪电与引力',
+  guideEnergy: '击败敌人可获得经验。经验条满后升级，并选择一个技能。',
+  guideGoal: (goal) => `漏掉的粒子会聚集在中心，缩小轨道。碰撞前积累 ${goal} 经验即可形成黑洞。每局最多10分钟。`,
+  guideChoice: '移动和攻击自动进行。升级时从三个技能中选一个；8秒后会自动选择高亮卡片。',
+  guideRarity: '稀有度越高，范围、攻击次数和强化效果越强。已获得的稀有度不会降低。',
+  guideLimits: '最多学习四种闪电技能。强化加速还能扩大轨道。切换页面时游戏暂停，返回或刷新后会继续已保存的对局。',
+  countdown: (n) => `${n}秒后自动选择`, missing: (n) => `还差 ${n} 经验`,
+  rankUp: (a, b) => `${a}→${b}级`, seconds: '秒',
+  rarities: { common: '普通', rare: '稀有', epic: '史诗', legendary: '传说' },
+  upgrades: {
+    power: { name: '高压放电', short: '攻击力', description: '增加所有闪电的伤害' },
+    rate: { name: '高速脉冲', short: '攻速', description: '基础闪电与卫星更快发射' },
+    accel: { name: '加速线圈', short: '加速', description: '增加速度并恢复轨道半径' },
+    area: { name: '环形放电', short: '环形放电', description: '在命中点周围放电' },
+    repeat: { name: '连续放电', short: '连续放电', description: '连续攻击同一目标' },
+    multi: { name: '分支闪电', short: '分支闪电', description: '同时攻击多个目标' },
+    chain: { name: '连锁闪电', short: '连锁闪电', description: '在目标之间连接闪电' },
+    pierce: { name: '穿透光束', short: '穿透光束', description: '穿透主目标并向后延伸' },
+    satellite: { name: '卫星电子', short: '卫星电子', description: '卫星独立放电' },
+    trail: { name: '电荷轨迹', short: '电荷轨迹', description: '在路径上留下伤害电荷' },
+    burst: { name: '崩塌爆炸', short: '崩塌爆炸', description: '消灭目标时引发爆炸' },
+  },
+  metric: { radius: '半径', damage: '伤害', speed: '速度', rate: '发射频率', range: '距离', length: '长度', width: '宽度',
+    hits: (n) => `${n}次攻击`, targets: (n) => `${n}个目标`, links: (n) => `${n}次连接`, satellites: (n) => `${n}个卫星` },
+  change: { rate: '发射间隔 ↓', accel: '速度·半径 ↑', area: ['范围放电', '半径 ↑'], pierce: ['贯穿目标', '长度·宽度 ↑'],
+    trail: ['轨迹放电', '范围·时间 ↑'], burst: ['击杀时爆炸', '半径 ↑'], repeat: '连击', multi: '分支', satellite: '个卫星' },
+};
+
+const ja: Copy = {
+  language: '言語', guide: 'スキルガイド', settings: '設定', close: '閉じる', pause: '一時停止',
+  sound: 'サウンド', effects: 'エフェクト', on: 'オン', off: 'オフ', reduced: '軽減', normal: '通常',
+  audioFailed: 'サウンドを有効にできません。再度タップしてください。', storageFailed: '保存できません。',
+  growth: 'レベルアップ', auto: '自動', resume: '続ける', quit: '終了',
+  quitTitle: 'このプレイを終了しますか？', quitNote: '今回の進行状況は失われます。', quitConfirm: '終了する', back: 'キャンセル',
+  hud: '成長状態', stats: '基本強化', arena: '電子の円形軌道', loadout: '所持スキル', empty: '空きスロット', rank: 'ランク',
+  xp: '経験値', charge: '特異点', energy: '累計経験値', ready: '生成準備完了', danger: '衝突の危険', collapse: '衝突', success: '特異点生成', failure: '消滅',
+  choices: 'スキル選択', newSkill: '新スキル', completed: '最大レベル', level: 'レベル', mass: '質量', score: 'スコア',
+  details: '詳細', seed: 'シード', early: '早期衝突', final: '最終収束',
+  particle: '粒子', small: '小型', dense: '凝集', generated: '生成', killed: '分解', absorbed: '吸収', remaining: '残存',
+  best: '最高記録', retry: '再挑戦', newRun: '新しいプレイ', guideTitle: '雷と重力',
+  guideEnergy: '敵を倒すと経験値がたまります。経験値ゲージが満タンになるとレベルが上がり、スキルを選べます。',
+  guideGoal: (goal) => `逃した粒子が中心に集まり、軌道が狭くなります。衝突するまでに経験値を ${goal} 集めるとブラックホールが生まれます。1回のプレイは最大10分です。`,
+  guideChoice: '移動と攻撃は自動です。レベルアップ時に3つのスキルから1つ選びましょう。8秒たつと、ハイライトされたカードが自動で選ばれます。',
+  guideRarity: '高いレア度ほど範囲・攻撃回数・強化効果が増えます。獲得済みのレア度は下がりません。',
+  guideLimits: '雷のスキルは最大4種類です。加速を強化すると軌道も広がります。画面を離れると一時停止し、戻るか再読み込みすると保存されたプレイを再開します。',
+  countdown: (n) => `${n}秒後に自動選択`, missing: (n) => `あと経験値 ${n}`,
+  rankUp: (a, b) => `ランク ${a}→${b}`, seconds: '秒',
+  rarities: { common: 'ノーマル', rare: 'レア', epic: 'エピック', legendary: '伝説' },
+  upgrades: {
+    power: { name: '高圧放電', short: '攻撃力', description: 'すべての雷のダメージが増加' },
+    rate: { name: '高速パルス', short: '攻撃速度', description: '基本の雷と衛星の発射が速くなる' },
+    accel: { name: '加速コイル', short: '加速', description: '速度と軌道半径が増加' },
+    area: { name: '円形放電', short: '円形放電', description: '命中点の周囲に放電する' },
+    repeat: { name: '連続放電', short: '連続放電', description: '同じ対象を繰り返し攻撃' },
+    multi: { name: '分岐する雷', short: '分岐', description: '複数の対象を同時に攻撃' },
+    chain: { name: '連鎖する雷', short: '連鎖', description: '対象の間に雷をつなぐ' },
+    pierce: { name: '貫通光線', short: '貫通光線', description: '主対象の後ろまで貫通' },
+    satellite: { name: '衛星電子', short: '衛星電子', description: '衛星が独立して放電' },
+    trail: { name: '電荷の軌跡', short: '軌跡', description: '通った道に攻撃する電荷を残す' },
+    burst: { name: '崩壊爆発', short: '崩壊爆発', description: '対象を倒した地点で爆発' },
+  },
+  metric: { radius: '半径', damage: 'ダメージ', speed: '速度', rate: '発射頻度', range: '距離', length: '長さ', width: '幅',
+    hits: (n) => `${n}回攻撃`, targets: (n) => `対象 ${n}体`, links: (n) => `${n}回連鎖`, satellites: (n) => `衛星 ${n}個` },
+  change: { rate: '発射間隔 ↓', accel: '速度・半径 ↑', area: ['周囲にも放電', '半径 ↑'], pierce: ['後方まで貫通', '長さ・幅 ↑'],
+    trail: ['軌跡に放電', '範囲・時間 ↑'], burst: ['撃破時に爆発', '半径 ↑'], repeat: '連打', multi: '方向', satellite: '個の衛星' },
+};
+
+export const copy: Record<Language, Copy> = { ko, en, zh, ja };
+
+export function skillValue(id: UpgradeId, rank: number, rarity: Rarity = 'common', language: Language = 'ko'): string {
+  const s = formValues({ ...blankRanks(), [id]: rank }, { ...blankRarities(), [id]: rarity });
+  const c = copy[language], m = c.metric, scale = rarityScale(rarity), n = numberText;
+  switch (id) {
+    case 'area': return `${m.radius} ${n(s.area.radius)}`;
+    case 'repeat': return m.hits(String(s.repeat.hits));
+    case 'multi': return m.targets(String(s.multi.count));
+    case 'chain': return `${m.links(String(s.chain.hops))} · ${m.range} ${n(s.chain.range)}`;
+    case 'pierce': return `${m.length} ${n(s.pierce.length)} · ${m.width} ${n(s.pierce.width)}`;
+    case 'satellite': return m.satellites(String(s.satellite.count));
+    case 'trail': return `${m.radius} ${n(s.trail.radius)} · ${n(s.trail.lifetime)}${c.seconds}`;
+    case 'burst': return `${m.radius} ${n(s.burst.radius)}`;
+    case 'power': return `${m.damage} ${n(rules.baseHitDamage + rules.damagePerRank * rank * scale)}`;
+    case 'rate': return `${m.rate} +${Math.round(rules.ratePerRank * rank * scale * 100)}%`;
+    case 'accel': return `${m.speed} ${Math.round(rules.baseSpeed * (1 + rules.speedPerRank * rank * scale))}`;
+  }
+}
+
+export function skillChange(id: UpgradeId, current: number, rarity: Rarity = 'common', previous: Rarity = 'common', language: Language = 'ko'): string {
+  const before = formValues({ ...blankRanks(), [id]: current }, { ...blankRarities(), [id]: previous });
+  const after = formValues({ ...blankRanks(), [id]: current + 1 }, { ...blankRarities(), [id]: rarity });
+  const c = copy[language], text = c.change;
+  const count = (a: number, b: number, unit: string) => (current ? `${a}→${b}` : String(b)) + unit;
+  switch (id) {
+    case 'power': return `${numberText(rules.baseHitDamage + current * rules.damagePerRank * rarityScale(previous))}→${numberText(rules.baseHitDamage + (current + 1) * rules.damagePerRank * rarityScale(rarity))}`;
+    case 'rate': return text.rate;
+    case 'accel': return text.accel;
+    case 'area': return text.area[current ? 1 : 0];
+    case 'repeat': return count(before.repeat.hits, after.repeat.hits, text.repeat);
+    case 'multi': return count(before.multi.count, after.multi.count, text.multi);
+    case 'chain': return c.metric.links(String(after.chain.hops));
+    case 'pierce': return text.pierce[current ? 1 : 0];
+    case 'satellite': return c.metric.satellites(current ? `${before.satellite.count}→${after.satellite.count}` : String(after.satellite.count));
+    case 'trail': return text.trail[current ? 1 : 0];
+    case 'burst': return text.burst[current ? 1 : 0];
+  }
+}
