@@ -4,3 +4,7 @@ dist/
 .env.*
 *.log
 artifacts/
+
+# Local planning and work notes (runtime rules and checks remain tracked).
+/plan.md
+/design/*.md
