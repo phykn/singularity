@@ -1,13 +1,14 @@
 import type { CSSProperties } from 'react';
 import { blankRanks, blankRarities, formValues, rarityScale, rules } from './rules.ts';
-import type { Rarity, UpgradeId } from './rules.ts';
+import type { Rarity, RuleSet, UpgradeId } from './rules.ts';
 
 const delay = (index: number) => ({ '--delay': `${index * 0.13}s` }) as CSSProperties;
 const target = (x: number, y: number, key: number) => <rect key={key} className="preview-target" x={x - 3} y={y - 3} width="6" height="6" rx="1" />;
 
-export function SkillPreview({ id, rank, rarity = 'common' }: { id: UpgradeId; rank: number; rarity?: Rarity }) {
-  const s = formValues({ ...blankRanks(), [id]: rank }, { ...blankRarities(), [id]: rarity });
-  const scale = rarityScale(rarity);
+export function SkillPreview({ id, rank, rarity = 'common', cfg = rules }: { id: UpgradeId; rank: number; rarity?: Rarity; cfg?: RuleSet }) {
+  const rules = cfg;
+  const s = formValues({ ...blankRanks(), [id]: rank }, { ...blankRarities(), [id]: rarity }, cfg);
+  const scale = rarityScale(rarity, cfg);
   const origin = <circle className="preview-source" cx="16" cy="32" r="3" />;
   let art;
   switch (id) {
@@ -23,7 +24,7 @@ export function SkillPreview({ id, rank, rarity = 'common' }: { id: UpgradeId; r
     case 'area':
     case 'burst': {
       const base = id === 'area' ? rules.skills.area.radii : rules.skills.burst.radii;
-      const radius = s[id].radius / (base[3] * rules.rarity.legendary.scale) * 27;
+      const radius = s[id].radius / (base[rules.maxRank] * rules.rarity.legendary.scale) * 27;
       art = <>
         {[[-18, -13], [17, 10], [6, -22]].map(([x, y], i) => target(60 + x, 32 + y, i))}
         {rank > 1 && <circle className="preview-ghost" cx="60" cy="32" r={base[rank - 1] * scale / (base[3] * rules.rarity.legendary.scale) * 27} />}
@@ -49,7 +50,7 @@ export function SkillPreview({ id, rank, rarity = 'common' }: { id: UpgradeId; r
       break;
     }
     case 'pierce': {
-      const length = 56 + s.pierce.length / (rules.skills.pierce.lengths[3] * rules.rarity.legendary.scale) * 32;
+      const length = 56 + s.pierce.length / (rules.skills.pierce.lengths[rules.maxRank] * rules.rarity.legendary.scale) * 32;
       art = <>{origin}{target(46, 32, 0)}{target(19 + length * .8, 32, 1)}<path className="preview-beam" strokeWidth={s.pierce.width * .4} d={`M19 32h${length}`} /><path className="preview-bolt" d={`M19 32h${length}`} /></>;
       break;
     }

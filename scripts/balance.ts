@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { sourceHash } from './engine.ts';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { Game } from '../src/game.ts';
 import { rarityIds, rules } from '../src/rules.ts';
 
-const start = 30000, count = 900, rows = [];
-const sourceHash = createHash('sha256').update(readFileSync('src/game.ts')).update(readFileSync('src/rules.ts')).update(JSON.stringify(rules)).digest('hex');
+const start = 40000, count = 900, rows = [];
 const started = Date.now();
 for (let seed = start; seed < start + count; seed++) {
 
@@ -33,6 +32,6 @@ const summary = summarize(rows);
 const legendary = rows.filter(r => r.selections.some(s => s.rarity === 'legendary'));
 const withoutLegendary = rows.filter(r => !r.selections.some(s => s.rarity === 'legendary'));
 mkdirSync('artifacts', { recursive: true });
-writeFileSync('artifacts/balance.json', JSON.stringify({ version: rules.designVersion, sourceHash, target: .2, calibrationSeeds: [[10000,10099]], validationSeeds: [start,start+count-1], summary, withLegendary: summarize(legendary), withoutLegendary: summarize(withoutLegendary), rules, rows }, null, 2));
+writeFileSync('artifacts/balance.json', JSON.stringify({ version: rules.designVersion, sourceHash: sourceHash(), target: .2, calibrationSeeds: [[10000,10199]], validationSeeds: [start,start+count-1], summary, withLegendary: summarize(legendary), withoutLegendary: summarize(withoutLegendary), rules, rows }, null, 2));
 console.log(JSON.stringify({ summary, withLegendary: summarize(legendary), withoutLegendary: summarize(withoutLegendary) }));
 

@@ -28,14 +28,14 @@
       "multi": 0,
       "chain": 0,
       "pierce": 0,
-      "satellite": 2,
+      "satellite": 0,
       "trail": 0,
       "burst": 0
     },
     "boosts": {
-      "power": 3,
-      "rate": 3,
-      "accel": 1
+      "power": 2,
+      "rate": 1,
+      "accel": 0
     },
     "selections": [
       {
@@ -78,48 +78,6 @@
         "id": "rate",
         "rank": 1,
         "rarity": "rare",
-        "automatic": true
-      },
-      {
-        "time": 258.15,
-        "id": "power",
-        "rank": 3,
-        "rarity": "epic",
-        "automatic": true
-      },
-      {
-        "time": 302.1,
-        "id": "accel",
-        "rank": 1,
-        "rarity": "common",
-        "automatic": true
-      },
-      {
-        "time": 352.46666666666664,
-        "id": "satellite",
-        "rank": 1,
-        "rarity": "legendary",
-        "automatic": true
-      },
-      {
-        "time": 400.46666666666664,
-        "id": "rate",
-        "rank": 2,
-        "rarity": "rare",
-        "automatic": true
-      },
-      {
-        "time": 450.03333333333336,
-        "id": "satellite",
-        "rank": 2,
-        "rarity": "legendary",
-        "automatic": true
-      },
-      {
-        "time": 500.56666666666666,
-        "id": "rate",
-        "rank": 3,
-        "rarity": "legendary",
         "automatic": true
       }
     ]

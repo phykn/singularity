@@ -11,12 +11,12 @@ export function GameCanvas({ model, settings }: { model: RefObject<Game | null>;
     const canvas = node.current!;
     const scene = new ElectronScene(() => model.current!, () => settings.current.reduced);
     const engine = new Phaser.Game({
-      type: Phaser.AUTO, parent: canvas, width: canvas.clientWidth || 360, height: canvas.clientHeight || 320,
+      type: Phaser.AUTO, parent: canvas, width: Math.round((canvas.clientWidth || 360) / 2), height: Math.round((canvas.clientHeight || 320) / 2),
       backgroundColor: '#080a0e', scene: [scene], banner: false, audio: { noAudio: true },
-      render: { antialias: true, pixelArt: false, roundPixels: false },
+      render: { antialias: false, pixelArt: true, roundPixels: true },
       scale: { mode: Phaser.Scale.NONE }, fps: { target: 60 },
     });
-    const observer = new ResizeObserver(() => { if (canvas.clientWidth && canvas.clientHeight) engine.scale.resize(canvas.clientWidth, canvas.clientHeight); });
+    const observer = new ResizeObserver(() => { if (canvas.clientWidth && canvas.clientHeight) engine.scale.resize(Math.round(canvas.clientWidth / 2), Math.round(canvas.clientHeight / 2)); });
     observer.observe(canvas);
     return () => { observer.disconnect(); engine.destroy(true); };
   }, []);

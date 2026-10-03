@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { createPixels } from './pixels.ts';
+import { effectOrigin, visibleEffects } from './effects.ts';
 import { numberText, rarityColors } from './rules.ts';
 import { maxDamageNumbers } from './game.ts';
 import { orbit, orbitRadius } from './geometry.ts';
@@ -11,6 +13,11 @@ const clamp = (n: number) => Math.max(0, Math.min(1, n));
 
 export class ElectronScene extends Phaser.Scene {
   private graphics!: Phaser.GameObjects.Graphics;
+  private effectGraphics!: Phaser.GameObjects.Graphics;
+  private sprites!: Phaser.GameObjects.Group;
+  private width = 0;
+  private height = 0;
+  private worldScale = 1;
   private damageText!: Phaser.GameObjects.Group;
   private model: () => Game;
   private reduced: () => boolean;
@@ -21,12 +28,15 @@ export class ElectronScene extends Phaser.Scene {
   }
   create(): void {
     this.graphics = this.add.graphics();
+    this.effectGraphics = this.add.graphics().setDepth(1);
+    createPixels(this);
+    this.sprites = this.add.group({ classType: Phaser.GameObjects.Image });
     this.damageText = this.add.group({
       classType: Phaser.GameObjects.Text, maxSize: maxDamageNumbers,
       createCallback: (child) => {
         const text = child as Phaser.GameObjects.Text;
-        text.setStyle({ fontFamily: 'system-ui, sans-serif', fontSize: '15px', fontStyle: 'bold', color: '#ecfbff', stroke: '#080a0e', strokeThickness: 3 });
-        text.setOrigin(.5, 1).setDepth(1).setResolution(Math.min(devicePixelRatio || 1, 2));
+        text.setStyle({ fontFamily: 'system-ui, sans-serif', fontSize: '8px', fontStyle: 'bold', color: '#ecfbff', stroke: '#080a0e', strokeThickness: 1.5 });
+        text.setOrigin(.5, 1).setDepth(3).setResolution(Math.min(devicePixelRatio || 1, 2));
       },
     });
   }
@@ -37,13 +47,17 @@ export class ElectronScene extends Phaser.Scene {
     const model = this.model(), reduced = this.reduced();
     const width = this.scale.width, height = this.scale.height, scale = Math.min(width, height) / 360;
     this.damageText.children.forEach((child) => { child.setActive(false); (child as Phaser.GameObjects.Text).setVisible(false); });
+    this.sprites.children.forEach(child => { child.setActive(false); (child as Phaser.GameObjects.Image).setVisible(false); });
+    this.effectGraphics.clear();
     g.clear();
+    this.width = width; this.height = height; this.worldScale = scale;
     if (model.phase === 'ready') {
       this.drawIntro(width, height, reduced);
       return;
     }
     g.setPosition(width / 2 - 180 * scale, height / 2 - 260 * scale);
     g.setScale(scale);
+    this.effectGraphics.setPosition(g.x, g.y).setScale(scale);
     const ending = model.phase === 'ending' || model.phase === 'result';
     const collapsing = model.phase === 'collapse';
     const clock = model.seconds;
@@ -115,9 +129,9 @@ export class ElectronScene extends Phaser.Scene {
         g.lineBetween(x, y, x + Math.cos(target.angle) * 12, y + Math.sin(target.angle) * 12);
       }
       const hit = !reduced && target.hitAt !== undefined && model.time - target.hitAt < .1;
-      g.lineStyle((target.kind === 'small' ? 1.2 : 1.5) / scale, ink, 1 - absorb);
-      g.strokeRect(x - size / 2, y - size / 2, size, size);
-      g.fillStyle(hit ? WHITE : ink, hit ? .8 : .12); g.fillRect(x - size / 2, y - size / 2, size, size);
+      const point = this.screen({ x, y });
+      const sprite = this.sprite(point, target.kind, Math.max(.5, Math.round(2 * scale)) * (1 - absorb), 1 - absorb);
+      if (hit) { sprite.setTint(WHITE); sprite.setTintFill(); } else sprite.clearTint();
       if (target.kind === 'dense') {
         const hp = Math.ceil(target.hp / target.maxHp * 4);
         for (let i = 0; i < 4; i++) {
@@ -128,7 +142,7 @@ export class ElectronScene extends Phaser.Scene {
       }
     }
 
-    if (!ending) for (const fx of model.effects.slice(reduced ? -35 : -120)) this.drawEffect(fx, model.seconds, scale, reduced);
+    if (!ending) for (const fx of visibleEffects(model.effects, reduced)) this.drawEffect(fx, model.seconds, scale, reduced, model.position);
 
     if (ending) {
       if (success) {
@@ -159,7 +173,7 @@ export class ElectronScene extends Phaser.Scene {
     if (!collapsing) for (let i = 0; i < satellites; i++) {
       const a = clock * 2 + i * Math.PI * 2 / satellites;
       g.lineStyle(.7 / scale, color, .18); g.strokeCircle(electron.x, electron.y, 15);
-      g.fillStyle(color, .8); g.fillCircle(electron.x + Math.cos(a) * 15, electron.y + Math.sin(a) * 15, 2.3 / scale);
+      this.sprite(this.screen({ x: electron.x + Math.cos(a) * 15, y: electron.y + Math.sin(a) * 15 }), 'satellite', Math.max(.5, Math.round(2 * scale)), .9, 2);
     }
     if (collapsing && model.mass === 0) this.drawElectron(orbit(angle + Math.PI, radius), 1, scale, color);
     this.drawElectron(electron, 1, scale, color);
@@ -167,19 +181,25 @@ export class ElectronScene extends Phaser.Scene {
   }
 
   private drawDamage(model: Game, width: number, height: number, scale: number, reduced: boolean): void {
-    const numbers = reduced ? model.damageNumbers.slice(-24) : model.damageNumbers;
+    const numbers = model.damageNumbers.slice(-maxDamageNumbers).reverse();
+    const occupied: Phaser.Geom.Rectangle[] = [], limit = reduced ? 12 : 24;
     for (const damage of numbers) {
       const age = model.seconds - damage.born;
-      if (reduced && age > .4) continue;
-      const text = this.damageText.get(0, 0, '') as Phaser.GameObjects.Text | null;
-      if (!text) break;
-      const lane = damage.id % 3 - 1;
-      const x = width / 2 + (damage.x - 180) * scale + lane * 8;
-      const y = height / 2 + (damage.y - 260) * scale - 8 - (reduced ? 0 : age * 32);
-      text.setActive(true).setVisible(true).setText(numberText(damage.value));
-      text.setPosition(Math.max(16, Math.min(width - 16, x)), Math.max(22, Math.min(height - 4, y)));
+      if (reduced && age > .4 || occupied.length >= limit) continue;
+      const text = this.damageText.get(0, 0, '') as Phaser.GameObjects.Text;
+      const x = width / 2 + (damage.x - 180) * scale;
+      const y = height / 2 + (damage.y - 260) * scale - 4 - (reduced ? 0 : age * 16);
+      text.setText(numberText(damage.value)).setScale(reduced ? 1 : 1 + .12 * Math.exp(-age * 16));
+      let placed = false;
+      for (const [dx, dy] of [[0, 0], [0, -10], [-12, -6], [12, -6], [-16, -16], [16, -16]]) {
+        text.setPosition(Math.max(10, Math.min(width - 10, x + dx)), Math.max(12, Math.min(height - 2, y + dy)));
+        const bounds = text.getBounds(); Phaser.Geom.Rectangle.Inflate(bounds, 1, 1);
+        if (occupied.some(previous => Phaser.Geom.Intersects.RectangleToRectangle(bounds, previous))) continue;
+        occupied.push(bounds); placed = true; break;
+      }
+      text.setActive(placed).setVisible(placed);
+      if (!placed) continue;
       text.setColor(damage.value >= 5 ? '#ffda96' : damage.value > 2 ? '#f1fcff' : '#b8eefb');
-      text.setScale(reduced ? 1 : 1 + .16 * Math.exp(-age * 16));
       text.setAlpha(reduced ? 1 : 1 - clamp((age - .35) / .37));
     }
   }
@@ -228,64 +248,69 @@ export class ElectronScene extends Phaser.Scene {
       g.lineBetween(x + Math.cos(a) * radius, y + Math.sin(a) * radius, x + Math.cos(next) * radius, y + Math.sin(next) * radius);
     }
     const electron = { x: x + Math.cos(angle) * radius, y: y + Math.sin(angle) * radius };
-    for (const [size, alpha] of [[18, .035], [10, .08], [5, .2]]) {
-      g.fillStyle(BLUE, alpha); g.fillCircle(electron.x, electron.y, size);
-    }
-    g.fillStyle(WHITE, 1); g.fillCircle(electron.x, electron.y, 2.6);
+    this.sprite(electron, 'electron', 1, 1, 2).clearTint();
+  }
+
+  private screen(point: Point): Point {
+    return { x: this.width / 2 + (point.x - 180) * this.worldScale, y: this.height / 2 + (point.y - 260) * this.worldScale };
+  }
+
+  private sprite(point: Point, key: string, scale: number, alpha = 1, depth = .5): Phaser.GameObjects.Image {
+    const sprite = this.sprites.get(point.x, point.y, key) as Phaser.GameObjects.Image;
+    return sprite.setActive(true).setVisible(true).setTexture(key).setPosition(Math.round(point.x), Math.round(point.y)).setScale(scale).setAlpha(alpha).setDepth(depth).clearTint();
   }
 
   private drawElectron(point: Point, alpha: number, scale: number, color = BLUE): void {
-    const g = this.graphics;
-    g.fillStyle(color, 0.035 * alpha); g.fillCircle(point.x, point.y, 22 / scale);
-    g.fillStyle(color, 0.10 * alpha); g.fillCircle(point.x, point.y, 12 / scale);
-    g.fillStyle(color, 0.20 * alpha); g.fillCircle(point.x, point.y, 7 / scale);
-    g.fillStyle(WHITE, alpha); g.fillCircle(point.x, point.y, Math.max(4, 4 / scale));
+    const sprite = this.sprite(this.screen(point), 'electron', Math.max(.5, Math.round(2 * scale)), alpha, 2);
+    if (color === GOLD) sprite.setTint(GOLD); else sprite.clearTint();
   }
 
-  private drawEffect(fx: Effect, time: number, scale: number, reduced: boolean): void {
-    const g = this.graphics;
+  private drawEffect(fx: Effect, time: number, scale: number, reduced: boolean, electron: Point): void {
+    const g = this.effectGraphics;
+    const from = effectOrigin(fx, electron, time);
+    const to = fx.kind === 'pierce' ? { x: from.x + fx.to.x - fx.from.x, y: from.y + fx.to.y - fx.from.y } : fx.to;
     const t = clamp((time - fx.born) / (fx.life * (reduced ? 0.7 : 1)));
     if (t >= 1) return;
     const alpha = Math.pow(1 - t, 0.7), ink = rarityColors[fx.rarity];
     if (fx.kind === 'bolt') {
-      const points = [fx.from];
+      const points = [from];
       for (let i = 1; i < 6; i++) {
-        const shift = reduced ? 0 : Math.sin(fx.from.x * 3 + fx.to.y * 7 + i * 11 + fx.born * 100) * 5;
-        points.push({ x: lerp(fx.from.x, fx.to.x, i / 6) + shift, y: lerp(fx.from.y, fx.to.y, i / 6) - shift });
+        const shift = reduced ? 0 : Math.sin(from.x * 3 + to.y * 7 + i * 11 + fx.born * 100) * 5;
+        points.push({ x: lerp(from.x, to.x, i / 6) + shift, y: lerp(from.y, to.y, i / 6) - shift });
       }
-      points.push(fx.to);
-      for (const [width, opacity] of [[12, 0.08], [4, 0.4], [1.6, 1]]) {
-        g.lineStyle(width * Math.max(1, fx.width / 1.8) / scale, width === 1.6 ? WHITE : ink, opacity * alpha);
+      points.push(to);
+      for (const [width, opacity] of [[5, .06], [1.8, .3], [.65, 1]]) {
+        g.lineStyle(width * Math.min(2, Math.max(1, fx.width / 1.8)) / scale, width === .65 ? WHITE : ink, opacity * alpha);
         g.beginPath(); g.moveTo(points[0].x, points[0].y); points.slice(1).forEach((p) => g.lineTo(p.x, p.y)); g.strokePath();
       }
     } else if (fx.kind === 'pierce') {
-      g.lineStyle(fx.width, ink, 0.13 * alpha); g.lineBetween(fx.from.x, fx.from.y, fx.to.x, fx.to.y);
-      g.lineStyle(1.8 / scale, WHITE, alpha); g.lineBetween(fx.from.x, fx.from.y, fx.to.x, fx.to.y);
+      g.lineStyle(fx.width, ink, 0.13 * alpha); g.lineBetween(from.x, from.y, to.x, to.y);
+      g.lineStyle(1.8 / scale, WHITE, alpha); g.lineBetween(from.x, from.y, to.x, to.y);
     } else if (fx.kind === 'absorb') {
       g.lineStyle(1.2 / scale, AMBER, alpha * .65); g.strokeCircle(180, 260, fx.radius * (.7 + t * .5));
       g.fillStyle(AMBER, .05 * alpha); g.fillCircle(180, 260, fx.radius);
     } else if (fx.kind === 'kill') {
       g.fillStyle(ink, alpha);
-      const x = lerp(fx.from.x, fx.to.x, t * t), y = lerp(fx.from.y, fx.to.y, t * t);
+      const x = lerp(from.x, to.x, t * t), y = lerp(from.y, to.y, t * t);
       g.fillCircle(x, y, 2 / scale);
       if (!reduced) {
         g.lineStyle(1.2 / scale, ink, alpha * 0.5);
-        g.strokeCircle(fx.from.x, fx.from.y, (4 + t * 17) / scale);
-        g.fillStyle(WHITE, alpha * 0.8); g.fillCircle(fx.from.x, fx.from.y, (1 - t) * 4 / scale);
+        g.strokeCircle(from.x, from.y, (4 + t * 17) / scale);
+        g.fillStyle(WHITE, alpha * 0.8); g.fillCircle(from.x, from.y, (1 - t) * 4 / scale);
         for (let i = 0; i < 6; i++) {
           const angle = i * Math.PI / 3 + fx.born * 7;
           const radius = (5 + t * 24) / scale;
-          g.lineStyle(1.5 / scale, i % 2 ? WHITE : ink, alpha);
-          g.lineBetween(fx.from.x + Math.cos(angle) * radius, fx.from.y + Math.sin(angle) * radius, fx.from.x + Math.cos(angle) * (radius + 4 / scale), fx.from.y + Math.sin(angle) * (radius + 4 / scale));
+          g.lineStyle(.7 / scale, i % 2 ? WHITE : ink, alpha);
+          g.lineBetween(from.x + Math.cos(angle) * radius, from.y + Math.sin(angle) * radius, from.x + Math.cos(angle) * (radius + 4 / scale), from.y + Math.sin(angle) * (radius + 4 / scale));
         }
       }
     } else {
       const radius = fx.radius * (0.25 + 0.75 * t);
-      g.fillStyle(ink, alpha * 0.035); g.fillCircle(fx.from.x, fx.from.y, radius);
-      g.lineStyle(1.5 / scale, fx.kind === 'burst' ? WHITE : ink, alpha * 0.85); g.strokeCircle(fx.from.x, fx.from.y, radius);
+      g.fillStyle(ink, alpha * 0.035); g.fillCircle(from.x, from.y, radius);
+      g.lineStyle(.7 / scale, fx.kind === 'burst' ? WHITE : ink, alpha * (fx.kind === 'area' ? .16 : .45)); g.strokeCircle(from.x, from.y, radius);
       if (fx.kind === 'burst' && !reduced) for (let i = 0; i < 8; i++) {
         const angle = i * Math.PI / 4;
-        g.lineBetween(fx.from.x + Math.cos(angle) * radius * 0.8, fx.from.y + Math.sin(angle) * radius * 0.8, fx.from.x + Math.cos(angle + 0.08) * radius * 1.12, fx.from.y + Math.sin(angle + 0.08) * radius * 1.12);
+        g.lineBetween(from.x + Math.cos(angle) * radius * 0.8, from.y + Math.sin(angle) * radius * 0.8, from.x + Math.cos(angle + 0.08) * radius * 1.12, from.y + Math.sin(angle + 0.08) * radius * 1.12);
       }
     }
   }

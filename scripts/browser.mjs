@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { Game } from '../src/game.ts';
 import { rules, skillIds, statIds, rarityIds } from '../src/rules.ts';
 import { copy } from '../src/i18n.ts';
 
 const base = process.env.GAME_URL ?? 'http://localhost:8081';
 const executable = process.env.BROWSER_PATH ?? ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(existsSync);
-mkdirSync('artifacts/v6', { recursive: true });
+mkdirSync('artifacts/v7', { recursive: true });
 const browser = await chromium.launch({ headless: true, ...(executable ? { executablePath: executable } : {}) });
 const errors = [], checks = [];
 const report = (task, details) => { checks.push({ task, details }); console.log('PASS ' + task, JSON.stringify(details)); };
@@ -56,7 +55,7 @@ const firstChoice = async (page) => {
   });
   await page.locator('.card').first().waitFor();
 };
-const screenshot = async (page, name) => { await page.waitForTimeout(120); await page.screenshot({ path: 'artifacts/v6/' + name + '.png' }); };
+const screenshot = async (page, name) => { await page.waitForTimeout(120); await page.screenshot({ path: 'artifacts/v7/' + name + '.png' }); };
 
 const rarityFlow = async () => {
   const page = await pageFor(375, 812);
@@ -102,7 +101,7 @@ try {
     report('production reload restores the saved run and manual pause', { xp: pausedXp });
     await page.close();
   } else if (process.argv.includes('--realtime')) {
-    const page = await pageFor(375, 812);
+    const page = await pageFor(375, 812, 10000);
     await page.getByRole('button', { name: 'START' }).click();
     const started = Date.now(), samples = [];
     let previous = 0;
@@ -113,10 +112,17 @@ try {
       samples.push({ wallSeconds: (Date.now() - started) / 1000, time: s.time, seconds: s.seconds, xp: s.xp, mass: s.mass, radius: s.radius, phase: s.phase, choices: s.selections.length });
       console.log(JSON.stringify(samples.at(-1)));
     }
-    const s = await snapshot(page), expected = new Game(10004); expected.start(); expected.advance(610000);
-    assert.equal(s.result?.outcome, 'success'); assert.deepEqual(s.result, expected.result);
-    await screenshot(page, 'realtime-result'); assert.deepEqual(errors, []);
-    writeFileSync('artifacts/realtime.json', JSON.stringify({ version: rules.designVersion, viewport: [375, 812], seed: 10004, elapsedWallSeconds: (Date.now() - started) / 1000, samples, result: s.result, errors }, null, 2));
+    const s = await snapshot(page);
+    // Compare clocks inside Chrome: Node's trigonometric rounding can change a tied target choice.
+    const expected = await page.evaluate(async () => {
+      const { Game } = await import('/src/game.ts');
+      const game = new Game(10000); game.start(); game.advance(610000);
+      return game.result;
+    });
+    await screenshot(page, 'realtime-result');
+    writeFileSync('artifacts/realtime.json', JSON.stringify({ version: rules.designVersion, viewport: [375, 812], seed: 10000, elapsedWallSeconds: (Date.now() - started) / 1000, samples, result: s.result, expected, errors }, null, 2));
+    assert.equal(s.result?.outcome, 'success'); assert.equal(s.result.seconds, 600);
+    assert.deepEqual(s.result, expected); assert.deepEqual(errors, []);
     report('normal clock: full autonomous game', { wallSeconds: (Date.now() - started) / 1000, result: s.result.outcome, xp: s.xp });
   } else {
     await rarityFlow();
@@ -150,12 +156,12 @@ try {
       await page.getByRole('button', { name: '그만하기', exact: true }).click();
       const reset = await snapshot(page);
       assert.equal(reset.phase, 'ready'); assert.equal(reset.seed, 10004); assert.equal(reset.xp, 0); assert.equal(reset.mass, 0);
-      await page.evaluate(() => window.__gameDebug.restart(10004));
+      await page.evaluate(() => window.__gameDebug.restart(10000));
       await advance(page, 610000); await page.getByRole('heading', { name: '블랙홀 생성', exact: true }).waitFor();
       await inspect(page); await screenshot(page, 'result-' + name);
       assert.equal((await snapshot(page)).result.seconds, 600);
       await page.getByRole('button', { name: '다시하기' }).click();
-      assert.equal((await snapshot(page)).seed, 10004);
+      assert.equal((await snapshot(page)).seed, 10000);
       await page.evaluate(() => window.__gameDebug.restart(10004));
       await advance(page, 610000);
       await page.getByRole('button', { name: '새 게임' }).click();
@@ -168,7 +174,7 @@ try {
     for (const [width, height] of [[320, 568], [568, 320]]) {
       const page = await pageFor(width, height);
       const ids = [...skillIds, ...statIds];
-      for (const rarity of rarityIds) for (let rank = 1; rank <= 3; rank++) {
+      for (const rarity of rarityIds) for (let rank = 1; rank <= rules.maxRank; rank++) {
         for (let i = 0; i < ids.length; i += 3) {
           const cards = [0, 1, 2].map((n) => ids[(i + n) % ids.length]);
           await page.evaluate(({ cards, rank, rarity }) => {
@@ -185,7 +191,7 @@ try {
         }
       }
       await screenshot(page, 'stat-cards-' + width + 'x' + height);
-      report('all eleven card types and three ranks fit ' + width + 'x' + height, { variants: 132 });
+      report('all eleven card types and five ranks fit ' + width + 'x' + height, { variants: 11 * rules.maxRank * 4 });
       await page.close();
     }
 

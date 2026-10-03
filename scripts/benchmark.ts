@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { sourceHash } from './engine.ts';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { Game } from '../src/game.ts';
 import { isSkill, rules } from '../src/rules.ts';
 
@@ -32,7 +32,7 @@ for (let seed = 1701; seed <= 1730; seed++) {
   if (game.collisionTrigger === 'final') {
     assert.equal(game.level, 1 + rules.levelXp.filter(xp => xp <= game.xp).length);
     assert.ok(row.choices <= game.level - 1);
-    if (game.result!.outcome === 'success') { assert.equal(row.choices, 12); assert.ok(row.lastUpgradeUse >= 30); }
+    if (game.result!.outcome === 'success') { assert.equal(row.choices, rules.levelXp.length); assert.ok(row.lastUpgradeUse >= 30); }
     assert.ok(row.maxChoiceGap! <= 90);
   }
   for (const event of game.events.filter(e => e.kind === 'level')) {
@@ -48,7 +48,6 @@ for (let seed = 1701; seed <= 1730; seed++) {
 const summary = { runs: rows.length, successes: rows.filter(r => r.result === 'success').length };
 console.table(rows.map(({seed,result,xp,mass,choices,minRadius}) => ({seed,result,xp,mass,choices,minRadius:minRadius.toFixed(1)})));
 mkdirSync('artifacts', { recursive: true });
-const sourceHash = createHash('sha256').update(readFileSync('src/game.ts')).update(readFileSync('src/rules.ts')).update(JSON.stringify(rules)).digest('hex');
-writeFileSync('artifacts/benchmark.json', JSON.stringify({ designVersion: rules.designVersion, sourceHash, rules, seeds: [1701, 1730], runs: rows.length, fpsCompared: [30, 60], summary, rows }, null, 2));
+writeFileSync('artifacts/benchmark.json', JSON.stringify({ designVersion: rules.designVersion, sourceHash: sourceHash(), rules, seeds: [1701, 1730], runs: rows.length, fpsCompared: [30, 60], summary, rows }, null, 2));
 console.log('30/60fps: all 30 results and events match; timing and conservation checks passed.');
 

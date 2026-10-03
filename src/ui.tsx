@@ -1,5 +1,6 @@
 import { CircleDot, FastForward, Gauge, GitFork, MoveUpRight, Orbit, Repeat2, Route, Sun, Waypoints, Zap } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { rules } from './rules.ts';
 import type { UpgradeId } from './rules.ts';
 import { copy, languages } from './i18n.ts';
 import type { Language } from './i18n.ts';
@@ -10,8 +11,8 @@ export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
   return <Icon className="skill-icon" size={size} strokeWidth={size <= 16 ? 1.4 : 1.7} absoluteStrokeWidth aria-hidden="true" />;
 }
 
-export function Rank({ value }: { value: number }) {
-  return <span className="rank" aria-hidden="true">{[1, 2, 3].map((n) => <i key={n} className={n <= value ? 'on' : ''} />)}</span>;
+export function Rank({ value, max = rules.maxRank }: { value: number; max?: number }) {
+  return <span className="rank" aria-hidden="true">{Array.from({ length: max }, (_, i) => i + 1).map((n) => <i key={n} className={n <= value ? 'on' : ''} />)}</span>;
 }
 
 export function LanguagePicker({ value, onChange }: { value: Language; onChange: (language: Language) => void }) {

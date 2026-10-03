@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { Game, maxDamageNumbers } from '../src/game.ts';
 import { Random } from '../src/random.ts';
 import { eligibleUpgrades, makeCards } from '../src/growth.ts';
+import { effectOrigin, visibleEffects } from '../src/effects.ts';
 import { orbit } from '../src/geometry.ts';
+import legacy from './legacy-run.json' with { type: 'json' };
 import type { Target, TargetKind } from '../src/game.ts';
 import { blankBoosts, blankRanks, blankRarities, formValues, isSkill, rarityIds, rollRarity, rules, skillIds, statIds } from '../src/rules.ts';
 import type { Boosts, Ranks, Rarity, UpgradeId } from '../src/rules.ts';
@@ -111,18 +113,18 @@ test('contact at zero margin ends the run; a timely acceleration recovers a narr
 });
 
 test('XP alone levels up immediately, carries overflow, queues cards, and pauses every timer', () => {
-  const g = fixture(); g.debugSetXp(10000);
+  const g = fixture(); g.debugSetXp(rules.levelXp.at(-1)! + 3);
   const initial = structuredClone(g.choice);
   g.setManualPause(true); g.advance(20000); assert.deepEqual(g.choice, initial);
   assert.equal(g.select(g.choice!.cards[0].id), false);
   g.setHidden(true); g.setManualPause(false); g.advance(10000); assert.equal(g.time, 0);
   g.setManualPause(true); g.setHidden(false); g.advance(10000); assert.equal(g.time, 0);
   g.setManualPause(false); g.advance(8000);
-  assert.equal(g.level, 13); assert.equal(g.selections.length, 1); assert.equal(g.choice?.number, 2); assert.equal(g.xp, 10000);
-  g.advance(88000);
-  assert.equal(g.selections.length, 12); assert.equal(g.choice, null);
-  assert.deepEqual(g.selections.map((s) => s.time), Array.from({ length: 12 }, (_, i) => (i + 1) * 8));
-  assert.equal(g.xp, 10000);
+  assert.equal(g.level, rules.levelXp.length + 1); assert.equal(g.selections.length, 1); assert.equal(g.choice?.number, 2); assert.equal(g.xp, rules.levelXp.at(-1)! + 3);
+  g.advance((rules.levelXp.length - 1) * 8000);
+  assert.equal(g.selections.length, rules.levelXp.length); assert.equal(g.choice, null);
+  assert.deepEqual(g.selections.map((s) => s.time), Array.from({ length: rules.levelXp.length }, (_, i) => (i + 1) * 8));
+  assert.equal(g.xp, rules.levelXp.at(-1)! + 3);
   const empty = fixture(); empty.advance(100000); assert.equal(empty.selections.length, 0); assert.equal(empty.choice, null);
   const boundary = fixture(); boundary.debugSetXp(rules.levelXp[0] - 1); boundary.advance(100000);
   assert.equal(boundary.level, 1); assert.equal(boundary.choice, null);
@@ -132,27 +134,29 @@ test('XP alone levels up immediately, carries overflow, queues cards, and pauses
   assert.equal(boundary.choice?.number, 2); assert.deepEqual(boundary.levelProgress, { current: 3, required: rules.levelXp[2] - rules.levelXp[1] });
 });
 
-test('all legal pre-choice states produce three distinct valid candidates', () => {
+test('every rank composition of four forms and three stats keeps three legal cards through the final choice', () => {
   let states = 0, minimum = Infinity;
-  for (let bits = 0; bits < 4 ** 8; bits++) {
-    let n = bits, spent = 0, owned = 0; const ranks = blankRanks();
-    for (const id of skillIds) { ranks[id] = n % 4; n = Math.floor(n / 4); spent += ranks[id]; owned += Number(ranks[id] > 0); }
-    if (owned > 4 || spent > 11) continue;
-    for (let power = 0; power <= 3; power++) for (let rate = 0; rate <= 3; rate++) for (let accel = 0; accel <= 3; accel++) {
-      const sum = spent + power + rate + accel; if (sum > 11) continue;
+  const ids = ['area', 'repeat', 'chain', 'pierce'] as const, base = rules.maxRank + 1;
+  for (let bits = 0; bits < base ** ids.length; bits++) {
+    let n = bits, spent = 0; const ranks = blankRanks();
+    for (const id of ids) { ranks[id] = n % base; n = Math.floor(n / base); spent += ranks[id]; }
+    for (let power = 0; power < base; power++) for (let rate = 0; rate < base; rate++) for (let accel = 0; accel < base; accel++) {
+      const sum = spent + power + rate + accel; if (sum >= rules.levelXp.length) continue;
       const boosts: Boosts = { power, rate, accel }, eligible = eligibleUpgrades(ranks, boosts);
       const danger = sum % 2 === 0;
       const cards = makeCards({ ranks, boosts, number: sum + 1, danger }, new Random(9));
       assert.equal(cards.length, 3); assert.equal(new Set(cards).size, 3);
-      cards.forEach((id) => assert.ok(eligible.includes(id)));
-      if (sum && danger && accel < 3) assert.equal(cards[0], 'accel');
-      if (sum && eligible.some(isSkill) && eligible.some((id) => !isSkill(id))) {
-        assert.ok(cards.some(isSkill)); assert.ok(cards.some((id) => !isSkill(id)));
+      cards.forEach(id => assert.ok(eligible.includes(id)));
+      if (sum && danger && accel < rules.maxRank) assert.equal(cards[0], 'accel');
+      if (sum && eligible.some(isSkill) && eligible.some(id => !isSkill(id))) {
+        assert.ok(cards.some(isSkill)); assert.ok(cards.some(id => !isSkill(id)));
       }
       minimum = Math.min(minimum, eligible.length); states++;
     }
   }
-  assert.equal(states, 206720); assert.equal(minimum, 4);
+  assert.ok(states > 250000); assert.equal(minimum, 3);
+  // Fewer than three eligible types requires four full forms and one full stat.
+  assert.ok(rules.levelXp.length <= (rules.skillSlots + 1) * rules.maxRank);
 });
 
 test('stale, double and expired card inputs cannot alter the next choice', () => {
@@ -270,9 +274,14 @@ test('full games conserve particles and are identical at 30 and 60fps', () => {
 test('current records exclude older scores while preserving settings and safe storage failure', () => {
   const g = fixture(); g.debugSetXp(rules.energyGoal); g.advance(610000);
   const success = bestRecord(null, g.result!);
+  assert.ok(success);
   const fail = { ...g.result!, outcome: 'collapse-failure' as const, xp: rules.energyGoal - 1 };
   assert.equal(bestRecord(success, fail), success);
-  assert.equal(bestRecord(success, { ...g.result!, xp: rules.energyGoal + 1 }).xp, rules.energyGoal + 1);
+  const improved = bestRecord(success, { ...g.result!, xp: rules.energyGoal + 1 });
+  assert.ok(improved); assert.equal(improved.xp, rules.energyGoal + 1);
+  const failedRecord = bestRecord(null, fail); assert.ok(failedRecord);
+  assert.equal(bestRecord(failedRecord, { ...g.result!, version: 6, xp: 6000 }), failedRecord);
+  assert.equal(bestRecord(null, { ...g.result!, version: 6 }), null);
   const map = new Map<string, string>();
   const storage = { getItem: (key: string) => map.get(key) ?? null, setItem: (key: string, value: string) => map.set(key, value) } as Storage;
   map.set('critical-point.record.v3', JSON.stringify({ outcome: 'success', xp: 100000 }));
@@ -432,7 +441,7 @@ test('an attack build can win without acceleration and manual inputs replay at 3
     }
   }
   assert.equal(a.result.outcome, 'success'); assert.equal(a.boosts.accel, 0);
-  assert.equal(a.selections.length, 12);
+  assert.equal(a.selections.length, rules.levelXp.length);
   const b = new Game(10000); b.start(); let index = 0;
   while (!b.result) {
     b.advance(1000 / 60);
@@ -536,3 +545,87 @@ test('fractional rarity damage resolves exact lethal totals without a phantom la
   assert.equal(h.targets.length, 0); assert.equal(h.xp, 5);
 });
 
+
+test('v6 saves migrate without changing the manual build or its final result, and quitting clears both keys', () => {
+  const data = new Map<string, string>([['singularity.run.v6', JSON.stringify(legacy.checkpoint)]]);
+  const storage = { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => data.set(key, value), removeItem: (key: string) => data.delete(key) } as unknown as Storage;
+  const game = readRun(storage); assert.ok(game); assert.equal(game.rules.designVersion, 6);
+  for (const [key, value] of Object.entries(legacy.current)) assert.deepEqual(game[key as keyof Game], value);
+  assert.ok(saveRun(storage, game)); assert.equal(data.has('singularity.run.v6'), false);
+  const restored = readRun(storage); assert.ok(restored); restored.advance(610000);
+  assert.deepEqual(restored.result, legacy.result);
+  assert.ok(saveRun(storage, new Game(42))); assert.equal(readRun(storage), null);
+});
+
+test('later stages increase group size, wave size and intake rate without changing existing enemy HP', () => {
+  const first = new Game(42, { combat: false }); first.start();
+  const late = new Game(42, { combat: false }); late.start(); late.tick = 451 * rules.tickRate;
+  for (let i = 0; i < 3; i++) { first.spawnBatch(); late.spawnBatch(); }
+  first.targets = []; late.targets = [];
+  for (let i = 0; i < 20; i++) { first.spawnBatch(); late.spawnBatch(); }
+  assert.ok(late.targets.length > first.targets.length * 3);
+  assert.ok(rules.spawnSecondsByStage[4] < rules.spawnSecondsByStage[0]);
+  assert.ok(rules.rush.spawnSecondsByStage[4] < rules.rush.spawnSecondsByStage[0]);
+  assert.equal(late.targets[0].hp, rules.targets.small.hp[4]);
+});
+
+test('ranks four and five improve actual hit coverage for all forms while preserving four slots', () => {
+  const origin = { x: 180, y: 128 };
+  const line = (xs: number[], hp = 2) => xs.map((x, i) => target(i, origin.x + x, origin.y, hp));
+  for (const rank of [4, 5]) {
+    for (const [id, xs] of [['area', [0, 60, 76]], ['burst', [0, 55, 68]]] as const) {
+      const game = fixture({ [id]: rank }, line([...xs])); game.fireBasic(origin);
+      assert.equal(game.xp, rank === 4 ? 2 : 3);
+    }
+    const repeat = fixture({ repeat: rank }, line([0], 20)); repeat.fireBasic(origin); repeat.advance(600);
+    assert.equal(repeat.targets[0].hp, rank === 4 ? 10 : 8);
+    const multi = fixture({ multi: rank }, line([10, 20, 30, 40, 50, 60])); multi.fireBasic(origin);
+    assert.equal(multi.xp, rank + 1);
+    const chain = fixture({ chain: rank }, line(Array.from({ length: 10 }, (_, i) => i * 60))); chain.fireBasic(origin);
+    assert.equal(chain.xp, rank === 4 ? 8 : 10);
+    const pierce = fixture({ pierce: rank }, line([20, 280, 320])); pierce.fireBasic(origin);
+    assert.equal(pierce.xp, rank === 4 ? 2 : 3);
+    const satellite = fixture({ satellite: rank }, line([10, 20, 30, 40, 50])); satellite.fireSatellites(origin);
+    assert.equal(satellite.xp, rank);
+    const trail = fixture({ trail: rank }, line([10, 25, 29])); trail.leaveTrail(origin); trail.damageTrails();
+    assert.equal(trail.xp, rank === 4 ? 2 : 3);
+  }
+  const game = fixture(); game.debugSetXp(rules.levelXp.at(-1)!);
+  game.advance(rules.levelXp.length * rules.choiceSeconds * 1000);
+  assert.equal(game.level, 26); assert.equal(game.selections.length, 25); assert.equal(game.choice, null);
+  assert.ok(skillIds.filter(id => game.ranks[id]).length <= 4);
+});
+
+test('lightning follows the live electron and satellites while chain links keep their hit origins', () => {
+  const game = fixture({ chain: 1, satellite: 2 }, [target(0, 190, 128, 100), target(1, 218, 128, 100)]);
+  game.fireBasic(); game.fireSatellites();
+  const bolt = game.effects.find(fx => fx.kind === 'bolt' && !fx.source)!;
+  const chain = game.effects.find(fx => fx.source === 'chain')!;
+  const satellite = game.effects.find(fx => fx.source === 'satellite')!;
+  game.advance(100);
+  assert.notDeepEqual(game.position, bolt.from);
+  assert.deepEqual(effectOrigin(bolt, game.position, game.seconds), game.position);
+  assert.deepEqual(effectOrigin(chain, game.position, game.seconds), chain.from);
+  const point = effectOrigin(satellite, game.position, game.seconds);
+  close(Math.hypot(point.x - game.position.x, point.y - game.position.y), 15);
+  assert.ok(bolt.life <= .14); assert.ok(satellite.life <= .14);
+});
+
+test('dense kills retain the emitting bolt within the effect budget', () => {
+  const game = fixture({ area: 5 }, Array.from({ length: 240 }, (_, i) => target(i, 180 + i % 20, 128)));
+  game.fireBasic();
+  assert.equal(game.xp, 240); assert.equal(game.effects.length, 160);
+  assert.ok(game.effects.some(fx => fx.kind === 'bolt' && fx.anchor === 'electron'));
+});
+
+test('effect display limits preserve emitting lightning while reducing kill and area clutter', () => {
+  const game = fixture({ area: 5, multi: 5, chain: 5 }, Array.from({ length: 240 }, (_, i) => target(i, 180 + i % 20, 128, 4)));
+  game.fireBasic();
+  const before = { xp: game.xp, targets: game.targets.length, effects: game.effects.length };
+  const normal = visibleEffects(game.effects, false), reduced = visibleEffects(game.effects, true);
+  assert.ok(normal.some(fx => fx.anchor === 'electron'));
+  assert.ok(normal.filter(fx => fx.kind === 'kill').length <= 10);
+  assert.ok(normal.filter(fx => fx.kind === 'area').length <= 4);
+  assert.ok(reduced.filter(fx => fx.kind === 'kill').length <= 3);
+  assert.deepEqual({ xp: game.xp, targets: game.targets.length, effects: game.effects.length }, before);
+});

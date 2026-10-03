@@ -1,4 +1,4 @@
-import { blankRanks, blankRarities, formValues, numberText, rarityScale, rules } from './rules.ts';
+
 import type { Rarity, UpgradeId } from './rules.ts';
 
 export type Language = 'ko' | 'en' | 'zh' | 'ja';
@@ -168,41 +168,3 @@ const ja: Copy = {
 };
 
 export const copy: Record<Language, Copy> = { ko, en, zh, ja };
-
-export function skillValue(id: UpgradeId, rank: number, rarity: Rarity = 'common', language: Language = 'ko'): string {
-  const s = formValues({ ...blankRanks(), [id]: rank }, { ...blankRarities(), [id]: rarity });
-  const c = copy[language], m = c.metric, scale = rarityScale(rarity), n = numberText;
-  switch (id) {
-    case 'area': return `${m.radius} ${n(s.area.radius)}`;
-    case 'repeat': return m.hits(String(s.repeat.hits));
-    case 'multi': return m.targets(String(s.multi.count));
-    case 'chain': return `${m.links(String(s.chain.hops))} · ${m.range} ${n(s.chain.range)}`;
-    case 'pierce': return `${m.length} ${n(s.pierce.length)} · ${m.width} ${n(s.pierce.width)}`;
-    case 'satellite': return m.satellites(String(s.satellite.count));
-    case 'trail': return `${m.radius} ${n(s.trail.radius)} · ${n(s.trail.lifetime)}${c.seconds}`;
-    case 'burst': return `${m.radius} ${n(s.burst.radius)}`;
-    case 'power': return `${m.damage} ${n(rules.baseHitDamage + rules.damagePerRank * rank * scale)}`;
-    case 'rate': return `${m.rate} +${Math.round(rules.ratePerRank * rank * scale * 100)}%`;
-    case 'accel': return `${m.speed} ${Math.round(rules.baseSpeed * (1 + rules.speedPerRank * rank * scale))}`;
-  }
-}
-
-export function skillChange(id: UpgradeId, current: number, rarity: Rarity = 'common', previous: Rarity = 'common', language: Language = 'ko'): string {
-  const before = formValues({ ...blankRanks(), [id]: current }, { ...blankRarities(), [id]: previous });
-  const after = formValues({ ...blankRanks(), [id]: current + 1 }, { ...blankRarities(), [id]: rarity });
-  const c = copy[language], text = c.change;
-  const count = (a: number, b: number, unit: string) => (current ? `${a}→${b}` : String(b)) + unit;
-  switch (id) {
-    case 'power': return `${numberText(rules.baseHitDamage + current * rules.damagePerRank * rarityScale(previous))}→${numberText(rules.baseHitDamage + (current + 1) * rules.damagePerRank * rarityScale(rarity))}`;
-    case 'rate': return text.rate;
-    case 'accel': return text.accel;
-    case 'area': return text.area[current ? 1 : 0];
-    case 'repeat': return count(before.repeat.hits, after.repeat.hits, text.repeat);
-    case 'multi': return count(before.multi.count, after.multi.count, text.multi);
-    case 'chain': return c.metric.links(String(after.chain.hops));
-    case 'pierce': return text.pierce[current ? 1 : 0];
-    case 'satellite': return c.metric.satellites(current ? `${before.satellite.count}→${after.satellite.count}` : String(after.satellite.count));
-    case 'trail': return text.trail[current ? 1 : 0];
-    case 'burst': return text.burst[current ? 1 : 0];
-  }
-}
