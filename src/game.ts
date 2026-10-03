@@ -1,16 +1,15 @@
 import { Random } from './random.ts';
 import { eligibleUpgrades, makeCards } from './growth.ts';
-import { CENTER, distance, norm, orbit, orbitRadius, satellitePosition } from './geometry.ts';
+import { CENTER, distance, norm, orbit, orbitRadius } from './geometry.ts';
 import type { Point } from './geometry.ts';
-import { blankBoosts, blankRanks, blankRarities, coreRadius, formValues, higherRarity, isSkill, orbitTarget, rarityIds, rarityScale, rollRarity, rulesForVersion, rules } from './rules.ts';
+import { blankBoosts, blankRanks, blankRarities, coreRadius, formValues, higherRarity, isSkill, orbitTarget, rarityIds, rarityScale, rollRarity, rules } from './rules.ts';
 import type { Boosts, Card, FormValues, Ranks, Rarities, Rarity, RuleSet, SkillId, UpgradeId } from './rules.ts';
 
 const HZ = rules.tickRate;
 export type TargetKind = 'small' | 'dense';
 export type Phase = 'ready' | 'running' | 'collapse' | 'ending' | 'result';
-export type Target = Point & { id: number; kind: TargetKind; hp: number; maxHp: number; xp: number; mass: number; size: number; radius: number; angle: number; speed: number; turn: number; hitAt?: number; trailHit?: number };
-export type Mark = Point & { radius: number; rank: number; rarity: Rarity; damage: number; expires: number };
-export type Effect = { kind: 'bolt' | 'area' | 'pierce' | 'burst' | 'kill' | 'level' | 'absorb'; from: Point; to: Point; radius: number; width: number; born: number; life: number; source?: SkillId; rarity: Rarity; anchor?: 'electron' | { satellite: number; count: number } };
+export type Target = Point & { id: number; kind: TargetKind; hp: number; maxHp: number; xp: number; mass: number; size: number; radius: number; angle: number; speed: number; turn: number; hitAt?: number };
+export type Effect = { kind: 'bolt' | 'area' | 'pierce' | 'strike' | 'wave' | 'whip' | 'focus' | 'kill' | 'level' | 'absorb'; from: Point; to: Point; radius: number; width: number; born: number; life: number; source?: SkillId; rarity: Rarity; targetId?: number; anchor?: 'electron' };
 export const maxDamageNumbers = 64;
 export type DamageNumber = Point & { id: number; value: number; born: number; rarity: Rarity };
 export type Choice = { cards: Card[]; number: number; opened: number; deadline: number };
@@ -18,11 +17,14 @@ export type Count = { generated: number; killed: number; absorbed: number };
 export type Outcome = 'success' | 'collapse-failure';
 export type Selection = { time: number; id: UpgradeId; rank: number; rarity: Rarity; automatic: boolean };
 export type Metrics = { minRadius: number; minMargin: number; dangerSeconds: number; maxTargets: number; maxEffects: number };
-export type Result = { version: number; outcome: Outcome; trigger: 'gravity' | 'final'; xp: number; mass: number; radius: number; level: number; speed: number; missingXp: number; seed: number; ranks: Ranks; boosts: Boosts; rarities: Rarities; score: number; rushSpawns: number; seconds: number; collisionTime: number; waves: number; counts: Record<TargetKind, Count & { remaining: number }>; selections: Selection[]; metrics: Metrics };
+export type Result = { outcome: Outcome; trigger: 'gravity' | 'final'; xp: number; mass: number; radius: number; level: number; speed: number; missingXp: number; seed: number; ranks: Ranks; boosts: Boosts; rarities: Rarities; score: number; rushSpawns: number; seconds: number; collisionTime: number; waves: number; counts: Record<TargetKind, Count & { remaining: number }>; selections: Selection[]; metrics: Metrics };
 type Attack = { id: number; ranks: Ranks; rarities: Rarities; forms: FormValues; damage: number; burstFired: boolean; firstKill?: Point };
 type Pulse = { at: number; order: number; attack: Attack; target: Target };
+type TimedSkill = 'strike' | 'wave' | 'whip' | 'focus';
+type Sweep = { attack: Attack; from: Point; born: number; previous: number; hit: Set<number>; angle: number };
+type Focus = { attack: Attack; until: number; next: number; target?: Target };
 export type Event = { time: number; kind: string; data: unknown };
-export type Checkpoint = { version: number; seed: number; ticks: number; phase: Exclude<Phase, 'ready'>; manualPaused: boolean; inputs: { tick: number; id: UpgradeId; number: number }[] };
+export type Checkpoint = { seed: number; ticks: number; phase: Exclude<Phase, 'ready'>; manualPaused: boolean; inputs: { tick: number; id: UpgradeId; number: number }[] };
 
 const closest = (targets: Target[], point: Point) => [...targets].sort((a, b) => distance(a, point) - distance(b, point) || a.id - b.id);
 
@@ -45,7 +47,6 @@ export class Game {
   private kills: { tick: number; energy: number }[] = [];
   private rushUntil = 0;
   targets: Target[] = [];
-  marks: Mark[] = [];
   effects: Effect[] = [];
   damageNumbers: DamageNumber[] = [];
   choice: Choice | null = null;
@@ -69,14 +70,15 @@ export class Game {
   private randomRarity: Random;
   private nextSpawn = 0;
   private nextAttack = rules.attackBaseSeconds * HZ;
-  private nextSatellite = Infinity;
-  private nextMark = Infinity;
-  private nextTrailTick = Infinity;
   private batchCount = 0;
   private nextTargetId = 0;
   private nextAttackId = 0;
   private nextDamageId = 0;
   private pulses: Pulse[] = [];
+  private nextSkill: Record<TimedSkill, number> = { strike: Infinity, wave: Infinity, whip: Infinity, focus: Infinity };
+  private wave: Sweep | null = null;
+  private whip: Sweep | null = null;
+  private focus: Focus | null = null;
   private remainder = 0;
   private endingOutcome: Outcome = 'collapse-failure';
 
@@ -130,15 +132,13 @@ export class Game {
   checkpoint(): Checkpoint | null {
     if (this.phase === 'ready' || !this.combat) return null;
     return {
-      version: this.rules.designVersion, seed: this.seed, ticks: this.elapsedTicks, phase: this.phase, manualPaused: this.manualPaused,
+      seed: this.seed, ticks: this.elapsedTicks, phase: this.phase, manualPaused: this.manualPaused,
       inputs: this.selections.flatMap((selection, i) => selection.automatic ? [] : [{ tick: Math.round(selection.time * HZ), id: selection.id, number: i + 1 }]),
     };
   }
 
   static restore(checkpoint: Checkpoint): Game | null {
-    const cfg = rulesForVersion(checkpoint.version);
-    if (!cfg) return null;
-    const game = new Game(checkpoint.seed, { rules: cfg });
+    const game = new Game(checkpoint.seed);
     game.start();
     for (const input of checkpoint.inputs) {
       if (input.tick < game.tick || input.tick > checkpoint.ticks) return null;
@@ -195,14 +195,11 @@ export class Game {
     }
     this.moveTargets();
     this.angle += this.speed / this.radius / HZ;
-    this.marks = this.marks.filter((mark) => mark.expires > this.time);
     const due = this.pulses.filter((p) => p.at <= this.tick + 1e-8).sort((a, b) => a.attack.id - b.attack.id || a.order - b.order);
     this.pulses = this.pulses.filter((p) => p.at > this.tick + 1e-8);
     due.forEach((pulse) => this.hitPulse(pulse, this.position, true));
-    if (this.nextTrailTick <= this.tick + 1e-8) { this.damageTrails(); this.nextTrailTick += this.rules.skills.trail.tickSeconds * HZ; }
     if (this.combat && this.tick + 1e-8 >= this.nextAttack) { this.fireBasic(); this.nextAttack += this.attackInterval * HZ; }
-    if (this.nextSatellite <= this.tick + 1e-8) { this.fireSatellites(); this.nextSatellite += this.rules.skills.satellite.periodSeconds / this.rate * HZ; }
-    if (this.nextMark <= this.tick + 1e-8) { this.leaveTrail(); this.nextMark += this.rules.skills.trail.markSeconds * HZ; }
+    this.updateSkills();
     this.absorbTargets();
     this.updateOrbit();
     this.metrics.minRadius = Math.min(this.metrics.minRadius, this.radius);
@@ -257,8 +254,8 @@ export class Game {
     const number = this.selections.length + 1;
     const danger = this.margin < this.rules.dangerMargin;
     const cards = makeCards({ ranks: this.ranks, boosts: this.boosts, number, danger }, this.randomCards, this.rules)
-      .map((id) => ({ id, rarity: higherRarity(this.rarities[id], rollRarity(this.randomRarity.next())) }));
-    if (!(danger && cards[0].id === 'accel')) {
+      .map((id) => ({ id, rarity: higherRarity(this.rarities[id], rollRarity(this.randomRarity.next(), this.rules)) }));
+    if (number > 1 && !(danger && cards[0].id === 'accel')) {
       const best = cards.reduce((a, b) => rarityIds.indexOf(b.rarity) > rarityIds.indexOf(a.rarity) ? b : a);
       if (rarityIds.indexOf(best.rarity) - rarityIds.indexOf(cards[0].rarity) >= 2) cards.unshift(...cards.splice(cards.indexOf(best), 1));
     }
@@ -278,7 +275,9 @@ export class Game {
     if (id === 'rate') {
       const ratio = oldRate / this.rate;
       this.nextAttack = this.tick + Math.max(0, this.nextAttack - this.tick) * ratio;
-      if (Number.isFinite(this.nextSatellite)) this.nextSatellite = this.tick + Math.max(0, this.nextSatellite - this.tick) * ratio;
+      for (const id of Object.keys(this.nextSkill) as TimedSkill[]) {
+        if (Number.isFinite(this.nextSkill[id])) this.nextSkill[id] = this.tick + Math.max(0, this.nextSkill[id] - this.tick) * ratio;
+      }
     }
     const selection = { time: this.time, id, rank: this.rank(id), rarity: this.rarities[id], automatic };
     this.selections.push(selection);
@@ -286,12 +285,7 @@ export class Game {
     this.effect('level', this.position, this.position, id === 'accel' ? 30 : 18, 1, .5, undefined, this.rarities[id]);
     this.notice = id;
     this.noticeUntil = this.time + 1.5;
-    if (id === 'satellite' && previous === 0) this.nextSatellite = this.tick + this.rules.skills.satellite.periodSeconds / this.rate * HZ;
-    if (id === 'trail' && previous === 0) {
-      this.leaveTrail();
-      this.nextMark = this.tick + this.rules.skills.trail.markSeconds * HZ;
-      this.nextTrailTick = this.tick + this.rules.skills.trail.tickSeconds * HZ;
-    }
+    if (id in this.nextSkill && previous === 0) this.nextSkill[id as TimedSkill] = this.tick + 1;
     this.choice = null;
     this.openChoice();
     return true;
@@ -363,43 +357,105 @@ export class Game {
       visited.add(next.id);
       previous = next;
     }
+    this.discharge(attack);
+  }
+
+  private discharge(attack: Attack): void {
     if (attack.firstKill && attack.ranks.burst && !attack.burstFired) {
       attack.burstFired = true;
-      const point = attack.firstKill, radius = s.burst.radius;
-      this.effect('burst', point, point, radius, 1.5, .35, 'burst', attack.rarities.burst);
+      const point = attack.firstKill, radius = attack.forms.burst.radius;
       this.activate('burst', attack.ranks.burst);
-      this.targets.filter((t) => t.hp > 0 && distance(t, point) <= radius).sort((a, b) => a.id - b.id).forEach((t) => this.hit(t, attack.damage));
+      const targets = this.targets.filter(t => t.hp > 0 && distance(t, point) <= radius);
+      closest(targets, point).slice(0, attack.forms.burst.count).forEach(t => {
+        this.effect('bolt', point, t, 0, 1.4, .14, 'burst', attack.rarities.burst);
+        this.hit(t, attack.damage);
+      });
     }
   }
 
-  fireSatellites(origin: Point = this.position): void {
-    const count = this.forms.satellite.count;
-    for (let i = 0; i < count; i++) {
-      const target = closest(this.targets.filter((t) => t.hp > 0 && distance(t, origin) <= this.rules.skills.satellite.range), origin)[0];
-      if (!target) break;
-      const point = satellitePosition(origin, i, count, this.seconds);
-      this.effect('bolt', point, target, 0, 1.4, .3, 'satellite', this.rarities.satellite, { satellite: i, count });
-      this.activate('satellite');
-      this.hit(target, this.damage);
+  private beginAttack(damage: number): Attack {
+    return { id: this.nextAttackId++, ranks: { ...this.ranks }, rarities: { ...this.rarities }, forms: this.forms, damage, burstFired: false };
+  }
+
+  private updateSkills(): void {
+    for (const id of Object.keys(this.nextSkill) as TimedSkill[]) {
+      if (this.nextSkill[id] > this.tick + 1e-8 || (id === 'focus' && this.focus)) continue;
+      this.fireSkill(id);
+      this.nextSkill[id] = this.tick + this.rules.skills[id].periodSeconds / this.rate * HZ;
+    }
+    for (const id of ['wave', 'whip'] as const) {
+      const cast = this[id];
+      if (!cast) continue;
+      const progress = Math.min(1, (this.time - cast.born) / this.rules.skills[id].duration);
+      const origin = id === 'wave' ? cast.from : this.position;
+      for (const target of [...this.targets].sort((a, b) => a.id - b.id)) {
+        if (cast.hit.has(target.id)) continue;
+        const d = distance(target, origin);
+        const form = cast.attack.forms;
+        let hit = false;
+        if (id === 'wave') {
+          hit = d <= form.wave.radius * progress + target.size && d >= form.wave.radius * cast.previous - target.size;
+        } else {
+          const angle = (Math.atan2(target.y - origin.y, target.x - origin.x) - cast.angle + Math.PI * 4) % (Math.PI * 2);
+          const padding = Math.atan2(target.size, Math.max(1, d));
+          hit = d <= form.whip.length && angle >= form.whip.arc * cast.previous - padding && angle <= form.whip.arc * progress + padding;
+        }
+        if (!hit) continue;
+        cast.hit.add(target.id);
+        this.hit(target, cast.attack.damage, cast.attack);
+      }
+      this.discharge(cast.attack);
+      cast.previous = progress;
+      if (progress >= 1) this[id] = null;
+    }
+    if (this.focus) {
+      const cast = this.focus;
+      if (this.time >= cast.until - 1e-8) { this.focus = null; return; }
+      if (this.tick < cast.next - 1e-8) return;
+      const form = cast.attack.forms.focus, origin = this.position;
+      if (!cast.target || cast.target.hp <= 0 || !this.targets.includes(cast.target) || distance(cast.target, origin) > form.range) {
+        cast.target = closest(this.targets.filter(t => t.hp > 0 && distance(t, origin) <= form.range), origin)[0];
+      }
+      if (cast.target) {
+        this.effect('focus', origin, cast.target, 0, 1.5, this.rules.skills.focus.tickSeconds, 'focus', cast.attack.rarities.focus, 'electron').targetId = cast.target.id;
+        this.hit(cast.target, cast.attack.damage, cast.attack);
+        this.discharge(cast.attack);
+      }
+      cast.next += this.rules.skills.focus.tickSeconds * HZ;
     }
   }
 
-  leaveTrail(origin: Point = this.position): void {
-    const rank = this.ranks.trail;
-    if (rank) this.marks.push({ ...origin, rank, rarity: this.rarities.trail, damage: this.damage, radius: this.forms.trail.radius, expires: this.time + this.forms.trail.lifetime });
-  }
-
-  damageTrails(): void {
-    for (const t of [...this.targets].sort((a, b) => a.id - b.id)) {
-      if (t.hp <= 0 || (t.trailHit !== undefined && this.time - t.trailHit < this.rules.skills.trail.targetCooldownSeconds - 1e-8)) continue;
-      const marks = this.marks.filter((m) => m.expires > this.time && distance(t, m) <= m.radius);
-      if (!marks.length) continue;
-      t.trailHit = this.time;
-      this.activate('trail', Math.max(...marks.map((m) => m.rank)));
-      const rarity = marks.reduce((best, mark) => higherRarity(best, mark.rarity), 'common' as Rarity);
-      this.effect('area', t, t, 5, 1, .2, 'trail', rarity);
-      this.hit(t, Math.max(...marks.map((m) => m.damage)));
+  fireSkill(id: TimedSkill, origin: Point = this.position): void {
+    if (!this.ranks[id]) return;
+    const cfg = this.rules.skills[id];
+    const attack = this.beginAttack(this.damage * (id === 'focus' ? this.forms.focus.damage : cfg.damage));
+    const form = attack.forms, rarity = attack.rarities[id];
+    if (id === 'strike') {
+      const selected = this.targets.filter(t => t.hp > 0 && distance(t, origin) <= this.rules.skills.strike.range)
+        .sort((a, b) => b.hp - a.hp || distance(a, origin) - distance(b, origin) || a.id - b.id).slice(0, form.strike.count);
+      if (!selected.length) return;
+      // A target can take one strike per cast, including overlapping impact areas.
+      const hit = new Set<number>();
+      for (const target of selected) {
+        this.effect('strike', { x: target.x, y: target.y - 180 }, target, form.strike.radius, 3, .24, id, rarity);
+        for (const nearby of [...this.targets].sort((a, b) => a.id - b.id)) {
+          if (nearby.hp <= 0 || hit.has(nearby.id) || distance(nearby, target) > form.strike.radius) continue;
+          hit.add(nearby.id); this.hit(nearby, attack.damage, attack);
+        }
+      }
+      this.discharge(attack);
+    } else if (id === 'focus') {
+      this.focus = { attack, until: this.time + form.focus.duration, next: this.tick };
+    } else {
+      const target = closest(this.targets.filter(t => t.hp > 0), origin)[0];
+      const angle = (target ? Math.atan2(target.y - origin.y, target.x - origin.x) : this.angle + Math.PI / 2) - form.whip.arc / 2;
+      this[id] = { attack, from: { ...origin }, born: this.time, previous: 0, hit: new Set(), angle };
+      // For a whip, `to` is its initial direction and `width` is the swept angle.
+      this.effect(id, origin, { x: origin.x + Math.cos(angle), y: origin.y + Math.sin(angle) },
+        id === 'wave' ? form.wave.radius : form.whip.length, id === 'wave' ? 1 : form.whip.arc,
+        this.rules.skills[id].duration, id, rarity, id === 'whip' ? 'electron' : undefined);
     }
+    this.activate(id);
   }
 
   private hit(target: Target, damage: number, attack?: Attack): void {
@@ -439,7 +495,7 @@ export class Game {
     this.phaseTicks = 0;
     this.choice = null;
     this.pulses = [];
-    this.marks = [];
+    this.wave = null; this.whip = null; this.focus = null;
     this.damageNumbers = [];
     this.log('collision', { trigger, outcome: this.endingOutcome, xp: this.xp, mass: this.mass, radius: this.radius });
   }
@@ -447,7 +503,7 @@ export class Game {
   private finishResult(): void {
     this.phase = 'result';
     this.result = {
-      version: this.rules.designVersion, outcome: this.endingOutcome, trigger: this.collisionTrigger,
+      outcome: this.endingOutcome, trigger: this.collisionTrigger,
       xp: this.xp, mass: this.mass, radius: this.radius, level: this.level, speed: this.speed,
       missingXp: Math.max(0, this.rules.energyGoal - this.xp), seed: this.seed,
       ranks: { ...this.ranks }, boosts: { ...this.boosts }, seconds: this.seconds,
@@ -459,14 +515,16 @@ export class Game {
     this.log('result', this.result.outcome);
   }
 
-  private effect(kind: Effect['kind'], from: Point, to: Point, radius: number, width: number, life: number, source?: SkillId, rarity: Rarity = source ? this.rarities[source] : 'common', anchor?: Effect['anchor']): void {
-    if (this.rules.designVersion >= 7 && (kind === 'bolt' || kind === 'pierce')) life = .14;
-    this.effects.push({ kind, from: { x: from.x, y: from.y }, to: { x: to.x, y: to.y }, radius, width, born: this.seconds, life, source, rarity, anchor });
+  private effect(kind: Effect['kind'], from: Point, to: Point, radius: number, width: number, life: number, source?: SkillId, rarity: Rarity = source ? this.rarities[source] : 'common', anchor?: Effect['anchor']): Effect {
+    if (kind === 'bolt' || kind === 'pierce') life = .14;
+    const effect = { kind, from: { x: from.x, y: from.y }, to: { x: to.x, y: to.y }, radius, width, born: this.seconds, life, source, rarity, anchor };
+    this.effects.push(effect);
     if (this.effects.length > 160) {
-      const discard = this.rules.designVersion >= 7 ? this.effects.findIndex(fx => ['kill', 'absorb', 'area'].includes(fx.kind)) : 0;
+      const discard = this.effects.findIndex(fx => ['kill', 'absorb', 'area'].includes(fx.kind));
       this.effects.splice(Math.max(0, discard), 1);
     }
     this.metrics.maxEffects = Math.max(this.metrics.maxEffects, this.effects.length);
+    return effect;
   }
   private activate(id: SkillId, rank = this.ranks[id]): void {
     this.skillActivations[id] ??= this.time;

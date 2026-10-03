@@ -12,9 +12,11 @@ export function skillValue(id: UpgradeId, rank: number, rarity: Rarity = 'common
     case 'multi': return m.targets(String(s.multi.count));
     case 'chain': return `${m.links(String(s.chain.hops))} · ${m.range} ${n(s.chain.range)}`;
     case 'pierce': return `${m.length} ${n(s.pierce.length)} · ${m.width} ${n(s.pierce.width)}`;
-    case 'satellite': return m.satellites(String(s.satellite.count));
-    case 'trail': return `${m.radius} ${n(s.trail.radius)} · ${n(s.trail.lifetime)}${c.seconds}`;
     case 'burst': return `${m.radius} ${n(s.burst.radius)}`;
+    case 'strike': return `${m.targets(String(s.strike.count))} · ×${n(cfg.skills.strike.damage)}`;
+    case 'wave': return `${m.radius} ${n(s.wave.radius)}`;
+    case 'whip': return `${m.length} ${n(s.whip.length)} · ${Math.round(s.whip.arc * 180 / Math.PI)}°`;
+    case 'focus': return `${m.range} ${n(s.focus.range)} · ${n(s.focus.duration)}${c.seconds}`;
     case 'power': return `${m.damage} ${n(cfg.baseHitDamage + cfg.damagePerRank * rank * scale)}`;
     case 'rate': return `${m.rate} +${Math.round(cfg.ratePerRank * rank * scale * 100)}%`;
     case 'accel': return `${m.speed} ${Math.round(cfg.baseSpeed * (1 + cfg.speedPerRank * rank * scale))}`;
@@ -35,8 +37,10 @@ export function skillChange(id: UpgradeId, current: number, rarity: Rarity = 'co
     case 'multi': return count(before.multi.count, after.multi.count, text.multi);
     case 'chain': return c.metric.links(String(after.chain.hops));
     case 'pierce': return text.pierce[current ? 1 : 0];
-    case 'satellite': return c.metric.satellites(current ? `${before.satellite.count}→${after.satellite.count}` : String(after.satellite.count));
-    case 'trail': return text.trail[current ? 1 : 0];
     case 'burst': return text.burst[current ? 1 : 0];
+    case 'strike': return c.metric.targets(current ? `${before.strike.count}→${after.strike.count}` : String(after.strike.count));
+    case 'wave': return text.wave[current ? 1 : 0];
+    case 'whip': return text.whip[current ? 1 : 0];
+    case 'focus': return text.focus[current ? 1 : 0];
   }
 }

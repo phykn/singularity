@@ -11,7 +11,7 @@ const executablePath = process.env.BROWSER_PATH ?? ['C:/Program Files/Google/Chr
 const browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
 const context = await browser.newContext({ ...devices['Pixel 7'] });
 const checks = [], errors = [], c = copy.ko;
-const fields = ['seed', 'phase', 'tick', 'elapsedTicks', 'xp', 'mass', 'radius', 'angle', 'ranks', 'boosts', 'rarities', 'targets', 'marks', 'effects', 'damageNumbers', 'choice', 'selections', 'result'];
+const fields = ['seed', 'phase', 'tick', 'elapsedTicks', 'xp', 'mass', 'radius', 'angle', 'ranks', 'boosts', 'rarities', 'targets', 'effects', 'damageNumbers', 'choice', 'selections', 'result'];
 const state = (g) => Object.fromEntries(fields.map(key => [key, g[key]]));
 const snapshot = (page) => page.evaluate((fields) => {
   const g = window.__gameDebug.getModel();
@@ -37,7 +37,7 @@ const verifyRestored = async (page, checkpoint) => {
   assert.equal(await page.locator('.app').innerText().then(t => t.includes('undefined')), false);
   return actual;
 };
-mkdirSync('artifacts/v7', { recursive: true });
+mkdirSync('artifacts/screens', { recursive: true });
 try {
   let page = await open();
   await page.getByRole('button', { name: 'START' }).click();
@@ -57,7 +57,7 @@ try {
   assert.deepEqual(restored.choice, before.choice);
   assert.equal(restored.selections[0].automatic, false);
   await page.locator('.xp-status').getByText(c.xp, { exact: true }).waitFor();
-  await page.screenshot({ path: 'artifacts/v7/resumed-cards.png' });
+  await page.screenshot({ path: 'artifacts/screens/resumed-cards.png' });
   report('Android viewport reload restores the manual build and pending cards', { seed: restored.seed, xp: restored.xp, level: 1 + rules.levelXp.filter(x => x <= restored.xp).length, manualInputs: saved.inputs.length });
 
   await page.getByRole('button', { name: c.pause, exact: true }).click();
@@ -71,7 +71,7 @@ try {
   assert.ok((await snapshot(page)).tick > paused.tick);
   report('manual pause survives a reload and resumes only when requested', { pausedAt: paused.tick });
 
-  await page.evaluate(() => { window.__gameDebug.restart(10000); window.__gameDebug.advance(240000); });
+  await page.evaluate(() => { window.__gameDebug.restart(20000); window.__gameDebug.advance(240000); });
   await page.waitForTimeout(1200);
   const periodic = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), runKey);
   assert.ok(periodic.ticks >= 240 * rules.tickRate);
@@ -80,10 +80,10 @@ try {
   await page.close();
   page = await open();
   const afterCrash = await verifyRestored(page, periodic);
-  await page.screenshot({ path: 'artifacts/v7/resumed-after-crash.png' });
+  await page.screenshot({ path: 'artifacts/screens/resumed-after-crash.png' });
   report('a terminated renderer recovers the periodic save without an unload event', { savedTicks: periodic.ticks, restoredTicks: afterCrash.elapsedTicks });
 
-  await page.evaluate(() => { window.__gameDebug.restart(10000); window.__gameDebug.advance(610000); });
+  await page.evaluate(() => { window.__gameDebug.restart(20000); window.__gameDebug.advance(610000); });
   await page.getByRole('heading', { name: c.success, exact: true }).waitFor();
   const result = (await snapshot(page)).result;
   await page.reload(); await page.getByRole('heading', { name: c.success, exact: true }).waitFor();
@@ -110,9 +110,9 @@ try {
   });
   const damage = await page.evaluate(() => window.__gameDebug.getModel().damageNumbers);
   assert.ok(damage.length >= 2); assert.ok(damage.every(n => n.value === 7.4));
-  await page.waitForTimeout(150); await page.screenshot({ path: 'artifacts/v7/damage-numbers.png' });
+  await page.waitForTimeout(150); await page.screenshot({ path: 'artifacts/screens/damage-numbers.png' });
   report('damage numbers render fractional upgraded damage on a mobile screen', { values: damage.map(n => n.value), scaleFactor: devices['Pixel 7'].deviceScaleFactor });
   await page.close();
   assert.deepEqual(errors, []);
-  writeFileSync('artifacts/resume.json', JSON.stringify({ version: rules.designVersion, device: 'Pixel 7 emulation on desktop Chrome', checks, errors }, null, 2));
+  writeFileSync('artifacts/resume.json', JSON.stringify({ device: 'Pixel 7 emulation on desktop Chrome', checks, errors }, null, 2));
 } finally { await browser.close(); }

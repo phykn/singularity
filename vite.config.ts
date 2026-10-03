@@ -7,6 +7,7 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 8081,
     strictPort: true,
+    watch: { ignored: ['**/artifacts/**', '**/plan.md', '**/design/*.md'] },
     allowedHosts: ['flyer-affirm-observer.ngrok-free.dev'],
   },
 });

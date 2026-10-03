@@ -1,6 +1,5 @@
 {
   "name": "web-game",
-  "version": "0.1.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -19,8 +18,8 @@
     "check:balance": "node scripts/balance.ts"
   },
   "dependencies": {
-    "lucide-react": "^1.51.0",
     "phaser": "^4.2.1",
+    "pixelarticons": "^2.4.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zod": "^4.6.5"

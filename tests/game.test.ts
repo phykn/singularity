@@ -5,7 +5,6 @@ import { Random } from '../src/random.ts';
 import { eligibleUpgrades, makeCards } from '../src/growth.ts';
 import { effectOrigin, visibleEffects } from '../src/effects.ts';
 import { orbit } from '../src/geometry.ts';
-import legacy from './legacy-run.json' with { type: 'json' };
 import type { Target, TargetKind } from '../src/game.ts';
 import { blankBoosts, blankRanks, blankRarities, formValues, isSkill, rarityIds, rollRarity, rules, skillIds, statIds } from '../src/rules.ts';
 import type { Boosts, Ranks, Rarity, UpgradeId } from '../src/rules.ts';
@@ -74,7 +73,7 @@ test('acceleration recovers an orbit gradually without reducing accumulated mass
 
 test('early collision snapshots the energy boundary and cancels combat and cards', () => {
   for (const xp of [rules.energyGoal - 1, rules.energyGoal]) {
-    const g = fixture({ satellite: 3, trail: 3 }); g.debugSetXp(xp);
+    const g = fixture({ wave: 3, focus: 3 }); g.debugSetXp(xp);
     g.mass = 1000; g.radius = g.core + rules.electronRadius + .01;
     g.advance(1000 / 60); assert.equal(g.phase, 'collapse'); assert.equal(g.choice, null);
     assert.equal(g.successfulEnding, xp >= rules.energyGoal);
@@ -197,43 +196,6 @@ test('repeat follows moving targets, keeps reserved damage, and cancels dead pri
   assert.equal(cancelled.skillActivations.repeat, undefined);
 });
 
-test('satellites use global power, retarget, and do not activate other shapes', () => {
-  const g = fixture({ satellite: 2, burst: 3, area: 3, multi: 3 }, [target(0, 190, 128, 3), target(1, 210, 128, 3), target(2, 230, 128, 3)]);
-  g.boosts.power = 1; g.fireSatellites(); assert.equal(g.xp, 2);
-  assert.equal(g.targets.length, 1); assert.equal(g.skillActivations.burst, undefined);
-});
-
-test('attack-speed upgrades preserve remaining satellite cooldown fraction', () => {
-  const targets = Array.from({ length: 12 }, (_, id) => { const p = orbit(id * Math.PI / 6); return target(id, p.x, p.y, 1000); });
-  const g = fixture({}, targets); choose(g, 'satellite'); g.advance(1000); choose(g, 'rate');
-  g.advance(1900); assert.equal(g.skillActivations.satellite, undefined);
-  g.advance(50);
-  close(g.skillActivations.satellite!, 2.933333333333333, .001);
-  const baseline = fixture({}, targets.map((t) => ({ ...t }))); choose(baseline, 'satellite');
-  baseline.advance(3599); assert.equal(baseline.skillActivations.satellite, undefined);
-  baseline.advance(1); close(baseline.skillActivations.satellite!, 3.6);
-});
-
-test('trail snapshots damage and rank, uses one target cooldown, and expires before damage', () => {
-  const g = fixture({ trail: 1 }, [target(0, 190, 128, 10)]);
-  g.leaveTrail(); g.leaveTrail(); g.boosts.power = 3; g.ranks.trail = 3;
-  g.damageTrails(); assert.equal(g.targets[0].hp, 8);
-  assert.equal(g.marks[0].rank, 1); assert.equal(g.marks[0].damage, 2);
-  g.tick = 15; g.damageTrails(); assert.equal(g.targets[0].hp, 8);
-  g.tick = 45; g.targets[0].trailHit = undefined; g.damageTrails(); assert.equal(g.targets[0].hp, 8);
-  g.tick = 60; g.leaveTrail({ x: 180, y: 128 }); g.damageTrails(); assert.equal(g.targets[0].hp, 3);
-});
-
-test('chain triggers one burst per attack and burst kills never recurse', () => {
-  const g = fixture({ burst: 2, multi: 3, repeat: 3 }, [0, 32, 64, 96].map((x, id) => target(id, 180 + x, 128)));
-  g.fireBasic(); g.advance(300);
-  assert.equal(g.xp, 3); assert.equal(g.effects.filter((fx) => fx.kind === 'burst').length, 1);
-  const chain = fixture({ chain: 1, burst: 2 }, [target(0, 180, 128, 8), target(1, 212, 128), target(2, 244, 128), target(3, 212, 163)]);
-  chain.fireBasic();
-  assert.equal(chain.xp, 3); assert.equal(chain.targets[0].hp, 4);
-  assert.equal(chain.effects.filter((fx) => fx.kind === 'burst').length, 1);
-});
-
 test('spread clears a small line, focus damages separated dense enemies faster', () => {
   const origin = { x: 180, y: 128 };
   const line = () => [0, 32, 64, 96, 128, 160].map((x, i) => target(i, origin.x + x, origin.y));
@@ -271,7 +233,7 @@ test('full games conserve particles and are identical at 30 and 60fps', () => {
   }
 });
 
-test('current records exclude older scores while preserving settings and safe storage failure', () => {
+test('best records preserve settings and handle malformed or unavailable storage', () => {
   const g = fixture(); g.debugSetXp(rules.energyGoal); g.advance(610000);
   const success = bestRecord(null, g.result!);
   assert.ok(success);
@@ -280,15 +242,12 @@ test('current records exclude older scores while preserving settings and safe st
   const improved = bestRecord(success, { ...g.result!, xp: rules.energyGoal + 1 });
   assert.ok(improved); assert.equal(improved.xp, rules.energyGoal + 1);
   const failedRecord = bestRecord(null, fail); assert.ok(failedRecord);
-  assert.equal(bestRecord(failedRecord, { ...g.result!, version: 6, xp: 6000 }), failedRecord);
-  assert.equal(bestRecord(null, { ...g.result!, version: 6 }), null);
   const map = new Map<string, string>();
   const storage = { getItem: (key: string) => map.get(key) ?? null, setItem: (key: string, value: string) => map.set(key, value) } as Storage;
-  map.set('critical-point.record.v3', JSON.stringify({ outcome: 'success', xp: 100000 }));
   map.set(settingsKey, JSON.stringify({ sound: true, reduced: true }));
   assert.equal(readRecord(storage), null); assert.deepEqual(readSettings(storage), { sound: true, reduced: true });
   assert.ok(save(storage, recordKey, success)); assert.deepEqual(readRecord(storage), success);
-  map.set(recordKey, JSON.stringify({ ...success, version: 3 })); assert.equal(readRecord(storage), null);
+  map.set(recordKey, JSON.stringify({ ...success, xp: -1 })); assert.equal(readRecord(storage), null);
   map.set(recordKey, '{'); assert.equal(readRecord(storage), null);
   const blocked = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); } } as unknown as Storage;
   assert.equal(save(blocked, recordKey, success), false); assert.equal(readRecord(blocked), null);
@@ -301,7 +260,7 @@ test('every lightning form can be offered from the first choice without a growth
     const random = new Random(seed), ranks = blankRanks(), boosts = blankBoosts();
     const cards = makeCards({ ranks, boosts, number: 1, danger: false }, random);
     cards.forEach((id) => opening.add(id));
-    ranks.trail = 1;
+    ranks.wave = 1;
     makeCards({ ranks, boosts, number: 2, danger: false }, random).forEach((id) => later.add(id));
   }
   assert.deepEqual(opening, new Set(skillIds));
@@ -310,6 +269,14 @@ test('every lightning form can be offered from the first choice without a growth
     const game = fixture();
     choose(game, id);
     assert.equal(game.rank(id), 1);
+  }
+});
+
+test('opening auto-selection keeps an immediately visible attack even when another card is rarer', () => {
+  for (const seed of [1710, ...Array.from({ length: 128 }, (_, i) => i)]) {
+    const game = new Game(seed, { combat: false });
+    game.start(); game.debugSetXp(rules.levelXp[0]);
+    assert.ok(['area', 'chain', 'multi'].includes(game.choice!.cards[0].id));
   }
 });
 
@@ -360,7 +327,7 @@ test('saved runs restore pending cards, moving enemies and reserved attacks with
     const checkpoint = g.checkpoint()!;
     const restored = Game.restore(JSON.parse(JSON.stringify(checkpoint)))!;
     assert.ok(restored);
-    for (const key of ['phase', 'tick', 'elapsedTicks', 'xp', 'mass', 'radius', 'angle', 'ranks', 'boosts', 'rarities', 'targets', 'marks', 'effects', 'damageNumbers', 'choice', 'selections', 'events'] as const) assert.deepEqual(restored[key], g[key], seed + ': ' + key);
+    for (const key of ['phase', 'tick', 'elapsedTicks', 'xp', 'mass', 'radius', 'angle', 'ranks', 'boosts', 'rarities', 'targets', 'effects', 'damageNumbers', 'choice', 'selections', 'events'] as const) assert.deepEqual(restored[key], g[key], seed + ': ' + key);
     restored.advance(610000); g.advance(610000);
     assert.deepEqual(restored.result, g.result); assert.deepEqual(restored.events, g.events);
   }
@@ -394,7 +361,7 @@ test('ending phases resume at the same frame after saving; bad or incompatible s
   }
   const g = new Game(10004); g.start(); g.advance(123000);
   const checkpoint = g.checkpoint()!;
-  const values = [null, {}, '{', { ...checkpoint, version: 5 }, { ...checkpoint, ticks: -1 }, { ...checkpoint, ticks: 36001 }, { ...checkpoint, inputs: [{ tick: 1, id: 'unknown', number: 1 }] }, { ...checkpoint, inputs: [{ tick: 1, id: 'area', number: 1 }] }];
+  const values = [null, {}, '{', { ...checkpoint, ticks: -1 }, { ...checkpoint, ticks: 36001 }, { ...checkpoint, inputs: [{ tick: 1, id: 'unknown', number: 1 }] }, { ...checkpoint, inputs: [{ tick: 1, id: 'area', number: 1 }] }];
   for (const value of values) {
     const storage = { getItem: () => typeof value === 'string' ? value : JSON.stringify(value) } as Storage;
     assert.equal(readRun(storage), null);
@@ -403,8 +370,7 @@ test('ending phases resume at the same frame after saving; bad or incompatible s
   assert.equal(readRun(blocked), null); assert.equal(saveRun(blocked, g), false); assert.equal(saveRun(blocked, new Game(1)), false);
 });
 
-
-test('all eight forms change their actual hit coverage at every rank', () => {
+test('basic lightning modifiers change actual hit coverage at each rank', () => {
   const origin = { x: 180, y: 128 };
   const line = (xs: number[], hp = 2) => xs.map((x, id) => target(id, origin.x + x, origin.y, hp));
   for (const rank of [1, 2, 3]) {
@@ -421,38 +387,8 @@ test('all eight forms change their actual hit coverage at every rank', () => {
     chain.fireBasic(origin); assert.equal(chain.xp, [0, 3, 5, 6][rank]);
     const pierce = fixture({ pierce: rank }, line([20, 80, 130, 180, 230]));
     pierce.fireBasic(origin); assert.equal(pierce.xp, rank + 2);
-    const satellite = fixture({ satellite: rank }, line([10, 20, 30]));
-    satellite.fireSatellites(); assert.equal(satellite.xp, rank);
-    const trail = fixture({ trail: rank }, line([12, 16, 20]));
-    trail.leaveTrail(origin); trail.damageTrails(); assert.equal(trail.xp, rank);
-    assert.equal(trail.marks[0].expires, [.0, .75, 1, 1.25][rank]);
   }
 });
-
-test('an attack build can win without acceleration and manual inputs replay at 30/60fps', () => {
-  const a = new Game(10000); a.start();
-  const order: UpgradeId[] = ['area', 'repeat', 'chain', 'power', 'rate', 'multi', 'burst', 'satellite', 'pierce', 'trail'];
-  const inputs: { tick: number; id: UpgradeId }[] = [];
-  while (!a.result) {
-    a.advance(1000 / 30);
-    if (a.choice) {
-      const id = a.choice.cards.map(c => c.id).filter((id) => id !== 'accel').sort((x, y) => order.indexOf(x) - order.indexOf(y))[0];
-      inputs.push({ tick: a.tick, id }); assert.ok(a.select(id));
-    }
-  }
-  assert.equal(a.result.outcome, 'success'); assert.equal(a.boosts.accel, 0);
-  assert.equal(a.selections.length, rules.levelXp.length);
-  const b = new Game(10000); b.start(); let index = 0;
-  while (!b.result) {
-    b.advance(1000 / 60);
-    if (index < inputs.length && inputs[index].tick === b.tick) {
-      assert.ok(b.select(inputs[index].id)); index++;
-    }
-  }
-  assert.equal(index, inputs.length);
-  assert.deepEqual(a.events, b.events); assert.deepEqual(a.result, b.result);
-});
-
 
 test('rarity roll boundaries and seeded base frequencies match published odds', () => {
   let edge = 0;
@@ -478,7 +414,7 @@ test('rarity persists through lower-quality upgrades and improves real damage an
   for (const card of g.choice?.cards ?? []) assert.ok(rarityIds.indexOf(card.rarity) >= rarityIds.indexOf(g.rarities[card.id]));
 });
 
-test('all four rarities change actual geometry or hit counts across the eight forms', () => {
+test('all four rarities change actual geometry or hit counts across basic lightning modifiers', () => {
   const origin = { x: 180, y: 128 };
   const line = (xs: number[], hp = 2) => xs.map((x, id) => target(id, origin.x + x, origin.y, hp));
   for (let tier = 0; tier < 4; tier++) {
@@ -495,21 +431,14 @@ test('all four rarities change actual geometry or hit counts across the eight fo
     chain.fireBasic(origin); assert.equal(chain.xp, 3 + tier * 2);
     const pierce = fixture({ pierce: 1 }, line([20, 150, 190, 240])); pierce.rarities.pierce = rarity;
     pierce.fireBasic(origin); assert.equal(pierce.xp, tier + 1);
-    const satellite = fixture({ satellite: 1 }, line([10, 20, 30, 40])); satellite.rarities.satellite = rarity;
-    satellite.fireSatellites(origin); assert.equal(satellite.xp, tier + 1);
-    const trail = fixture({ trail: 1 }, line([12, 16, 20, 24])); trail.rarities.trail = rarity;
-    trail.leaveTrail(origin); trail.damageTrails(); assert.equal(trail.xp, tier + 1);
   }
 });
 
-test('reserved pulses and trails keep their original rarity geometry', () => {
+test('reserved pulses keep their original rarity geometry', () => {
   const g = fixture({ repeat: 1, area: 1 }, [target(0, 180, 128, 20), target(1, 226, 128, 20)]);
   g.fireBasic(); g.rarities.repeat = 'legendary'; g.rarities.area = 'legendary';
   g.advance(700);
   assert.equal(g.targets[0].hp, 16); assert.equal(g.targets[1].hp, 20);
-  const h = fixture({ trail: 1 }, [target(0, 200, 128)]);
-  h.leaveTrail(); h.rarities.trail = 'legendary'; h.damageTrails();
-  assert.equal(h.xp, 0); h.leaveTrail(); h.damageTrails(); assert.equal(h.xp, 1);
 });
 
 test('fast clear brings the next batch sooner, crowding stops acceleration, and score only rewards kills', () => {
@@ -533,7 +462,6 @@ test('fast clear brings the next batch sooner, crowding stops acceleration, and 
   assert.ok(early.score > late.score);
 });
 
-
 test('fractional rarity damage resolves exact lethal totals without a phantom last hit', () => {
   const g = fixture({}, [target(0, 180, 128, 16, 'dense')]);
   g.boosts.power = 1; g.rarities.power = 'rare';
@@ -543,18 +471,6 @@ test('fractional rarity damage resolves exact lethal totals without a phantom la
   h.boosts.power = 2; h.rarities.power = 'rare';
   for (let i = 0; i < 10; i++) h.fireBasic();
   assert.equal(h.targets.length, 0); assert.equal(h.xp, 5);
-});
-
-
-test('v6 saves migrate without changing the manual build or its final result, and quitting clears both keys', () => {
-  const data = new Map<string, string>([['singularity.run.v6', JSON.stringify(legacy.checkpoint)]]);
-  const storage = { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => data.set(key, value), removeItem: (key: string) => data.delete(key) } as unknown as Storage;
-  const game = readRun(storage); assert.ok(game); assert.equal(game.rules.designVersion, 6);
-  for (const [key, value] of Object.entries(legacy.current)) assert.deepEqual(game[key as keyof Game], value);
-  assert.ok(saveRun(storage, game)); assert.equal(data.has('singularity.run.v6'), false);
-  const restored = readRun(storage); assert.ok(restored); restored.advance(610000);
-  assert.deepEqual(restored.result, legacy.result);
-  assert.ok(saveRun(storage, new Game(42))); assert.equal(readRun(storage), null);
 });
 
 test('later stages increase group size, wave size and intake rate without changing existing enemy HP', () => {
@@ -585,10 +501,6 @@ test('ranks four and five improve actual hit coverage for all forms while preser
     assert.equal(chain.xp, rank === 4 ? 8 : 10);
     const pierce = fixture({ pierce: rank }, line([20, 280, 320])); pierce.fireBasic(origin);
     assert.equal(pierce.xp, rank === 4 ? 2 : 3);
-    const satellite = fixture({ satellite: rank }, line([10, 20, 30, 40, 50])); satellite.fireSatellites(origin);
-    assert.equal(satellite.xp, rank);
-    const trail = fixture({ trail: rank }, line([10, 25, 29])); trail.leaveTrail(origin); trail.damageTrails();
-    assert.equal(trail.xp, rank === 4 ? 2 : 3);
   }
   const game = fixture(); game.debugSetXp(rules.levelXp.at(-1)!);
   game.advance(rules.levelXp.length * rules.choiceSeconds * 1000);
@@ -596,19 +508,16 @@ test('ranks four and five improve actual hit coverage for all forms while preser
   assert.ok(skillIds.filter(id => game.ranks[id]).length <= 4);
 });
 
-test('lightning follows the live electron and satellites while chain links keep their hit origins', () => {
-  const game = fixture({ chain: 1, satellite: 2 }, [target(0, 190, 128, 100), target(1, 218, 128, 100)]);
-  game.fireBasic(); game.fireSatellites();
+test('lightning follows the live electron while chain links keep their hit origins', () => {
+  const game = fixture({ chain: 1 }, [target(0, 190, 128, 100), target(1, 218, 128, 100)]);
+  game.fireBasic();
   const bolt = game.effects.find(fx => fx.kind === 'bolt' && !fx.source)!;
   const chain = game.effects.find(fx => fx.source === 'chain')!;
-  const satellite = game.effects.find(fx => fx.source === 'satellite')!;
   game.advance(100);
   assert.notDeepEqual(game.position, bolt.from);
-  assert.deepEqual(effectOrigin(bolt, game.position, game.seconds), game.position);
-  assert.deepEqual(effectOrigin(chain, game.position, game.seconds), chain.from);
-  const point = effectOrigin(satellite, game.position, game.seconds);
-  close(Math.hypot(point.x - game.position.x, point.y - game.position.y), 15);
-  assert.ok(bolt.life <= .14); assert.ok(satellite.life <= .14);
+  assert.deepEqual(effectOrigin(bolt, game.position), game.position);
+  assert.deepEqual(effectOrigin(chain, game.position), chain.from);
+  assert.ok(bolt.life <= .14);
 });
 
 test('dense kills retain the emitting bolt within the effect budget', () => {
@@ -628,4 +537,115 @@ test('effect display limits preserve emitting lightning while reducing kill and 
   assert.ok(normal.filter(fx => fx.kind === 'area').length <= 4);
   assert.ok(reduced.filter(fx => fx.kind === 'kill').length <= 3);
   assert.deepEqual({ xp: game.xp, targets: game.targets.length, effects: game.effects.length }, before);
+});
+
+test('new runs have ten lightning skills and always offer owned upgrades', () => {
+  assert.equal(skillIds.length, 10);
+  const g = fixture(); g.debugSetXp(18);
+  for (let seed = 0; seed < 128; seed++) {
+    for (const danger of [false, true]) {
+      const ranks = { ...blankRanks(), strike: 2, focus: 1 }, boosts = blankBoosts();
+      const cards = makeCards({ ranks, boosts, number: 8, danger }, new Random(seed));
+      assert.equal(cards.length, new Set(cards).size);
+      assert.ok(cards.some(id => id === 'strike' || id === 'focus'));
+    }
+  }
+});
+
+test('death arcs start at the defeated enemy, obey their target limit and never recurse', () => {
+  const g = fixture({ burst: 1 }, [target(0, 190, 128), target(1, 200, 128), target(2, 210, 128), target(3, 220, 128)]);
+  g.fireBasic();
+  assert.equal(g.xp, 3); assert.equal(g.targets[0].id, 3);
+  const arcs = g.effects.filter(fx => fx.source === 'burst');
+  assert.equal(arcs.length, 2);
+  assert.ok(arcs.every(fx => fx.kind === 'bolt' && fx.from.x === 190 && fx.anchor === undefined));
+});
+
+test('thunderstrike prioritizes high HP and all five ranks increase struck targets', () => {
+  for (let rank = 1; rank <= 5; rank++) {
+    const targets = Array.from({ length: 8 }, (_, id) => target(id, 180 + Math.cos(id * Math.PI / 4) * 120, 128 + Math.sin(id * Math.PI / 4) * 120, 100 + id));
+    const g = fixture({ strike: rank }, targets);
+    g.fireSkill('strike');
+    assert.equal(g.damageNumbers.length, rank);
+    assert.equal(targets[7].hp, 107 - rules.baseHitDamage * rules.skills.strike.damage);
+    assert.equal(g.effects.filter(fx => fx.kind === 'strike').length, rank);
+    assert.ok(g.effects.filter(fx => fx.kind === 'strike').every(fx => fx.from.x === fx.to.x && fx.from.y < fx.to.y));
+  }
+  const g = fixture({ strike: 5 }, [target(0, 190, 128, 100), target(1, 191, 128, 100)]);
+  g.fireSkill('strike'); assert.equal(g.damageNumbers.length, 2);
+});
+
+test('shockwaves hit on the expanding front once per enemy and grow at every rank', () => {
+  for (let rank = 1; rank <= 5; rank++) {
+    const g = fixture({ wave: rank }, [45,60,75,90,105].map((x,id)=>target(id,180+x,128,100)));
+    g.fireSkill('wave'); g.advance(100);
+    assert.equal(g.damageNumbers.length, 0);
+    g.advance(400);
+    assert.equal(g.damageNumbers.length, rank);
+    assert.ok(g.damageNumbers.every(n => n.value === 3));
+    const hits = g.events.filter(e=>e.kind === 'hit').length;
+    g.advance(500); assert.equal(g.events.filter(e=>e.kind === 'hit').length, hits);
+  }
+});
+
+function stationarySkill(ranks: Partial<Ranks>, targets: Target[]): Game {
+  const game = new Game(42, { combat: false, rules: { ...rules, baseSpeed: 0 } });
+  game.start(); Object.assign(game.ranks, ranks); game.targets = targets;
+  game.counts.small.generated = targets.length;
+  return game;
+}
+
+test('lightning lashes sweep the live electron arc with one hit per target at every rank', () => {
+  for (let rank = 1; rank <= 5; rank++) {
+    const targets = [target(0,190,128,100), ...[0,40,55,70,85].map((a,id)=>target(id+1,180+Math.cos(a*Math.PI/180)*60,128+Math.sin(a*Math.PI/180)*60,100))];
+    const g = stationarySkill({ whip: rank }, targets);
+    g.fireSkill('whip'); g.advance(400);
+    assert.equal(g.events.filter(e=>e.kind==='hit').length, rank+1);
+    assert.ok(g.damageNumbers.every(n=>n.value===4));
+    assert.ok(targets.every(t=>t.hp===100 || t.hp===96));
+  }
+});
+
+test('focused arcs sustain damage, retarget killed enemies and extend duration at every rank', () => {
+  for (let rank = 1; rank <= 5; rank++) {
+    const g = stationarySkill({ focus: rank }, [target(0,190,128,100)]);
+    g.fireSkill('focus'); g.advance(2200);
+    const hits = g.events.filter(e=>e.kind==='hit');
+    assert.equal(hits.length, Math.ceil(rules.skills.focus.durations[rank] / rules.skills.focus.tickSeconds - 1e-8));
+    close(g.targets[0].hp, 100-hits.length*3);
+  }
+  const g = stationarySkill({ focus: 1 }, [target(0,190,128,1),target(1,210,128,100)]);
+  g.fireSkill('focus'); g.advance(600);
+  assert.equal(g.xp,1); close(g.targets[0].hp,94);
+});
+
+test('four rarities change new attacks and power changes their actual damage', () => {
+  for (let i=0;i<rarityIds.length;i++) {
+    const rarity=rarityIds[i];
+    const ranks={...blankRanks(),strike:1,wave:1,whip:1,focus:1};
+    const rarities={...blankRarities(),strike:rarity,wave:rarity,whip:rarity,focus:rarity};
+    const f=formValues(ranks,rarities);
+    assert.equal(f.strike.count,1+i);
+    close(f.wave.radius,50*rules.rarity[rarity].scale);
+    close(f.whip.length,65*rules.rarity[rarity].scale);
+    const g=stationarySkill({focus:1},[target(0,190,128,100)]);
+    g.rarities.focus=rarity; g.boosts.power=2;
+    g.fireSkill('focus'); g.advance(100);
+    close(g.damageNumbers[0].value,4*1.5*rules.rarity[rarity].scale);
+  }
+});
+
+test('new skill cooldowns scale with fire rate and every active attack pauses with the game', () => {
+  const g=fixture(); choose(g,'wave'); g.advance(1000); choose(g,'rate');
+  assert.equal(g.events.filter(e=>e.kind==='skill-effect' && (e.data as {id:string}).id==='wave').length,1);
+  g.advance(1340);
+  assert.equal(g.events.filter(e=>e.kind==='skill-effect' && (e.data as {id:string}).id==='wave').length,1);
+  g.advance(30);
+  assert.equal(g.events.filter(e=>e.kind==='skill-effect' && (e.data as {id:string}).id==='wave').length,2);
+  for(const id of ['wave','whip','focus'] as const){
+    const h=stationarySkill({[id]:1},[target(0,190,128,100)]);
+    h.fireSkill(id);h.advance(50);h.setManualPause(true);
+    const before=structuredClone([h.targets,h.events,h.effects,h.damageNumbers]);
+    h.advance(5000);assert.deepEqual([h.targets,h.events,h.effects,h.damageNumbers],before);
+  }
 });

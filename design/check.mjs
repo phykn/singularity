@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const r = JSON.parse(readFileSync(new URL('./rules.json', import.meta.url), 'utf8'));
-assert.equal(r.designVersion, 7);
 assert.equal(r.growthSeconds + r.collisionSeconds + r.successEndingSeconds, 600);
 assert.equal(r.growthSeconds + r.collisionSeconds + r.failureEndingSeconds, 591);
 assert.equal(r.levelXp.length, 25);
 assert.equal(r.choiceCount, 3);
 assert.equal(r.skillSlots, 4);
-assert.equal(Object.keys(r.skills).length, 8);
+assert.equal(Object.keys(r.skills).length, 10);
+assert.equal('trail' in r.skills || 'satellite' in r.skills, false);
 assert.ok(r.levelXp.every((n, i, a) => n > 0 && (!i || a[i - 1] < n)));
 assert.ok(r.levelXp.at(-1) < r.energyGoal);
 assert.equal('firstChoiceGap' in r || 'choiceGap' in r, false);
@@ -38,5 +38,5 @@ assert.ok(r.levelXp.length <= (r.skillSlots + 1) * r.maxRank);
 for (const data of Object.values(r.skills)) for (const array of Object.values(data)) {
   if (Array.isArray(array)) { assert.equal(array.length, r.maxRank + 1); assert.ok(array.every(Number.isFinite)); }
 }
-console.log(JSON.stringify({ status: 'passed', version: r.designVersion, totalSeconds: 600, levelXp: r.levelXp, batches, baseOfferedEnergy: offered, requiredEnergy: r.energyGoal, examples: { mass100: [radius(100,0),radius(100,1)], mass170: [radius(170,0),radius(170,1)] }, scope: 'Rule arithmetic; game and browser behavior are checked separately.' }, null, 2));
+console.log(JSON.stringify({ status: 'passed', totalSeconds: 600, levelXp: r.levelXp, batches, baseOfferedEnergy: offered, requiredEnergy: r.energyGoal, examples: { mass100: [radius(100,0),radius(100,1)], mass170: [radius(170,0),radius(170,1)] }, scope: 'Rule arithmetic; game and browser behavior are checked separately.' }, null, 2));
 

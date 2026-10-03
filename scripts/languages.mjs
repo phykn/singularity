@@ -8,7 +8,7 @@ const base = process.env.GAME_URL ?? 'http://localhost:8081';
 const executablePath = process.env.BROWSER_PATH ?? ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(existsSync);
 const browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
 const checks = [], errors = [];
-mkdirSync('artifacts/v7', { recursive: true });
+mkdirSync('artifacts/screens', { recursive: true });
 const inspect = async (page) => {
   const issues = await page.evaluate(() => {
     const issues = [];
@@ -44,9 +44,9 @@ try {
       await page.waitForFunction((html) => document.documentElement.lang === html, language.html);
       assert.equal(await page.locator('.policy-picker, .planned, .arena-caption p').count(), 0);
       await inspect(page);
-      if (width === 375) await screenshot(page, `artifacts/v7/ready-${language.id}.png`);
+      if (width === 375) await screenshot(page, `artifacts/screens/ready-${language.id}.png`);
       await page.getByRole('button', { name: c.guide, exact: true }).click();
-      assert.equal(await page.locator('.skill-guide > div').count(), 11);
+      assert.equal(await page.locator('.skill-guide > div').count(), skillIds.length + statIds.length);
       await localized(page, language.id, '.guide');
       await page.getByRole('button', { name: c.close, exact: true }).click();
       await page.getByRole('button', { name: 'START', exact: true }).click();
@@ -57,7 +57,7 @@ try {
       assert.equal(await page.locator('.card').count(), 3);
       await localized(page, language.id, '.choices');
       await inspect(page);
-      if (width === 375) await screenshot(page, `artifacts/v7/cards-${language.id}.png`);
+      if (width === 375) await screenshot(page, `artifacts/screens/cards-${language.id}.png`);
       await page.getByRole('button', { name: c.pause, exact: true }).click();
       await inspect(page);
       const before = await page.evaluate(() => JSON.stringify({time:window.__gameDebug.getModel().time, choice:window.__gameDebug.getModel().choice}));
@@ -79,7 +79,7 @@ try {
       await inspect(page);
       await page.locator('.result summary').click();
       assert.equal(await page.locator('.result .dialog-body').evaluate(n => n.scrollWidth > n.clientWidth + 1), false, 'Result details overflow');
-      if (width === 375) await screenshot(page, `artifacts/v7/result-${language.id}.png`);
+      if (width === 375) await screenshot(page, `artifacts/screens/result-${language.id}.png`);
       await page.getByRole('button', { name: c.retry, exact: true }).click();
       await page.evaluate((goal) => { window.__gameDebug.restart(1, false); window.__gameDebug.xp(goal - 1); const g = window.__gameDebug.getModel(); g.mass = 1000; g.radius = g.core + 4; window.__gameDebug.advance(16000); }, rules.energyGoal);
       await page.getByRole('heading', { name: c.failure, exact: true }).waitFor();
@@ -112,10 +112,10 @@ try {
         await inspect(page);
       }
       await page.close();
-      checks.push({language:language.id,viewport:[width,height],cardVariants:132});
+      checks.push({language:language.id,viewport:[width,height],cardVariants:ids.length * rules.maxRank * rarityIds.length});
       console.log('PASS card variants', language.id, width, height);
     }
   }
   assert.deepEqual(errors, []);
-  writeFileSync('artifacts/languages.json', JSON.stringify({version:rules.designVersion,checks,errors},null,2));
+  writeFileSync('artifacts/languages.json', JSON.stringify({checks,errors},null,2));
 } finally { await browser.close(); }

@@ -6,7 +6,7 @@ import { copy } from '../src/i18n.ts';
 
 const base = process.env.GAME_URL ?? 'http://localhost:8081';
 const executable = process.env.BROWSER_PATH ?? ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(existsSync);
-mkdirSync('artifacts/v7', { recursive: true });
+mkdirSync('artifacts/screens', { recursive: true });
 const browser = await chromium.launch({ headless: true, ...(executable ? { executablePath: executable } : {}) });
 const errors = [], checks = [];
 const report = (task, details) => { checks.push({ task, details }); console.log('PASS ' + task, JSON.stringify(details)); };
@@ -16,6 +16,7 @@ const pageFor = async (width, height, seed = 10004) => {
   if (base.includes('ngrok')) await page.setExtraHTTPHeaders({ 'ngrok-skip-browser-warning': 'true' });
   await page.goto(base + '/?seed=' + seed);
   await page.waitForSelector('canvas');
+  await page.evaluate(() => document.fonts.ready);
   if (!process.argv.includes('--production')) await page.waitForFunction(() => !!window.__gameDebug);
   return page;
 };
@@ -55,7 +56,7 @@ const firstChoice = async (page) => {
   });
   await page.locator('.card').first().waitFor();
 };
-const screenshot = async (page, name) => { await page.waitForTimeout(120); await page.screenshot({ path: 'artifacts/v7/' + name + '.png' }); };
+const screenshot = async (page, name) => { await page.waitForTimeout(120); await page.screenshot({ path: 'artifacts/screens/' + name + '.png' }); };
 
 const rarityFlow = async () => {
   const page = await pageFor(375, 812);
@@ -79,10 +80,38 @@ const rarityFlow = async () => {
   await page.close();
 };
 
+const skillFlow = async () => {
+    const skillsPage = await pageFor(375, 812);
+    for (const id of skillIds) {
+      const damage = await skillsPage.evaluate(id => {
+        window.__gameDebug.restart(1, false);
+        const g = window.__gameDebug.getModel();
+        g.ranks[id] = 5; g.rarities[id] = 'epic';
+        g.targets = Array.from({ length: 24 }, (_, i) => {
+          const x = 185 + i % 6 * 16, y = 108 + Math.floor(i / 6) * 16;
+          const hp = id === 'burst' && i === 6 ? 2 : 100;
+          return { id: i, x, y, hp, maxHp: hp, kind: 'small', xp: 1, mass: 1, size: 5, radius: Math.hypot(x - 180, y - 260), angle: Math.atan2(y - 260, x - 180), speed: 0, turn: 0 };
+        });
+        g.counts.small.generated = g.targets.length;
+        if (['strike', 'wave', 'whip', 'focus'].includes(id)) g.fireSkill(id); else g.fireBasic();
+        window.__gameDebug.advance(['wave', 'whip'].includes(id) ? 200 : 100);
+        g.setHidden(true);
+        return g.damageNumbers.map(n => n.value);
+      }, id);
+      assert.ok(damage.length > 0, 'No visible damage for ' + id);
+      await screenshot(skillsPage, 'skill-' + id);
+    }
+    report('all ten lightning skills render real impacts and damage', { skills: skillIds });
+    await skillsPage.close();
+};
+
 try {
-  if (process.argv.includes('--rarity')) {
+  if (process.argv.includes('--skills')) {
+    await skillFlow();
+  } else if (process.argv.includes('--rarity')) {
     await rarityFlow();
   } else if (process.argv.includes('--production')) {
+
     const page = await pageFor(375, 812);
     assert.equal(await page.evaluate(() => typeof window.__gameDebug), 'undefined');
     await page.getByRole('button', { name: 'START' }).click();
@@ -101,7 +130,7 @@ try {
     report('production reload restores the saved run and manual pause', { xp: pausedXp });
     await page.close();
   } else if (process.argv.includes('--realtime')) {
-    const page = await pageFor(375, 812, 10000);
+    const page = await pageFor(375, 812, 20000);
     await page.getByRole('button', { name: 'START' }).click();
     const started = Date.now(), samples = [];
     let previous = 0;
@@ -116,11 +145,11 @@ try {
     // Compare clocks inside Chrome: Node's trigonometric rounding can change a tied target choice.
     const expected = await page.evaluate(async () => {
       const { Game } = await import('/src/game.ts');
-      const game = new Game(10000); game.start(); game.advance(610000);
+      const game = new Game(20000); game.start(); game.advance(610000);
       return game.result;
     });
     await screenshot(page, 'realtime-result');
-    writeFileSync('artifacts/realtime.json', JSON.stringify({ version: rules.designVersion, viewport: [375, 812], seed: 10000, elapsedWallSeconds: (Date.now() - started) / 1000, samples, result: s.result, expected, errors }, null, 2));
+    writeFileSync('artifacts/realtime.json', JSON.stringify({ viewport: [375, 812], seed: 20000, elapsedWallSeconds: (Date.now() - started) / 1000, samples, result: s.result, expected, errors }, null, 2));
     assert.equal(s.result?.outcome, 'success'); assert.equal(s.result.seconds, 600);
     assert.deepEqual(s.result, expected); assert.deepEqual(errors, []);
     report('normal clock: full autonomous game', { wallSeconds: (Date.now() - started) / 1000, result: s.result.outcome, xp: s.xp });
@@ -131,7 +160,7 @@ try {
       await inspect(page); await screenshot(page, 'ready-' + name);
       assert.equal((await snapshot(page)).seed, 10004);
       await page.getByRole('button', { name: '도움말', exact: true }).click();
-      await inspect(page); assert.equal(await page.locator('.skill-guide > div').count(), 11);
+      await inspect(page); assert.equal(await page.locator('.skill-guide > div').count(), skillIds.length + statIds.length);
       await page.getByRole('button', { name: '닫기', exact: true }).click();
       await page.getByRole('button', { name: 'START' }).click();
       const playing = await inspect(page);
@@ -156,12 +185,12 @@ try {
       await page.getByRole('button', { name: '그만하기', exact: true }).click();
       const reset = await snapshot(page);
       assert.equal(reset.phase, 'ready'); assert.equal(reset.seed, 10004); assert.equal(reset.xp, 0); assert.equal(reset.mass, 0);
-      await page.evaluate(() => window.__gameDebug.restart(10000));
+      await page.evaluate(() => window.__gameDebug.restart(20000));
       await advance(page, 610000); await page.getByRole('heading', { name: '블랙홀 생성', exact: true }).waitFor();
       await inspect(page); await screenshot(page, 'result-' + name);
       assert.equal((await snapshot(page)).result.seconds, 600);
       await page.getByRole('button', { name: '다시하기' }).click();
-      assert.equal((await snapshot(page)).seed, 10000);
+      assert.equal((await snapshot(page)).seed, 20000);
       await page.evaluate(() => window.__gameDebug.restart(10004));
       await advance(page, 610000);
       await page.getByRole('button', { name: '새 게임' }).click();
@@ -169,7 +198,6 @@ try {
       report('mobile flow ' + name, { canvas: cards.canvas, firstSkill: chosen });
       await page.close();
     }
-
 
     for (const [width, height] of [[320, 568], [568, 320]]) {
       const page = await pageFor(width, height);
@@ -191,9 +219,11 @@ try {
         }
       }
       await screenshot(page, 'stat-cards-' + width + 'x' + height);
-      report('all eleven card types and five ranks fit ' + width + 'x' + height, { variants: 11 * rules.maxRank * 4 });
+      report('all thirteen card types and five ranks fit ' + width + 'x' + height, { variants: ids.length * rules.maxRank * rarityIds.length });
       await page.close();
     }
+
+    await skillFlow();
 
     const page = await pageFor(375, 812);
     await page.getByRole('button', { name: 'START' }).click();
@@ -226,7 +256,7 @@ try {
     await screenshot(page, 'collapse-failure');
     report('readiness and both endings', { energyBoundary: rules.energyGoal });
 
-    await page.evaluate(() => { window.__gameDebug.restart(10004); window.__gameDebug.advance(450000); });
+    await page.evaluate(() => { window.__gameDebug.restart(20000); window.__gameDebug.advance(450000); });
     const frames = await page.evaluate(() => new Promise((resolve) => {
       const values = []; let previous;
       const sample = (now) => { if (previous !== undefined) values.push(now - previous); previous = now; if (values.length < 180) requestAnimationFrame(sample); else { values.sort((a,b) => a-b); const g=window.__gameDebug.getModel(); resolve({ medianMs: values[90], p95Ms: values[171], targets: g.targets.length, effects: g.effects.length, radius: g.radius, phase: g.phase }); } };
@@ -266,6 +296,6 @@ try {
     await blocked.close();
   }
   assert.deepEqual(errors, []);
-  writeFileSync('artifacts/' + (process.argv.includes('--rarity') ? 'rarity-browser' : process.argv.includes('--production') ? 'production' : process.argv.includes('--realtime') ? 'realtime-checks' : 'browser') + '.json', JSON.stringify({ version: rules.designVersion, checks, errors }, null, 2));
+  writeFileSync('artifacts/' + (process.argv.includes('--skills') ? 'skills-browser' : process.argv.includes('--rarity') ? 'rarity-browser' : process.argv.includes('--production') ? 'production' : process.argv.includes('--realtime') ? 'realtime-checks' : 'browser') + '.json', JSON.stringify({ checks, errors }, null, 2));
 } finally { await browser.close(); }
 

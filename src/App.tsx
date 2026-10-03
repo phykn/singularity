@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Check, CircleHelp, Orbit, Pause, SlidersHorizontal, TriangleAlert } from 'lucide-react';
+import { ArrowRight, Check, CircleQuestion as CircleHelp, Circle as Orbit, Pause, SlidersHorizontal, WarningDiamond as TriangleAlert } from 'pixelarticons/react';
 import { GameCanvas } from './GameCanvas.tsx';
 import { SkillPreview } from './SkillPreview.tsx';
 import { LanguagePicker, Rank, SkillIcon } from './ui.tsx';
@@ -59,7 +59,7 @@ function App() {
   return <main className={`app ${game.charged ? 'is-charged' : ''} ${ready ? 'is-ready' : ''} ${settings.reduced ? 'is-reduced' : ''} ${choice ? 'has-choice' : ''}`}>
     <div className="play-layout" inert={modal}>
       {ready ? <header className="topbar">
-        <Orbit className="brand-mark" size={24} aria-hidden="true" />
+        <Orbit className="brand-mark" width={24} height={24} aria-hidden="true" />
         <div className="header-actions">
           <button className="icon-button" aria-label={c.guide} onClick={() => setGuide(true)}><CircleHelp aria-hidden="true" /></button>
           <button className="icon-button" aria-label={c.settings} onClick={() => setSettingsOpen(true)}><SlidersHorizontal aria-hidden="true" /></button>
@@ -72,7 +72,7 @@ function App() {
         </div>
         <div className="energy-status">
           <span className={game.charged ? 'charged-label' : game.margin < 24 ? 'danger-label' : ''} aria-label={game.charged ? c.ready : (game.margin < 24 ? c.danger + ', ' : '') + c.energy + ' ' + energyPercent + '%'}>
-            {game.charged ? <Check size={14} aria-hidden="true" /> : game.margin < 24 ? <TriangleAlert size={14} aria-hidden="true" /> : <Orbit size={14} aria-hidden="true" />}
+            {game.charged ? <Check width={12} height={12} aria-hidden="true" /> : game.margin < 24 ? <TriangleAlert width={12} height={12} aria-hidden="true" /> : <Orbit width={12} height={12} aria-hidden="true" />}
             {game.charged ? c.ready : c.charge + ' ' + energyPercent + '%'}
           </span>
           <time>{formatTime(remaining)}</time>
@@ -107,7 +107,7 @@ function App() {
       {!ready && choice && <section className="choices" aria-label={c.choices}>
         <div className="choice-header"><strong>{c.growth}</strong><span>{c.countdown(Math.ceil(secondsLeft))}</span></div>
         <div className="cards">{choice.cards.map(({ id, rarity }, i) => <button key={`${choice.number}-${id}`} className={`card ${i === 0 ? 'auto' : ''}`} data-rarity={rarity} aria-label={c.rarities[rarity] + ' ' + c.upgrades[id].name + ', ' + (game.rank(id) ? c.rankUp(game.rank(id), game.rank(id) + 1) : c.newSkill) + ', ' + change(id, rarity) + (i === 0 ? ', ' + c.auto : '')} onClick={() => { select(id, choice.number); }} disabled={game.paused || game.phase !== 'running'}>
-          <span className="card-label"><b>{c.rarities[rarity]}</b><span>{i === 0 ? c.auto : ''}</span></span>
+          <span className="card-label"><b>{c.rarities[rarity]}</b>{i === 0 && <ArrowRight width={12} height={12} aria-hidden="true" />}</span>
           <SkillPreview cfg={rules} id={id} rank={game.rank(id) + 1} rarity={rarity} />
           <strong>{c.upgrades[id].short}</strong><span className="card-value">{change(id, rarity)}</span>
         </button>)}</div>

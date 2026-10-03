@@ -1,6 +1,5 @@
 {
   "status": "free-build-playtest-values",
-  "designVersion": 7,
   "tickRate": 60,
   "growthSeconds": 585,
   "collisionSeconds": 3,
@@ -180,39 +179,6 @@
         28
       ]
     },
-    "satellite": {
-      "counts": [
-        0,
-        1,
-        2,
-        3,
-        4,
-        5
-      ],
-      "periodSeconds": 3.6,
-      "range": 76
-    },
-    "trail": {
-      "radii": [
-        0,
-        14,
-        18,
-        22,
-        26,
-        30
-      ],
-      "lifetimes": [
-        0,
-        0.75,
-        1,
-        1.25,
-        1.5,
-        1.75
-      ],
-      "markSeconds": 0.25,
-      "tickSeconds": 0.25,
-      "targetCooldownSeconds": 1
-    },
     "burst": {
       "radii": [
         0,
@@ -222,7 +188,91 @@
         60,
         72
       ],
-      "maxPerAttack": 1
+      "maxPerAttack": 1,
+      "targets": [
+        0,
+        2,
+        3,
+        4,
+        5,
+        6
+      ]
+    },
+    "strike": {
+      "counts": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "radii": [
+        0,
+        12,
+        15,
+        18,
+        21,
+        24
+      ],
+      "range": 155,
+      "damage": 3,
+      "periodSeconds": 3.6
+    },
+    "wave": {
+      "radii": [
+        0,
+        50,
+        65,
+        80,
+        95,
+        110
+      ],
+      "damage": 1.5,
+      "duration": 0.45,
+      "periodSeconds": 2.8
+    },
+    "whip": {
+      "lengths": [
+        0,
+        65,
+        80,
+        95,
+        110,
+        125
+      ],
+      "arcs": [
+        0,
+        60,
+        90,
+        120,
+        150,
+        180
+      ],
+      "damage": 2,
+      "duration": 0.3,
+      "periodSeconds": 1.8
+    },
+    "focus": {
+      "ranges": [
+        0,
+        90,
+        105,
+        120,
+        135,
+        150
+      ],
+      "durations": [
+        0,
+        0.6,
+        0.9,
+        1.2,
+        1.5,
+        1.8
+      ],
+      "damage": 1.5,
+      "tickSeconds": 0.2,
+      "periodSeconds": 3
     }
   },
   "rarity": {

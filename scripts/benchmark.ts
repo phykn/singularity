@@ -14,7 +14,7 @@ for (let seed = 1701; seed <= 1730; seed++) {
   const game = simulate(60), other = simulate(30);
   assert.deepEqual(game.result, other.result); assert.deepEqual(game.events, other.events);
   const first = game.selections[0], last = game.selections.at(-1);
-  const firstVisible = first && isSkill(first.id) ? ['satellite', 'trail'].includes(first.id) ? first.time : game.skillActivations[first.id] : undefined;
+  const firstVisible = first && isSkill(first.id) ? game.skillActivations[first.id] : undefined;
   const gaps = game.selections.slice(1).map((s, i) => s.time - game.selections[i].time);
   if (last && game.nextXp !== undefined) gaps.push(game.collisionTime - last.time);
   const row = {
@@ -48,6 +48,6 @@ for (let seed = 1701; seed <= 1730; seed++) {
 const summary = { runs: rows.length, successes: rows.filter(r => r.result === 'success').length };
 console.table(rows.map(({seed,result,xp,mass,choices,minRadius}) => ({seed,result,xp,mass,choices,minRadius:minRadius.toFixed(1)})));
 mkdirSync('artifacts', { recursive: true });
-writeFileSync('artifacts/benchmark.json', JSON.stringify({ designVersion: rules.designVersion, sourceHash: sourceHash(), rules, seeds: [1701, 1730], runs: rows.length, fpsCompared: [30, 60], summary, rows }, null, 2));
+writeFileSync('artifacts/benchmark.json', JSON.stringify({ sourceHash: sourceHash(), rules, seeds: [1701, 1730], runs: rows.length, fpsCompared: [30, 60], summary, rows }, null, 2));
 console.log('30/60fps: all 30 results and events match; timing and conservation checks passed.');
 

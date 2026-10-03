@@ -1,14 +1,15 @@
-import { CircleDot, FastForward, Gauge, GitFork, MoveUpRight, Orbit, Repeat2, Route, Sun, Waypoints, Zap } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { ArrowUp, Circle, Cloud, CornerUpRight, GitBranch, GitMerge, Link, Repeat, SpeedFast, Target, Waves, Zap } from 'pixelarticons/react';
+import type { ComponentType, SVGProps } from 'react';
 import { rules } from './rules.ts';
 import type { UpgradeId } from './rules.ts';
 import { copy, languages } from './i18n.ts';
 import type { Language } from './i18n.ts';
 
-const skillIcons: Record<UpgradeId, LucideIcon> = { power: Zap, rate: FastForward, accel: Gauge, area: CircleDot, repeat: Repeat2, multi: GitFork, chain: Waypoints, pierce: MoveUpRight, satellite: Orbit, trail: Route, burst: Sun };
+const skillIcons: Record<UpgradeId, ComponentType<SVGProps<SVGSVGElement>>> = { power: Zap, rate: Repeat, accel: SpeedFast, area: Circle, repeat: Repeat, multi: GitBranch, chain: Link, pierce: ArrowUp, burst: GitMerge, strike: Cloud, wave: Waves, whip: CornerUpRight, focus: Target };
 export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
   const Icon = skillIcons[id];
-  return <Icon className="skill-icon" size={size} strokeWidth={size <= 16 ? 1.4 : 1.7} absoluteStrokeWidth aria-hidden="true" />;
+  const pixels = size <= 16 ? 12 : 24;
+  return <Icon className="skill-icon" width={pixels} height={pixels} aria-hidden="true" />;
 }
 
 export function Rank({ value, max = rules.maxRank }: { value: number; max?: number }) {
