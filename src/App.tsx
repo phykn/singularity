@@ -1,207 +1,24 @@
-import { useEffect, useRef, useState } from 'react';
-import Phaser from 'phaser';
-import { ArrowRight, Check, CircleDot, CircleHelp, FastForward, Gauge, GitFork, MoveUpRight, Orbit, Pause, Repeat2, Route, SlidersHorizontal, Sun, TriangleAlert, Waypoints, Zap } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-import { Game } from './game.ts';
-import { ElectronScene } from './scene.ts';
-import { GameAudio } from './audio.ts';
+import { useEffect, useState } from 'react';
+import { ArrowRight, Check, CircleHelp, Orbit, Pause, SlidersHorizontal, TriangleAlert } from 'lucide-react';
+import { GameCanvas } from './GameCanvas.tsx';
 import { SkillPreview } from './SkillPreview.tsx';
-import { bestRecord, readLanguage, readRecord, readRun, readSettings, languageKey, recordKey, save, saveRun, settingsKey } from './storage.ts';
-import type { Record as Best, Settings } from './storage.ts';
+import { LanguagePicker, Rank, SkillIcon } from './ui.tsx';
+import { useGame } from './useGame.ts';
 import { rules, skillIds, statIds, rarityIds, numberText } from './rules.ts';
 import type { UpgradeId } from './rules.ts';
 import { copy, languages, skillChange, skillValue } from './i18n.ts';
-import type { Language } from './i18n.ts';
 
 const formatTime = (seconds: number) => `${Math.floor(Math.max(0, seconds) / 60).toString().padStart(2, '0')}:${Math.floor(Math.max(0, seconds) % 60).toString().padStart(2, '0')}`;
-const newSeed = () => crypto.getRandomValues(new Uint32Array(1))[0];
-const firstSeed = () => {
-  const seed = new URLSearchParams(location.search).get('seed');
-  return import.meta.env.DEV && seed !== null && /^\d+$/.test(seed) ? Number(seed) >>> 0 : newSeed();
-};
-
-const skillIcons: Record<UpgradeId, LucideIcon> = { power: Zap, rate: FastForward, accel: Gauge, area: CircleDot, repeat: Repeat2, multi: GitFork, chain: Waypoints, pierce: MoveUpRight, satellite: Orbit, trail: Route, burst: Sun };
-export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
-  const Icon = skillIcons[id];
-  return <Icon className="skill-icon" size={size} strokeWidth={size <= 16 ? 1.4 : 1.7} absoluteStrokeWidth aria-hidden="true" />;
-}
-
-function Rank({ value }: { value: number }) {
-  return <span className="rank" aria-hidden="true">{[1, 2, 3].map((n) => <i key={n} className={n <= value ? 'on' : ''} />)}</span>;
-}
-
-function LanguagePicker({ value, onChange }: { value: Language; onChange: (language: Language) => void }) {
-  return <div className="language-picker" role="group" aria-label={copy[value].language}>
-    {languages.map(({ id, label, html }) => <button key={id} lang={html} aria-pressed={value === id} onClick={() => onChange(id)}>{label}</button>)}
-  </div>;
-}
-
 function App() {
-  const [language, setLanguage] = useState<Language>(() => { try { return readLanguage(localStorage); } catch { return 'ko'; } });
+  const { game, model, settingsRef, language, settings, best, storageOk, audioUnavailable, begin, select, changeLanguage, changeSettings, toggleSound, ...actions } = useGame();
   const c = copy[language];
-  const [settings, setSettings] = useState<Settings>(() => {
-    try { return readSettings(localStorage, matchMedia('(prefers-reduced-motion: reduce)').matches); }
-    catch { return { sound: false, reduced: false }; }
-  });
-  const [best, setBest] = useState<Best | null>(() => { try { return readRecord(localStorage); } catch { return null; } });
-  const [storageOk, setStorageOk] = useState(true);
   const [guide, setGuide] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exitConfirm, setExitConfirm] = useState(false);
-  const [audioUnavailable, setAudioUnavailable] = useState(false);
-  const [, redraw] = useState(0);
-  const model = useRef<Game | null>(null);
-  model.current ??= (() => { try { return readRun(localStorage) ?? new Game(firstSeed()); } catch { return new Game(firstSeed()); } })();
-  const settingsRef = useRef(settings);
-  settingsRef.current = settings;
-  const bestRef = useRef(best);
-  bestRef.current = best;
-  const audio = useRef(new GameAudio());
-  const canvas = useRef<HTMLDivElement>(null);
-  const lastWall = useRef(performance.now());
-  const processed = useRef<Game | null>(null);
-  const heard = useRef(model.current.events.length);
-  const force = () => redraw((n) => n + 1);
-  const game = model.current;
   const modal = guide || settingsOpen || game.manualPaused || game.phase === 'result';
 
-  function persist(current = model.current!) {
-    try { setStorageOk(saveRun(localStorage, current)); } catch { setStorageOk(false); }
-  }
-
-  function changeSettings(next: Settings) {
-    settingsRef.current = next;
-    setSettings(next);
-    try { setStorageOk(save(localStorage, settingsKey, next)); } catch { setStorageOk(false); }
-  }
-
-  function changeLanguage(next: Language) {
-    setLanguage(next);
-    try { setStorageOk(save(localStorage, languageKey, next)); } catch { setStorageOk(false); }
-  }
-
-  useEffect(() => { document.documentElement.lang = languages.find((entry) => entry.id === language)!.html; }, [language]);
-
-  async function enableAudio() {
-    const enabled = await audio.current.unlock();
-    setAudioUnavailable(!enabled);
-    return enabled;
-  }
-
-  async function toggleSound() {
-    const sound = !settingsRef.current.sound;
-    if (sound && !(await enableAudio())) return;
-    audio.current.enabled = sound;
-    if (!sound) audio.current.suspend();
-    changeSettings({ ...settingsRef.current, sound });
-  }
-
-  function replace(seed: number, start = false) {
-    const next = new Game(seed);
-    next.setHidden(document.hidden);
-    if (start) next.start();
-    model.current = next;
-    persist(next);
-    heard.current = 0;
-    processed.current = null;
-    setExitConfirm(false);
-    setSettingsOpen(false);
-    lastWall.current = performance.now();
-    force();
-  }
-
-  function begin() {
-    if (settingsRef.current.sound) void enableAudio();
-    lastWall.current = performance.now();
-    model.current!.start();
-    persist();
-    force();
-  }
-
-  function pause(paused: boolean) {
-    model.current!.setManualPause(paused);
-    persist();
-    lastWall.current = performance.now();
-    if (paused) audio.current.suspend();
-    else if (settingsRef.current.sound) void enableAudio();
-    setExitConfirm(false);
-    force();
-  }
-
-  useEffect(() => {
-    const node = canvas.current!;
-    const scene = new ElectronScene(() => model.current!, () => settingsRef.current.reduced);
-    const engine = new Phaser.Game({
-      type: Phaser.AUTO, parent: node, width: node.clientWidth || 360, height: node.clientHeight || 320,
-      backgroundColor: '#080a0e', scene: [scene], banner: false, audio: { noAudio: true },
-      render: { antialias: true, pixelArt: false, roundPixels: false },
-      scale: { mode: Phaser.Scale.NONE }, fps: { target: 60 },
-    });
-    const observer = new ResizeObserver(() => { if (node.clientWidth && node.clientHeight) engine.scale.resize(node.clientWidth, node.clientHeight); });
-    observer.observe(node);
-    return () => { observer.disconnect(); engine.destroy(true); };
-  }, []);
-
-  useEffect(() => {
-    let frame = 0, lastDraw = 0, lastSave = 0;
-    const visibility = () => {
-      if (document.hidden && !model.current!.hiddenPaused) model.current!.advance(Math.max(0, performance.now() - lastWall.current));
-      model.current!.setHidden(document.hidden);
-      lastWall.current = performance.now();
-      if (document.hidden) { audio.current.suspend(); persist(); }
-      else if (settingsRef.current.sound && !model.current!.manualPaused) void audio.current.unlock();
-      force();
-    };
-    const suspend = () => { model.current!.setHidden(true); persist(); audio.current.suspend(); lastWall.current = performance.now(); };
-    document.addEventListener('visibilitychange', visibility);
-    document.addEventListener('freeze', suspend);
-    document.addEventListener('resume', visibility);
-    window.addEventListener('pagehide', suspend);
-    window.addEventListener('pageshow', visibility);
-    model.current!.setHidden(document.hidden);
-    const step = (wall: number) => {
-      const current = model.current!;
-      current.advance(Math.max(0, wall - lastWall.current));
-      lastWall.current = wall;
-      for (const event of current.events.slice(heard.current)) {
-        if (event.kind === 'hit') audio.current.play((event.data as { kind: string }).kind === 'dense' ? 'dense' : 'hit');
-        else if (['level', 'wave', 'charged', 'collision', 'ending'].includes(event.kind)) audio.current.play(event.kind);
-      }
-      heard.current = current.events.length;
-      if (current.result && processed.current !== current) {
-        processed.current = current;
-        const record = bestRecord(bestRef.current, current.result);
-        bestRef.current = record;
-        setBest(record);
-        try { setStorageOk(save(localStorage, recordKey, record)); } catch { setStorageOk(false); }
-        persist(current);
-      }
-      if (!current.hiddenPaused && current.phase !== 'ready' && current.phase !== 'result' && wall - lastSave >= 1000) { persist(current); lastSave = wall; }
-      if (wall - lastDraw > 80) { force(); lastDraw = wall; }
-      frame = requestAnimationFrame(step);
-    };
-    frame = requestAnimationFrame(step);
-    return () => {
-      persist(); cancelAnimationFrame(frame);
-      document.removeEventListener('visibilitychange', visibility); document.removeEventListener('freeze', suspend); document.removeEventListener('resume', visibility);
-      window.removeEventListener('pagehide', suspend); window.removeEventListener('pageshow', visibility); audio.current.destroy();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    window.__gameDebug = {
-      getModel: () => model.current!,
-      advance: (ms: number) => { model.current!.advance(ms); lastWall.current = performance.now(); force(); },
-      xp: (xp: number) => { model.current!.debugSetXp(xp); force(); },
-      restart: (seed: number, combat = true) => {
-        const next = new Game(seed, { combat });
-        model.current = next; heard.current = 0; processed.current = null;
-        next.start(); persist(next); lastWall.current = performance.now(); force();
-      },
-    };
-    return () => { delete window.__gameDebug; };
-  }, []);
+  function replace(seed?: number) { actions.replace(seed); setExitConfirm(false); setSettingsOpen(false); }
+  function pause(paused: boolean) { actions.pause(paused); setExitConfirm(false); }
 
   useEffect(() => {
     if (!modal) return;
@@ -259,7 +76,7 @@ function App() {
         <div className="track" role="progressbar" aria-label={c.energy} aria-valuenow={Math.min(game.xp, rules.energyGoal)} aria-valuemin={0} aria-valuemax={rules.energyGoal}><i style={{ width: energyPercent + '%' }} /></div>
       </section>}
       <section className="arena" aria-label={c.arena}>
-        <div className="canvas" ref={canvas} />
+        <GameCanvas model={model} settings={settingsRef} />
         {!ready && !storageOk && <p className="save-notice" role="status">{c.storageFailed}</p>}
         {ready ? <div className="arena-caption"><h1 lang="en">SINGULARITY</h1></div> : <>
           {game.phase === 'collapse' && <div className="phase-message ending-message"><strong>{c.collapse}</strong></div>}
@@ -285,7 +102,7 @@ function App() {
       </section>
       {!ready && choice && <section className="choices" aria-label={c.choices}>
         <div className="choice-header"><strong>{c.growth}</strong><span>{c.countdown(Math.ceil(secondsLeft))}</span></div>
-        <div className="cards">{choice.cards.map(({ id, rarity }, i) => <button key={`${choice.number}-${id}`} className={`card ${i === 0 ? 'auto' : ''}`} data-rarity={rarity} aria-label={c.rarities[rarity] + ' ' + c.upgrades[id].name + ', ' + (game.rank(id) ? c.rankUp(game.rank(id), game.rank(id) + 1) : c.newSkill) + ', ' + change(id, rarity) + (i === 0 ? ', ' + c.auto : '')} onClick={() => { game.select(id, false, choice.number); persist(); force(); }} disabled={game.paused || game.phase !== 'running'}>
+        <div className="cards">{choice.cards.map(({ id, rarity }, i) => <button key={`${choice.number}-${id}`} className={`card ${i === 0 ? 'auto' : ''}`} data-rarity={rarity} aria-label={c.rarities[rarity] + ' ' + c.upgrades[id].name + ', ' + (game.rank(id) ? c.rankUp(game.rank(id), game.rank(id) + 1) : c.newSkill) + ', ' + change(id, rarity) + (i === 0 ? ', ' + c.auto : '')} onClick={() => { select(id, choice.number); }} disabled={game.paused || game.phase !== 'running'}>
           <span className="card-label"><b>{c.rarities[rarity]}</b><span>{i === 0 ? c.auto : ''}</span></span>
           <SkillPreview id={id} rank={game.rank(id) + 1} rarity={rarity} />
           <strong>{c.upgrades[id].short}</strong><span className="card-value">{change(id, rarity)}</span>
@@ -332,15 +149,9 @@ function App() {
           {best && <p>{c.best} · {best.outcome === 'success' ? c.success : c.failure} · {c.energy} {best.xp}</p>}
         </details>{notice}
       </div>
-      <div className="dialog-actions result-actions"><button className="primary" onClick={() => replace(game.seed)}>{c.retry}</button><button className="text-button" onClick={() => replace(newSeed())}>{c.newRun}</button></div>
+      <div className="dialog-actions result-actions"><button className="primary" onClick={() => replace(game.seed)}>{c.retry}</button><button className="text-button" onClick={() => replace()}>{c.newRun}</button></div>
     </section></div>}
   </main>;
-}
-
-declare global {
-  interface Window {
-    __gameDebug?: { getModel: () => Game; advance: (ms: number) => void; xp: (xp: number) => void; restart: (seed: number, combat?: boolean) => void };
-  }
 }
 
 export default App;

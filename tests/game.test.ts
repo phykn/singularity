@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Game, Random, eligibleUpgrades, makeCards, maxDamageNumbers, orbit } from '../src/game.ts';
+import { Game, maxDamageNumbers } from '../src/game.ts';
+import { Random } from '../src/random.ts';
+import { eligibleUpgrades, makeCards } from '../src/growth.ts';
+import { orbit } from '../src/geometry.ts';
 import type { Target, TargetKind } from '../src/game.ts';
 import { blankBoosts, blankRanks, blankRarities, formValues, isSkill, rarityIds, rollRarity, rules, skillIds, statIds } from '../src/rules.ts';
 import type { Boosts, Ranks, Rarity, UpgradeId } from '../src/rules.ts';

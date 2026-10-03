@@ -1,0 +1,279 @@
+{
+  "checkpoint": {
+    "version": 6,
+    "seed": 10004,
+    "ticks": 14400,
+    "phase": "running",
+    "manualPaused": false,
+    "inputs": [
+      {
+        "tick": 645,
+        "id": "repeat",
+        "number": 1
+      },
+      {
+        "tick": 3030,
+        "id": "area",
+        "number": 2
+      }
+    ]
+  },
+  "current": {
+    "xp": 1366,
+    "mass": 94,
+    "radius": 70.9,
+    "ranks": {
+      "area": 2,
+      "repeat": 1,
+      "multi": 0,
+      "chain": 0,
+      "pierce": 0,
+      "satellite": 2,
+      "trail": 0,
+      "burst": 0
+    },
+    "boosts": {
+      "power": 3,
+      "rate": 3,
+      "accel": 1
+    },
+    "selections": [
+      {
+        "time": 10.75,
+        "id": "repeat",
+        "rank": 1,
+        "rarity": "common",
+        "automatic": false
+      },
+      {
+        "time": 50.5,
+        "id": "area",
+        "rank": 1,
+        "rarity": "rare",
+        "automatic": false
+      },
+      {
+        "time": 90.66666666666667,
+        "id": "area",
+        "rank": 2,
+        "rarity": "rare",
+        "automatic": true
+      },
+      {
+        "time": 136.26666666666668,
+        "id": "power",
+        "rank": 1,
+        "rarity": "common",
+        "automatic": true
+      },
+      {
+        "time": 171.68333333333334,
+        "id": "power",
+        "rank": 2,
+        "rarity": "epic",
+        "automatic": true
+      },
+      {
+        "time": 214.88333333333333,
+        "id": "rate",
+        "rank": 1,
+        "rarity": "rare",
+        "automatic": true
+      },
+      {
+        "time": 258.15,
+        "id": "power",
+        "rank": 3,
+        "rarity": "epic",
+        "automatic": true
+      },
+      {
+        "time": 302.1,
+        "id": "accel",
+        "rank": 1,
+        "rarity": "common",
+        "automatic": true
+      },
+      {
+        "time": 352.46666666666664,
+        "id": "satellite",
+        "rank": 1,
+        "rarity": "legendary",
+        "automatic": true
+      },
+      {
+        "time": 400.46666666666664,
+        "id": "rate",
+        "rank": 2,
+        "rarity": "rare",
+        "automatic": true
+      },
+      {
+        "time": 450.03333333333336,
+        "id": "satellite",
+        "rank": 2,
+        "rarity": "legendary",
+        "automatic": true
+      },
+      {
+        "time": 500.56666666666666,
+        "id": "rate",
+        "rank": 3,
+        "rarity": "legendary",
+        "automatic": true
+      }
+    ]
+  },
+  "result": {
+    "version": 6,
+    "outcome": "collapse-failure",
+    "trigger": "final",
+    "xp": 4366,
+    "mass": 94,
+    "radius": 82.9,
+    "level": 13,
+    "speed": 195,
+    "missingXp": 334,
+    "seed": 10004,
+    "ranks": {
+      "area": 2,
+      "repeat": 1,
+      "multi": 0,
+      "chain": 0,
+      "pierce": 0,
+      "satellite": 2,
+      "trail": 0,
+      "burst": 0
+    },
+    "boosts": {
+      "power": 3,
+      "rate": 3,
+      "accel": 1
+    },
+    "seconds": 591,
+    "rarities": {
+      "area": "rare",
+      "repeat": "common",
+      "multi": "common",
+      "chain": "common",
+      "pierce": "common",
+      "satellite": "legendary",
+      "trail": "common",
+      "burst": "common",
+      "power": "epic",
+      "rate": "legendary",
+      "accel": "common"
+    },
+    "score": 74902,
+    "rushSpawns": 263,
+    "collisionTime": 585,
+    "waves": 5,
+    "counts": {
+      "small": {
+        "generated": 3140,
+        "killed": 3056,
+        "absorbed": 84,
+        "remaining": 0
+      },
+      "dense": {
+        "generated": 268,
+        "killed": 262,
+        "absorbed": 2,
+        "remaining": 4
+      }
+    },
+    "selections": [
+      {
+        "time": 10.75,
+        "id": "repeat",
+        "rank": 1,
+        "rarity": "common",
+        "automatic": false
+      },
+      {
+        "time": 50.5,
+        "id": "area",
+        "rank": 1,
+        "rarity": "rare",
+        "automatic": false
+      },
+      {
+        "time": 90.66666666666667,
+        "id": "area",
+        "rank": 2,
+        "rarity": "rare",
+        "automatic": true
+      },
+      {
+        "time": 136.26666666666668,
+        "id": "power",
+        "rank": 1,
+        "rarity": "common",
+        "automatic": true
+      },
+      {
+        "time": 171.68333333333334,
+        "id": "power",
+        "rank": 2,
+        "rarity": "epic",
+        "automatic": true
+      },
+      {
+        "time": 214.88333333333333,
+        "id": "rate",
+        "rank": 1,
+        "rarity": "rare",
+        "automatic": true
+      },
+      {
+        "time": 258.15,
+        "id": "power",
+        "rank": 3,
+        "rarity": "epic",
+        "automatic": true
+      },
+      {
+        "time": 302.1,
+        "id": "accel",
+        "rank": 1,
+        "rarity": "common",
+        "automatic": true
+      },
+      {
+        "time": 352.46666666666664,
+        "id": "satellite",
+        "rank": 1,
+        "rarity": "legendary",
+        "automatic": true
+      },
+      {
+        "time": 400.46666666666664,
+        "id": "rate",
+        "rank": 2,
+        "rarity": "rare",
+        "automatic": true
+      },
+      {
+        "time": 450.03333333333336,
+        "id": "satellite",
+        "rank": 2,
+        "rarity": "legendary",
+        "automatic": true
+      },
+      {
+        "time": 500.56666666666666,
+        "id": "rate",
+        "rank": 3,
+        "rarity": "legendary",
+        "automatic": true
+      }
+    ],
+    "metrics": {
+      "minRadius": 70.9,
+      "minMargin": 49.38000000000001,
+      "dangerSeconds": 0,
+      "maxTargets": 33,
+      "maxEffects": 31
+    }
+  }
+}

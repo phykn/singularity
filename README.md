@@ -41,6 +41,8 @@ ngrok http 8081 --url https://flyer-affirm-observer.ngrok-free.dev
 
 범용 기능은 기존 라이브러리로 해결합니다. Phaser가 전장과 Text 그룹을 렌더하고, React가 UI를 구성하며, Lucide가 아이콘을 제공하고, Zod가 저장 데이터 형식과 범위를 검사합니다. 스킬 미리보기와 게임 규칙은 이 프로젝트가 소유합니다.
 
+코드의 시작점은 src/main.tsx → App.tsx입니다. App은 화면을 구성하고, useGame.ts가 게임 시계·음향·저장·화면 이탈을 관리합니다. GameCanvas.tsx는 Phaser 생성·크기 변경·정리를 소유하고 scene.ts가 전장을 그립니다. game.ts는 전투·중력·종료를, growth.ts는 유효한 스킬 후보를, rules.ts와 design/rules.json은 실행 수치를 소유합니다. random.ts의 시드 난수는 생성·카드·희귀도마다 분리하고, geometry.ts의 좌표를 전투와 렌더가 함께 사용합니다.
+
 ## 검증
 
 ```powershell

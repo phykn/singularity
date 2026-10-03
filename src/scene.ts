@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { numberText, rarityColors } from './rules.ts';
-import { maxDamageNumbers, orbit, orbitRadius } from './game.ts';
-import type { Effect, Game, Point } from './game.ts';
+import { maxDamageNumbers } from './game.ts';
+import { orbit, orbitRadius } from './geometry.ts';
+import type { Point } from './geometry.ts';
+import type { Effect, Game } from './game.ts';
 
 const BLUE = 0x8CE8FB, WHITE = 0xF1FCFF, AMBER = 0xFFD08A, GOLD = 0xF9D894;
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;

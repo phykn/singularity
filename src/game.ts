@@ -1,9 +1,11 @@
-import { blankBoosts, blankRanks, blankRarities, coreRadius, formValues, higherRarity, isSkill, orbitTarget, rarityIds, rarityScale, rollRarity, rules, skillIds, statIds } from './rules.ts';
+import { Random } from './random.ts';
+import { eligibleUpgrades, makeCards } from './growth.ts';
+import { CENTER, distance, norm, orbit, orbitRadius } from './geometry.ts';
+import type { Point } from './geometry.ts';
+import { blankBoosts, blankRanks, blankRarities, coreRadius, formValues, higherRarity, isSkill, orbitTarget, rarityIds, rarityScale, rollRarity, rules } from './rules.ts';
 import type { Boosts, Card, FormValues, Ranks, Rarities, Rarity, SkillId, UpgradeId } from './rules.ts';
 
 const HZ = rules.tickRate;
-const CENTER = { x: 180, y: 260 };
-export type Point = { x: number; y: number };
 export type TargetKind = 'small' | 'dense';
 export type Phase = 'ready' | 'running' | 'collapse' | 'ending' | 'result';
 export type Target = Point & { id: number; kind: TargetKind; hp: number; maxHp: number; xp: number; mass: number; size: number; radius: number; angle: number; speed: number; turn: number; hitAt?: number; trailHit?: number };
@@ -22,64 +24,7 @@ type Pulse = { at: number; order: number; attack: Attack; target: Target };
 export type Event = { time: number; kind: string; data: unknown };
 export type Checkpoint = { version: number; seed: number; ticks: number; phase: Exclude<Phase, 'ready'>; manualPaused: boolean; inputs: { tick: number; id: UpgradeId; number: number }[] };
 
-export class Random {
-  state: number;
-  constructor(seed: number) { this.state = seed >>> 0; }
-  next(): number {
-    this.state = (this.state + 0x6D2B79F5) >>> 0;
-    let n = Math.imul(this.state ^ this.state >>> 15, this.state | 1);
-    n ^= n + Math.imul(n ^ n >>> 7, n | 61);
-    return ((n ^ n >>> 14) >>> 0) / 4294967296;
-  }
-  shuffle<T>(input: T[]): T[] {
-    const items = [...input];
-    for (let i = items.length - 1; i > 0; i--) {
-      const j = Math.floor(this.next() * (i + 1));
-      [items[i], items[j]] = [items[j], items[i]];
-    }
-    return items;
-  }
-}
-
-export function eligibleSkills(ranks: Ranks): SkillId[] {
-  const owned = skillIds.filter((id) => ranks[id] > 0).length;
-  return skillIds.filter((id) => ranks[id] < rules.maxSkillRank && (ranks[id] > 0 || owned < rules.skillSlots));
-}
-
-export function eligibleUpgrades(ranks: Ranks, boosts: Boosts): UpgradeId[] {
-  return [...eligibleSkills(ranks), ...statIds.filter((id) => boosts[id] < rules.maxSkillRank)];
-}
-
-type CardState = { ranks: Ranks; boosts: Boosts; number: number; danger: boolean };
-export function makeCards(state: CardState, random: Random): UpgradeId[] {
-  const { ranks, boosts, number, danger } = state;
-  const pool = random.shuffle(eligibleUpgrades(ranks, boosts));
-  if (pool.length < rules.choiceCount) throw new Error('Not enough valid growth cards');
-  if (number === 1) {
-    const forms = pool.filter(isSkill), cards = forms.slice(0, rules.choiceCount);
-    const broad = (id: SkillId) => ['area', 'chain', 'multi'].includes(id);
-    const auto = cards.find(broad) ?? forms.find(broad)!;
-    if (!cards.includes(auto)) cards[2] = auto;
-    return [auto, ...cards.filter((id) => id !== auto)];
-  }
-  const forms = pool.filter(isSkill), owned = skillIds.filter((id) => ranks[id] > 0);
-  const existing = forms.filter((id) => ranks[id] > 0).sort((a, b) => ranks[a] - ranks[b]);
-  const fresh = forms.find((id) => ranks[id] === 0);
-  const form = owned.length < 2 ? fresh ?? existing[0] : existing[0] ?? fresh;
-  const stat = statIds.filter((id) => pool.includes(id)).sort((a, b) => boosts[a] - boosts[b])[0];
-  const auto = danger && boosts.accel < rules.maxSkillRank ? 'accel' : number % 2 ? form ?? stat : stat ?? form;
-  const cards: UpgradeId[] = [auto];
-  const add = (id: UpgradeId | undefined) => { if (id && !cards.includes(id) && cards.length < rules.choiceCount) cards.push(id); };
-  add(isSkill(auto) ? pool.find((id) => !isSkill(id)) : pool.find(isSkill));
-  pool.forEach(add);
-  return cards;
-}
-
-const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
-const norm = (p: Point): Point => { const d = Math.hypot(p.x, p.y); return { x: p.x / d, y: p.y / d }; };
 const closest = (targets: Target[], point: Point) => [...targets].sort((a, b) => distance(a, point) - distance(b, point) || a.id - b.id);
-export const orbitRadius = rules.orbitRadius;
-export const orbit = (angle: number, radius = orbitRadius): Point => ({ x: CENTER.x + radius * Math.cos(angle), y: CENTER.y + radius * Math.sin(angle) });
 
 export class Game {
   seed: number;
