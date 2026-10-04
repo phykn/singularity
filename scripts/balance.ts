@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import { sourceHash } from './engine.ts';
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { Game } from '../src/game/model.ts';
 import { rarityIds, rules } from '../src/game/rules.ts';
 
 const count = Number(process.argv[2] ?? 900),
   start = Number(process.argv[3] ?? 92000),
+  output = process.argv[4] ?? 'artifacts/balance.json',
   rows = [];
 const started = Date.now();
+const hash = sourceHash();
 for (let seed = start; seed < start + count; seed++) {
   const g = new Game(seed);
   g.start();
@@ -59,18 +62,25 @@ const summarize = (set: typeof rows) => ({
   medianRushSpawns: set.map((r) => r.rushSpawns).sort((a, b) => a - b)[Math.floor(set.length / 2)],
 });
 const summary = summarize(rows);
+const z = 1.96,
+  p = summary.clearRate,
+  n = summary.games,
+  center = (p + (z * z) / (2 * n)) / (1 + (z * z) / n),
+  margin = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / (1 + (z * z) / n);
 const legendary = rows.filter((r) => r.selections.some((s) => s.rarity === 'legendary'));
 const withoutLegendary = rows.filter((r) => !r.selections.some((s) => s.rarity === 'legendary'));
-mkdirSync('artifacts', { recursive: true });
+mkdirSync(dirname(output), { recursive: true });
 writeFileSync(
-  'artifacts/balance.json',
+  output,
   JSON.stringify(
     {
-      sourceHash: sourceHash(),
-      target: 0.2,
-      scope: 'Automatic play under uncapped time and stat rules; prior calibration does not apply.',
+      sourceHash: hash,
+      target: 0.25,
+      scope:
+        'Automatic first-card selection with uncapped time and stats; human clear rates may differ.',
       validationSeeds: [start, start + count - 1],
       summary,
+      confidence95: [center - margin, center + margin],
       withLegendary: summarize(legendary),
       withoutLegendary: summarize(withoutLegendary),
       rules,

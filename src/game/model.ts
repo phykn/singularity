@@ -367,7 +367,8 @@ export class Game {
       const motion = particleMotion(target.particle, this.time - target.born);
       target.radius = Math.max(
         0,
-        target.radius - (target.speed * motion.speed) / this.rules.tickRate,
+        target.radius -
+          (target.speed * motion.speed * this.combat.movementScale(target)) / this.rules.tickRate,
       );
       target.angle += (target.turn * motion.turn) / this.rules.tickRate;
       Object.assign(target, orbit(target.angle, target.radius));

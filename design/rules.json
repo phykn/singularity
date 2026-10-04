@@ -30,6 +30,7 @@
   "electronRadius": 4,
   "dangerMargin": 24,
   "primaryRange": 92,
+  "combo": { "echoDamage": 0.35, "secondaryDamage": 0.7 },
   "spawnRadius": 170,
   "introBatches": 3,
   "stageStarts": [0, 90, 210, 330, 450],
@@ -43,7 +44,7 @@
   "denseBatchSize": 2,
   "targets": {
     "small": {
-      "hp": [2, 3, 6, 11, 16],
+      "hp": [2, 3, 8, 15, 22],
       "xp": 1,
       "mass": 1,
       "speed": 17.5,
@@ -51,7 +52,7 @@
       "size": 5
     },
     "dense": {
-      "hp": [8, 16, 38, 74, 130],
+      "hp": [8, 16, 53, 104, 182],
       "xp": 5,
       "mass": 5,
       "speed": 11.25,
@@ -71,7 +72,7 @@
       "primaries": [1, 2, 3, 4, 5, 6]
     },
     "chain": {
-      "hops": [0, 2, 4, 5, 7, 9],
+      "hops": [0, 1, 2, 3, 4, 5],
       "ranges": [0, 44, 54, 64, 74, 84]
     },
     "pierce": {
@@ -92,6 +93,7 @@
     },
     "wave": {
       "radii": [0, 50, 65, 80, 95, 110],
+      "push": [0, 8, 10, 12, 14, 16],
       "damage": 1.5,
       "duration": 0.45,
       "periodSeconds": 2.8
@@ -106,6 +108,7 @@
     "focus": {
       "ranges": [0, 90, 105, 120, 135, 150],
       "durations": [0, 0.6, 0.9, 1.2, 1.5, 1.8],
+      "slow": [1, 0.75, 0.68, 0.6, 0.52, 0.45],
       "damage": 1.5,
       "tickSeconds": 0.2,
       "periodSeconds": 3
@@ -125,12 +128,12 @@
     "epic": {
       "chance": 8,
       "scale": 1.45,
-      "extra": 2
+      "extra": 1
     },
     "legendary": {
       "chance": 2,
-      "scale": 1.8,
-      "extra": 3
+      "scale": 1.6,
+      "extra": 2
     }
   },
   "rush": {

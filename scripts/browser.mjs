@@ -138,13 +138,16 @@ const rarityFlow = async () => {
   const selected = await snapshot(page);
   assert.equal(selected.rarities.multi, 'legendary');
   assert.equal(selected.ranks.multi, 1);
-  assert.equal(await page.evaluate(() => window.__gameDebug.getModel().forms.multi.count), 5);
+  assert.equal(
+    await page.evaluate(() => window.__gameDebug.getModel().forms.multi.count),
+    rules.skills.multi.primaries[1] + rules.rarity.legendary.extra,
+  );
   await page.locator('.slot[data-rarity="legendary"]').waitFor();
   await screenshot(page, 'legendary-acquired');
-  report('legendary card selection applies five branches and keeps its visible identity', {
+  report('legendary card selection applies its branch bonus and keeps its visible identity', {
     rank: selected.ranks.multi,
     rarity: selected.rarities.multi,
-    branches: 5,
+    branches: rules.skills.multi.primaries[1] + rules.rarity.legendary.extra,
   });
   await page.close();
 };
@@ -160,8 +163,10 @@ const audioFlow = async () => {
         trial.contexts.push(this);
       }
       async resume() {
+        // Keep the native call inside the click gesture; defer only completion.
+        const resumed = super.resume();
         await new Promise((resolve, reject) => trial.requests.push({ resolve, reject }));
-        return super.resume();
+        return resumed;
       }
     };
   });
@@ -169,6 +174,7 @@ const audioFlow = async () => {
   const sound = () => page.locator('.setting-row').first();
   const pressed = () => sound().getAttribute('aria-pressed');
   const settle = async (index, fail = false) => {
+    await page.waitForFunction((index) => !!window.audioTrial.requests[index], index);
     await page.evaluate(
       ({ index, fail }) => {
         const request = window.audioTrial.requests[index];
@@ -189,6 +195,7 @@ const audioFlow = async () => {
   await sound().click();
   await sound().click();
   await settle(2);
+  await page.waitForFunction(() => window.audioTrial.contexts[0].state === 'running');
   await settle(1, true);
   assert.equal(await pressed(), 'true');
   assert.equal(await page.locator('.setting-notice').count(), 0);

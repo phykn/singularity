@@ -50,6 +50,41 @@ function spark(g: Graphics, point: Point, size: number, ink: number, alpha: numb
   g.fillRect(x - p, y - p, 2 * p, 2 * p);
 }
 
+function arrow(g: Graphics, from: Point, to: Point, ink: number, alpha: number, scale: number) {
+  const dx = to.x - from.x,
+    dy = to.y - from.y,
+    length = Math.hypot(dx, dy);
+  if (!length) return;
+  const x = dx / length,
+    y = dy / length,
+    size = 4 / scale;
+  stroke(
+    g,
+    [
+      { x: to.x - (x + y) * size, y: to.y - (y - x) * size },
+      to,
+      { x: to.x - (x - y) * size, y: to.y - (y + x) * size },
+    ],
+    1,
+    ink,
+    alpha,
+    scale,
+  );
+}
+
+function lock(g: Graphics, point: Point, ink: number, alpha: number, scale: number) {
+  const p = 1 / scale;
+  g.lineStyle(p, ink, alpha);
+  g.beginPath();
+  for (const x of [-1, 1])
+    for (const y of [-1, 1]) {
+      g.moveTo(point.x + x * 5 * p, point.y + y * 8 * p);
+      g.lineTo(point.x + x * 8 * p, point.y + y * 8 * p);
+      g.lineTo(point.x + x * 8 * p, point.y + y * 5 * p);
+    }
+  g.strokePath();
+}
+
 function ring(
   g: Graphics,
   from: Point,
@@ -104,14 +139,14 @@ export function drawEffect(
     const radius = fx.radius * t;
     ring(g, from, radius, ink, 0.9, scale, reduced, 2 + Math.floor(strength * 2));
     if (!reduced) {
-      ring(g, from, Math.max(0, radius - 4 / scale), WHITE, 0.45, scale, true, 1);
-      for (let i = 0; i < 4 + Math.floor(strength * 4); i++) {
-        const angle = (i * Math.PI * 2) / (4 + Math.floor(strength * 4));
-        spark(
+      ring(g, from, Math.max(0, radius - 4 / scale), ink, 0.3, scale, true, 1);
+      for (let i = 0; i < 4; i++) {
+        const angle = (i * Math.PI) / 2;
+        arrow(
           g,
+          from,
           { x: from.x + Math.cos(angle) * radius, y: from.y + Math.sin(angle) * radius },
-          2,
-          ink,
+          WHITE,
           0.8,
           scale,
         );
@@ -124,34 +159,76 @@ export function drawEffect(
       x: from.x + Math.cos(angle) * fx.radius,
       y: from.y + Math.sin(angle) * fx.radius,
     };
-    const points = bolt(from, end, fx.born * 100, scale, reduced);
-    stroke(g, points, 5 + Math.floor(strength * 2), ink, 0.25, scale);
-    stroke(g, points, 2, ink, 0.95, scale);
-    stroke(g, points, 1, WHITE, 0.9, scale);
     if (!reduced) {
       const arc = [];
       for (let i = 0; i <= 16; i++) {
         const a = start + (fx.width * t * i) / 16;
         arc.push({ x: from.x + Math.cos(a) * fx.radius, y: from.y + Math.sin(a) * fx.radius });
       }
+      g.fillStyle(ink, 0.045);
+      g.beginPath();
+      g.moveTo(from.x, from.y);
+      for (const point of arc) g.lineTo(point.x, point.y);
+      g.closePath();
+      g.fillPath();
       stroke(g, arc, 1, ink, 0.3, scale);
       spark(g, end, 3 + Math.floor(strength * 2), ink, 0.9, scale);
     }
+    const points = bolt(from, end, fx.born * 100, scale, reduced);
+    stroke(g, points, 5 + Math.floor(strength * 2), ink, 0.25, scale);
+    stroke(g, points, 2, ink, 0.95, scale);
+    stroke(g, points, 1, WHITE, 0.9, scale);
   } else if (fx.kind === 'bolt' || fx.kind === 'strike' || fx.kind === 'focus') {
     const seed = from.x * 3 + to.y * 7 + fx.born * 100;
-    const points = bolt(from, to, seed, scale, reduced);
+    const points =
+      fx.kind === 'focus'
+        ? [from, to]
+        : fx.kind === 'strike'
+          ? [
+              from,
+              { x: to.x - 5 / scale, y: lerp(from.y, to.y, 0.32) },
+              { x: to.x + 5 / scale, y: lerp(from.y, to.y, 0.32) },
+              { x: to.x - 5 / scale, y: lerp(from.y, to.y, 0.68) },
+              { x: to.x + 5 / scale, y: lerp(from.y, to.y, 0.68) },
+              to,
+            ]
+          : bolt(from, to, seed, scale, reduced);
     const opacity = fx.kind === 'focus' ? 1 : alpha;
     const width = Math.min(2, Math.max(1, fx.width / 1.8));
     stroke(g, points, (5 + Math.floor(strength * 2)) * width, ink, 0.2 * opacity, scale);
     stroke(g, points, 2 * width, ink, 0.85 * opacity, scale);
     stroke(g, points, 1 * width, WHITE, opacity, scale);
+    if (fx.kind === 'focus') lock(g, to, ink, 0.9, scale);
+    if (fx.source === 'repeat') {
+      const dx = to.x - from.x,
+        dy = to.y - from.y,
+        length = Math.hypot(dx, dy) || 1;
+      const line = reduced
+        ? [from, { x: lerp(from.x, to.x, 0.5), y: lerp(from.y, to.y, 0.5) }, to]
+        : points;
+      const echo = line.map((point, i) => {
+        const offset = i && i < line.length - 1 ? 3 / scale : 0;
+        return { x: point.x - (dy / length) * offset, y: point.y + (dx / length) * offset };
+      });
+      stroke(g, echo, 1, ink, 0.75 * opacity, scale);
+    }
     if (!reduced) {
-      spark(g, to, 2 + Math.floor(strength * 3), ink, opacity, scale);
       if (fx.kind === 'focus') {
         const braid = bolt(from, to, seed + 4, scale, false);
         stroke(g, braid, 1, ink, 0.7, scale);
-      } else if (fx.source === 'chain' || fx.source === 'burst') {
-        spark(g, from, fx.source === 'burst' ? 4 : 2, ink, opacity, scale);
+      } else if (fx.kind !== 'strike') {
+        spark(g, to, 2 + Math.floor(strength * 3), ink, opacity, scale);
+        if (fx.source === 'chain') {
+          const pulse = { x: lerp(from.x, to.x, t), y: lerp(from.y, to.y, t) };
+          arrow(g, from, pulse, WHITE, opacity, scale);
+          g.fillStyle(ink, opacity);
+          g.fillRect(from.x - 2 / scale, from.y - 2 / scale, 4 / scale, 4 / scale);
+        } else if (fx.source === 'burst') {
+          g.lineStyle(1 / scale, WHITE, opacity);
+          const p = 3 / scale;
+          g.lineBetween(from.x - p, from.y - p, from.x + p, from.y + p);
+          g.lineBetween(from.x - p, from.y + p, from.x + p, from.y - p);
+        }
       }
     }
     if (fx.kind === 'strike') {
@@ -184,15 +261,22 @@ export function drawEffect(
           scale,
         );
       }
-      spark(g, to, 3, ink, alpha, scale);
+      arrow(g, from, to, WHITE, alpha, scale);
     }
   } else if (fx.kind === 'area') {
-    const radius = fx.radius * (0.85 + 0.15 * t);
+    const radius = fx.radius;
     g.fillStyle(ink, alpha * 0.06);
     g.fillCircle(from.x, from.y, radius);
     ring(g, from, radius, ink, alpha * 0.8, scale, reduced, 1 + Math.floor(strength * 2));
     if (!reduced) {
-      ring(g, from, Math.max(0, radius - 4 / scale), ink, alpha * 0.25, scale, true, 1);
+      for (let i = 0; i < 4; i++) {
+        const angle = (i * Math.PI) / 2 + fx.born;
+        const to = {
+          x: from.x + Math.cos(angle) * radius * 0.75,
+          y: from.y + Math.sin(angle) * radius * 0.75,
+        };
+        stroke(g, bolt(from, to, i + fx.born * 100, scale, false), 1, ink, alpha * 0.65, scale);
+      }
       spark(g, from, 3, ink, alpha, scale);
     }
   } else if (fx.kind === 'upgrade') {

@@ -1,6 +1,6 @@
 import { Repeat, SpeedFast, Zap } from 'pixelarticons/react';
 import type { ComponentType, SVGProps } from 'react';
-import type { UpgradeId } from '../game/rules.ts';
+import type { SkillId, UpgradeId } from '../game/rules.ts';
 import { art, palettes } from '../render/pixels.ts';
 import { skillColor } from '../render/palette.ts';
 import type { ParticleKind } from '../game/particles.ts';
@@ -10,20 +10,32 @@ const statIcons: Partial<Record<UpgradeId, ComponentType<SVGProps<SVGSVGElement>
   rate: Repeat,
   accel: SpeedFast,
 };
-const skillPaths = {
-  area: 'M6 1h5v2H6zM3 3h3v2H3zM11 3h3v2h-3zM1 5h2v6H1zM14 5h2v6h-2zM3 11h3v2H3zM11 11h3v2h-3zM6 13h5v2H6zM7 5h3v2H8v2h2v2H6V8h1z',
-  repeat:
-    'M1 2h4v2H3v2H1zM6 2h4v2H8v2H6zM11 2h4v2h-2v2h-2zM1 9h4v2H3v3H1zM6 9h4v2H8v3H6zM11 9h4v2h-2v3h-2z',
-  multi:
-    'M1 6h3v4H1zM4 7h3v2H4zM7 3h2v10H7zM9 3h3v2H9zM9 7h3v2H9zM9 11h3v2H9zM12 2h3v4h-3zM12 6h3v4h-3zM12 10h3v4h-3z',
-  chain: 'M1 1h4v4H1zM5 3h2v2H5zM7 5h2v2H7zM6 7h4v4H6zM10 9h2v2h-2zM12 11h3v4h-4v-4z',
-  pierce: 'M1 7h12V4h2v2h1v4h-1v2h-2V9H1zM4 2h2v4H4zM4 10h2v4H4zM9 2h2v4H9zM9 10h2v4H9z',
+const skillPaths: Record<SkillId, string> = {
+  area: 'M5 1h6v1H5zM2 3h2v2H2zM12 3h2v2h-2zM1 6h1v4H1zM14 6h1v4h-1zM2 11h2v2H2zM12 11h2v2h-2zM5 14h6v1H5zM7 3h2v3H7zM3 7h3v2H3zM10 7h3v2h-3zM7 10h2v3H7z',
+  repeat: 'M4 0h4L4 5h3L0 12l2-5H0zM11 2h4l-4 5h3l-7 7 2-5H7z',
+  multi: 'M3 7h4v2H3zM6 5h2v2H6zM8 3h4v2H8zM7 7h5v2H7zM6 9h2v2H6zM8 11h4v2H8z',
+  chain: 'M4 3h3v2H4zM6 4h2v3H6zM9 8h2v2H9zM10 9h2v3h-2z',
+  pierce: 'M0 7h12V5h2v2h2v2h-2v2h-2V9H0z',
   burst:
-    'M7 1h2v4H7zM1 7h4v2H1zM11 7h4v2h-4zM7 11h2v4H7zM5 5h2v2H5zM9 5h2v2H9zM7 7h2v2H7zM5 9h2v2H5zM9 9h2v2H9z',
-  strike: 'M7 0h6v2h-2v2H9v2h4v2h-2v2H9v2H7v3H5v-5h2V8H3V6h2V4h2zM1 14h3v2H1zM10 14h5v2h-5z',
-  wave: 'M5 1h6v2H5zM2 3h3v2H2zM11 3h3v2h-3zM0 5h2v6H0zM14 5h2v6h-2zM2 11h3v2H2zM11 11h3v2h-3zM5 13h6v2H5zM6 5h4v2h2v3h-2v2H6v-2H4V7h2z',
-  whip: 'M1 11h4v4H1zM4 9h2v3H4zM6 7h2v3H6zM8 3h2v5H8zM10 1h4v2h-4zM14 3h2v7h-2zM11 10h3v2h-3z',
-  focus: 'M1 5h3v6H1zM5 6h7v1H5zM5 9h7v1H5zM4 7h8v2H4zM12 3h3v2h-3zM12 11h3v2h-3zM14 5h2v6h-2z',
+    'M3 3h2v2H3zM4 4h2v2H4zM10 4h2v2h-2zM11 3h2v2h-2zM3 11h2v2H3zM4 10h2v2H4zM10 10h2v2h-2zM11 11h2v2h-2z',
+  strike: 'M8 0h5v2h-3v2H8v2h4v2h-2v2H8v2H6V8H3V6h2V4h3z',
+  wave: 'M7 0h2v3H7zM6 1h1v1H6zM9 1h1v1H9zM0 7h3v2H0zM1 6h1v1H1zM1 9h1v1H1zM13 7h3v2h-3zM14 6h1v1h-1zM14 9h1v1h-1zM7 13h2v3H7zM6 14h1v1H6zM9 14h1v1H9zM5 4h6v1H5zM4 5h1v6H4zM11 5h1v6h-1zM5 11h6v1H5z',
+  whip: 'M4 2h6v1H4zM10 3h3v2h-3zM13 5h2v5h-2zM12 10h2v2h-2zM4 10h3v2H4zM7 8h3v2H7zM10 6h3v2h-3z',
+  focus:
+    'M2 7h8v2H2zM9 3h3v1H9zM8 4h1v2H8zM14 4h1v2h-1zM12 3h2v1h-2zM8 10h1v2H8zM9 12h3v1H9zM14 10h1v2h-1zM12 12h2v1h-2z',
+};
+const skillTargets: Record<SkillId, string> = {
+  area: 'M7 6h2v1h1v2H9v1H7V9H6V7h1z',
+  repeat: 'M4 13h6v1h1v1H3v-1h1z',
+  multi: 'M0 7h3v2H0zM12 2h3v3h-3zM12 7h3v3h-3zM12 12h3v3h-3z',
+  chain: 'M1 1h3v3H1zM7 6h3v3H7zM12 12h3v3h-3z',
+  pierce: 'M4 4h3v1H5v6h2v1H4zM9 4h3v1h-2v6h2v1H9z',
+  burst:
+    'M5 5h2v2H5zM7 7h2v2H7zM9 9h2v2H9zM9 5h2v2H9zM5 9h2v2H5zM0 0h3v3H0zM13 0h3v3h-3zM0 13h3v3H0zM13 13h3v3h-3z',
+  strike: 'M5 13h5v1h2v1H3v-1h2z',
+  wave: 'M7 7h2v2H7z',
+  whip: 'M1 12h3v3H1z',
+  focus: 'M11 6h2v1h1v2h-1v1h-2V9h-1V7h1z',
 };
 
 export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
@@ -52,6 +64,7 @@ export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
       aria-hidden="true"
     >
       <path d={skillPaths[id as keyof typeof skillPaths]} />
+      <path d={skillTargets[id as SkillId]} fill="#f1fcff" />
     </svg>
   );
 }

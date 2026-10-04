@@ -76,7 +76,10 @@ export function formValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rule
       count: s.strike.counts[ranks.strike] + extra('strike'),
       radius: s.strike.radii[ranks.strike] * scale('strike'),
     },
-    wave: { radius: s.wave.radii[ranks.wave] * scale('wave') },
+    wave: {
+      radius: s.wave.radii[ranks.wave] * scale('wave'),
+      push: s.wave.push[ranks.wave] * scale('wave'),
+    },
     whip: {
       length: s.whip.lengths[ranks.whip] * scale('whip'),
       arc: (s.whip.arcs[ranks.whip] * Math.PI) / 180,
@@ -85,6 +88,7 @@ export function formValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rule
       range: s.focus.ranges[ranks.focus] * scale('focus'),
       duration: s.focus.durations[ranks.focus],
       damage: s.focus.damage * scale('focus'),
+      slow: ranks.focus ? Math.max(0.25, s.focus.slow[ranks.focus] / scale('focus')) : 1,
     },
   };
 }

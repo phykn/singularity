@@ -38,6 +38,7 @@ export function Guide({
           ))}
         </div>
         <p>{c.guideRarity}</p>
+        <p>{c.guideCombo}</p>
         <div className="particle-guide">
           {particleIds.map((id) => (
             <div key={id}>

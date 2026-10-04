@@ -5,13 +5,10 @@ import { skillColor } from '../render/palette.ts';
 
 const delay = (index: number) => ({ '--delay': `${index * 0.13}s` }) as CSSProperties;
 const target = (x: number, y: number, key: number) => (
-  <rect
+  <path
     key={key}
     className="preview-target"
-    x={Math.round(x) - 3}
-    y={Math.round(y) - 3}
-    width="6"
-    height="6"
+    d={`M${Math.round(x) - 2} ${Math.round(y) - 3}h4v1h1v4h-1v1h-4v-1h-1v-4h1z`}
   />
 );
 
@@ -110,6 +107,18 @@ export function SkillPreview({
           )}
           <circle className="preview-ghost" cx="60" cy="32" r={radius} />
           <circle className="preview-ring" cx="60" cy="32" r={radius} />
+          {[0, 1, 2, 3].map((i) => {
+            const angle = (i * Math.PI) / 2,
+              x = Math.round(60 + Math.cos(angle) * radius * 0.8),
+              y = Math.round(32 + Math.sin(angle) * radius * 0.8);
+            return (
+              <path
+                key={i}
+                className="preview-bolt"
+                d={`M60 32 ${Math.round((60 + x) / 2) + 2} ${Math.round((32 + y) / 2) - 2} ${x} ${y}`}
+              />
+            );
+          })}
           {origin}
           {target(60, 32, 4)}
           <path className="preview-bolt" d="M18 32h12l4-4 8 8 4-4h14" />
@@ -177,6 +186,10 @@ export function SkillPreview({
           {target(60 - radius, 32, 1)}
           <circle className="preview-ring" cx="60" cy="32" r={radius} />
           <circle className="preview-ghost" cx="60" cy="32" r={radius} />
+          <path
+            className="preview-ring"
+            d={`M60 ${32 - radius - 4}l-3 4h6zM60 ${32 + radius + 4}l-3-4h6zM${60 - radius - 4} 32l4-3v6zM${60 + radius + 4} 32l-4-3v6z`}
+          />
         </>
       );
       break;
@@ -212,7 +225,7 @@ export function SkillPreview({
           <g className="preview-focus" style={{ animationDuration: `${s.focus.duration + 0.8}s` }}>
             <path className="preview-beam" strokeWidth={3 + rank} d="M18 32h80" />
             <path d="M18 32h22l4-3 8 6 4-3h42" />
-            <rect className="preview-source" x="96" y="28" width="8" height="8" />
+            <path d="M94 27v-3h4m4 0h4v3m0 10v3h-4m-4 0h-4v-3" />
           </g>
         </>
       );
@@ -226,8 +239,8 @@ export function SkillPreview({
             <path
               className="preview-bolt"
               key={i}
-              style={delay(i)}
-              d={`M20 32 44 ${25 + i * 3} 53 ${39 - i * 3} 75 27 99 32`}
+              style={{ '--delay': `${i * rules.skills.repeat.delaySeconds}s` } as CSSProperties}
+              d={`M20 32 42 ${20 + (i % 2) * 4}h12l-8 20h15L99 32`}
             />
           ))}
         </>

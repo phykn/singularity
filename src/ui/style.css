@@ -575,6 +575,13 @@ svg {
   transform-origin: 60px 32px;
   animation: preview-ring 2.4s ease-out infinite;
 }
+.preview-area .preview-ring {
+  animation-name: preview-bolt;
+}
+.preview-repeat .preview-bolt {
+  animation-name: preview-pulse;
+  animation-duration: 1.8s;
+}
 .preview-flash {
   animation: preview-bolt 2.4s 0.15s infinite both;
 }
@@ -597,6 +604,17 @@ svg {
   }
   100% {
     opacity: 0.95;
+  }
+}
+@keyframes preview-pulse {
+  0%,
+  25%,
+  100% {
+    opacity: 0;
+  }
+  5%,
+  15% {
+    opacity: 1;
   }
 }
 @keyframes preview-ring {

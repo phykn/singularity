@@ -72,6 +72,8 @@ const ko = {
     '이동과 공격은 자동이에요. 레벨이 오르면 세 가지 강화 중 하나를 고르세요. 고르지 않으면 8초 뒤 자동으로 선택해요.',
   guideRarity:
     '희귀도가 높을수록 범위와 타격 수, 강화 효과가 커져요. 한 번 얻은 희귀도는 그대로 유지돼요.',
+  guideCombo:
+    '갈래·연속·광역·연쇄·관통은 다른 번개에도 적용돼요. 발사 스킬을 함께 배우면 첫 명중 때 서로의 번개가 약하게 이어져요.',
   guideLimits:
     '번개 스킬은 네 종류까지 배울 수 있어요. 가속을 강화하면 더 빨리 움직이고 좁아진 궤도를 넓힐 수 있어요. 다른 화면을 보는 동안은 멈추고, 돌아오면 자동 저장된 판을 이어 해요.',
   countdown: (n: number) => `${n}초 뒤 자동 선택`,
@@ -93,27 +95,27 @@ const ko = {
     area: {
       name: '광역 방전',
       short: '광역 방전',
-      description: '번개가 맞은 곳 주변까지 공격해요.',
+      description: '모든 번개가 맞은 곳 주변까지 공격해요.',
     },
     repeat: {
       name: '연속 번개',
       short: '연속 번개',
-      description: '같은 적에게 번개를 여러 번 내리쳐요.',
+      description: '모든 번개를 연속 발사해요. 적을 처치하면 다음 적을 노려요.',
     },
     multi: {
       name: '갈래 번개',
       short: '갈래 번개',
-      description: '번개가 갈라져 여러 적을 한꺼번에 공격해요.',
+      description: '모든 번개의 발사 수가 늘어나요.',
     },
     chain: {
       name: '연쇄 번개',
       short: '연쇄 번개',
-      description: '번개가 가까운 적에게 차례로 옮겨 가요.',
+      description: '모든 번개가 가까운 적에게 차례로 옮겨 가요.',
     },
     pierce: {
       name: '관통 번개',
       short: '관통 번개',
-      description: '번개가 일직선으로 뻗어 뒤에 있는 적까지 관통해요.',
+      description: '모든 번개가 뒤에 있는 적까지 관통해요.',
     },
     burst: {
       name: '처치 방전',
@@ -128,7 +130,7 @@ const ko = {
     wave: {
       name: '전격파',
       short: '전격파',
-      description: '전자에서 전기 고리가 퍼져 주변을 쓸어요.',
+      description: '전기 고리가 퍼져 적을 중앙에서 밀어내요.',
     },
     whip: {
       name: '번개 채찍',
@@ -138,10 +140,12 @@ const ko = {
     focus: {
       name: '집중 방전',
       short: '집중 방전',
-      description: '한 적을 따라가며 끊임없이 번개를 쏴요.',
+      description: '중앙에 가까운 적을 추적하고 움직임을 늦춰요.',
     },
   } as Record<UpgradeId, Info>,
   metric: {
+    slow: '감속',
+    push: '밀어내기',
     radius: '반경',
     damage: '피해량',
     speed: '이동 속도',
@@ -161,9 +165,9 @@ const ko = {
     burst: ['처치하면 방전', '대상·범위 ↑'],
     repeat: '연타',
     multi: '갈래',
-    wave: ['전기 고리', '고리 범위 ↑'],
+    wave: ['고리로 밀어내기', '범위·밀어내기 ↑'],
     whip: ['넓게 휩쓸기', '길이·각도 ↑'],
-    focus: ['추적 방전', '거리·지속 ↑'],
+    focus: ['추적·감속', '거리·지속·감속 ↑'],
   },
 };
 type Copy = typeof ko;
@@ -231,6 +235,8 @@ const en: Copy = {
     'Movement and attacks are automatic. Pick one of three upgrades when you level up. After 8 seconds, the highlighted card is picked for you.',
   guideRarity:
     'Higher rarities increase range, hit counts and upgrade strength. Acquired rarity never decreases.',
+  guideCombo:
+    'Split, Repeat, Area, Chain and Pierce modify other lightning too. Delivery skills echo one another at reduced power on the first hit.',
   guideLimits:
     'Learn up to four lightning skills. Speed upgrades also widen your orbit. Switching away pauses the game; returning or reloading resumes your saved run.',
   countdown: (n) => `Auto-pick in ${n}s`,
@@ -250,26 +256,30 @@ const en: Copy = {
       short: 'Speed',
       description: 'Increase speed and restore orbit radius',
     },
-    area: { name: 'Arc Discharge', short: 'Arc', description: 'Discharge around the impact point' },
+    area: {
+      name: 'Arc Discharge',
+      short: 'Arc',
+      description: 'Every lightning attack splashes around its impact',
+    },
     repeat: {
       name: 'Repeat Discharge',
       short: 'Repeat',
-      description: 'Strike the same target repeatedly',
+      description: 'Repeat every lightning attack; retarget after a kill',
     },
     multi: {
       name: 'Forked Lightning',
       short: 'Fork',
-      description: 'Strike several targets at once',
+      description: 'Adds branches to every lightning attack',
     },
     chain: {
       name: 'Chain Lightning',
       short: 'Chain',
-      description: 'Link lightning between targets',
+      description: 'Every lightning attack jumps between nearby enemies',
     },
     pierce: {
       name: 'Piercing Beam',
       short: 'Pierce',
-      description: 'Pierce beyond the primary target',
+      description: 'Every lightning attack pierces enemies behind its target',
     },
     burst: {
       name: 'Death Arc',
@@ -284,7 +294,7 @@ const en: Copy = {
     wave: {
       name: 'Shockwave',
       short: 'Wave',
-      description: 'An electric ring expands from the electron',
+      description: 'An expanding electric ring pushes enemies away from the core',
     },
     whip: {
       name: 'Lightning Lash',
@@ -294,10 +304,12 @@ const en: Copy = {
     focus: {
       name: 'Focused Arc',
       short: 'Focus',
-      description: 'Track an enemy with a sustained electric beam',
+      description: 'Tracks an enemy near the core and slows its movement',
     },
   },
   metric: {
+    slow: 'Slow',
+    push: 'Push',
     radius: 'Radius',
     damage: 'Damage',
     speed: 'Speed',
@@ -384,6 +396,8 @@ const zh: Copy = {
     `积累 ${goal} 经验即可形成黑洞。漏掉的粒子会聚集在中心，缩小轨道；撞上核心则对局结束。没有时间限制。`,
   guideChoice: '移动和攻击自动进行。升级时从三个强化选项中选一个；8秒后会自动选择高亮卡片。',
   guideRarity: '稀有度越高，范围、攻击次数和强化效果越强。已获得的稀有度不会降低。',
+  guideCombo:
+    '分支、连续、范围、连锁和贯穿也会强化其他闪电。不同发射技能在首次命中时会触发彼此的弱化放电。',
   guideLimits:
     '最多学习四种闪电技能。强化加速还能扩大轨道。切换页面时游戏暂停，返回或刷新后会继续已保存的对局。',
   countdown: (n) => `${n}秒后自动选择`,
@@ -395,18 +409,24 @@ const zh: Copy = {
     power: { name: '高压放电', short: '攻击力', description: '增加所有闪电的伤害' },
     rate: { name: '高速脉冲', short: '攻速', description: '更频繁地释放闪电' },
     accel: { name: '加速线圈', short: '加速', description: '增加速度并恢复轨道半径' },
-    area: { name: '环形放电', short: '环形放电', description: '在命中点周围放电' },
-    repeat: { name: '连续放电', short: '连续放电', description: '连续攻击同一目标' },
-    multi: { name: '分支闪电', short: '分支闪电', description: '同时攻击多个目标' },
-    chain: { name: '连锁闪电', short: '连锁闪电', description: '在目标之间连接闪电' },
-    pierce: { name: '穿透光束', short: '穿透光束', description: '穿透主目标并向后延伸' },
+    area: { name: '环形放电', short: '环形放电', description: '所有闪电命中后都会波及周围' },
+    repeat: {
+      name: '连续放电',
+      short: '连续放电',
+      description: '连续释放所有闪电，击杀后转向下一个目标',
+    },
+    multi: { name: '分支闪电', short: '分支闪电', description: '增加所有闪电的分支' },
+    chain: { name: '连锁闪电', short: '连锁闪电', description: '所有闪电都会在附近敌人之间跳跃' },
+    pierce: { name: '穿透光束', short: '穿透光束', description: '所有闪电都会贯穿目标后方的敌人' },
     burst: { name: '击杀放电', short: '击杀放电', description: '被击败的敌人向周围释放闪电' },
     strike: { name: '落雷', short: '落雷', description: '向生命值最高的敌人降下强力雷击' },
-    wave: { name: '电击波', short: '电击波', description: '从电子向外释放扩散的电环' },
+    wave: { name: '电击波', short: '电击波', description: '扩散的电环将敌人推离中心' },
     whip: { name: '闪电鞭', short: '闪电鞭', description: '挥动与电子相连的闪电，横扫扇形区域' },
-    focus: { name: '集中放电', short: '集中放电', description: '用持续电束追踪攻击一个敌人' },
+    focus: { name: '集中放电', short: '集中放电', description: '追踪靠近中心的敌人并减速' },
   },
   metric: {
+    slow: '减速',
+    push: '击退',
     radius: '半径',
     damage: '伤害',
     speed: '速度',
@@ -495,6 +515,8 @@ const ja: Copy = {
   guideChoice:
     '移動と攻撃は自動です。レベルアップ時に3つの強化から1つ選びましょう。8秒たつと、ハイライトされたカードが自動で選ばれます。',
   guideRarity: '高いレア度ほど範囲・攻撃回数・強化効果が増えます。獲得済みのレア度は下がりません。',
+  guideCombo:
+    '分岐・連続・範囲・連鎖・貫通はほかの雷にも適用。発射スキルを組み合わせると、最初の命中で互いの弱い雷が続く。',
   guideLimits:
     '雷のスキルは最大4種類です。加速を強化すると軌道も広がります。画面を離れると一時停止し、戻るか再読み込みすると保存されたプレイを再開します。',
   countdown: (n) => `${n}秒後に自動選択`,
@@ -506,18 +528,36 @@ const ja: Copy = {
     power: { name: '高圧放電', short: '攻撃力', description: 'すべての雷のダメージが増加' },
     rate: { name: '高速パルス', short: '攻撃速度', description: '雷の発射間隔が短くなる' },
     accel: { name: '加速コイル', short: '加速', description: '速度と軌道半径が増加' },
-    area: { name: '円形放電', short: '円形放電', description: '命中点の周囲に放電する' },
-    repeat: { name: '連続放電', short: '連続放電', description: '同じ対象を繰り返し攻撃' },
-    multi: { name: '分岐する雷', short: '分岐', description: '複数の対象を同時に攻撃' },
-    chain: { name: '連鎖する雷', short: '連鎖', description: '対象の間に雷をつなぐ' },
-    pierce: { name: '貫通光線', short: '貫通光線', description: '主対象の後ろまで貫通' },
+    area: {
+      name: '円形放電',
+      short: '円形放電',
+      description: 'すべての雷が命中地点の周囲にも広がる',
+    },
+    repeat: {
+      name: '連続放電',
+      short: '連続放電',
+      description: 'すべての雷を連続発射。倒すと次の敵を狙う',
+    },
+    multi: { name: '分岐する雷', short: '分岐', description: 'すべての雷の発射数が増える' },
+    chain: { name: '連鎖する雷', short: '連鎖', description: 'すべての雷が近くの敵へ次々と移る' },
+    pierce: {
+      name: '貫通光線',
+      short: '貫通光線',
+      description: 'すべての雷が対象の後ろの敵も貫く',
+    },
     burst: { name: '撃破放電', short: '撃破放電', description: '倒した敵から周囲の敵へ放電する' },
     strike: { name: '落雷', short: '落雷', description: '体力の高い敵に強力な雷を落とす' },
-    wave: { name: '電撃波', short: '電撃波', description: '電子から広がる電気の輪で攻撃する' },
+    wave: { name: '電撃波', short: '電撃波', description: '広がる電気の輪で敵を中心から押し戻す' },
     whip: { name: '雷の鞭', short: '雷の鞭', description: '電子から伸びる雷を扇状に振り払う' },
-    focus: { name: '集中放電', short: '集中放電', description: '敵を追尾する電流で攻撃し続ける' },
+    focus: {
+      name: '集中放電',
+      short: '集中放電',
+      description: '中心に近い敵を追尾し、動きを遅くする',
+    },
   },
   metric: {
+    slow: '減速',
+    push: '押し戻し',
     radius: '半径',
     damage: 'ダメージ',
     speed: '速度',

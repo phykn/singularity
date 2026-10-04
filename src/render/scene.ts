@@ -121,8 +121,10 @@ export class ElectronScene extends Phaser.Scene {
       if (bar) {
         const left = (Math.round(point.x) - Math.floor(bar.width / 2) - g.x) / scale;
         const top = (Math.round(point.y) - bar.offset - g.y) / scale;
-        g.fillStyle(0x492129, 1);
-        g.fillRect(left, top, bar.width / scale, bar.height / scale);
+        if (bar.filled < bar.width) {
+          g.fillStyle(0x492129, 1);
+          g.fillRect(left, top, bar.width / scale, bar.height / scale);
+        }
         g.fillStyle(0xe45d68, 1);
         g.fillRect(left, top, bar.filled / scale, bar.height / scale);
       }

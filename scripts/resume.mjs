@@ -203,7 +203,7 @@ try {
   });
   const damage = await page.evaluate(() => window.__gameDebug.getModel().damageNumbers);
   assert.ok(damage.length >= 2);
-  assert.ok(damage.every((n) => n.value === 7.4));
+  assert.ok(damage.every((n) => Math.abs(n.value - 6.8) < 1e-8));
   await page.waitForTimeout(150);
   await capture(page, 'artifacts/screens/damage-numbers.png');
   report('damage numbers render fractional upgraded damage on a mobile screen', {

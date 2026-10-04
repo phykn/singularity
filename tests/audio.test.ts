@@ -2,6 +2,41 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GameAudio } from '../src/app/audio.ts';
 
+test('a pending suspension finishes before the newest audio unlock resumes', async (t) => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext');
+  let ctx: Context;
+  class Context {
+    state = 'suspended';
+    release!: () => void;
+    constructor() {
+      ctx = this;
+    }
+    async resume() {
+      this.state = 'running';
+    }
+    async suspend() {
+      await new Promise<void>((resolve) => {
+        this.release = resolve;
+      });
+      this.state = 'suspended';
+    }
+  }
+  Object.defineProperty(globalThis, 'AudioContext', { configurable: true, value: Context });
+  t.after(() => {
+    if (previous) Object.defineProperty(globalThis, 'AudioContext', previous);
+    else delete (globalThis as { AudioContext?: unknown }).AudioContext;
+  });
+  const audio = new GameAudio();
+  await audio.unlock();
+  audio.suspend();
+  const latest = audio.unlock();
+  await Promise.resolve();
+  ctx!.release();
+  assert.equal(await latest, true);
+  assert.equal(ctx!.state, 'running');
+  assert.equal(audio.enabled, true);
+});
+
 test('audio can unlock again after a browser effect cleanup closes the previous context', async (t) => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext');
   const contexts: { state: string }[] = [];

@@ -115,7 +115,7 @@ test('area and pierce share one damage hit, boundaries include the edge, and tie
   assert.equal(tie.targets[0].id, 2);
 });
 
-test('repeat follows moving targets, keeps reserved damage, and cancels dead primaries', () => {
+test('repeat follows moving targets, keeps reserved damage, and retargets dead primaries', () => {
   const p = target(0, 190, 128, 20);
   p.turn = 0.3;
   const g = fixture({ repeat: 1 }, [p]);
@@ -135,8 +135,13 @@ test('repeat follows moving targets, keeps reserved damage, and cancels dead pri
   const cancelled = fixture({ repeat: 3 }, [target(0, 180, 128), target(1, 215, 128)]);
   cancelled.combat.fireBasic();
   cancelled.advance(300);
-  assert.equal(cancelled.xp, 1);
-  assert.equal(cancelled.combat.activations.repeat, undefined);
+  assert.equal(cancelled.xp, 2);
+  assert.ok(cancelled.combat.activations.repeat !== undefined);
+  const outOfRange = stationarySkill({ repeat: 3 }, [target(0, 190, 128), target(1, 290, 128)]);
+  outOfRange.combat.fireBasic();
+  outOfRange.advance(400);
+  assert.equal(outOfRange.xp, 1);
+  assert.equal(outOfRange.combat.activations.repeat, undefined);
 });
 
 test('spread clears a small line, focus damages separated dense enemies faster', () => {
@@ -154,8 +159,8 @@ test('spread clears a small line, focus damages separated dense enemies faster',
   const b = fixture({ multi: 3, repeat: 3 }, line());
   b.combat.fireBasic(origin);
   b.advance(300);
-  assert.equal(a.xp, 6);
-  assert.equal(b.xp, 3);
+  assert.equal(a.xp, 5);
+  assert.equal(b.xp, 5);
   const c = fixture({ area: 3, chain: 3 }, heavy());
   c.combat.fireBasic(origin);
   c.advance(300);
@@ -233,7 +238,7 @@ test('basic lightning modifiers change actual hit coverage at each rank', () => 
     assert.equal(multi.xp, rank + 1);
     const chain = fixture({ chain: rank }, line([0, 40, 80, 120, 160, 200]));
     chain.combat.fireBasic(origin);
-    assert.equal(chain.xp, [0, 3, 5, 6][rank]);
+    assert.equal(chain.xp, [0, 2, 3, 4][rank]);
     const pierce = fixture({ pierce: rank }, line([20, 80, 130, 180, 230]));
     pierce.combat.fireBasic(origin);
     assert.equal(pierce.xp, rank + 2);
@@ -244,16 +249,16 @@ test('rarity persists through lower-quality upgrades and improves real damage an
   const g = fixture({}, [target(0, 190, 128, 20)]);
   choose(g, 'power', 'legendary');
   g.combat.fireBasic();
-  close(g.targets[0].hp, 16.2);
+  close(g.targets[0].hp, 16.4);
   choose(g, 'power', 'common');
   assert.equal(g.rarities.power, 'legendary');
   g.combat.fireBasic();
-  close(g.targets[0].hp, 10.6);
+  close(g.targets[0].hp, 11.2);
   choose(g, 'accel', 'legendary');
   g.mass = 100;
   g.advance(30000);
-  close(g.radius, 88.6);
-  close(g.speed, 231);
+  close(g.radius, 86.2);
+  close(g.speed, 222);
   assert.equal(g.mass, 100);
   g.debugSetXp(10000);
   g.advance(50000);
@@ -267,8 +272,8 @@ test('all four rarities change actual geometry or hit counts across basic lightn
   for (let tier = 0; tier < 4; tier++) {
     const rarity = rarityIds[tier];
     for (const [id, xs] of [
-      ['area', [0, 32, 39, 48]],
-      ['burst', [0, 26, 32, 40]],
+      ['area', [0, 32, 39, 43]],
+      ['burst', [0, 26, 32, 36]],
     ] as const) {
       const g = fixture({ [id]: 1 }, line([...xs]));
       g.rarities[id] = rarity;
@@ -279,16 +284,16 @@ test('all four rarities change actual geometry or hit counts across basic lightn
     repeat.rarities.repeat = rarity;
     repeat.combat.fireBasic(origin);
     repeat.advance(700);
-    assert.equal(repeat.targets[0].hp, 20 - (tier + 2) * 2);
+    assert.equal(repeat.targets[0].hp, 20 - [2, 3, 3, 4][tier] * 2);
     const multi = fixture({ multi: 1 }, line([10, 20, 30, 40, 50]));
     multi.rarities.multi = rarity;
     multi.combat.fireBasic(origin);
-    assert.equal(multi.xp, tier + 2);
+    assert.equal(multi.xp, [2, 3, 3, 4][tier]);
     const chain = fixture({ chain: 1 }, line([0, 40, 80, 120, 160, 200, 240, 280, 320]));
     chain.rarities.chain = rarity;
     chain.combat.fireBasic(origin);
-    assert.equal(chain.xp, 3 + tier * 2);
-    const pierce = fixture({ pierce: 1 }, line([20, 150, 190, 240]));
+    assert.equal(chain.xp, [2, 4, 4, 6][tier]);
+    const pierce = fixture({ pierce: 1 }, line([20, 150, 190, 220]));
     pierce.rarities.pierce = rarity;
     pierce.combat.fireBasic(origin);
     assert.equal(pierce.xp, tier + 1);
@@ -341,7 +346,7 @@ test('ranks four and five improve actual hit coverage for all forms while preser
     assert.equal(multi.xp, rank + 1);
     const chain = fixture({ chain: rank }, line(Array.from({ length: 10 }, (_, i) => i * 60)));
     chain.combat.fireBasic(origin);
-    assert.equal(chain.xp, rank === 4 ? 8 : 10);
+    assert.equal(chain.xp, rank === 4 ? 5 : 6);
     const pierce = fixture({ pierce: rank }, line([20, 280, 320]));
     pierce.combat.fireBasic(origin);
     assert.equal(pierce.xp, rank === 4 ? 2 : 3);
@@ -509,7 +514,7 @@ test('four rarities change new attacks and power changes their actual damage', (
       focus: rarity,
     };
     const f = formValues(ranks, rarities);
-    assert.equal(f.strike.count, 1 + i);
+    assert.equal(f.strike.count, 1 + rules.rarity[rarity].extra);
     close(f.wave.radius, 50 * rules.rarity[rarity].scale);
     close(f.whip.length, 65 * rules.rarity[rarity].scale);
     const g = stationarySkill({ focus: 1 }, [target(0, 190, 128, 100)]);

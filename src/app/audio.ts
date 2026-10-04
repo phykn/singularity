@@ -3,6 +3,7 @@ export class GameAudio {
   private last: Record<string, number> = {};
   private wanted = false;
   private request = 0;
+  private suspending: Promise<void> | null = null;
   enabled = false;
 
   async unlock(): Promise<boolean | null> {
@@ -11,10 +12,12 @@ export class GameAudio {
     let context: AudioContext | null = null;
     try {
       context = this.context ??= new AudioContext();
+      if (this.suspending) await this.suspending;
+      if (this.context !== context || request !== this.request) return null;
       await context.resume();
       if (this.context !== context) return null;
       if (!this.wanted) {
-        await context.suspend();
+        await this.suspendContext(context);
         return null;
       }
       if (request !== this.request) return null;
@@ -31,11 +34,20 @@ export class GameAudio {
     this.wanted = false;
     this.request++;
     this.enabled = false;
-    void this.context?.suspend().catch(() => {});
+    if (this.context) void this.suspendContext(this.context);
+  }
+  private suspendContext(context: AudioContext): Promise<void> {
+    const promise = context.suspend().catch(() => {});
+    this.suspending = promise;
+    void promise.then(() => {
+      if (this.suspending === promise) this.suspending = null;
+    });
+    return promise;
   }
   destroy(): void {
     const context = this.context;
     this.context = null;
+    this.suspending = null;
     this.enabled = false;
     this.wanted = false;
     this.request++;

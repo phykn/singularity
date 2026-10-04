@@ -32,11 +32,11 @@ export function skillValue(
     case 'strike':
       return `${m.targets(String(s.strike.count))} · ×${n(cfg.skills.strike.damage)}`;
     case 'wave':
-      return `${m.radius} ${n(s.wave.radius)}`;
+      return `${m.radius} ${n(s.wave.radius)} · ${m.push} ${n(s.wave.push)}`;
     case 'whip':
       return `${m.length} ${n(s.whip.length)} · ${Math.round((s.whip.arc * 180) / Math.PI)}°`;
     case 'focus':
-      return `${m.range} ${n(s.focus.range)} · ${n(s.focus.duration)}${c.seconds}`;
+      return `${n(s.focus.duration)}${c.seconds} · ${m.slow} ${Math.round((1 - s.focus.slow) * 100)}%`;
     case 'power':
       return `${m.damage} ${n(cfg.baseHitDamage + cfg.damagePerRank * rank * scale)}`;
     case 'rate':
