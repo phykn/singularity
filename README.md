@@ -22,3 +22,7 @@ Open `localhost:8081`. Use `npm run build` for a production build and `npm test`
 ## Credits
 
 Built with React, Phaser, TypeScript, and Vite. Icons by [Pixelarticons](https://github.com/halfmage/pixelarticons); typography from [Fusion Pixel Font](https://github.com/TakWolf/fusion-pixel-font). Original font license notices are bundled.
+
+## License
+
+Project code is licensed under [PolyForm Noncommercial 1.0.0](LICENSE). Commercial use outside the license's permitted purposes requires separate permission from [phykn](https://github.com/phykn). Third-party libraries and fonts retain their original licenses.
