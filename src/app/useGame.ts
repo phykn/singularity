@@ -200,15 +200,7 @@ export function useGame() {
       const current = model.current!;
       if (rendered.current) current.advance(Math.max(0, wall - lastWall.current), frameTickLimit);
       lastWall.current = wall;
-      if (audio.current.enabled) {
-        for (let i = heard.current; i < current.events.length; i++) {
-          const event = current.events[i];
-          if (event.kind === 'hit')
-            audio.current.play((event.data as { kind: string }).kind === 'dense' ? 'dense' : 'hit');
-          else if (['level', 'wave', 'charged', 'collision', 'ending'].includes(event.kind))
-            audio.current.play(event.kind);
-        }
-      }
+      if (audio.current.enabled) audio.current.update(current, heard.current);
       heard.current = current.events.length;
       if (current.result && processed.current !== current) {
         processed.current = current;

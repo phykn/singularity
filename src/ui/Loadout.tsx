@@ -64,6 +64,7 @@ export function Loadout({ game, language }: { game: Game; language: Language }) 
               data-active={status?.active}
               data-fired={status?.fired}
               data-acquired={game.notice === id && game.time < game.noticeUntil}
+              data-new={id && game.rank(id) === 1}
               data-rarity={id ? game.rarities[id] : undefined}
               role={status && status.mode !== 'conditional' ? 'progressbar' : 'img'}
               aria-valuemin={status && status.mode !== 'conditional' ? 0 : undefined}

@@ -1,9 +1,9 @@
 {
   "status": "free-build-playtest-values",
   "tickRate": 60,
-  "collisionSeconds": 3,
-  "successEndingSeconds": 12,
-  "failureEndingSeconds": 3,
+  "collisionSeconds": 1.6,
+  "successEndingSeconds": 3,
+  "failureEndingSeconds": 0.9,
   "energyGoal": 24000,
   "levelXpStep": 60,
   "levelXp": [

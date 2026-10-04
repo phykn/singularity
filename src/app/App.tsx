@@ -35,10 +35,12 @@ export default function App() {
   const c = copy[language];
   const [panel, setPanel] = useState<'guide' | 'settings' | null>(null);
   const [exitConfirm, setExitConfirm] = useState(false);
+  const [homecoming, setHomecoming] = useState(false);
   const ready = game.phase === 'ready';
   const modal = panel !== null || game.manualPaused || game.phase === 'result';
 
   function replace(seed?: number) {
+    setHomecoming(game.result?.outcome === 'success');
     actions.replace(seed);
     setExitConfirm(false);
     setPanel(null);
@@ -64,7 +66,7 @@ export default function App() {
 
   return (
     <main
-      className={`app ${game.charged ? 'is-charged' : ''} ${ready ? 'is-ready' : ''} ${settings.reduced ? 'is-reduced' : ''} ${game.choice ? 'has-choice' : ''}`}
+      className={`app ${game.charged ? 'is-charged' : ''} ${ready ? 'is-ready' : ''} ${ready && homecoming ? 'is-homecoming' : ''} ${settings.reduced ? 'is-reduced' : ''} ${game.choice ? 'has-choice' : ''}`}
     >
       <div className="play-layout" inert={modal || (!ready && !renderReady)}>
         {ready ? (
@@ -110,7 +112,7 @@ export default function App() {
               <UpgradeFeedback game={game} language={language} />
               {game.phase === 'collapse' && (
                 <span className="sr-only" role="status">
-                  {c.collapse}
+                  {game.successfulEnding ? c.ready : c.collapse}
                 </span>
               )}
               {game.phase === 'ending' && (

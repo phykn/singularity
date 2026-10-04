@@ -743,7 +743,7 @@ try {
       assert.equal(reset.mass, 0);
       await page.evaluate(() => window.__gameDebug.restart(20000));
       await advance(page, 610000);
-      await page.getByRole('heading', { name: '블랙홀 생성', exact: true }).waitFor();
+      await page.getByRole('heading', { name: copy.ko.success, exact: true }).waitFor();
       await inspect(page);
       await screenshot(page, 'result-' + name);
       assert.equal((await snapshot(page)).result.trigger, 'energy');
@@ -853,10 +853,10 @@ try {
       window.__gameDebug.xp(energy);
     }, rules.energyGoal);
     assert.equal(await page.locator('.charge b').textContent(), '100%');
-    assert.equal(await page.locator('.charge').getAttribute('aria-label'), '생성 준비 완료');
+    assert.equal(await page.locator('.charge').getAttribute('aria-label'), copy.ko.ready);
     await advance(page, 100);
     await screenshot(page, 'energy-collapse');
-    await advance(page, 6000);
+    await advance(page, rules.collisionSeconds * 1000 + 1000);
     await screenshot(page, 'black-hole');
     await advance(page, 10000);
     assert.equal((await snapshot(page)).result.outcome, 'success');
@@ -868,7 +868,7 @@ try {
       g.radius = g.core + 4;
       window.__gameDebug.advance(16000);
     }, rules.energyGoal - 1);
-    await page.getByRole('heading', { name: '소멸', exact: true }).waitFor();
+    await page.getByRole('heading', { name: copy.ko.failure, exact: true }).waitFor();
     assert.equal((await snapshot(page)).result.missingXp, 1);
     await screenshot(page, 'collapse-failure');
     report('readiness and both endings', { energyBoundary: rules.energyGoal });
@@ -948,7 +948,7 @@ try {
     await blocked.waitForSelector('canvas');
     await blocked.getByRole('button', { name: '설정', exact: true }).click();
     await blocked.getByRole('button', { name: '시각 효과 기본', exact: true }).click();
-    await blocked.getByRole('dialog').getByText('진행 상황을 저장할 수 없어요.').waitFor();
+    await blocked.getByRole('dialog').getByText(copy.ko.storageFailed).waitFor();
     await blocked.getByRole('button', { name: '닫기', exact: true }).click();
     await blocked.getByRole('button', { name: 'START' }).click();
     await firstChoice(blocked);

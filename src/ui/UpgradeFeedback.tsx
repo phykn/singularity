@@ -13,6 +13,7 @@ export function UpgradeFeedback({ game, language }: { game: Game; language: Lang
   return (
     <div
       className="upgrade-feedback"
+      key={id + rank}
       style={{ '--skill': skillColor(id) } as CSSProperties}
       data-skill={id}
       role="status"

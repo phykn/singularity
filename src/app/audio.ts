@@ -1,6 +1,14 @@
+import type { Game } from '../game/model.ts';
+import { endingFrame } from '../render/ending.ts';
+import { KillRhythm, SoundMixer } from './sounds.ts';
+
 export class GameAudio {
   private context: AudioContext | null = null;
   private last: Record<string, number> = {};
+  private mixer: SoundMixer | null = null;
+  private rhythm = new KillRhythm();
+  private model: Game | null = null;
+  private stage = '';
   private wanted = false;
   private request = 0;
   private suspending: Promise<void> | null = null;
@@ -31,6 +39,8 @@ export class GameAudio {
   }
 
   suspend(): void {
+    this.mixer?.stop();
+    this.rhythm.reset();
     this.wanted = false;
     this.request++;
     this.enabled = false;
@@ -45,6 +55,11 @@ export class GameAudio {
     return promise;
   }
   destroy(): void {
+    this.mixer?.stop();
+    this.mixer = null;
+    this.rhythm.reset();
+    this.model = null;
+    this.stage = '';
     const context = this.context;
     this.context = null;
     this.suspending = null;
@@ -55,37 +70,59 @@ export class GameAudio {
     void context?.close().catch(() => {});
   }
 
+  update(game: Game, from: number): void {
+    const ctx = this.context;
+    if (!this.enabled || !ctx || ctx.state !== 'running') return;
+    this.mixer ??= new SoundMixer(ctx);
+    if (this.model !== game) {
+      this.mixer.stop();
+      this.rhythm.reset();
+      this.last = {};
+      this.stage = '';
+      this.model = game;
+    }
+    if (game.paused || game.phase === 'ready') return;
+    const ending = endingFrame(game);
+    if (ending) {
+      if (this.stage !== ending.stage) {
+        this.stage = ending.stage;
+        this.mixer.stop();
+        this.rhythm.reset();
+        const cues: Record<string, string> = {
+          accelerate: 'charged',
+          formation: 'ending',
+          settle: 'level',
+          impact: 'collision',
+        };
+        const cue = cues[ending.stage];
+        if (cue) this.play(cue);
+      }
+      return;
+    }
+    this.stage = '';
+    let kills = 0;
+    for (let i = from; i < game.events.length; i++) {
+      const event = game.events[i];
+      if (game.time - event.time > 0.15) continue;
+      if (event.kind === 'kill') {
+        kills++;
+      } else if (event.kind === 'hit') {
+        this.play((event.data as { kind: string }).kind === 'dense' ? 'dense' : 'hit');
+      } else if (['level', 'wave', 'charged'].includes(event.kind)) this.play(event.kind);
+    }
+    if (kills) this.rhythm.add(kills, ctx.currentTime);
+    const pulse = this.rhythm.update(ctx.currentTime);
+    if (pulse !== null) this.mixer.play('kill', ctx.currentTime, pulse);
+  }
+
   play(kind: string): void {
     const ctx = this.context;
     if (!this.enabled || !ctx || ctx.state !== 'running') return;
     const now = ctx.currentTime;
-    if (now - (this.last[kind] ?? -Infinity) < (kind === 'hit' ? 0.1 : 0.07)) return;
+    const interval = kind === 'hit' ? 0.1 : 0.07;
+    if (now - (this.last[kind] ?? -Infinity) < interval) return;
     this.last[kind] = now;
-    const tones: Record<string, [number, number, number]> = {
-      hit: [800, 260, 0.035],
-      dense: [210, 90, 0.07],
-      level: [520, 980, 0.15],
-      wave: [180, 55, 0.22],
-      charged: [560, 1120, 0.3],
-      collision: [110, 40, 0.4],
-      ending: [130, 35, 0.6],
-    };
-    const tone = tones[kind];
-    if (!tone) return;
-    const oscillator = ctx.createOscillator(),
-      gain = ctx.createGain();
-    oscillator.type = kind === 'dense' || kind === 'wave' ? 'triangle' : 'sine';
-    oscillator.frequency.setValueAtTime(tone[0], now);
-    oscillator.frequency.exponentialRampToValueAtTime(tone[1], now + tone[2]);
-    gain.gain.setValueAtTime(0.025, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + tone[2]);
-    oscillator.connect(gain);
-    gain.connect(ctx.destination);
-    oscillator.start(now);
-    oscillator.stop(now + tone[2]);
-    oscillator.onended = () => {
-      oscillator.disconnect();
-      gain.disconnect();
-    };
+    this.mixer ??= new SoundMixer(ctx);
+    this.mixer.play(kind);
   }
 }

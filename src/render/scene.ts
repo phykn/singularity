@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
 import { createPixels } from './pixels.ts';
 import { healthBar } from './health.ts';
+import { endingFrame } from './ending.ts';
 import { visibleEffects } from './effects.ts';
 import { numberText } from '../format.ts';
 import { maxDamageNumbers } from '../game/rules.ts';
-import { orbit, clamp, lerp } from '../game/geometry.ts';
+import { orbit, clamp } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
 import type { Game } from '../game/model.ts';
 
@@ -16,6 +17,10 @@ export class ElectronScene extends Phaser.Scene {
   private effectGraphics!: Phaser.GameObjects.Graphics;
   private sprites: Phaser.GameObjects.Image[] = [];
   private spriteCount = 0;
+  private impactAt = -Infinity;
+  private lastModel: Game | null = null;
+  private returnAt = -Infinity;
+  private offset = { x: 0, y: 0 };
   private width = 0;
   private centerY = 0;
   private worldScale = 1;
@@ -49,74 +54,98 @@ export class ElectronScene extends Phaser.Scene {
     this.width = width;
     this.worldScale = scale;
     this.centerY = height > width ? Math.max(170 * scale + 8, height * 0.42) : height / 2;
+    if (this.lastModel !== model) {
+      this.returnAt =
+        model.phase === 'ready' && this.lastModel?.result?.outcome === 'success'
+          ? this.time.now
+          : -Infinity;
+      this.lastModel = model;
+      this.impactAt = -Infinity;
+    }
     if (model.phase === 'ready') {
+      this.offset = { x: 0, y: 0 };
       this.drawIntro(width, height, reduced);
+      this.cover(width, height, reduced ? 0 : 1 - clamp((this.time.now - this.returnAt) / 550));
       return;
     }
     g.setPosition(width / 2 - 180 * scale, this.centerY - 260 * scale);
     g.setScale(scale);
-    this.effectGraphics.setPosition(g.x, g.y).setScale(scale);
-    const ending = model.phase === 'ending' || model.phase === 'result';
-    const collapsing = model.phase === 'collapse';
-    const clock = model.seconds;
-    const progress = model.phase === 'result' ? 1 : model.phaseProgress;
-    const success = ending && model.successfulEnding;
-    const absorb = success ? clamp(progress * 1.8) : 0;
-    const color = model.charged ? GOLD : BLUE;
+    this.effectGraphics.setPosition(g.x, g.y).setScale(scale).setDepth(1);
+    const ending = endingFrame(model),
+      clock = model.seconds;
     const danger = !model.charged && model.margin < 24;
-    const damage = model.damage,
-      position = model.position;
-    const angle = model.angle + (collapsing ? progress * progress * Math.PI * 5 : 0);
-    const radius = collapsing ? model.radius * (1 - progress ** 1.5) : model.radius * (1 - absorb);
-
-    if (!ending || (success && absorb < 1)) {
-      g.lineStyle((danger ? 1.6 : 1) / scale, danger ? AMBER : color, 0.38 * (1 - absorb));
-      g.strokeCircle(180, 260, radius);
+    const color = model.charged ? GOLD : BLUE;
+    const position = model.position,
+      damage = model.damage;
+    if (!reduced && !ending && clock - this.impactAt > 0.65) {
+      for (let i = model.effects.length - 1; i >= 0; i--) {
+        const fx = model.effects[i];
+        if (clock - fx.born >= 0.05) break;
+        if (
+          fx.kind === 'strike' ||
+          fx.kind === 'wave' ||
+          fx.source === 'burst' ||
+          (fx.kind === 'whip' && fx.rank >= 4)
+        ) {
+          this.impactAt = clock;
+          break;
+        }
+      }
     }
+    const impactAge = clock - this.impactAt;
+    this.offset =
+      !reduced && !ending && impactAge < 0.06
+        ? { x: impactAge < 0.03 ? 1 : -1, y: 1 }
+        : { x: 0, y: 0 };
+    g.setPosition(g.x + this.offset.x, g.y + this.offset.y);
+    this.effectGraphics.setPosition(g.x, g.y);
 
-    if (!ending && model.mass > 0) {
-      const core = model.core;
-      this.drawCore(core, scale);
-      if (danger) {
-        g.lineStyle(2 / scale, AMBER, reduced ? 0.85 : 0.65 + 0.25 * Math.sin(clock * 6));
+    const radius = ending?.electron ? ending.radius : model.radius;
+    if (!ending || ending.electron || !ending.success) {
+      const unstable = danger || (ending && !ending.success);
+      const opacity = ending && !ending.electron ? 0.12 : 0.32;
+      this.drawOrbit(
+        radius,
+        unstable ? AMBER : color,
+        opacity,
+        unstable ? (24 - Math.max(0, model.margin)) / 24 : 0,
+        clock,
+        scale,
+        reduced,
+      );
+    }
+    if (model.mass > 0 && (!ending || !ending.success || ending.electron))
+      this.drawCore(model.core * (ending?.success ? 1 - ending.absorb * 0.7 : 1), scale);
+
+    const warning = model.warningWave;
+    if (warning) {
+      g.lineStyle(1 / scale, AMBER, 0.65);
+      for (const offset of [0, Math.PI]) {
         g.beginPath();
         for (let i = 0; i <= 12; i++) {
-          const p = orbit(angle - 0.4 + (i / 12) * 0.8, core + 4 / scale);
+          const p = orbit(warning.angle + offset - 0.2 + i / 30, 172);
           if (!i) g.moveTo(p.x, p.y);
           else g.lineTo(p.x, p.y);
         }
         g.strokePath();
       }
     }
-
-    const warning = model.warningWave;
-    if (warning) {
-      for (const offset of [0, Math.PI]) {
-        g.lineStyle(2 / scale, AMBER, reduced ? 0.65 : 0.4 + 0.3 * Math.sin(clock * 5));
-        g.beginPath();
-        for (let i = 0; i <= 16; i++) {
-          const p = orbit(warning.angle + offset - 0.25 + (i / 16) * 0.5, 172);
-          if (i === 0) g.moveTo(p.x, p.y);
-          else g.lineTo(p.x, p.y);
-        }
-        g.strokePath();
-      }
-    }
-
     for (const target of model.targets) {
-      const t = absorb ** 1.5,
-        x = lerp(target.x, 180, t),
-        y = lerp(target.y, 260, t);
-      const size =
-        Math.max(target.size * 2, (target.kind === 'small' ? 6 : 9) / scale) * (1 - absorb);
-      if (size <= 0 || (ending && !success)) continue;
-      const hit = !reduced && target.hitAt !== undefined && model.time - target.hitAt < 0.1;
-      const point = this.screen({ x, y });
+      if (ending && !ending.success && !ending.electron) continue;
+      const absorb = ending?.absorb ?? 0;
+      if (absorb >= 0.99) continue;
+      const p = ending?.success
+        ? orbit(target.angle + absorb * absorb * Math.PI * 2, target.radius * (1 - absorb) ** 1.5)
+        : target;
+      const point = this.screen(p);
+      if (point.x < -20 || point.x > width + 20 || point.y < -20 || point.y > height + 20) continue;
+      const hit =
+        !ending &&
+        target.hitAt !== undefined &&
+        model.time - target.hitAt < (reduced ? 0.035 : 0.06);
       const sprite = this.sprite(point, target.particle, 1, 1 - absorb);
-      if (hit) {
-        sprite.setTint(WHITE);
-        sprite.setTintFill();
-      } else sprite.clearTint();
+      if (hit) sprite.setTint(WHITE).setTintFill();
+      else sprite.clearTint();
       const bar = !ending && healthBar(target, damage);
       if (bar) {
         const left = (Math.round(point.x) - Math.floor(bar.width / 2) - g.x) / scale;
@@ -129,58 +158,112 @@ export class ElectronScene extends Phaser.Scene {
         g.fillRect(left, top, bar.filled / scale, bar.height / scale);
       }
     }
-
-    if (!ending)
+    if (!ending) {
       for (const fx of visibleEffects(model.effects, reduced))
         drawEffect(this.effectGraphics, fx, model.seconds, scale, reduced, position, model.targets);
-
-    if (ending) {
-      if (success) {
-        const r = 4 + progress ** 2 * 390;
-        for (let ring = 3; ring > 0; ring--) {
-          g.lineStyle((5 + ring * 4) / scale, color, 0.04 / ring);
-          g.strokeCircle(180, 260, r + ring * 5);
-        }
-        g.fillStyle(0x030407, 1);
-        g.fillCircle(180, 260, r);
-        g.lineStyle(1.8 / scale, WHITE, 0.85);
-        g.strokeCircle(180, 260, r);
-        if (!reduced && progress < 0.8)
-          for (let i = 0; i < 12; i++) {
-            const a = (i * Math.PI) / 6 + clock * 0.3;
-            g.lineStyle(1 / scale, color, 0.16 * (1 - absorb));
-            g.lineBetween(
-              180 + Math.cos(a) * (r + 5),
-              260 + Math.sin(a) * (r + 5),
-              180 + Math.cos(a + 0.2) * (r + 45),
-              260 + Math.sin(a + 0.2) * (r + 45),
-            );
-          }
-      } else {
-        g.lineStyle(2 / scale, WHITE, 1 - progress);
-        g.strokeCircle(180, 260, 4 + Math.sin(progress * Math.PI) * 15);
-        g.fillStyle(WHITE, (1 - progress) ** 3);
-        g.fillCircle(180, 260, 4);
-        for (let i = 0; i < 8; i++) {
-          const p = orbit((i * Math.PI) / 4, 5 + progress * 35);
-          g.fillStyle(WHITE, 1 - progress);
-          g.fillRect(p.x, p.y, 2 / scale, 2 / scale);
-        }
-      }
+      this.drawTrail(
+        model.angle,
+        model.radius,
+        reduced ? 5 : Math.min(45, 10 + model.boosts.accel * 7),
+        color,
+        scale,
+      );
+      this.drawElectron(position, 1, color);
+      this.drawDamage(model, width, height, scale, reduced);
       return;
     }
-
-    const electron = orbit(angle, radius),
-      tail = reduced ? 5 : Math.min(45, 10 + model.boosts.accel * 7);
-    for (let i = tail; i > 0; i--) {
-      const p = orbit(angle - i * 0.035, radius),
-        next = orbit(angle - (i - 1) * 0.035, radius);
-      g.lineStyle((1 + 2 * (1 - i / tail)) / scale, color, 0.65 * (1 - i / tail));
-      g.lineBetween(p.x, p.y, next.x, next.y);
+    if (ending.electron) {
+      this.drawTrail(
+        ending.angle,
+        ending.radius,
+        reduced ? 6 : 34,
+        ending.success ? GOLD : AMBER,
+        scale,
+        true,
+      );
+      this.drawElectron(ending.electron, 1, ending.success ? GOLD : AMBER);
     }
-    if (collapsing && model.mass === 0) this.drawElectron(orbit(angle + Math.PI, radius), 1, color);
-    this.drawElectron(electron, 1, color);
-    if (!collapsing) this.drawDamage(model, width, height, scale, reduced);
+    if (ending.stage === 'silence') {
+      g.fillStyle(GOLD, 0.7);
+      g.fillRect(180 - 1 / scale, 260 - 1 / scale, 2 / scale, 2 / scale);
+    }
+    if (ending.hole) {
+      const cover =
+        Math.hypot(width / 2, Math.max(this.centerY, height - this.centerY)) / scale + 4;
+      const radius = ending.hole + (cover - ending.hole) * ending.expansion;
+      this.drawSingularity(radius, scale);
+    }
+    if (ending.reveal > 0) {
+      g.clear();
+      this.drawIntro(width, height, reduced);
+      this.cover(width, height, 1 - ending.reveal);
+      return;
+    }
+    if (ending.stage === 'impact') {
+      const t = clamp((model.phaseProgress * model.rules.failureEndingSeconds) / 0.2);
+      g.lineStyle(1 / scale, AMBER, 0.8 * (1 - t));
+      g.strokeCircle(180, 260, (4 + 10 * t) / scale);
+      g.fillStyle(WHITE, (reduced ? 0.3 : 1) * (1 - t));
+      g.fillRect(180 - 5 / scale, 260, 10 / scale, 1 / scale);
+      g.fillRect(180, 260 - 5 / scale, 1 / scale, 10 / scale);
+    }
+    if (ending.flash && !reduced) {
+      g.fillStyle(WHITE, ending.flash * 0.8);
+      g.fillRect(180 - 9 / scale, 260 - 2 / scale, 18 / scale, 4 / scale);
+      g.fillRect(180 - 2 / scale, 260 - 9 / scale, 4 / scale, 18 / scale);
+    }
+  }
+
+  private drawOrbit(
+    radius: number,
+    color: number,
+    alpha: number,
+    danger: number,
+    clock: number,
+    scale: number,
+    reduced: boolean,
+  ): void {
+    const g = this.graphics,
+      segments = 96;
+    if (danger <= 0.5) {
+      g.lineStyle((danger ? 1.6 : 1) / scale, color, alpha);
+      g.strokeCircle(180, 260, radius);
+      return;
+    }
+    g.lineStyle(1 / scale, color, alpha);
+    for (let i = 0; i < segments; i++) {
+      const broken = danger > 0.5 && (i + Math.floor(reduced ? 0 : clock * 4)) % 19 < 2;
+      if (broken) continue;
+      const a = (i * Math.PI * 2) / segments,
+        b = ((i + 1) * Math.PI * 2) / segments;
+      const jitter = !reduced && danger > 0.75 && i % 7 === 0 ? Math.sin(clock * 9 + i) / scale : 0;
+      const p = orbit(a, radius + jitter),
+        q = orbit(b, radius);
+      g.lineBetween(
+        Math.round(p.x * scale) / scale,
+        Math.round(p.y * scale) / scale,
+        Math.round(q.x * scale) / scale,
+        Math.round(q.y * scale) / scale,
+      );
+    }
+  }
+
+  private drawTrail(
+    angle: number,
+    radius: number,
+    length: number,
+    color: number,
+    scale: number,
+    spiral = false,
+  ): void {
+    const g = this.graphics;
+    for (let i = length; i > 0; i--) {
+      const r = radius + (spiral ? i * 0.65 : 0);
+      const p = orbit(angle - i * 0.035, r),
+        q = orbit(angle - (i - 1) * 0.035, r);
+      g.lineStyle((1 + 2 * (1 - i / length)) / scale, color, 0.65 * (1 - i / length));
+      g.lineBetween(p.x, p.y, q.x, q.y);
+    }
   }
 
   private drawCore(radius: number, scale: number): void {
@@ -243,6 +326,24 @@ export class ElectronScene extends Phaser.Scene {
     g.strokePoints([hull[0], hull[1], hull[2]].map(point), false);
     g.lineStyle(pixel, 0x62889b, 0.6);
     g.strokePoints([hull[5], hull[6], hull[7]].map(point), false);
+  }
+
+  private drawSingularity(radius: number, scale: number): void {
+    const g = this.graphics;
+    const r = Math.round(radius * scale) / scale;
+    g.fillStyle(0x020306, 1);
+    g.fillCircle(180, 260, r);
+    g.lineStyle(1.8 / scale, WHITE, 0.85);
+    g.strokeCircle(180, 260, r);
+    g.lineStyle(3 / scale, GOLD, 0.08);
+    g.strokeCircle(180, 260, r + 3 / scale);
+  }
+
+  private cover(width: number, height: number, alpha: number): void {
+    if (alpha <= 0) return;
+    this.effectGraphics.setPosition(0, 0).setScale(1).setDepth(3);
+    this.effectGraphics.fillStyle(0x020306, alpha);
+    this.effectGraphics.fillRect(0, 0, width, height);
   }
 
   private drawDamage(
@@ -357,8 +458,8 @@ export class ElectronScene extends Phaser.Scene {
 
   private screen(point: Point): Point {
     return {
-      x: this.width / 2 + (point.x - 180) * this.worldScale,
-      y: this.centerY + (point.y - 260) * this.worldScale,
+      x: this.width / 2 + (point.x - 180) * this.worldScale + this.offset.x,
+      y: this.centerY + (point.y - 260) * this.worldScale + this.offset.y,
     };
   }
 
@@ -383,7 +484,7 @@ export class ElectronScene extends Phaser.Scene {
 
   private drawElectron(point: Point, alpha: number, color = BLUE): void {
     const sprite = this.sprite(this.screen(point), 'electron', 1, alpha, 2);
-    if (color === GOLD) sprite.setTint(GOLD);
+    if (color !== BLUE) sprite.setTint(color);
     else sprite.clearTint();
   }
 }

@@ -499,7 +499,8 @@ svg {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
 }
-.card {
+.card,
+.choice-echo {
   min-width: 0;
   height: 128px;
   display: grid;
@@ -524,7 +525,8 @@ svg {
 .card.auto .card-label {
   color: var(--blue);
 }
-.card strong {
+.card strong,
+.choice-echo strong {
   font-size: 12px;
   font-weight: 400;
   line-height: 16px;
@@ -960,7 +962,8 @@ svg {
   .loadout {
     gap: 4px;
   }
-  .card {
+  .card,
+  .choice-echo {
     padding-inline: 6px;
   }
   .dialog h2 {
@@ -1040,7 +1043,8 @@ svg {
   .choice-header > span {
     font-size: 12px;
   }
-  .card {
+  .card,
+  .choice-echo {
     height: 112px;
     padding: 6px 5px;
     grid-template-rows: 16px 32px 16px 28px;
@@ -1260,7 +1264,8 @@ b {
 .dialog {
   border: 2px solid #354e63;
 }
-.card {
+.card,
+.choice-echo {
   border-bottom: 2px solid var(--rarity);
 }
 .slot {
@@ -1372,5 +1377,105 @@ b {
   .arena-caption h1 {
     font-size: 24px;
     letter-spacing: 0;
+  }
+}
+
+.choice-receipt {
+  z-index: 3;
+  pointer-events: none;
+  animation: choice-leave 0.24s steps(4) both;
+}
+.choice-echo {
+  opacity: 0.15;
+}
+.choice-echo[data-selected='true'] {
+  opacity: 1;
+  border: 1px solid var(--rarity);
+  animation: choice-pick 0.24s steps(4) both;
+}
+.slot[data-acquired='true'] {
+  animation: slot-upgrade 0.36s steps(5) both;
+}
+.slot[data-acquired='true'][data-new='true'] {
+  animation-name: slot-new;
+}
+.upgrade-feedback {
+  animation: feedback-in 0.28s steps(4) both;
+}
+.result-modal {
+  animation: result-reveal 0.24s steps(6) both;
+}
+.is-homecoming .arena-caption,
+.is-homecoming .preparation,
+.is-homecoming .header-actions {
+  animation: result-reveal 0.55s steps(8) both;
+}
+@keyframes choice-pick {
+  0% {
+    background: #395969;
+    transform: translateY(-2px);
+  }
+  45% {
+    background: #2d4859;
+  }
+  100% {
+    background: #152430;
+    transform: translateY(0);
+  }
+}
+@keyframes choice-leave {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes slot-upgrade {
+  0% {
+    transform: scale(1);
+    border-color: var(--skill);
+  }
+  35% {
+    transform: scale(1.06);
+    border-color: var(--skill);
+  }
+  70% {
+    transform: scale(0.99);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes slot-new {
+  0% {
+    transform: scale(0.92);
+    border-color: var(--skill);
+  }
+  40% {
+    transform: scale(1.08);
+    border-color: var(--skill);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes feedback-in {
+  from {
+    opacity: 0.4;
+    margin-top: 4px;
+  }
+  to {
+    opacity: 1;
+    margin-top: 0;
+  }
+}
+@keyframes result-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }

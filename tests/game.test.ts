@@ -172,9 +172,11 @@ test('early collision snapshots the energy boundary and cancels combat and cards
     g.advance(10000);
     assert.equal(g.phaseProgress, 0);
     g.setManualPause(false);
-    g.advance(3000);
+    g.advance(rules.collisionSeconds * 1000);
     assert.equal(g.phase, 'ending');
-    g.advance(12000);
+    g.advance(
+      (g.successfulEnding ? rules.successEndingSeconds : rules.failureEndingSeconds) * 1000,
+    );
     assert.ok(g.result);
     assert.deepEqual({ xp: g.xp, mass: g.mass, time: g.time }, frozen);
     assert.equal(g.result.trigger, xp >= rules.energyGoal ? 'energy' : 'gravity');
@@ -208,7 +210,10 @@ test('elapsed time never ends a run and reaching the XP goal starts a successful
   assert.equal(g.result?.trigger, 'energy');
   assert.equal(g.result?.missingXp, 0);
   assert.equal(g.selections.length, choices);
-  close(g.result!.seconds, 3615 + 1 / rules.tickRate);
+  close(
+    g.result!.seconds,
+    3600 + rules.collisionSeconds + rules.successEndingSeconds + 1 / rules.tickRate,
+  );
 });
 
 test('late spawns keep their stage and scheduled waves continue beyond ten minutes', () => {

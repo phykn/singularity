@@ -303,24 +303,21 @@ export function drawEffect(
     g.lineStyle(1 / scale, AMBER, alpha * 0.7);
     g.strokeCircle(180, 260, fx.radius * (1.25 - t * 0.5));
   } else if (fx.kind === 'kill') {
-    g.fillStyle(ink, alpha);
-    const x = lerp(from.x, to.x, t * t),
-      y = lerp(from.y, to.y, t * t);
-    g.fillCircle(x, y, 2 / scale);
+    const heavy = fx.radius > 8,
+      size = heavy ? 1.5 : 1;
+    const fade = (1 - t) ** 2;
+    spark(g, from, (t < 0.12 ? 3 : 1) * size, WHITE, fade, scale);
     if (!reduced) {
-      g.lineStyle(1.2 / scale, ink, alpha * 0.5);
-      g.strokeCircle(from.x, from.y, (4 + t * 17) / scale);
-      spark(g, from, 4 * (1 - t), ink, alpha * 0.8, scale);
-      for (let i = 0; i < 6; i++) {
-        const angle = (i * Math.PI) / 3 + fx.born * 7,
-          radius = (5 + t * 24) / scale;
-        g.lineStyle(0.7 / scale, i % 2 ? WHITE : ink, alpha);
-        g.lineBetween(
-          from.x + Math.cos(angle) * radius,
-          from.y + Math.sin(angle) * radius,
-          from.x + Math.cos(angle) * (radius + 4 / scale),
-          from.y + Math.sin(angle) * (radius + 4 / scale),
-        );
+      ring(g, from, ((3 + t * 6) * size) / scale, BLUE, fade * 0.35, scale, false, 1);
+      const count = heavy ? 6 : 3;
+      for (let i = 0; i < count; i++) {
+        const angle = (i * Math.PI * 2) / count + fx.from.x + fx.born * 7;
+        const distance = (2 + t * 12) * size;
+        const x = Math.round(from.x * scale + Math.cos(angle) * distance) / scale;
+        const y = Math.round(from.y * scale + Math.sin(angle) * distance) / scale;
+        const pixel = (heavy && i % 2 === 0 ? 2 : 1) / scale;
+        g.fillStyle(i % 2 ? BLUE : WHITE, fade);
+        g.fillRect(x, y, pixel, pixel);
       }
     }
   } else {

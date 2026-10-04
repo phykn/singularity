@@ -17,7 +17,7 @@ export function visibleEffects(effects: Effect[], reduced: boolean): Effect[] {
     wave: reduced ? 4 : 8,
     whip: reduced ? 4 : 8,
     focus: reduced ? 4 : 8,
-    kill: reduced ? 3 : 6,
+    kill: reduced ? 3 : 8,
     level: 2,
     upgrade: 1,
     absorb: 4,

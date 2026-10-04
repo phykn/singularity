@@ -574,7 +574,7 @@ export class Game {
         kind: 'kill',
         from: target,
         to: this.position,
-        radius: 8,
+        radius: target.kind === 'dense' ? 11 : 6,
         width: damage,
         life: 0.4,
       });
