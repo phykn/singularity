@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { statIds } from '../game/rules.ts';
 import { particleIds } from '../game/particles.ts';
 import { particleNames, languages } from './i18n.ts';
-import { SkillIcon } from './icons.tsx';
+import { ParticleIcon, SkillIcon } from './icons.tsx';
 import { Rank } from './controls.tsx';
 import { Dialog } from './Dialog.tsx';
 import { ownedSkills } from './Loadout.tsx';
@@ -93,7 +93,12 @@ export function Result({
                 const counts = result.counts[id];
                 return (
                   <tr key={id} data-particle={id}>
-                    <th scope="row">{particleNames[language][id]}</th>
+                    <th scope="row">
+                      <span className="result-particle">
+                        <ParticleIcon id={id} />
+                        {particleNames[language][id]}
+                      </span>
+                    </th>
                     <td>{counts.generated}</td>
                     <td>{counts.killed}</td>
                     <td>{counts.absorbed}</td>

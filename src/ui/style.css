@@ -937,6 +937,15 @@ svg {
 .result th:first-child {
   text-align: left;
 }
+.result-particle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.result-particle svg {
+  flex-shrink: 0;
+}
 @media (max-width: 340px) {
   .is-ready {
     --gutter: 20px;
