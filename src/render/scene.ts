@@ -64,6 +64,8 @@ export class ElectronScene extends Phaser.Scene {
     const absorb = success ? clamp(progress * 1.8) : 0;
     const color = model.charged ? GOLD : BLUE;
     const danger = !model.charged && model.margin < 24;
+    const damage = model.damage,
+      position = model.position;
     const angle = model.angle + (collapsing ? progress * progress * Math.PI * 5 : 0);
     const radius = collapsing ? model.radius * (1 - progress ** 1.5) : model.radius * (1 - absorb);
 
@@ -115,7 +117,7 @@ export class ElectronScene extends Phaser.Scene {
         sprite.setTint(WHITE);
         sprite.setTintFill();
       } else sprite.clearTint();
-      const bar = !ending && healthBar(target, model.damage);
+      const bar = !ending && healthBar(target, damage);
       if (bar) {
         const left = (Math.round(point.x) - Math.floor(bar.width / 2) - g.x) / scale;
         const top = (Math.round(point.y) - bar.offset - g.y) / scale;
@@ -128,15 +130,7 @@ export class ElectronScene extends Phaser.Scene {
 
     if (!ending)
       for (const fx of visibleEffects(model.effects, reduced))
-        drawEffect(
-          this.effectGraphics,
-          fx,
-          model.seconds,
-          scale,
-          reduced,
-          model.position,
-          model.targets,
-        );
+        drawEffect(this.effectGraphics, fx, model.seconds, scale, reduced, position, model.targets);
 
     if (ending) {
       if (success) {
@@ -376,14 +370,13 @@ export class ElectronScene extends Phaser.Scene {
     const index = this.spriteCount++;
     const sprite = (this.sprites[index] ??= this.add.image(point.x, point.y, key));
     if (sprite.texture.key !== key) sprite.setTexture(key);
-    return sprite
-      .setActive(true)
-      .setVisible(true)
-      .setPosition(Math.round(point.x), Math.round(point.y))
-      .setScale(scale)
-      .setAlpha(alpha)
-      .setDepth(depth)
-      .clearTint();
+    const x = Math.round(point.x),
+      y = Math.round(point.y);
+    if (sprite.x !== x || sprite.y !== y) sprite.setPosition(x, y);
+    if (sprite.scaleX !== scale || sprite.scaleY !== scale) sprite.setScale(scale);
+    if (sprite.alpha !== alpha) sprite.setAlpha(alpha);
+    if (sprite.depth !== depth) sprite.setDepth(depth);
+    return sprite.setActive(true).setVisible(true);
   }
 
   private drawElectron(point: Point, alpha: number, color = BLUE): void {

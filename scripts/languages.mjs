@@ -36,6 +36,19 @@ const inspect = async (page) => {
       if (node.scrollWidth > node.clientWidth + 1 || node.scrollHeight > node.clientHeight + 1)
         issues.push('Clipped: ' + node.textContent);
     }
+    for (const node of document.querySelectorAll(
+      '.result-build span:not(.rank), .result-build small',
+    )) {
+      const bounds = node.getBoundingClientRect(),
+        card = node.closest('[data-rarity]'),
+        outer = card.getBoundingClientRect(),
+        css = getComputedStyle(card);
+      if (
+        bounds.left < outer.left + parseFloat(css.paddingLeft) - 0.5 ||
+        bounds.right > outer.right - parseFloat(css.paddingRight) + 0.5
+      )
+        issues.push('Result text outside card: ' + node.textContent);
+    }
     const hud = [...document.querySelectorAll('.hud-top > *')].map((n) =>
       n.getBoundingClientRect(),
     );
@@ -67,6 +80,7 @@ try {
       [360, 640],
       [375, 812],
       [430, 932],
+      [520, 320],
       [568, 320],
       [812, 375],
     ]) {
@@ -160,6 +174,13 @@ try {
         window.__gameDebug.advance(610000);
       });
       await page.getByRole('heading', { name: c.success, exact: true }).waitFor();
+      await page.evaluate(() => {
+        const game = window.__gameDebug.getModel();
+        for (const id of Object.keys(game.ranks)) {
+          if (game.rank(id)) game.rarities[id] = 'legendary';
+        }
+        window.__gameDebug.advance(0);
+      });
       await localized(page, language.id, '.result');
       await inspect(page);
       await page.locator('.result summary').click();

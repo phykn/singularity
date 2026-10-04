@@ -23,6 +23,8 @@ export default function App() {
     best,
     storageOk,
     audioUnavailable,
+    renderReady,
+    onRenderReady,
     begin,
     select,
     changeLanguage,
@@ -64,7 +66,7 @@ export default function App() {
     <main
       className={`app ${game.charged ? 'is-charged' : ''} ${ready ? 'is-ready' : ''} ${settings.reduced ? 'is-reduced' : ''} ${game.choice ? 'has-choice' : ''}`}
     >
-      <div className="play-layout" inert={modal}>
+      <div className="play-layout" inert={modal || (!ready && !renderReady)}>
         {ready ? (
           <header className="topbar">
             <div className="header-actions">
@@ -88,7 +90,12 @@ export default function App() {
           <Hud game={game} language={language} onPause={() => pause(true)} />
         )}
         <section className="arena" aria-label={c.arena}>
-          <GameCanvas model={model} settings={settingsRef} />
+          <GameCanvas model={model} settings={settingsRef} onReady={onRenderReady} />
+          {!ready && !renderReady && (
+            <p className="render-status" role="status">
+              {c.loading}
+            </p>
+          )}
           {!ready && !storageOk && (
             <p className="save-notice" role="status">
               {c.storageFailed}
@@ -117,8 +124,8 @@ export default function App() {
         <section className="footer" aria-label={ready ? 'START' : c.loadout}>
           {ready ? (
             <div className="preparation">
-              <button className="primary start" onClick={begin}>
-                <span>START</span>
+              <button className="primary start" onClick={begin} disabled={!renderReady}>
+                <span>{renderReady ? 'START' : c.loading}</span>
                 <ArrowRight aria-hidden="true" />
               </button>
               <LanguagePicker value={language} onChange={changeLanguage} />

@@ -8,13 +8,16 @@ import type { Settings } from '../app/storage.ts';
 export function GameCanvas({
   model,
   settings,
+  onReady,
 }: {
   model: RefObject<Game | null>;
   settings: RefObject<Settings>;
+  onReady: (ready: boolean) => void;
 }) {
   const node = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const canvas = node.current!;
+    onReady(false);
     const scene = new ElectronScene(
       () => model.current!,
       () => settings.current.reduced,
@@ -40,6 +43,23 @@ export function GameCanvas({
           scale: { mode: Phaser.Scale.NONE },
           fps: { target: 60 },
         });
+        const rendered = () => {
+          const renderer = engine!.renderer;
+          if (
+            !disposed &&
+            (!(renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer) ||
+              !renderer.gl.isContextLost())
+          )
+            onReady(true);
+        };
+        const waitForRender = () => {
+          if (!disposed) engine!.events.once(Phaser.Core.Events.POST_RENDER, rendered);
+        };
+        waitForRender();
+        engine.renderer.on(Phaser.Renderer.Events.LOSE_WEBGL, () => {
+          if (!disposed) onReady(false);
+        });
+        engine.renderer.on(Phaser.Renderer.Events.RESTORE_WEBGL, waitForRender);
         observer = new ResizeObserver(() => {
           if (canvas.clientWidth && canvas.clientHeight)
             engine?.scale.resize(Math.round(canvas.clientWidth), Math.round(canvas.clientHeight));
@@ -48,10 +68,11 @@ export function GameCanvas({
       });
     return () => {
       disposed = true;
+      onReady(false);
       observer?.disconnect();
       engine?.destroy(true);
     };
-  }, []);
+  }, [model, settings, onReady]);
 
   return <div className="canvas" ref={node} />;
 }

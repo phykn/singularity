@@ -10,6 +10,7 @@ export const languages: { id: Language; label: string; html: string }[] = [
 type Info = { name: string; short: string; description: string };
 
 const ko = {
+  loading: '준비 중',
   language: '언어',
   guide: '도움말',
   settings: '설정',
@@ -168,6 +169,7 @@ const ko = {
 type Copy = typeof ko;
 
 const en: Copy = {
+  loading: 'LOADING',
   language: 'Language',
   guide: 'Help',
   settings: 'Settings',
@@ -322,6 +324,7 @@ const en: Copy = {
 };
 
 const zh: Copy = {
+  loading: '加载中',
   language: '语言',
   guide: '技能说明',
   settings: '设置',
@@ -430,6 +433,7 @@ const zh: Copy = {
 };
 
 const ja: Copy = {
+  loading: '読込中',
   language: '言語',
   guide: 'スキルガイド',
   settings: '設定',

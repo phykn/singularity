@@ -16,6 +16,7 @@
     "check:browser": "node scripts/browser.mjs",
     "check:languages": "node scripts/languages.mjs",
     "check:resume": "node scripts/resume.mjs",
+    "check:startup": "node scripts/startup.mjs",
     "check:performance": "node scripts/performance.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 8081 --strictPort",

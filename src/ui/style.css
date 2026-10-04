@@ -456,6 +456,15 @@ svg {
   font-size: 12px;
   text-align: center;
 }
+.render-status {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  color: var(--muted);
+  pointer-events: none;
+}
 .choices {
   position: absolute;
   z-index: 2;
@@ -807,6 +816,7 @@ svg {
 }
 .result .dialog-body {
   padding-top: 8px;
+  container-type: inline-size;
 }
 .result-numbers {
   display: grid;
@@ -850,6 +860,30 @@ svg {
   border-radius: 0;
   background: #1b1f27;
   text-align: center;
+}
+@container (max-width: 280px) {
+  .result-build {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .result-build > div {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    grid-template-rows: repeat(3, auto);
+    max-width: none;
+    gap: 4px 8px;
+    padding: 8px;
+    justify-items: start;
+    text-align: left;
+  }
+  .result-build svg {
+    grid-row: 1 / 4;
+    grid-column: 1;
+  }
+  .result-build span,
+  .result-build small {
+    grid-column: 2;
+  }
 }
 .result-build svg {
   color: var(--blue);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Game } from '../game/model.ts';
 import { GameAudio } from './audio.ts';
 import {
@@ -52,6 +52,8 @@ export function useGame() {
   });
   const [storageOk, setStorageOk] = useState(true);
   const [audioUnavailable, setAudioUnavailable] = useState(false);
+  const [renderReady, setRenderReady] = useState(false);
+  const rendered = useRef(false);
   const [, redraw] = useState(0);
   const model = useRef<Game | null>(null);
   model.current ??= (() => {
@@ -72,13 +74,31 @@ export function useGame() {
   const heard = useRef(model.current.events.length);
   const force = () => redraw((n) => n + 1);
   const game = model.current;
-  function persist(current = model.current!) {
+  const persist = useCallback((current = model.current!) => {
     try {
       setStorageOk(saveRun(localStorage, current));
     } catch {
       setStorageOk(false);
     }
-  }
+  }, []);
+
+  const onRenderReady = useCallback(
+    (ready: boolean) => {
+      rendered.current = ready;
+      lastWall.current = performance.now();
+      setRenderReady(ready);
+      if (!ready) {
+        audio.current.suspend();
+        persist();
+      } else if (
+        settingsRef.current.sound &&
+        !model.current!.paused &&
+        model.current!.phase !== 'ready'
+      )
+        void audio.current.unlock();
+    },
+    [persist],
+  );
 
   function changeSettings(next: Settings) {
     settingsRef.current = next;
@@ -130,6 +150,7 @@ export function useGame() {
   }
 
   function begin() {
+    if (!rendered.current) return;
     if (settingsRef.current.sound) void enableAudio();
     lastWall.current = performance.now();
     model.current!.start();
@@ -149,16 +170,17 @@ export function useGame() {
   useEffect(() => {
     let frame = 0,
       lastDraw = 0,
+      lastDrawTick = -1,
       lastSave = 0;
     const visibility = () => {
-      if (document.hidden && !model.current!.hiddenPaused)
+      if (rendered.current && document.hidden && !model.current!.hiddenPaused)
         model.current!.advance(Math.max(0, performance.now() - lastWall.current), frameTickLimit);
       model.current!.setHidden(document.hidden);
       lastWall.current = performance.now();
       if (document.hidden) {
         audio.current.suspend();
         persist();
-      } else if (settingsRef.current.sound && !model.current!.manualPaused)
+      } else if (rendered.current && settingsRef.current.sound && !model.current!.manualPaused)
         void audio.current.unlock();
       force();
     };
@@ -176,7 +198,7 @@ export function useGame() {
     model.current!.setHidden(document.hidden);
     const step = (wall: number) => {
       const current = model.current!;
-      current.advance(Math.max(0, wall - lastWall.current), frameTickLimit);
+      if (rendered.current) current.advance(Math.max(0, wall - lastWall.current), frameTickLimit);
       lastWall.current = wall;
       if (audio.current.enabled) {
         for (let i = heard.current; i < current.events.length; i++) {
@@ -209,9 +231,10 @@ export function useGame() {
         persist(current);
         lastSave = wall;
       }
-      if (wall - lastDraw > 80) {
+      if (wall - lastDraw > 80 && current.elapsedTicks !== lastDrawTick) {
         force();
         lastDraw = wall;
+        lastDrawTick = current.elapsedTicks;
       }
       frame = requestAnimationFrame(step);
     };
@@ -258,6 +281,7 @@ export function useGame() {
   }, []);
 
   function select(id: UpgradeId, number: number) {
+    if (!rendered.current) return;
     model.current!.select(id, false, number);
     persist();
     force();
@@ -272,6 +296,8 @@ export function useGame() {
     best,
     storageOk,
     audioUnavailable,
+    renderReady,
+    onRenderReady,
     begin,
     pause,
     replace,
