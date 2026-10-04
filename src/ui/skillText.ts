@@ -28,7 +28,7 @@ export function skillValue(
     case 'pierce':
       return `${m.length} ${n(s.pierce.length)} · ${m.width} ${n(s.pierce.width)}`;
     case 'burst':
-      return `${m.radius} ${n(s.burst.radius)}`;
+      return `${m.radius} ${n(s.burst.radius)} · ×${n(s.burst.damage)}`;
     case 'strike':
       return `${m.targets(String(s.strike.count))} · ×${n(cfg.skills.strike.damage)}`;
     case 'wave':

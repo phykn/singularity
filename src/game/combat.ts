@@ -362,7 +362,7 @@ export class Combat {
         to: primary,
         radius: s.area.radius,
         width: 1,
-        life: 0.38,
+        life: 0.24,
         source: 'area',
         rarity: attack.rarities.area,
         rank: attack.ranks.area,
@@ -477,6 +477,11 @@ export class Combat {
         radius,
       );
       if (targets.length) this.activate('burst', attack.ranks.burst);
+      const discharge = {
+        ...attack,
+        damage: attack.damage * attack.forms.burst.damage,
+        comboFired: true,
+      };
       const visited = new Set<number>();
       targets.forEach((t) => {
         if (t.hp <= 0 || visited.has(t.id)) return;
@@ -491,7 +496,7 @@ export class Combat {
           rarity: attack.rarities.burst,
           rank: attack.ranks.burst,
         });
-        this.resolveHit(attack, t, point, 0, visited, false);
+        this.resolveHit(discharge, t, point, 0, visited, false);
       });
     }
   }

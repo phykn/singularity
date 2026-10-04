@@ -150,3 +150,28 @@ test('Combined repeats retain snapshots, pause cleanly and do not continue after
   g.advance(300);
   assert.equal(g.events.filter((e) => e.kind === 'hit').length, before);
 });
+
+test('Death Arc amplifies only its discharge and cannot amplify or duplicate a delivery echo', () => {
+  const run = (burst: number) => {
+    const g = stationarySkill({ strike: 1, wave: 1, burst }, [
+      target(0, 330, 128, 1),
+      target(1, 350, 128, 1),
+      target(2, 380, 128, 100),
+    ]);
+    g.combat.fireSkill('strike');
+    return g;
+  };
+  const base = run(0),
+    boosted = run(1);
+  assert.equal(boosted.xp, 2);
+  assert.equal(boosted.events.filter((e) => e.kind === 'skill-combo').length, 1);
+  const damage = (g: typeof base) => g.damageNumbers.map((n) => n.value);
+  assert.equal(damage(base)[0], damage(boosted)[0], 'The initial strike retains its damage');
+  close(damage(boosted)[1], damage(base)[0] * boosted.forms.burst.damage);
+  const wave = (g: typeof base) => g.effects.find((fx) => fx.kind === 'wave')!;
+  assert.deepEqual(wave(boosted).from, wave(base).from, 'Echo starts from the native first hit');
+  assert.equal(wave(boosted).rarity, wave(base).rarity);
+  base.advance(600);
+  boosted.advance(600);
+  close(base.targets.find((t) => t.id === 2)!.hp, boosted.targets.find((t) => t.id === 2)!.hp);
+});

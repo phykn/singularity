@@ -265,9 +265,9 @@ export function drawEffect(
     }
   } else if (fx.kind === 'area') {
     const radius = fx.radius;
-    g.fillStyle(ink, alpha * 0.06);
+    g.fillStyle(ink, alpha * 0.025);
     g.fillCircle(from.x, from.y, radius);
-    ring(g, from, radius, ink, alpha * 0.8, scale, reduced, 1 + Math.floor(strength * 2));
+    ring(g, from, radius, ink, alpha * 0.5, scale, reduced, 1);
     if (!reduced) {
       for (let i = 0; i < 4; i++) {
         const angle = (i * Math.PI) / 2 + fx.born;
@@ -275,7 +275,7 @@ export function drawEffect(
           x: from.x + Math.cos(angle) * radius * 0.75,
           y: from.y + Math.sin(angle) * radius * 0.75,
         };
-        stroke(g, bolt(from, to, i + fx.born * 100, scale, false), 1, ink, alpha * 0.65, scale);
+        stroke(g, bolt(from, to, i + fx.born * 100, scale, false), 1, ink, alpha * 0.45, scale);
       }
       spark(g, from, 3, ink, alpha, scale);
     }

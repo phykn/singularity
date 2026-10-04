@@ -98,8 +98,8 @@ test('area and pierce share one damage hit, boundaries include the edge, and tie
   );
   const beam = fixture({ pierce: 1 }, [
     target(0, 190, 128, 10),
-    target(1, 210, 134, 10),
-    target(2, 210, 134.01, 10),
+    target(1, 210, 140, 10),
+    target(2, 210, 140.01, 10),
   ]);
   beam.combat.fireBasic(origin);
   assert.deepEqual(
@@ -217,7 +217,7 @@ test('basic lightning modifiers change actual hit coverage at each rank', () => 
   const line = (xs: number[], hp = 2) => xs.map((x, id) => target(id, origin.x + x, origin.y, hp));
   for (const rank of [1, 2, 3]) {
     for (const id of ['area', 'burst'] as const) {
-      const g = fixture({ [id]: rank }, line([0, 24, 34, 46]));
+      const g = fixture({ [id]: rank }, line(id === 'area' ? [0, 24, 34, 42] : [0, 40, 60, 80]));
       g.combat.fireBasic(origin);
       assert.equal(g.xp, rank + 1, id);
     }
@@ -273,7 +273,7 @@ test('all four rarities change actual geometry or hit counts across basic lightn
     const rarity = rarityIds[tier];
     for (const [id, xs] of [
       ['area', [0, 32, 39, 43]],
-      ['burst', [0, 26, 32, 36]],
+      ['burst', [0, 52, 62, 72]],
     ] as const) {
       const g = fixture({ [id]: 1 }, line([...xs]));
       g.rarities[id] = rarity;
@@ -330,8 +330,8 @@ test('ranks four and five improve actual hit coverage for all forms while preser
   const line = (xs: number[], hp = 2) => xs.map((x, i) => target(i, origin.x + x, origin.y, hp));
   for (const rank of [4, 5]) {
     for (const [id, xs] of [
-      ['area', [0, 60, 76]],
-      ['burst', [0, 55, 68]],
+      ['area', [0, 48, 58]],
+      ['burst', [0, 96, 112]],
     ] as const) {
       const game = fixture({ [id]: rank }, line([...xs]));
       game.combat.fireBasic(origin);
@@ -408,12 +408,13 @@ test('death arcs start at the defeated enemy, obey their target limit and never 
     target(1, 200, 128),
     target(2, 210, 128),
     target(3, 220, 128),
+    target(4, 250, 128),
   ]);
   g.combat.fireBasic();
-  assert.equal(g.xp, 3);
-  assert.equal(g.targets[0].id, 3);
+  assert.equal(g.xp, 4);
+  assert.equal(g.targets[0].id, 4);
   const arcs = g.effects.filter((fx) => fx.source === 'burst');
-  assert.equal(arcs.length, 2);
+  assert.equal(arcs.length, 3);
   assert.ok(arcs.every((fx) => fx.kind === 'bolt' && fx.from.x === 190 && fx.anchor === undefined));
 });
 
@@ -493,13 +494,13 @@ test('focused arcs sustain damage, retarget killed enemies and extend duration a
       hits.length,
       Math.ceil(rules.skills.focus.durations[rank] / rules.skills.focus.tickSeconds - 1e-8),
     );
-    close(g.targets[0].hp, 100 - hits.length * 3);
+    close(g.targets[0].hp, 100 - hits.length * g.damage * g.forms.focus.damage);
   }
   const g = stationarySkill({ focus: 1 }, [target(0, 190, 128, 1), target(1, 210, 128, 100)]);
   g.combat.fireSkill('focus');
   g.advance(600);
   assert.equal(g.xp, 1);
-  close(g.targets[0].hp, 94);
+  close(g.targets[0].hp, 100 - 2 * g.damage * g.forms.focus.damage);
 });
 
 test('four rarities change new attacks and power changes their actual damage', () => {
@@ -522,7 +523,7 @@ test('four rarities change new attacks and power changes their actual damage', (
     g.boosts.power = 2;
     g.combat.fireSkill('focus');
     g.advance(100);
-    close(g.damageNumbers[0].value, 4 * 1.5 * rules.rarity[rarity].scale);
+    close(g.damageNumbers[0].value, 4 * rules.skills.focus.damage * rules.rarity[rarity].scale);
   }
 });
 

@@ -71,6 +71,7 @@ export function formValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rule
     burst: {
       radius: s.burst.radii[ranks.burst] * scale('burst'),
       count: s.burst.targets[ranks.burst] + extra('burst'),
+      damage: s.burst.damage[ranks.burst] * scale('burst'),
     },
     strike: {
       count: s.strike.counts[ranks.strike] + extra('strike'),

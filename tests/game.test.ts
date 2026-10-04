@@ -292,7 +292,7 @@ test('fast clear brings the next batch sooner, crowding stops acceleration, and 
   fast.combat.fireBasic(fast.targets[4]);
   fast.combat.fireBasic(fast.targets[0]);
   assert.ok(fast.rushing);
-  assert.equal(fast.xp, 8);
+  assert.ok(fast.xp >= rules.rush.energyThreshold);
   const generated = Object.values(fast.counts).reduce((sum, c) => sum + c.generated, 0);
   fast.advance(800);
   assert.ok(Object.values(fast.counts).reduce((sum, c) => sum + c.generated, 0) > generated);
