@@ -35,6 +35,7 @@ export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
         style={{ color: skillColor(id) }}
         width={size <= 16 ? 12 : 24}
         height={size <= 16 ? 12 : 24}
+        shapeRendering="crispEdges"
         aria-hidden="true"
       />
     );

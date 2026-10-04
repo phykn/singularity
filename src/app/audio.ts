@@ -1,27 +1,44 @@
 export class GameAudio {
   private context: AudioContext | null = null;
   private last: Record<string, number> = {};
+  private wanted = false;
+  private request = 0;
   enabled = false;
 
-  async unlock(): Promise<boolean> {
+  async unlock(): Promise<boolean | null> {
+    this.wanted = true;
+    const request = ++this.request;
+    let context: AudioContext | null = null;
     try {
-      this.context ??= new AudioContext();
-      await this.context.resume();
-      this.enabled = this.context.state === 'running';
+      context = this.context ??= new AudioContext();
+      await context.resume();
+      if (this.context !== context) return null;
+      if (!this.wanted) {
+        await context.suspend();
+        return null;
+      }
+      if (request !== this.request) return null;
+      this.enabled = context.state === 'running';
       return this.enabled;
     } catch {
-      this.enabled = false;
+      if (request !== this.request) return null;
+      if (this.context === context) this.enabled = false;
       return false;
     }
   }
 
   suspend(): void {
+    this.wanted = false;
+    this.request++;
+    this.enabled = false;
     void this.context?.suspend().catch(() => {});
   }
   destroy(): void {
     const context = this.context;
     this.context = null;
     this.enabled = false;
+    this.wanted = false;
+    this.request++;
     this.last = {};
     void context?.close().catch(() => {});
   }

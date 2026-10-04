@@ -20,7 +20,7 @@ import {
   rules,
   xpForLevel,
 } from './rules.ts';
-import type { FormValues, Rarity, RuleSet, UpgradeId } from './rules.ts';
+import type { FormValues, RuleSet, UpgradeId } from './rules.ts';
 
 import { Combat } from './combat.ts';
 import type { Attack } from './combat.ts';
@@ -31,6 +31,7 @@ import type {
   Count,
   DamageNumber,
   Effect,
+  EffectInput,
   Event,
   Metrics,
   Outcome,
@@ -381,7 +382,14 @@ export class Game {
     for (const target of absorbed) {
       this.mass += target.mass;
       this.counts[target.particle].absorbed++;
-      this.addEffect('absorb', target, CENTER, this.core + 10, 1, 0.5);
+      this.addEffect({
+        kind: 'absorb',
+        from: target,
+        to: CENTER,
+        radius: this.core + 10,
+        width: 1,
+        life: 0.5,
+      });
       this.log('absorb', { id: target.id, kind: target.kind, mass: this.mass });
     }
     const ids = new Set(absorbed.map((t) => t.id));
@@ -409,7 +417,14 @@ export class Game {
   private levelUp(previous: number): void {
     if (this.level <= previous) return;
     this.log('level', { level: this.level, xp: this.xp });
-    this.addEffect('level', this.position, this.position, 24, 1, 0.5);
+    this.addEffect({
+      kind: 'level',
+      from: this.position,
+      to: this.position,
+      radius: 24,
+      width: 1,
+      life: 0.5,
+    });
   }
 
   private openChoice(): void {
@@ -467,17 +482,17 @@ export class Game {
     };
     this.selections.push(selection);
     this.log('skill', selection);
-    this.addEffect(
-      'upgrade',
-      this.position,
-      this.position,
-      id === 'accel' ? 30 : 18,
-      1,
-      0.7,
-      id,
-      this.rarities[id],
-      'electron',
-    );
+    this.addEffect({
+      kind: 'upgrade',
+      from: this.position,
+      to: this.position,
+      radius: id === 'accel' ? 30 : 18,
+      width: 1,
+      life: 0.7,
+      source: id,
+      rarity: this.rarities[id],
+      anchor: 'electron',
+    });
     this.notice = id;
     this.noticeUntil = this.time + 2;
     this.combat.learn(id, previous);
@@ -554,7 +569,14 @@ export class Game {
       if (attack && !attack.firstKill) attack.firstKill = { x: target.x, y: target.y };
       this.counts[target.particle].killed++;
       this.targets.splice(index, 1);
-      this.addEffect('kill', target, this.position, 8, damage, 0.4);
+      this.addEffect({
+        kind: 'kill',
+        from: target,
+        to: this.position,
+        radius: 8,
+        width: damage,
+        life: 0.4,
+      });
       const before = this.charged;
       const previous = this.level;
       this.xp += target.xp;
@@ -636,19 +658,10 @@ export class Game {
     this.log('result', this.result.outcome);
   }
 
-  addEffect(
-    kind: Effect['kind'],
-    from: Point,
-    to: Point,
-    radius: number,
-    width: number,
-    life: number,
-    source?: UpgradeId,
-    rarity: Rarity = source ? this.rarities[source] : 'common',
-    anchor?: Effect['anchor'],
-    rank = source ? this.rank(source) : 0,
-  ): Effect {
-    if (kind === 'bolt' || kind === 'pierce') life = 0.14;
+  addEffect(input: EffectInput): void {
+    const { kind, from, to, radius, width, life, source, anchor, targetId } = input;
+    const rarity = input.rarity ?? (source ? this.rarities[source] : 'common');
+    const rank = input.rank ?? (source ? this.rank(source) : 0);
     const effect = {
       kind,
       from: { x: from.x, y: from.y },
@@ -661,6 +674,7 @@ export class Game {
       rank,
       rarity,
       anchor,
+      targetId,
     };
     this.effects.push(effect);
     if (this.effects.length > 160) {
@@ -668,7 +682,6 @@ export class Game {
       this.effects.splice(Math.max(0, discard), 1);
     }
     this.metrics.maxEffects = Math.max(this.metrics.maxEffects, this.effects.length);
-    return effect;
   }
   log(kind: string, data: unknown): void {
     this.events.push({ time: this.time, kind, data });

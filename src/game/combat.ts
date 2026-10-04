@@ -181,18 +181,17 @@ export class Combat {
       // A target can take one strike per cast, including overlapping impact areas.
       const hit = new Set<number>();
       for (const target of selected) {
-        this.game.addEffect(
-          'strike',
-          { x: target.x, y: target.y - 180 },
-          target,
-          form.strike.radius,
-          3,
-          0.24,
-          id,
+        this.game.addEffect({
+          kind: 'strike',
+          from: { x: target.x, y: target.y - 180 },
+          to: target,
+          radius: form.strike.radius,
+          width: 3,
+          life: 0.24,
+          source: id,
           rarity,
-          undefined,
-          attack.ranks[id],
-        );
+          rank: attack.ranks[id],
+        });
         for (const nearby of [...this.game.targets].sort((a, b) => a.id - b.id)) {
           if (nearby.hp <= 0 || hit.has(nearby.id) || distance(nearby, target) > form.strike.radius)
             continue;
@@ -219,18 +218,18 @@ export class Combat {
         angle,
       };
       // For a whip, `to` is its initial direction and `width` is the swept angle.
-      this.game.addEffect(
-        id,
-        origin,
-        { x: origin.x + Math.cos(angle), y: origin.y + Math.sin(angle) },
-        id === 'wave' ? form.wave.radius : form.whip.length,
-        id === 'wave' ? 1 : form.whip.arc,
-        this.game.rules.skills[id].duration,
-        id,
+      this.game.addEffect({
+        kind: id,
+        from: origin,
+        to: { x: origin.x + Math.cos(angle), y: origin.y + Math.sin(angle) },
+        radius: id === 'wave' ? form.wave.radius : form.whip.length,
+        width: id === 'wave' ? 1 : form.whip.arc,
+        life: this.game.rules.skills[id].duration,
+        source: id,
         rarity,
-        id === 'whip' ? 'electron' : undefined,
-        attack.ranks[id],
-      );
+        anchor: id === 'whip' ? 'electron' : undefined,
+        rank: attack.ranks[id],
+      });
     }
     if (id !== 'focus') this.activate(id);
   }
@@ -262,49 +261,48 @@ export class Combat {
     );
     const source =
       repeat && attack.ranks.repeat ? 'repeat' : attack.ranks.multi ? 'multi' : undefined;
-    this.game.addEffect(
-      'bolt',
-      origin,
-      primary,
-      0,
-      1.8 + (attack.damage - this.game.rules.baseHitDamage) * 0.5,
-      0.32,
+    this.game.addEffect({
+      kind: 'bolt',
+      from: origin,
+      to: primary,
+      radius: 0,
+      width: 1.8 + (attack.damage - this.game.rules.baseHitDamage) * 0.5,
+      life: 0.14,
       source,
       rarity,
-      'electron',
-      source ? attack.ranks[source] : 0,
-    );
+      anchor: 'electron',
+      rank: source ? attack.ranks[source] : 0,
+    });
     if (repeat && attack.ranks.repeat) this.activate('repeat', attack.ranks.repeat);
     if (!repeat && pulse.order > 0 && attack.ranks.multi)
       this.activate('multi', attack.ranks.multi);
     if (radius) {
-      this.game.addEffect(
-        'area',
-        primary,
-        primary,
+      this.game.addEffect({
+        kind: 'area',
+        from: primary,
+        to: primary,
         radius,
-        1,
-        0.38,
-        'area',
-        attack.rarities.area,
-        undefined,
-        attack.ranks.area,
-      );
+        width: 1,
+        life: 0.38,
+        source: 'area',
+        rarity: attack.rarities.area,
+        rank: attack.ranks.area,
+      });
       this.activate('area', attack.ranks.area);
     }
     if (length) {
-      this.game.addEffect(
-        'pierce',
-        origin,
-        { x: origin.x + direction.x * length, y: origin.y + direction.y * length },
-        0,
+      this.game.addEffect({
+        kind: 'pierce',
+        from: origin,
+        to: { x: origin.x + direction.x * length, y: origin.y + direction.y * length },
+        radius: 0,
         width,
-        0.3,
-        'pierce',
-        attack.rarities.pierce,
-        'electron',
-        attack.ranks.pierce,
-      );
+        life: 0.14,
+        source: 'pierce',
+        rarity: attack.rarities.pierce,
+        anchor: 'electron',
+        rank: attack.ranks.pierce,
+      });
       this.activate('pierce', attack.ranks.pierce);
     }
     const hit = this.game.targets
@@ -328,18 +326,17 @@ export class Combat {
     for (let hop = 0; hop < s.chain.hops; hop++) {
       const next = closest(this.game.targets, previous, 1, s.chain.range, visited)[0];
       if (!next) break;
-      this.game.addEffect(
-        'bolt',
-        previous,
-        next,
-        0,
-        1.2,
-        0.34,
-        'chain',
-        attack.rarities.chain,
-        undefined,
-        attack.ranks.chain,
-      );
+      this.game.addEffect({
+        kind: 'bolt',
+        from: previous,
+        to: next,
+        radius: 0,
+        width: 1.2,
+        life: 0.14,
+        source: 'chain',
+        rarity: attack.rarities.chain,
+        rank: attack.ranks.chain,
+      });
       this.activate('chain', attack.ranks.chain);
       this.game.damageTarget(next, attack.damage, attack);
       visited.add(next.id);
@@ -356,18 +353,17 @@ export class Combat {
       const targets = closest(this.game.targets, point, attack.forms.burst.count, radius);
       if (targets.length) this.activate('burst', attack.ranks.burst);
       targets.forEach((t) => {
-        this.game.addEffect(
-          'bolt',
-          point,
-          t,
-          0,
-          1.4,
-          0.14,
-          'burst',
-          attack.rarities.burst,
-          undefined,
-          attack.ranks.burst,
-        );
+        this.game.addEffect({
+          kind: 'bolt',
+          from: point,
+          to: t,
+          radius: 0,
+          width: 1.4,
+          life: 0.14,
+          source: 'burst',
+          rarity: attack.rarities.burst,
+          rank: attack.ranks.burst,
+        });
         this.game.damageTarget(t, attack.damage);
       });
     }
@@ -434,18 +430,19 @@ export class Combat {
         cast.target = closest(this.game.targets, origin, 1, form.range)[0];
       }
       if (cast.target) {
-        this.game.addEffect(
-          'focus',
-          origin,
-          cast.target,
-          0,
-          1.5,
-          this.game.rules.skills.focus.tickSeconds,
-          'focus',
-          cast.attack.rarities.focus,
-          'electron',
-          cast.attack.ranks.focus,
-        ).targetId = cast.target.id;
+        this.game.addEffect({
+          kind: 'focus',
+          from: origin,
+          to: cast.target,
+          radius: 0,
+          width: 1.5,
+          life: this.game.rules.skills.focus.tickSeconds,
+          source: 'focus',
+          rarity: cast.attack.rarities.focus,
+          anchor: 'electron',
+          rank: cast.attack.ranks.focus,
+          targetId: cast.target.id,
+        });
         this.game.damageTarget(cast.target, cast.attack.damage, cast.attack);
         this.activate('focus', cast.attack.ranks.focus);
         this.discharge(cast.attack);

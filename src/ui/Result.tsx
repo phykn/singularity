@@ -62,7 +62,7 @@ export function Result({
         <div className="result-build">
           {owned.map((id) => (
             <div key={id} data-rarity={game.rarities[id]}>
-              <SkillIcon id={id} size={22} />
+              <SkillIcon id={id} size={32} />
               <span>{c.upgrades[id].short}</span>
               <small>{c.rarities[game.rarities[id]]}</small>
               <Rank value={game.rank(id)} max={rules.maxRank} />

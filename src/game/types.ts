@@ -45,6 +45,8 @@ export type Effect = {
   targetId?: number;
   anchor?: 'electron';
 };
+export type EffectInput = Omit<Effect, 'born' | 'rank' | 'rarity'> &
+  Partial<Pick<Effect, 'rank' | 'rarity'>>;
 export type DamageNumber = Point & { id: number; value: number; born: number; rarity: Rarity };
 export type Choice = { cards: Card[]; number: number; opened: number; deadline: number };
 export type Count = { generated: number; killed: number; absorbed: number };

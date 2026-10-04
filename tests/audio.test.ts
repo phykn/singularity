@@ -33,3 +33,60 @@ test('audio can unlock again after a browser effect cleanup closes the previous 
   assert.equal(contexts[1].state, 'running');
   audio.destroy();
 });
+
+test('a delayed audio resume cannot undo suspension or affect a replacement context', async (t) => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext');
+  const contexts: Context[] = [];
+  class Context {
+    state = 'suspended';
+    release!: () => void;
+    reject!: (error: Error) => void;
+    constructor() {
+      contexts.push(this);
+    }
+    async resume() {
+      await new Promise<void>((resolve, reject) => {
+        this.release = resolve;
+        this.reject = reject;
+      });
+      if (this.state === 'closed') throw new Error('Closed context');
+      this.state = 'running';
+    }
+    async suspend() {
+      this.state = 'suspended';
+    }
+    async close() {
+      this.state = 'closed';
+    }
+  }
+  Object.defineProperty(globalThis, 'AudioContext', { configurable: true, value: Context });
+  t.after(() => {
+    if (previous) Object.defineProperty(globalThis, 'AudioContext', previous);
+    else delete (globalThis as { AudioContext?: unknown }).AudioContext;
+  });
+  const audio = new GameAudio();
+  const first = audio.unlock();
+  audio.suspend();
+  contexts[0].release();
+  assert.equal(await first, null);
+  assert.equal(contexts[0].state, 'suspended');
+  assert.equal(audio.enabled, false);
+  const stale = audio.unlock();
+  audio.destroy();
+  const latest = audio.unlock();
+  contexts[1].release();
+  assert.equal(await latest, true);
+  contexts[0].release();
+  assert.equal(await stale, null);
+  assert.equal(audio.enabled, true);
+  assert.equal(contexts[1].state, 'running');
+  const obsolete = audio.unlock();
+  const reject = contexts[1].reject;
+  const current = audio.unlock();
+  contexts[1].release();
+  assert.equal(await current, true);
+  reject(new Error('Obsolete request failed'));
+  assert.equal(await obsolete, null);
+  assert.equal(audio.enabled, true);
+  audio.destroy();
+});

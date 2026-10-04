@@ -844,9 +844,9 @@ svg {
   min-width: 0;
   max-width: 88px;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  padding: 12px 4px;
+  padding: 8px 4px;
   border-radius: 0;
   background: #1b1f27;
   text-align: center;

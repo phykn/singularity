@@ -105,16 +105,17 @@ export function useGame() {
 
   async function enableAudio() {
     const enabled = await audio.current.unlock();
-    setAudioUnavailable(!enabled);
+    if (enabled !== null) setAudioUnavailable(!enabled);
     return enabled;
   }
 
   async function toggleSound() {
     const sound = !settingsRef.current.sound;
-    if (sound && !(await enableAudio())) return;
-    audio.current.enabled = sound;
-    if (!sound) audio.current.suspend();
     changeSettings({ ...settingsRef.current, sound });
+    setAudioUnavailable(false);
+    if (!sound) audio.current.suspend();
+    else if ((await enableAudio()) === false && settingsRef.current.sound)
+      changeSettings({ ...settingsRef.current, sound: false });
   }
 
   function replace(seed = newSeed()) {

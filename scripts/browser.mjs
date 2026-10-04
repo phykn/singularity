@@ -149,6 +149,77 @@ const rarityFlow = async () => {
   await page.close();
 };
 
+const audioFlow = async () => {
+  const page = await pageFor(375, 812);
+  await page.evaluate(() => {
+    const Native = window.AudioContext;
+    const trial = (window.audioTrial = { contexts: [], requests: [] });
+    window.AudioContext = class extends Native {
+      constructor() {
+        super();
+        trial.contexts.push(this);
+      }
+      async resume() {
+        await new Promise((resolve, reject) => trial.requests.push({ resolve, reject }));
+        return super.resume();
+      }
+    };
+  });
+  await page.getByRole('button', { name: '설정', exact: true }).click();
+  const sound = () => page.locator('.setting-row').first();
+  const pressed = () => sound().getAttribute('aria-pressed');
+  const settle = async (index, fail = false) => {
+    await page.evaluate(
+      ({ index, fail }) => {
+        const request = window.audioTrial.requests[index];
+        if (fail) request.reject(new Error('Audio unavailable'));
+        else request.resolve();
+      },
+      { index, fail },
+    );
+    await page.waitForTimeout(100);
+  };
+  await sound().click();
+  assert.equal(await pressed(), 'true');
+  await sound().click();
+  await settle(0);
+  assert.equal(await pressed(), 'false');
+  assert.equal(await page.evaluate(() => window.audioTrial.contexts[0].state), 'suspended');
+  await sound().click();
+  await sound().click();
+  await sound().click();
+  await settle(2);
+  await settle(1, true);
+  assert.equal(await pressed(), 'true');
+  assert.equal(await page.locator('.setting-notice').count(), 0);
+  assert.equal(await page.evaluate(() => window.audioTrial.contexts[0].state), 'running');
+  await sound().click();
+  await sound().click();
+  await page.getByRole('button', { name: '닫기', exact: true }).click();
+  await page.getByRole('button', { name: 'START' }).click();
+  await page.getByRole('button', { name: '일시정지', exact: true }).click();
+  await settle(3);
+  await settle(4);
+  assert.equal(await pressed(), 'true');
+  assert.equal(await page.evaluate(() => window.audioTrial.contexts[0].state), 'suspended');
+  assert.equal(await page.locator('.setting-notice').count(), 0);
+  await sound().click();
+  await sound().click();
+  await settle(5, true);
+  assert.equal(await pressed(), 'false');
+  await page.getByRole('dialog').getByText(copy.ko.audioFailed, { exact: true }).waitFor();
+  assert.equal(
+    await page.evaluate(() => JSON.parse(localStorage.getItem('singularity.settings')).sound),
+    false,
+  );
+  await screenshot(page, 'audio-recovery');
+  report('delayed audio respects rapid toggles, newer requests, pause and actual failures', {
+    requests: 6,
+    savedSound: false,
+  });
+  await page.close();
+};
+
 const skillFlow = async () => {
   const skillsPage = await pageFor(375, 812);
   for (const id of skillIds) {
@@ -522,7 +593,9 @@ const interfaceFlow = async () => {
 };
 
 try {
-  if (process.argv.includes('--skills')) {
+  if (process.argv.includes('--audio')) {
+    await audioFlow();
+  } else if (process.argv.includes('--skills')) {
     await skillFlow();
   } else if (process.argv.includes('--visuals')) {
     await visualFlow();
@@ -609,6 +682,7 @@ try {
       xp: s.xp,
     });
   } else {
+    await audioFlow();
     await rarityFlow();
     for (const [width, height] of [
       [360, 640],
@@ -900,19 +974,21 @@ try {
   assert.deepEqual(errors, []);
   writeFileSync(
     'artifacts/' +
-      (process.argv.includes('--skills')
-        ? 'skills-browser'
-        : process.argv.includes('--visuals')
-          ? 'visuals-browser'
-          : process.argv.includes('--interface')
-            ? 'interface-browser'
-            : process.argv.includes('--rarity')
-              ? 'rarity-browser'
-              : process.argv.includes('--production')
-                ? 'production'
-                : process.argv.includes('--realtime')
-                  ? 'realtime-checks'
-                  : 'browser') +
+      (process.argv.includes('--audio')
+        ? 'audio-browser'
+        : process.argv.includes('--skills')
+          ? 'skills-browser'
+          : process.argv.includes('--visuals')
+            ? 'visuals-browser'
+            : process.argv.includes('--interface')
+              ? 'interface-browser'
+              : process.argv.includes('--rarity')
+                ? 'rarity-browser'
+                : process.argv.includes('--production')
+                  ? 'production'
+                  : process.argv.includes('--realtime')
+                    ? 'realtime-checks'
+                    : 'browser') +
       '.json',
     JSON.stringify({ base, checks, errors }, null, 2),
   );
