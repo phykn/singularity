@@ -17,7 +17,7 @@ npm ci
 npm run dev
 ```
 
-Open `localhost:8081`. Use `npm run build` for a production build and `npm test` for engine tests.
+Open `localhost:8081`. Use `npm run build` for a production build, `npm test` for engine tests, and `npm run format:check` to check code formatting.
 
 ## Credits
 

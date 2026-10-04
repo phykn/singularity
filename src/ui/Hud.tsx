@@ -1,0 +1,73 @@
+import { Pause } from 'pixelarticons/react';
+import { statIds } from '../game/rules.ts';
+import type { UpgradeId } from '../game/rules.ts';
+import { ChargeIcon, SkillIcon } from './icons.tsx';
+import { skillValue } from './skillText.ts';
+import { formatTime } from '../format.ts';
+import type { Game } from '../game/model.ts';
+import { copy } from './i18n.ts';
+import type { Language } from './i18n.ts';
+
+const statNumber = new Intl.NumberFormat('en', {
+  notation: 'compact',
+  maximumSignificantDigits: 3,
+});
+export function Hud({
+  game,
+  language,
+  onPause,
+}: {
+  game: Game;
+  language: Language;
+  onPause: () => void;
+}) {
+  const c = copy[language],
+    rules = game.rules;
+  const energyPercent = Math.min(100, Math.floor((game.xp / rules.energyGoal) * 100));
+  const value = (id: UpgradeId, rank = game.rank(id)) =>
+    skillValue(id, rank, game.rarities[id], language, rules);
+  return (
+    <section className="hud" aria-label={c.hud}>
+      <div className="hud-top">
+        <div
+          className={`charge ${game.charged ? 'charged-label' : ''}`}
+          role="progressbar"
+          aria-label={game.charged ? c.ready : c.charge}
+          aria-valuenow={Math.min(game.xp, rules.energyGoal)}
+          aria-valuemin={0}
+          aria-valuemax={rules.energyGoal}
+        >
+          <ChargeIcon progress={energyPercent / 100} />
+          <b>{energyPercent}%</b>
+        </div>
+        <div className="boosts" aria-label={c.stats}>
+          {statIds.map((id) => (
+            <div
+              className="boost"
+              key={id}
+              aria-label={c.upgrades[id].short + ', ' + value(id)}
+              title={value(id)}
+            >
+              <SkillIcon id={id} size={14} />
+              <b>
+                {statNumber.format(
+                  id === 'power' ? game.damage : id === 'rate' ? game.rate : game.speed,
+                )}
+                {id === 'rate' && '×'}
+              </b>
+            </div>
+          ))}
+        </div>
+        <time>{formatTime(game.seconds)}</time>
+        <button
+          className="icon-button pause-button"
+          onClick={onPause}
+          disabled={game.phase === 'result'}
+          aria-label={c.pause}
+        >
+          <Pause aria-hidden="true" />
+        </button>
+      </div>
+    </section>
+  );
+}

@@ -1,730 +1,294 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Game, maxDamageNumbers } from '../src/game.ts';
-import { Random } from '../src/random.ts';
-import { eligibleUpgrades, makeCards } from '../src/growth.ts';
-import { effectOrigin, visibleEffects } from '../src/effects.ts';
-import { orbit } from '../src/geometry.ts';
-import { particleIds } from '../src/particles.ts';
-import type { Target, TargetKind } from '../src/game.ts';
-import { blankBoosts, blankRanks, blankRarities, formValues, isSkill, rarityIds, rollRarity, rules, skillIds, statIds, levelForXp, xpForLevel } from '../src/rules.ts';
-import type { Boosts, Ranks, Rarity, UpgradeId } from '../src/rules.ts';
-import { bestRecord, readLanguage, readRecord, readRun, readSettings, languageKey, recordKey, runKey, save, saveRun, settingsKey } from '../src/storage.ts';
+import { Game } from '../src/game/model.ts';
+import { orbit } from '../src/game/geometry.ts';
+import { particleIds } from '../src/game/particles.ts';
+import type { Target } from '../src/game/types.ts';
+import { rules } from '../src/game/rules.ts';
+import { close, target, fixture, choose, run } from './helpers.ts';
 
-const close = (a: number, b: number, error = 1e-7) => assert.ok(Math.abs(a - b) < error, a + ' != ' + b);
-function target(id: number, x: number, y: number, hp = 2, kind: TargetKind = 'small'): Target {
-  const data = rules.targets[kind];
-  return { id, x, y, hp, maxHp: hp, kind, particle: kind === 'small' ? 'quark' : 'proton', born: 0, xp: data.xp, mass: data.mass, size: data.size, radius: Math.hypot(x - 180, y - 260), angle: Math.atan2(y - 260, x - 180), speed: 0, turn: 0 };
-}
-function fixture(ranks: Partial<Ranks> = {}, targets: Target[] = []): Game {
-  const g = new Game(42, { combat: false }); g.start();
-  Object.assign(g.ranks, ranks); g.targets = targets;
-  for (const id of particleIds) g.counts[id].generated = targets.filter(t => t.particle === id).length;
-  return g;
-}
-function choose(g: Game, id: UpgradeId, rarity: Rarity = 'common'): void {
-  g.choice = { number: g.selections.length + 1, opened: g.time, deadline: g.time + 8, cards: [{ id, rarity }] };
-  assert.ok(g.select(id));
-}
-function run(seed: number, fps: number): Game {
-  const g = new Game(seed); g.start();
-  for (let i = 0; i < fps * 1800 && !g.result; i++) g.advance(1000 / fps);
-  assert.ok(g.result); return g;
-}
-
-test('energy grants opportunities without automatic speed, fire rate or damage', () => {
-  const g = fixture();
-  const initial = [g.speed, g.damage, g.attackInterval];
-  g.debugSetXp(2000);
-  assert.deepEqual([g.speed, g.damage, g.attackInterval], initial);
-  assert.equal(g.level, 1 + rules.levelXp.filter(xp => xp <= 2000).length); assert.equal(g.choice?.number, 1);
-  assert.ok(g.choice!.cards.every(c => isSkill(c.id)));
-  assert.ok(g.select(g.choice!.cards[0].id));
-  assert.equal(g.level, 1 + rules.levelXp.filter(xp => xp <= 2000).length); assert.deepEqual([g.speed, g.damage, g.attackInterval], initial);
+test('custom rules control simulation ticks, the initial orbit and the first attack deadline', () => {
+  const cfg = {
+    ...rules,
+    tickRate: 30,
+    attackBaseSeconds: 2,
+    orbitRadius: 120,
+    baseSpeed: 0,
+    spawnSecondsByStage: Array(5).fill(10000),
+  };
+  const game = new Game(42, { rules: cfg });
+  game.start();
+  const enemy = target(900, game.position.x, game.position.y, 100);
+  game.targets = [enemy];
+  assert.equal(game.radius, 120);
+  assert.equal(game.metrics.minRadius, 120);
+  game.advance(1999);
+  assert.equal(game.tick, 59);
+  assert.equal(enemy.hp, 100);
+  game.advance(1);
+  assert.equal(game.tick, 60);
+  assert.equal(game.seconds, 2);
+  assert.equal(game.time, 2);
+  assert.equal(enemy.hp, 98);
 });
 
 test('moving particles approach and death and absorption are mutually exclusive', () => {
-  const p = target(0, 180, 90); p.speed = 7; p.turn = .12;
-  const g = fixture({}, [p]); g.advance(1000);
-  close(p.radius, 163); close(p.angle, -Math.PI / 2 + .12);
+  const p = target(0, 180, 90);
+  p.speed = 7;
+  p.turn = 0.12;
+  const g = fixture({}, [p]);
+  g.advance(1000);
+  close(p.radius, 163);
+  close(p.angle, -Math.PI / 2 + 0.12);
   assert.notEqual(p.x, 180);
   const killed = fixture({}, [target(0, 180, 275)]);
-  killed.fireBasic({ x: 180, y: 275 }); killed.absorbTargets();
-  assert.equal(killed.xp, 1); assert.equal(killed.mass, 0); assert.equal(killed.counts.quark.absorbed, 0);
+  killed.combat.fireBasic({ x: 180, y: 275 });
+  killed.absorbTargets();
+  assert.equal(killed.xp, 1);
+  assert.equal(killed.mass, 0);
+  assert.equal(killed.counts.quark.absorbed, 0);
   const absorbed = fixture({}, [target(0, 180, 278, 100, 'dense')]);
-  absorbed.fireBasic({ x: 180, y: 278 }); absorbed.absorbTargets(); absorbed.absorbTargets();
-  assert.equal(absorbed.xp, 0); assert.equal(absorbed.mass, rules.targets.dense.mass);
-  assert.equal(absorbed.counts.proton.absorbed, 1); assert.equal(absorbed.targets.length, 0);
+  absorbed.combat.fireBasic({ x: 180, y: 278 });
+  absorbed.absorbTargets();
+  absorbed.absorbTargets();
+  assert.equal(absorbed.xp, 0);
+  assert.equal(absorbed.mass, rules.targets.dense.mass);
+  assert.equal(absorbed.counts.proton.absorbed, 1);
+  assert.equal(absorbed.targets.length, 0);
 });
 
 test('results separate every particle species through death, absorption and survival', () => {
   const targets = particleIds.flatMap((particle, i) => {
     const kind = i < 2 ? 'small' : 'dense';
-    return [target(i * 3, 30 + i * 100, 100, 1, kind), target(i * 3 + 1, 180, 260, 100, kind), target(i * 3 + 2, 30 + i * 100, 400, 100, kind)].map(t => ({ ...t, particle }));
+    return [
+      target(i * 3, 30 + i * 100, 100, 1, kind),
+      target(i * 3 + 1, 180, 260, 100, kind),
+      target(i * 3 + 2, 30 + i * 100, 400, 100, kind),
+    ].map((t) => ({ ...t, particle }));
   });
   const g = fixture({}, targets);
-  for (const t of targets.filter(t => t.hp === 1)) g.fireBasic(t);
+  for (const t of targets.filter((t) => t.hp === 1)) g.combat.fireBasic(t);
   g.absorbTargets();
-  g.mass = 1000; g.radius = g.core + 4; g.advance(16000);
+  g.mass = 1000;
+  g.radius = g.core + 4;
+  g.advance(16000);
   assert.ok(g.result);
   assert.deepEqual(Object.keys(g.result.counts), particleIds);
-  for (const id of particleIds) assert.deepEqual(g.result.counts[id], { generated: 3, killed: 1, absorbed: 1, remaining: 1 });
+  for (const id of particleIds)
+    assert.deepEqual(g.result.counts[id], { generated: 3, killed: 1, absorbed: 1, remaining: 1 });
 });
 
 test('acceleration recovers an orbit gradually without reducing accumulated mass', () => {
-  const g = fixture(); g.mass = 80; g.advance(30000);
-  assert.equal(g.phase, 'running'); assert.ok(g.radius < rules.orbitRadius);
-  const before = g.radius, speed = g.speed;
+  const g = fixture();
+  g.mass = 80;
+  g.advance(30000);
+  assert.equal(g.phase, 'running');
+  assert.ok(g.radius < rules.orbitRadius);
+  const before = g.radius,
+    speed = g.speed;
   choose(g, 'accel');
-  assert.ok(g.speed > speed); assert.equal(g.radius, before);
-  g.advance(1000); close(g.radius, before + rules.outwardSpeed);
-  g.advance(1000); close(g.radius, before + rules.supportPerRank);
+  assert.ok(g.speed > speed);
+  assert.equal(g.radius, before);
+  g.advance(1000);
+  close(g.radius, before + rules.outwardSpeed);
+  g.advance(1000);
+  close(g.radius, before + rules.supportPerRank);
   assert.equal(g.mass, 80);
   for (let i = 0; i < 36; i++) {
-    const p = orbit(i * Math.PI / 18, g.radius);
+    const p = orbit((i * Math.PI) / 18, g.radius);
     close(Math.hypot(p.x - 180, p.y - 260), g.radius);
   }
 });
 
 test('early collision snapshots the energy boundary and cancels combat and cards', () => {
   for (const xp of [rules.energyGoal - 1, rules.energyGoal]) {
-    const g = fixture({ wave: 3, focus: 3 }); g.debugSetXp(xp);
-    g.mass = 1000; g.radius = g.core + rules.electronRadius + .01;
-    g.advance(1000 / 60); assert.equal(g.phase, 'collapse'); assert.equal(g.choice, null);
+    const g = fixture({ wave: 3, focus: 3 });
+    g.debugSetXp(xp);
+    g.mass = 1000;
+    g.radius = g.core + rules.electronRadius + 0.01;
+    g.advance(1000 / 60);
+    assert.equal(g.phase, 'collapse');
+    assert.equal(g.choice, null);
     assert.equal(g.successfulEnding, xp >= rules.energyGoal);
     const frozen = { xp: g.xp, mass: g.mass, time: g.time };
-    g.debugSetXp(100000); assert.equal(g.xp, xp);
-    g.setManualPause(true); g.advance(10000); assert.equal(g.phaseProgress, 0);
-    g.setManualPause(false); g.advance(3000); assert.equal(g.phase, 'ending');
-    g.advance(12000); assert.ok(g.result);
+    g.debugSetXp(100000);
+    assert.equal(g.xp, xp);
+    g.setManualPause(true);
+    g.advance(10000);
+    assert.equal(g.phaseProgress, 0);
+    g.setManualPause(false);
+    g.advance(3000);
+    assert.equal(g.phase, 'ending');
+    g.advance(12000);
+    assert.ok(g.result);
     assert.deepEqual({ xp: g.xp, mass: g.mass, time: g.time }, frozen);
     assert.equal(g.result.trigger, xp >= rules.energyGoal ? 'energy' : 'gravity');
     assert.equal(g.result.outcome, xp >= rules.energyGoal ? 'success' : 'collapse-failure');
-    assert.equal(g.events.some((e) => e.kind === 'hit' && e.time >= frozen.time), false);
+    assert.equal(
+      g.events.some((e) => e.kind === 'hit' && e.time >= frozen.time),
+      false,
+    );
   }
 });
 
 test('elapsed time never ends a run and reaching the XP goal starts a successful collapse', () => {
-  const g = fixture(); g.debugSetXp(rules.energyGoal - 1); g.advance(3600000);
-  assert.equal(g.phase, 'running'); assert.equal(g.seconds, 3600);
-  assert.equal(g.stage, rules.stageStarts.length - 1); assert.equal(g.result, null);
-  const enemy = target(0, 180, 128, 1); g.targets = [enemy]; g.counts.quark.generated++;
-  g.fireBasic(enemy); assert.equal(g.xp, rules.energyGoal);
+  const g = fixture();
+  g.debugSetXp(rules.energyGoal - 1);
+  g.advance(3600000);
+  assert.equal(g.phase, 'running');
+  assert.equal(g.seconds, 3600);
+  assert.equal(g.stage, rules.stageStarts.length - 1);
+  assert.equal(g.result, null);
+  const enemy = target(0, 180, 128, 1);
+  g.targets = [enemy];
+  g.counts.quark.generated++;
+  g.combat.fireBasic(enemy);
+  assert.equal(g.xp, rules.energyGoal);
   const choices = g.selections.length;
   g.advance(1000 / rules.tickRate);
-  assert.equal(g.phase, 'collapse'); assert.equal(g.choice, null); assert.equal(g.successfulEnding, true);
+  assert.equal(g.phase, 'collapse');
+  assert.equal(g.choice, null);
+  assert.equal(g.successfulEnding, true);
   g.advance(15000);
-  assert.equal(g.result?.trigger, 'energy'); assert.equal(g.result?.missingXp, 0);
+  assert.equal(g.result?.trigger, 'energy');
+  assert.equal(g.result?.missingXp, 0);
   assert.equal(g.selections.length, choices);
   close(g.result!.seconds, 3615 + 1 / rules.tickRate);
 });
 
-test('XP thresholds continue beyond level 26 with exact boundaries and carried progress', () => {
-  for (const level of [2, 26, 27, 30, 50, 100, 1000, 1000000]) {
-    const xp = xpForLevel(level);
-    assert.equal(levelForXp(xp - 1), level - 1);
-    assert.equal(levelForXp(xp), level);
-    assert.equal(levelForXp(xp + 1), level);
-  }
-  assert.equal(xpForLevel(27), 19080);
-  assert.equal(xpForLevel(28), 20620);
-  const g = fixture(); g.debugSetXp(xpForLevel(50) + 17);
-  assert.equal(g.level, 50); assert.equal(g.levelProgress.current, 17);
-  assert.equal(g.levelProgress.required, xpForLevel(51) - xpForLevel(50));
-});
-
-test('maxed skills leave three repeatable stat choices and upgrades work above rank five', () => {
-  const g = fixture({ area: 5, repeat: 5, chain: 5, pierce: 5 });
-  for (const rank of [5, 20, 100]) {
-    g.boosts = { power: rank, rate: rank, accel: rank };
-    for (const danger of [false, true]) {
-      const cards = makeCards({ ranks: g.ranks, boosts: g.boosts, number: 100, danger }, new Random(42));
-      assert.deepEqual([...cards].sort(), [...statIds].sort());
-      if (danger) assert.equal(cards[0], 'accel');
-    }
-    const before = [g.damage, g.rate, g.speed];
-    statIds.forEach(id => choose(g, id));
-    assert.deepEqual(statIds.map(id => g.boosts[id]), [rank + 1, rank + 1, rank + 1]);
-    [g.damage, g.rate, g.speed].forEach((value, i) => assert.ok(value > before[i]));
-    assert.deepEqual(g.ranks, { ...blankRanks(), area: 5, repeat: 5, chain: 5, pierce: 5 });
-  }
-});
-
 test('late spawns keep their stage and scheduled waves continue beyond ten minutes', () => {
-  const g = fixture(); g.tick = 659 * rules.tickRate; g.elapsedTicks = g.tick; g.waveCount = rules.waves.length;
-  g.combat = true;
-  const warning = g.warningWave!; assert.equal(warning.time, 660);
+  const g = fixture();
+  g.tick = 659 * rules.tickRate;
+  g.elapsedTicks = g.tick;
+  g.waveCount = rules.waves.length;
+  g.combatEnabled = true;
+  const warning = g.warningWave!;
+  assert.equal(warning.time, 660);
   g.advance(1000);
-  assert.equal(g.waveCount, 6); assert.equal(g.upcomingWave.time, 780);
+  assert.equal(g.waveCount, 6);
+  assert.equal(g.upcomingWave.time, 780);
   assert.equal(g.stage, rules.stageStarts.length - 1);
   assert.ok(g.targets.length >= (rules.waveSmall + rules.waveDense) * rules.waveScale.at(-1)!);
-  assert.ok(g.targets.every(t => Number.isFinite(t.hp) && t.maxHp >= rules.targets.small.hp.at(-1)!));
+  assert.ok(
+    g.targets.every((t) => Number.isFinite(t.hp) && t.maxHp >= rules.targets.small.hp.at(-1)!),
+  );
 });
 
 test('contact at zero margin ends the run; a timely acceleration recovers a narrow orbit', () => {
-  const unsafe = fixture(); unsafe.mass = 1000; unsafe.radius = unsafe.core + 4;
-  unsafe.advance(1000 / 60); assert.equal(unsafe.phase, 'collapse');
+  const unsafe = fixture();
+  unsafe.mass = 1000;
+  unsafe.radius = unsafe.core + 4;
+  unsafe.advance(1000 / 60);
+  assert.equal(unsafe.phase, 'collapse');
   const recover = fixture();
   recover.mass = (rules.orbitRadius - 40) / rules.gravityPerMass;
-  recover.radius = 40; choose(recover, 'accel'); recover.advance(2000);
-  assert.equal(recover.phase, 'running'); close(recover.radius, 52);
-});
-
-test('XP alone levels up immediately, carries overflow, queues cards, and pauses every timer', () => {
-  const g = fixture(); g.debugSetXp(rules.levelXp.at(-1)! + 3);
-  const initial = structuredClone(g.choice);
-  g.setManualPause(true); g.advance(20000); assert.deepEqual(g.choice, initial);
-  assert.equal(g.select(g.choice!.cards[0].id), false);
-  g.setHidden(true); g.setManualPause(false); g.advance(10000); assert.equal(g.time, 0);
-  g.setManualPause(true); g.setHidden(false); g.advance(10000); assert.equal(g.time, 0);
-  g.setManualPause(false); g.advance(8000);
-  assert.equal(g.level, rules.levelXp.length + 1); assert.equal(g.selections.length, 1); assert.equal(g.choice?.number, 2); assert.equal(g.xp, rules.levelXp.at(-1)! + 3);
-  g.advance((rules.levelXp.length - 1) * 8000);
-  assert.equal(g.selections.length, rules.levelXp.length); assert.equal(g.choice, null);
-  assert.deepEqual(g.selections.map((s) => s.time), Array.from({ length: rules.levelXp.length }, (_, i) => (i + 1) * 8));
-  assert.equal(g.xp, rules.levelXp.at(-1)! + 3);
-  const empty = fixture(); empty.advance(100000); assert.equal(empty.selections.length, 0); assert.equal(empty.choice, null);
-  const boundary = fixture(); boundary.debugSetXp(rules.levelXp[0] - 1); boundary.advance(100000);
-  assert.equal(boundary.level, 1); assert.equal(boundary.choice, null);
-  boundary.debugSetXp(rules.levelXp[0]); assert.equal(boundary.level, 2); assert.equal(boundary.choice?.number, 1);
-  assert.deepEqual(boundary.levelProgress, { current: 0, required: rules.levelXp[1] - rules.levelXp[0] });
-  boundary.select(boundary.choice!.cards[0].id); boundary.debugSetXp(rules.levelXp[1] + 3);
-  assert.equal(boundary.choice?.number, 2); assert.deepEqual(boundary.levelProgress, { current: 3, required: rules.levelXp[2] - rules.levelXp[1] });
-});
-
-test('all skill-rank combinations keep three legal cards even with maxed skills', () => {
-  let states = 0, minimum = Infinity;
-  const ids = ['area', 'repeat', 'chain', 'pierce'] as const, base = rules.maxRank + 1;
-  for (let bits = 0; bits < base ** ids.length; bits++) {
-    let n = bits, spent = 0; const ranks = blankRanks();
-    for (const id of ids) { ranks[id] = n % base; n = Math.floor(n / base); spent += ranks[id]; }
-    for (let power = 0; power < base; power++) for (let rate = 0; rate < base; rate++) for (let accel = 0; accel < base; accel++) {
-      const sum = spent + power + rate + accel;
-      const boosts: Boosts = { power, rate, accel }, eligible = eligibleUpgrades(ranks);
-      const danger = sum % 2 === 0;
-      const cards = makeCards({ ranks, boosts, number: sum + 1, danger }, new Random(9));
-      assert.equal(cards.length, 3); assert.equal(new Set(cards).size, 3);
-      cards.forEach(id => assert.ok(eligible.includes(id)));
-      if (sum && danger) assert.equal(cards[0], 'accel');
-      if (sum && eligible.some(isSkill) && eligible.some(id => !isSkill(id))) {
-        assert.ok(cards.some(isSkill)); assert.ok(cards.some(id => !isSkill(id)));
-      }
-      minimum = Math.min(minimum, eligible.length); states++;
-    }
-  }
-  assert.ok(states > 250000); assert.equal(minimum, 3);
-});
-
-test('stale, double and expired card inputs cannot alter the next choice', () => {
-  const g = fixture(); g.debugSetXp(2000);
-  const choice = g.choice!;
-  assert.ok(g.select(choice.cards[0].id, false, choice.number));
-  assert.equal(g.select(choice.cards[0].id, false, choice.number), false);
-  g.advance(25000); assert.ok(g.choice);
-  assert.equal(g.select(g.choice!.cards[0].id, false, choice.number), false);
-  g.advance(8000); assert.equal(g.selections.at(-1)?.automatic, true);
-});
-
-test('area and pierce share one damage hit, boundaries include the edge, and tie order is stable', () => {
-  const origin = { x: 180, y: 128 };
-  const g = fixture({ area: 1, pierce: 1 }, [target(0, 200, 128, 10), target(1, 220, 128, 10)]);
-  g.fireBasic(origin); assert.deepEqual(g.targets.map((t) => t.hp), [8, 8]);
-  const beam = fixture({ pierce: 1 }, [target(0, 190, 128, 10), target(1, 210, 134, 10), target(2, 210, 134.01, 10)]);
-  beam.fireBasic(origin); assert.deepEqual(beam.targets.map((t) => t.hp), [8, 8, 10]);
-  const edge = fixture({}, [target(1, 272, 128), target(2, 272.01, 128)]);
-  edge.fireBasic(origin); assert.equal(edge.xp, 1); assert.equal(edge.targets[0].id, 2);
-  const tie = fixture({}, [target(2, 180, 168), target(1, 220, 128)]);
-  tie.fireBasic(origin); assert.equal(tie.targets[0].id, 2);
-});
-
-test('repeat follows moving targets, keeps reserved damage, and cancels dead primaries', () => {
-  const p = target(0, 190, 128, 20); p.turn = .3;
-  const g = fixture({ repeat: 1 }, [p]);
-  g.fireBasic(); const first = g.effects.find((fx) => fx.kind === 'bolt')!;
-  g.boosts.power = 3; g.ranks.repeat = 3; g.ranks.area = 3;
-  g.advance(100);
-  assert.equal(p.hp, 16);
-  const second = g.effects.filter((fx) => fx.kind === 'bolt').at(-1)!;
-  close(second.from.x, g.position.x); close(second.to.x, p.x);
-  assert.notEqual(second.from.x, first.from.x); assert.notEqual(second.to.x, first.to.x);
-  assert.equal(g.events.filter((e) => e.kind === 'hit').length, 2);
-  const cancelled = fixture({ repeat: 3 }, [target(0, 180, 128), target(1, 215, 128)]);
-  cancelled.fireBasic(); cancelled.advance(300); assert.equal(cancelled.xp, 1);
-  assert.equal(cancelled.skillActivations.repeat, undefined);
-});
-
-test('spread clears a small line, focus damages separated dense enemies faster', () => {
-  const origin = { x: 180, y: 128 };
-  const line = () => [0, 32, 64, 96, 128, 160].map((x, i) => target(i, origin.x + x, origin.y));
-  const heavy = () => [[0, 0], [0, 70], [70, 0], [0, -70]].map(([x, y], i) => target(i, origin.x + x, origin.y + y, 16, 'dense'));
-  const a = fixture({ area: 3, chain: 3 }, line()); a.fireBasic(origin);
-  const b = fixture({ multi: 3, repeat: 3 }, line()); b.fireBasic(origin); b.advance(300);
-  assert.equal(a.xp, 6); assert.equal(b.xp, 3);
-  const c = fixture({ area: 3, chain: 3 }, heavy()); c.fireBasic(origin); c.advance(300);
-  const d = fixture({ multi: 3, repeat: 3 }, heavy()); d.fireBasic(origin); d.advance(300);
-  assert.ok(d.targets.reduce((sum, t) => sum + t.hp, 0) < c.targets.reduce((sum, t) => sum + t.hp, 0));
+  recover.radius = 40;
+  choose(recover, 'accel');
+  recover.advance(2000);
+  assert.equal(recover.phase, 'running');
+  close(recover.radius, 52);
 });
 
 test('wave warnings precede the same spawn directions and stage changes do not alter existing HP', () => {
-  const g = new Game(1701); g.start(); g.advance(87000);
+  const g = new Game(1701);
+  g.start();
+  g.advance(87000);
   assert.equal(g.warningWave?.time, 90);
   const angle = g.warningWave!.angle;
-  g.advance(3000); assert.equal(g.waveCount, 1); assert.equal(g.warningWave, null);
+  g.advance(3000);
+  assert.equal(g.waveCount, 1);
+  assert.equal(g.warningWave, null);
   const wave = g.events.find((e) => e.kind === 'wave')!.data as { angle: number };
   assert.equal(wave.angle, angle);
-  const expected = g.events.filter((e) => e.kind === 'spawn' && e.time === 90).flatMap((e) => (e.data as { planned: Target[] }).planned);
+  const expected = g.events
+    .filter((e) => e.kind === 'spawn' && e.time === 90)
+    .flatMap((e) => (e.data as { planned: Target[] }).planned);
   assert.equal(expected.length, rules.waveSmall + rules.waveDense);
-  const h = fixture(); h.tick = 89 * 60; h.spawnBatch();
+  const h = fixture();
+  h.tick = 89 * 60;
+  h.spawnBatch();
   const hp = h.targets.map((t) => t.maxHp);
-  h.advance(2000); assert.deepEqual(h.targets.map((t) => t.maxHp), hp);
+  h.advance(2000);
+  assert.deepEqual(
+    h.targets.map((t) => t.maxHp),
+    hp,
+  );
 });
 
 test('full games conserve particles and are identical at 30 and 60fps', () => {
   for (const seed of [1701, 1702, 1703]) {
-    const a = run(seed, 30), b = run(seed, 60);
-    assert.deepEqual(a.result, b.result); assert.deepEqual(a.events, b.events);
+    const a = run(seed, 30),
+      b = run(seed, 60);
+    assert.deepEqual(a.result, b.result);
+    assert.deepEqual(a.events, b.events);
     for (const id of particleIds) {
-      const c = a.result!.counts[id]; assert.equal(c.generated, c.killed + c.absorbed + c.remaining);
+      const c = a.result!.counts[id];
+      assert.equal(c.generated, c.killed + c.absorbed + c.remaining);
     }
     assert.equal(a.result!.trigger, a.result!.outcome === 'success' ? 'energy' : 'gravity');
   }
 });
 
-test('best records preserve settings and handle malformed or unavailable storage', () => {
-  const g = fixture(); g.debugSetXp(rules.energyGoal); g.advance(610000);
-  const success = bestRecord(null, g.result!);
-  assert.ok(success);
-  const fail = { ...g.result!, outcome: 'collapse-failure' as const, xp: rules.energyGoal - 1 };
-  assert.equal(bestRecord(success, fail), success);
-  const improved = bestRecord(success, { ...g.result!, xp: rules.energyGoal + 1 });
-  assert.ok(improved); assert.equal(improved.xp, rules.energyGoal + 1);
-  const failedRecord = bestRecord(null, fail); assert.ok(failedRecord);
-  const map = new Map<string, string>();
-  const storage = { getItem: (key: string) => map.get(key) ?? null, setItem: (key: string, value: string) => map.set(key, value) } as Storage;
-  map.set(settingsKey, JSON.stringify({ sound: true, reduced: true }));
-  assert.equal(readRecord(storage), null); assert.deepEqual(readSettings(storage), { sound: true, reduced: true });
-  assert.ok(save(storage, recordKey, success)); assert.deepEqual(readRecord(storage), success);
-  map.set(recordKey, JSON.stringify({ ...success, xp: -1 })); assert.equal(readRecord(storage), null);
-  map.set(recordKey, '{'); assert.equal(readRecord(storage), null);
-  const blocked = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); } } as unknown as Storage;
-  assert.equal(save(blocked, recordKey, success), false); assert.equal(readRecord(blocked), null);
-  assert.deepEqual(readSettings(blocked, true), { sound: false, reduced: true });
-});
-
-test('every lightning form can be offered from the first choice without a growth class', () => {
-  const opening = new Set<UpgradeId>(), later = new Set<UpgradeId>();
-  for (let seed = 0; seed < 512; seed++) {
-    const random = new Random(seed), ranks = blankRanks(), boosts = blankBoosts();
-    const cards = makeCards({ ranks, boosts, number: 1, danger: false }, random);
-    cards.forEach((id) => opening.add(id));
-    ranks.wave = 1;
-    makeCards({ ranks, boosts, number: 2, danger: false }, random).forEach((id) => later.add(id));
-  }
-  assert.deepEqual(opening, new Set(skillIds));
-  assert.deepEqual(later, new Set([...skillIds, ...statIds]));
-  for (const id of skillIds) {
-    const game = fixture();
-    choose(game, id);
-    assert.equal(game.rank(id), 1);
-  }
-});
-
-test('opening auto-selection keeps an immediately visible attack even when another card is rarer', () => {
-  for (const seed of [1710, ...Array.from({ length: 128 }, (_, i) => i)]) {
-    const game = new Game(seed, { combat: false });
-    game.start(); game.debugSetXp(rules.levelXp[0]);
-    assert.ok(['area', 'chain', 'multi'].includes(game.choice!.cards[0].id));
-  }
-});
-
-test('language preferences persist, invalid or unavailable storage falls back to Korean', () => {
-  let saved: string | null = null;
-  const storage = { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value; } } as Storage;
-  assert.equal(readLanguage(storage), 'ko');
-  for (const language of ['ko', 'en', 'zh', 'ja'] as const) {
-    assert.ok(save(storage, languageKey, language));
-    assert.equal(readLanguage(storage), language);
-  }
-  saved = '"fr"'; assert.equal(readLanguage(storage), 'ko');
-  saved = '{'; assert.equal(readLanguage(storage), 'ko');
-  assert.equal(readLanguage({ getItem: () => { throw new Error('blocked'); } } as unknown as Storage), 'ko');
-});
-
-test('damage numbers show calculated strikes including fractions and lethal overkill, and stop when paused', () => {
-  const g = fixture({ repeat: 2 }, [target(0, 190, 128, 10)]);
-  g.boosts.power = 1; g.rarities.power = 'epic';
-  g.fireBasic({ x: 180, y: 128 });
-  close(g.targets[0].hp, 10 - 3.45);
-  assert.equal(g.damageNumbers[0].value, 3.45);
-  g.advance(300);
-  assert.equal(g.targets.length, 0);
-  assert.deepEqual(g.damageNumbers.map(d => d.value), [3.45, 3.45, 3.45]);
-  assert.equal(g.xp, 1);
-  const frozen = structuredClone(g.damageNumbers);
-  g.setHidden(true); g.advance(10000); assert.deepEqual(g.damageNumbers, frozen);
-  g.setHidden(false); g.advance(800); assert.deepEqual(g.damageNumbers, []);
-});
-
-test('damage-number limits never reduce area hits, kills or XP', () => {
-  const g = fixture({ area: 3 }, Array.from({ length: 100 }, (_, id) => target(id, 190, 128)));
-  g.fireBasic({ x: 180, y: 128 });
-  assert.equal(g.counts.quark.killed, 100); assert.equal(g.xp, 100); assert.equal(g.targets.length, 0);
-  assert.equal(g.damageNumbers.length, maxDamageNumbers);
-  g.mass = 1000; g.radius = g.core + 4; g.advance(1000 / 60);
-  assert.equal(g.phase, 'collapse'); assert.deepEqual(g.damageNumbers, []);
-});
-
-test('saved runs restore pending cards, moving enemies and reserved attacks with the same future', () => {
-  for (const seed of [10000, 10004, 10017]) {
-    const g = new Game(seed); g.start();
-    for (let i = 0; i < 60 * 75 && g.phase === 'running'; i++) {
-      g.advance(1000 / 60);
-      if (g.choice && g.selections.length < 2) g.select(g.choice.cards[1].id);
-    }
-    const checkpoint = g.checkpoint()!;
-    const restored = Game.restore(JSON.parse(JSON.stringify(checkpoint)))!;
-    assert.ok(restored);
-    for (const key of ['phase', 'tick', 'elapsedTicks', 'xp', 'mass', 'radius', 'angle', 'ranks', 'boosts', 'rarities', 'targets', 'effects', 'damageNumbers', 'choice', 'selections', 'events'] as const) assert.deepEqual(restored[key], g[key], seed + ': ' + key);
-    for (const id of skillIds) assert.deepEqual(restored.skillStatus(id), g.skillStatus(id), seed + ': cooldown ' + id);
-    restored.advance(610000); g.advance(610000);
-    assert.deepEqual(restored.result, g.result); assert.deepEqual(restored.events, g.events);
-  }
-});
-
-test('save survives backgrounding and a reload, preserves manual pause, and quit discards the run', () => {
-  const map = new Map<string, string>();
-  const storage = { getItem: (key: string) => map.get(key) ?? null, setItem: (key: string, value: string) => map.set(key, value), removeItem: (key: string) => map.delete(key) } as Storage;
-  const g = new Game(10004); g.start();
-  for (let i = 0; i < 1800 && !g.choice; i++) g.advance(1000 / 60);
-  assert.ok(g.choice); g.setManualPause(true); g.setHidden(true);
-  assert.ok(saveRun(storage, g)); assert.ok(map.get(runKey)!.length < 2000);
-  const restored = readRun(storage)!;
-  assert.ok(restored.manualPaused); assert.equal(restored.hiddenPaused, false);
-  assert.deepEqual(restored.choice, g.choice); assert.equal(restored.time, g.time);
-  restored.advance(10000); assert.equal(restored.time, g.time);
-  restored.setManualPause(false); g.setManualPause(false); g.setHidden(false);
-  restored.advance(610000); g.advance(610000); assert.deepEqual(restored.result, g.result);
-  assert.ok(saveRun(storage, restored)); assert.deepEqual(readRun(storage)?.result, restored.result);
-  assert.ok(saveRun(storage, new Game(g.seed))); assert.equal(readRun(storage), null);
-});
-
-test('saves and records accept a run past ten minutes and a manual choice beyond number 25', () => {
-  const map = new Map<string, string>();
-  const storage = { getItem: (key: string) => map.get(key) ?? null, setItem: (key: string, value: string) => map.set(key, value), removeItem: (key: string) => map.delete(key) } as Storage;
-  const g = new Game(1705); g.start();
-  while (g.time < 1200 && !g.result && (!g.choice || g.choice.number <= 25)) g.advance(250);
-  assert.equal(g.choice?.number, 26);
-  g.advance((g.choice!.deadline - g.time) * 1000 - 1000 / rules.tickRate);
-  assert.ok(g.select(g.choice!.cards[0].id));
-  g.advance(601000 - g.seconds * 1000);
-  assert.ok(g.seconds > 600); assert.ok(g.level > 26);
-  assert.ok(saveRun(storage, g));
-  const restored = readRun(storage)!; assert.ok(restored);
-  assert.deepEqual(restored.checkpoint(), g.checkpoint());
-  restored.advance(120000); g.advance(120000);
-  assert.equal(g.result?.outcome, 'success'); assert.deepEqual(restored.result, g.result);
-  const record = bestRecord(null, g.result!);
-  save(storage, recordKey, record); assert.deepEqual(readRecord(storage), record);
-});
-
-test('ending phases resume at the same frame after saving; bad or incompatible saves do not load', () => {
-  const full = run(10004, 60);
-  const collisionTick = Math.round(full.collisionTime * rules.tickRate);
-  for (const extra of [0, 60, 210, 900]) {
-    const g = new Game(10004); g.start(); g.advance((collisionTick + extra) * 1000 / rules.tickRate);
-    const restored = Game.restore(g.checkpoint()!)!;
-    assert.ok(restored); assert.equal(restored.phase, g.phase); assert.equal(restored.phaseProgress, g.phaseProgress);
-    g.advance(16000); restored.advance(16000); assert.deepEqual(restored.result, g.result);
-  }
-  const g = new Game(10004); g.start(); g.advance(123000);
-  const checkpoint = g.checkpoint()!;
-  const values = [null, {}, '{', { ...checkpoint, ticks: -1 }, { ...checkpoint, ticks: Number.MAX_SAFE_INTEGER + 1 }, { ...checkpoint, inputs: [{ tick: 1, id: 'unknown', number: 1 }] }, { ...checkpoint, inputs: [{ tick: 1, id: 'area', number: 1 }] }];
-  for (const value of values) {
-    const storage = { getItem: () => typeof value === 'string' ? value : JSON.stringify(value) } as Storage;
-    assert.equal(readRun(storage), null);
-  }
-  const blocked = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); }, removeItem: () => { throw new Error('blocked'); } } as unknown as Storage;
-  assert.equal(readRun(blocked), null); assert.equal(saveRun(blocked, g), false); assert.equal(saveRun(blocked, new Game(1)), false);
-});
-
-test('basic lightning modifiers change actual hit coverage at each rank', () => {
-  const origin = { x: 180, y: 128 };
-  const line = (xs: number[], hp = 2) => xs.map((x, id) => target(id, origin.x + x, origin.y, hp));
-  for (const rank of [1, 2, 3]) {
-    for (const id of ['area', 'burst'] as const) {
-      const g = fixture({ [id]: rank }, line([0, 24, 34, 46]));
-      g.fireBasic(origin); assert.equal(g.xp, rank + 1, id);
-    }
-    const repeat = fixture({ repeat: rank }, line([0], 8));
-    repeat.fireBasic(origin); repeat.advance(300);
-    assert.equal(repeat.targets[0]?.hp ?? 0, 8 - 2 * (rank + 1));
-    const multi = fixture({ multi: rank }, [[40, 0], [-40, 0], [0, 40], [0, -40]].map(([x, y], id) => target(id, origin.x + x, origin.y + y)));
-    multi.fireBasic(origin); assert.equal(multi.xp, rank + 1);
-    const chain = fixture({ chain: rank }, line([0, 40, 80, 120, 160, 200]));
-    chain.fireBasic(origin); assert.equal(chain.xp, [0, 3, 5, 6][rank]);
-    const pierce = fixture({ pierce: rank }, line([20, 80, 130, 180, 230]));
-    pierce.fireBasic(origin); assert.equal(pierce.xp, rank + 2);
-  }
-});
-
-test('rarity roll boundaries and seeded base frequencies match published odds', () => {
-  let edge = 0;
-  for (const id of rarityIds) {
-    assert.equal(rollRarity(edge / 100), id);
-    edge += rules.rarity[id].chance;
-    assert.equal(rollRarity((edge - .00001) / 100), id);
-  }
-  const random = new Random(3189), counts = { common: 0, rare: 0, epic: 0, legendary: 0 };
-  for (let i = 0; i < 100000; i++) counts[rollRarity(random.next())]++;
-  for (const id of rarityIds) close(counts[id] / 1000, rules.rarity[id].chance, .5);
-});
-
-test('rarity persists through lower-quality upgrades and improves real damage and orbit support', () => {
-  const g = fixture({}, [target(0, 190, 128, 20)]);
-  choose(g, 'power', 'legendary'); g.fireBasic();
-  close(g.targets[0].hp, 16.2);
-  choose(g, 'power', 'common'); assert.equal(g.rarities.power, 'legendary');
-  g.fireBasic(); close(g.targets[0].hp, 10.6);
-  choose(g, 'accel', 'legendary'); g.mass = 100; g.advance(30000);
-  close(g.radius, 88.6); close(g.speed, 231); assert.equal(g.mass, 100);
-  g.debugSetXp(10000); g.advance(50000);
-  for (const card of g.choice?.cards ?? []) assert.ok(rarityIds.indexOf(card.rarity) >= rarityIds.indexOf(g.rarities[card.id]));
-});
-
-test('all four rarities change actual geometry or hit counts across basic lightning modifiers', () => {
-  const origin = { x: 180, y: 128 };
-  const line = (xs: number[], hp = 2) => xs.map((x, id) => target(id, origin.x + x, origin.y, hp));
-  for (let tier = 0; tier < 4; tier++) {
-    const rarity = rarityIds[tier];
-    for (const [id, xs] of [['area', [0, 32, 39, 48]], ['burst', [0, 26, 32, 40]]] as const) {
-      const g = fixture({ [id]: 1 }, line([...xs])); g.rarities[id] = rarity;
-      g.fireBasic(origin); assert.equal(g.xp, tier + 1, id + rarity);
-    }
-    const repeat = fixture({ repeat: 1 }, line([0], 20)); repeat.rarities.repeat = rarity;
-    repeat.fireBasic(origin); repeat.advance(700); assert.equal(repeat.targets[0].hp, 20 - (tier + 2) * 2);
-    const multi = fixture({ multi: 1 }, line([10, 20, 30, 40, 50])); multi.rarities.multi = rarity;
-    multi.fireBasic(origin); assert.equal(multi.xp, tier + 2);
-    const chain = fixture({ chain: 1 }, line([0, 40, 80, 120, 160, 200, 240, 280, 320])); chain.rarities.chain = rarity;
-    chain.fireBasic(origin); assert.equal(chain.xp, 3 + tier * 2);
-    const pierce = fixture({ pierce: 1 }, line([20, 150, 190, 240])); pierce.rarities.pierce = rarity;
-    pierce.fireBasic(origin); assert.equal(pierce.xp, tier + 1);
-  }
-});
-
-test('reserved pulses keep their original rarity geometry', () => {
-  const g = fixture({ repeat: 1, area: 1 }, [target(0, 180, 128, 20), target(1, 226, 128, 20)]);
-  g.fireBasic(); g.rarities.repeat = 'legendary'; g.rarities.area = 'legendary';
-  g.advance(700);
-  assert.equal(g.targets[0].hp, 16); assert.equal(g.targets[1].hp, 20);
-});
-
 test('fast clear brings the next batch sooner, crowding stops acceleration, and score only rewards kills', () => {
-  const fast = new Game(1); fast.ranks.area = 3; fast.ranks.chain = 3; fast.start();
-  fast.fireBasic(fast.targets[4]);
-  fast.fireBasic(fast.targets[0]);
-  assert.ok(fast.rushing); assert.equal(fast.xp, 8);
+  const fast = new Game(1);
+  fast.ranks.area = 3;
+  fast.ranks.chain = 3;
+  fast.start();
+  fast.combat.fireBasic(fast.targets[4]);
+  fast.combat.fireBasic(fast.targets[0]);
+  assert.ok(fast.rushing);
+  assert.equal(fast.xp, 8);
   const generated = Object.values(fast.counts).reduce((sum, c) => sum + c.generated, 0);
   fast.advance(800);
   assert.ok(Object.values(fast.counts).reduce((sum, c) => sum + c.generated, 0) > generated);
-  assert.ok(fast.rushSpawns > 0); assert.ok(fast.score > 0);
-  const ordinary = new Game(1); ordinary.start(); ordinary.advance(800);
-  assert.equal(Object.values(ordinary.counts).reduce((sum, c) => sum + c.generated, 0), generated);
-  const crowded = fixture({ multi: 3 }, Array.from({ length: 50 }, (_, id) => target(id, 181 + id, 128)));
-  crowded.fireBasic(); crowded.fireBasic();
-  assert.equal(crowded.xp, 8); assert.equal(crowded.targets.length, 42); assert.equal(crowded.rushing, false);
+  assert.ok(fast.rushSpawns > 0);
+  assert.ok(fast.score > 0);
+  const ordinary = new Game(1);
+  ordinary.start();
+  ordinary.advance(800);
+  assert.equal(
+    Object.values(ordinary.counts).reduce((sum, c) => sum + c.generated, 0),
+    generated,
+  );
+  const crowded = fixture(
+    { multi: 3 },
+    Array.from({ length: 50 }, (_, id) => target(id, 181 + id, 128)),
+  );
+  crowded.combat.fireBasic();
+  crowded.combat.fireBasic();
+  assert.equal(crowded.xp, 8);
+  assert.equal(crowded.targets.length, 42);
+  assert.equal(crowded.rushing, false);
   const absorbed = fixture({}, [target(0, 180, 275)]);
-  absorbed.absorbTargets(); assert.equal(absorbed.score, 0);
-  const early = fixture({}, [target(0, 180, 128)]), late = fixture({}, [target(0, 180, 278)]);
-  early.fireBasic(early.targets[0]); late.fireBasic(late.targets[0]);
+  absorbed.absorbTargets();
+  assert.equal(absorbed.score, 0);
+  const early = fixture({}, [target(0, 180, 128)]),
+    late = fixture({}, [target(0, 180, 278)]);
+  early.combat.fireBasic(early.targets[0]);
+  late.combat.fireBasic(late.targets[0]);
   assert.ok(early.score > late.score);
 });
 
-test('fractional rarity damage resolves exact lethal totals without a phantom last hit', () => {
-  const g = fixture({}, [target(0, 180, 128, 16, 'dense')]);
-  g.boosts.power = 1; g.rarities.power = 'rare';
-  for (let i = 0; i < 5; i++) g.fireBasic();
-  assert.equal(g.targets.length, 0); assert.equal(g.xp, 5);
-  const h = fixture({}, [target(0, 180, 128, 44, 'dense')]);
-  h.boosts.power = 2; h.rarities.power = 'rare';
-  for (let i = 0; i < 10; i++) h.fireBasic();
-  assert.equal(h.targets.length, 0); assert.equal(h.xp, 5);
-});
-
 test('later stages increase group size, wave size and intake rate without changing existing enemy HP', () => {
-  const first = new Game(42, { combat: false }); first.start();
-  const late = new Game(42, { combat: false }); late.start(); late.tick = 451 * rules.tickRate;
-  for (let i = 0; i < 3; i++) { first.spawnBatch(); late.spawnBatch(); }
-  first.targets = []; late.targets = [];
-  for (let i = 0; i < 20; i++) { first.spawnBatch(); late.spawnBatch(); }
+  const first = new Game(42, { combat: false });
+  first.start();
+  const late = new Game(42, { combat: false });
+  late.start();
+  late.tick = 451 * rules.tickRate;
+  for (let i = 0; i < 3; i++) {
+    first.spawnBatch();
+    late.spawnBatch();
+  }
+  first.targets = [];
+  late.targets = [];
+  for (let i = 0; i < 20; i++) {
+    first.spawnBatch();
+    late.spawnBatch();
+  }
   assert.ok(late.targets.length > first.targets.length * 3);
   assert.ok(rules.spawnSecondsByStage[4] < rules.spawnSecondsByStage[0]);
   assert.ok(rules.rush.spawnSecondsByStage[4] < rules.rush.spawnSecondsByStage[0]);
   assert.equal(late.targets[0].hp, rules.targets.small.hp[4]);
-});
-
-test('ranks four and five improve actual hit coverage for all forms while preserving four slots', () => {
-  const origin = { x: 180, y: 128 };
-  const line = (xs: number[], hp = 2) => xs.map((x, i) => target(i, origin.x + x, origin.y, hp));
-  for (const rank of [4, 5]) {
-    for (const [id, xs] of [['area', [0, 60, 76]], ['burst', [0, 55, 68]]] as const) {
-      const game = fixture({ [id]: rank }, line([...xs])); game.fireBasic(origin);
-      assert.equal(game.xp, rank === 4 ? 2 : 3);
-    }
-    const repeat = fixture({ repeat: rank }, line([0], 20)); repeat.fireBasic(origin); repeat.advance(600);
-    assert.equal(repeat.targets[0].hp, rank === 4 ? 10 : 8);
-    const multi = fixture({ multi: rank }, line([10, 20, 30, 40, 50, 60])); multi.fireBasic(origin);
-    assert.equal(multi.xp, rank + 1);
-    const chain = fixture({ chain: rank }, line(Array.from({ length: 10 }, (_, i) => i * 60))); chain.fireBasic(origin);
-    assert.equal(chain.xp, rank === 4 ? 8 : 10);
-    const pierce = fixture({ pierce: rank }, line([20, 280, 320])); pierce.fireBasic(origin);
-    assert.equal(pierce.xp, rank === 4 ? 2 : 3);
-  }
-  const game = fixture(); game.debugSetXp(rules.levelXp.at(-1)!);
-  game.advance(rules.levelXp.length * rules.choiceSeconds * 1000);
-  assert.equal(game.level, 26); assert.equal(game.selections.length, 25); assert.equal(game.choice, null);
-  assert.ok(skillIds.filter(id => game.ranks[id]).length <= 4);
-});
-
-test('lightning follows the live electron while chain links keep their hit origins', () => {
-  const game = fixture({ chain: 1 }, [target(0, 190, 128, 100), target(1, 218, 128, 100)]);
-  game.fireBasic();
-  const bolt = game.effects.find(fx => fx.kind === 'bolt' && !fx.source)!;
-  const chain = game.effects.find(fx => fx.source === 'chain')!;
-  game.advance(100);
-  assert.notDeepEqual(game.position, bolt.from);
-  assert.deepEqual(effectOrigin(bolt, game.position), game.position);
-  assert.deepEqual(effectOrigin(chain, game.position), chain.from);
-  assert.ok(bolt.life <= .14);
-});
-
-test('dense kills retain the emitting bolt within the effect budget', () => {
-  const game = fixture({ area: 5 }, Array.from({ length: 240 }, (_, i) => target(i, 180 + i % 20, 128)));
-  game.fireBasic();
-  assert.equal(game.xp, 240); assert.equal(game.effects.length, 160);
-  assert.ok(game.effects.some(fx => fx.kind === 'bolt' && fx.anchor === 'electron'));
-});
-
-test('effect display limits preserve emitting lightning while reducing kill and area clutter', () => {
-  const game = fixture({ area: 5, multi: 5, chain: 5 }, Array.from({ length: 240 }, (_, i) => target(i, 180 + i % 20, 128, 4)));
-  game.fireBasic();
-  const before = { xp: game.xp, targets: game.targets.length, effects: game.effects.length };
-  const normal = visibleEffects(game.effects, false), reduced = visibleEffects(game.effects, true);
-  assert.ok(normal.some(fx => fx.anchor === 'electron'));
-  assert.ok(normal.filter(fx => fx.kind === 'kill').length <= 10);
-  assert.ok(normal.filter(fx => fx.kind === 'area').length <= 4);
-  assert.ok(reduced.filter(fx => fx.kind === 'kill').length <= 3);
-  assert.deepEqual({ xp: game.xp, targets: game.targets.length, effects: game.effects.length }, before);
-});
-
-test('new runs have ten lightning skills and always offer owned upgrades', () => {
-  assert.equal(skillIds.length, 10);
-  const g = fixture(); g.debugSetXp(18);
-  for (let seed = 0; seed < 128; seed++) {
-    for (const danger of [false, true]) {
-      const ranks = { ...blankRanks(), strike: 2, focus: 1 }, boosts = blankBoosts();
-      const cards = makeCards({ ranks, boosts, number: 8, danger }, new Random(seed));
-      assert.equal(cards.length, new Set(cards).size);
-      assert.ok(cards.some(id => id === 'strike' || id === 'focus'));
-    }
-  }
-});
-
-test('death arcs start at the defeated enemy, obey their target limit and never recurse', () => {
-  const g = fixture({ burst: 1 }, [target(0, 190, 128), target(1, 200, 128), target(2, 210, 128), target(3, 220, 128)]);
-  g.fireBasic();
-  assert.equal(g.xp, 3); assert.equal(g.targets[0].id, 3);
-  const arcs = g.effects.filter(fx => fx.source === 'burst');
-  assert.equal(arcs.length, 2);
-  assert.ok(arcs.every(fx => fx.kind === 'bolt' && fx.from.x === 190 && fx.anchor === undefined));
-});
-
-test('thunderstrike prioritizes high HP and all five ranks increase struck targets', () => {
-  for (let rank = 1; rank <= 5; rank++) {
-    const targets = Array.from({ length: 8 }, (_, id) => target(id, 180 + Math.cos(id * Math.PI / 4) * 120, 128 + Math.sin(id * Math.PI / 4) * 120, 100 + id));
-    const g = fixture({ strike: rank }, targets);
-    g.fireSkill('strike');
-    assert.equal(g.damageNumbers.length, rank);
-    assert.equal(targets[7].hp, 107 - rules.baseHitDamage * rules.skills.strike.damage);
-    assert.equal(g.effects.filter(fx => fx.kind === 'strike').length, rank);
-    assert.ok(g.effects.filter(fx => fx.kind === 'strike').every(fx => fx.from.x === fx.to.x && fx.from.y < fx.to.y));
-  }
-  const g = fixture({ strike: 5 }, [target(0, 190, 128, 100), target(1, 191, 128, 100)]);
-  g.fireSkill('strike'); assert.equal(g.damageNumbers.length, 2);
-});
-
-test('shockwaves hit on the expanding front once per enemy and grow at every rank', () => {
-  for (let rank = 1; rank <= 5; rank++) {
-    const g = fixture({ wave: rank }, [45,60,75,90,105].map((x,id)=>target(id,180+x,128,100)));
-    g.fireSkill('wave'); g.advance(100);
-    assert.equal(g.damageNumbers.length, 0);
-    g.advance(400);
-    assert.equal(g.damageNumbers.length, rank);
-    assert.ok(g.damageNumbers.every(n => n.value === 3));
-    const hits = g.events.filter(e=>e.kind === 'hit').length;
-    g.advance(500); assert.equal(g.events.filter(e=>e.kind === 'hit').length, hits);
-  }
-});
-
-function stationarySkill(ranks: Partial<Ranks>, targets: Target[]): Game {
-  const game = new Game(42, { combat: false, rules: { ...rules, baseSpeed: 0 } });
-  game.start(); Object.assign(game.ranks, ranks); game.targets = targets;
-  game.counts.quark.generated = targets.length;
-  return game;
-}
-
-test('lightning lashes sweep the live electron arc with one hit per target at every rank', () => {
-  for (let rank = 1; rank <= 5; rank++) {
-    const targets = [target(0,190,128,100), ...[0,40,55,70,85].map((a,id)=>target(id+1,180+Math.cos(a*Math.PI/180)*60,128+Math.sin(a*Math.PI/180)*60,100))];
-    const g = stationarySkill({ whip: rank }, targets);
-    g.fireSkill('whip'); g.advance(400);
-    assert.equal(g.events.filter(e=>e.kind==='hit').length, rank+1);
-    assert.ok(g.damageNumbers.every(n=>n.value===4));
-    assert.ok(targets.every(t=>t.hp===100 || t.hp===96));
-  }
-});
-
-test('focused arcs sustain damage, retarget killed enemies and extend duration at every rank', () => {
-  for (let rank = 1; rank <= 5; rank++) {
-    const g = stationarySkill({ focus: rank }, [target(0,190,128,100)]);
-    g.fireSkill('focus'); g.advance(2200);
-    const hits = g.events.filter(e=>e.kind==='hit');
-    assert.equal(hits.length, Math.ceil(rules.skills.focus.durations[rank] / rules.skills.focus.tickSeconds - 1e-8));
-    close(g.targets[0].hp, 100-hits.length*3);
-  }
-  const g = stationarySkill({ focus: 1 }, [target(0,190,128,1),target(1,210,128,100)]);
-  g.fireSkill('focus'); g.advance(600);
-  assert.equal(g.xp,1); close(g.targets[0].hp,94);
-});
-
-test('four rarities change new attacks and power changes their actual damage', () => {
-  for (let i=0;i<rarityIds.length;i++) {
-    const rarity=rarityIds[i];
-    const ranks={...blankRanks(),strike:1,wave:1,whip:1,focus:1};
-    const rarities={...blankRarities(),strike:rarity,wave:rarity,whip:rarity,focus:rarity};
-    const f=formValues(ranks,rarities);
-    assert.equal(f.strike.count,1+i);
-    close(f.wave.radius,50*rules.rarity[rarity].scale);
-    close(f.whip.length,65*rules.rarity[rarity].scale);
-    const g=stationarySkill({focus:1},[target(0,190,128,100)]);
-    g.rarities.focus=rarity; g.boosts.power=2;
-    g.fireSkill('focus'); g.advance(100);
-    close(g.damageNumbers[0].value,4*1.5*rules.rarity[rarity].scale);
-  }
-});
-
-test('new skill cooldowns scale with fire rate and every active attack pauses with the game', () => {
-  const g=fixture(); choose(g,'wave'); g.advance(1000); choose(g,'rate');
-  assert.equal(g.events.filter(e=>e.kind==='skill-effect' && (e.data as {id:string}).id==='wave').length,1);
-  g.advance(1340);
-  assert.equal(g.events.filter(e=>e.kind==='skill-effect' && (e.data as {id:string}).id==='wave').length,1);
-  g.advance(30);
-  assert.equal(g.events.filter(e=>e.kind==='skill-effect' && (e.data as {id:string}).id==='wave').length,2);
-  for(const id of ['wave','whip','focus'] as const){
-    const h=stationarySkill({[id]:1},[target(0,190,128,100)]);
-    h.fireSkill(id);h.advance(50);h.setManualPause(true);
-    const before=structuredClone([h.targets,h.events,h.effects,h.damageNumbers]);
-    h.advance(5000);assert.deepEqual([h.targets,h.events,h.effects,h.damageNumbers],before);
-  }
 });
 
 test('particle species enter gradually and heavy neutrons trade speed for health and mass', () => {
@@ -732,90 +296,46 @@ test('particle species enter gradually and heavy neutrons trade speed for health
     const g = fixture();
     g.tick = (stage ? rules.stageStarts[stage] : 0) * rules.tickRate;
     for (let i = 0; i < 80; i++) g.spawnBatch();
-    const species = [...new Set(g.targets.map(t => t.particle))].sort();
-    assert.deepEqual(species, (stage === 0 ? ['quark', 'proton'] : stage === 1 ? ['quark', 'proton', 'muon'] : ['quark', 'proton', 'muon', 'neutron']).sort());
+    const species = [...new Set(g.targets.map((t) => t.particle))].sort();
+    assert.deepEqual(
+      species,
+      (stage === 0
+        ? ['quark', 'proton']
+        : stage === 1
+          ? ['quark', 'proton', 'muon']
+          : ['quark', 'proton', 'muon', 'neutron']
+      ).sort(),
+    );
     for (const t of g.targets) assert.equal(t.born, g.time);
     if (stage === 2) {
-      const neutron = g.targets.find(t => t.particle === 'neutron')!;
-      const proton = g.targets.find(t => t.particle === 'proton')!;
-      assert.ok(neutron.hp > proton.hp && neutron.mass > proton.mass && neutron.speed < proton.speed);
-      g.targets = [neutron]; neutron.radius = g.core; g.absorbTargets();
-      assert.equal(g.mass, neutron.mass); assert.equal(g.xp, 0);
+      const neutron = g.targets.find((t) => t.particle === 'neutron')!;
+      const proton = g.targets.find((t) => t.particle === 'proton')!;
+      assert.ok(
+        neutron.hp > proton.hp && neutron.mass > proton.mass && neutron.speed < proton.speed,
+      );
+      g.targets = [neutron];
+      neutron.radius = g.core;
+      g.absorbTargets();
+      assert.equal(g.mass, neutron.mass);
+      assert.equal(g.xp, 0);
     }
   }
 });
 
 test('muons pause before a straight dash and recover the average inward pace over a full cycle', () => {
-  const t = target(0, 180, 90, 100); t.particle = 'muon'; t.speed = 10; t.turn = .12;
-  const g = fixture({}, [t]), initial = { radius: t.radius, angle: t.angle };
-  g.advance(300); close(t.radius, initial.radius); close(t.angle, initial.angle);
+  const t = target(0, 180, 90, 100);
+  t.particle = 'muon';
+  t.speed = 10;
+  t.turn = 0.12;
+  const g = fixture({}, [t]),
+    initial = { radius: t.radius, angle: t.angle };
+  g.advance(300);
+  close(t.radius, initial.radius);
+  close(t.angle, initial.angle);
   g.advance(250);
-  assert.ok(t.radius < initial.radius - 4); close(t.angle, initial.angle);
+  assert.ok(t.radius < initial.radius - 4);
+  close(t.angle, initial.angle);
   g.advance(1850);
-  close(t.radius, initial.radius - 24); close(t.angle, initial.angle + .12 * 2.4);
-});
-
-test('linked and timed skill fills keep their progress across rate upgrades and both pause sources', () => {
-  const g = new Game(42); g.start();
-  choose(g, 'area'); choose(g, 'chain'); choose(g, 'strike');
-  g.advance(200);
-  const area = g.skillStatus('area'), strike = g.skillStatus('strike');
-  assert.equal(area.mode, 'linked'); assert.equal(strike.mode, 'timed');
-  assert.ok(area.progress > 0 && area.progress < 1);
-  assert.equal(area.progress, g.skillStatus('chain').progress);
-  choose(g, 'rate');
-  close(g.skillStatus('area').progress, area.progress);
-  close(g.skillStatus('strike').progress, strike.progress);
-  for (const hidden of [false, true]) {
-    hidden ? g.setHidden(true) : g.setManualPause(true);
-    const before = skillIds.map(id => g.skillStatus(id));
-    g.advance(8000); assert.deepEqual(skillIds.map(id => g.skillStatus(id)), before);
-    hidden ? g.setHidden(false) : g.setManualPause(false);
-  }
-  g.advance(100);
-  assert.ok(g.skillStatus('area').progress > area.progress);
-  assert.ok(g.skillStatus('strike').progress > strike.progress);
-});
-
-test('empty scheduled strikes reset their fill without confirming a hit', () => {
-  const g = stationarySkill({}, []); choose(g, 'strike');
-  g.advance(1000 / rules.tickRate);
-  assert.deepEqual(g.skillStatus('strike'), { mode: 'timed', progress: 0, active: false, fired: false });
-  g.advance(rules.skills.strike.periodSeconds * 500);
-  close(g.skillStatus('strike').progress, .5);
-  const t = target(0, 190, 128, 100); g.targets = [t];
-  g.advance(rules.skills.strike.periodSeconds * 500);
-  assert.ok(t.hp < 100); assert.ok(g.skillStatus('strike').fired);
-  close(g.skillStatus('strike').progress, 0);
-  g.mass = 1000; g.radius = g.core + 4; g.advance(1000 / rules.tickRate);
-  assert.equal(g.phase, 'collapse'); assert.equal(g.skillStatus('strike').fired, false);
-});
-
-test('focused arc can be ready while active, never overlaps itself and only confirms actual pulses', () => {
-  const t = target(0, 190, 128, 1000), g = stationarySkill({}, [t]);
-  g.boosts.rate = 5; g.rarities.rate = 'legendary';
-  for (let i = 0; i < 5; i++) choose(g, 'focus');
-  g.advance(1000 / rules.tickRate);
-  assert.ok(g.skillStatus('focus').active && g.skillStatus('focus').fired);
-  close(g.skillStatus('focus').progress, 0);
-  g.advance(1000);
-  assert.ok(g.skillStatus('focus').active); close(g.skillStatus('focus').progress, 1);
-  assert.equal(g.events.filter(e => e.kind === 'hit').length, 6);
-  g.advance(800);
-  assert.equal(g.skillStatus('focus').active, false);
-  assert.equal(g.events.filter(e => e.kind === 'hit').length, 9);
-  g.advance(1000 / rules.tickRate);
-  assert.ok(g.skillStatus('focus').active && g.skillStatus('focus').fired);
-  assert.equal(g.events.filter(e => e.kind === 'hit').length, 10);
-  const empty = stationarySkill({ focus: 1 }, []); empty.fireSkill('focus'); empty.advance(100);
-  assert.ok(empty.skillStatus('focus').active); assert.equal(empty.skillStatus('focus').fired, false);
-});
-
-test('death arc has no invented cooldown and flashes only with an actual secondary target', () => {
-  const g = stationarySkill({ burst: 1 }, [target(0, 190, 128)]);
-  g.fireBasic();
-  assert.deepEqual(g.skillStatus('burst'), { mode: 'conditional', progress: 0, active: false, fired: false });
-  g.targets = [target(1, 190, 128), target(2, 200, 128, 100)];
-  g.fireBasic(); assert.equal(g.skillStatus('burst').fired, true);
-  g.advance(200); assert.equal(g.skillStatus('burst').fired, false);
+  close(t.radius, initial.radius - 24);
+  close(t.angle, initial.angle + 0.12 * 2.4);
 });

@@ -1,9 +1,13 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
-const files = ['src/game.ts', 'src/particles.ts', 'src/growth.ts', 'src/random.ts', 'src/geometry.ts', 'src/rules.ts', 'design/rules.json'];
-export const sourceHash = () => {
+export function sourceHash(): string {
   const hash = createHash('sha256');
-  for (const path of files) hash.update(path).update(readFileSync(new URL('../' + path, import.meta.url)));
-  return hash.digest('hex');
-};
+  const folder = new URL('../src/game/', import.meta.url);
+  for (const file of readdirSync(folder)
+    .filter((file) => file.endsWith('.ts'))
+    .sort()) {
+    hash.update(file).update(readFileSync(new URL(file, folder)));
+  }
+  return hash.update(readFileSync(new URL('../design/rules.json', import.meta.url))).digest('hex');
+}

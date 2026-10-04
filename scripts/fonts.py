@@ -13,7 +13,7 @@ root = Path(__file__).resolve().parents[1]
 source = root / 'artifacts/fusion-font'
 output = root / 'public/fonts'
 output.mkdir(parents=True, exist_ok=True)
-text = ''.join(p.read_text(encoding='utf-8-sig') for p in (root / 'src').glob('*') if p.suffix in ('.ts', '.tsx'))
+text = ''.join(p.read_text(encoding='utf-8-sig') for p in (root / 'src').rglob('*') if p.suffix in ('.ts', '.tsx'))
 chars = set(range(32, 127)) | {ord(c) for c in text if ord(c) >= 160} | {0x2026, 0x00d7, 0x00b0, 0x2191, 0x2193}
 report = {}
 for lang in ('latin', 'ko', 'zh_hans', 'ja'):
