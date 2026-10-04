@@ -1,4 +1,6 @@
 import { Random } from './random.ts';
+import { particleKind, particleMotion } from './particles.ts';
+import type { ParticleKind } from './particles.ts';
 import { eligibleUpgrades, makeCards } from './growth.ts';
 import { CENTER, distance, norm, orbit, orbitRadius } from './geometry.ts';
 import type { Point } from './geometry.ts';
@@ -8,7 +10,7 @@ import type { Boosts, Card, FormValues, Ranks, Rarities, Rarity, RuleSet, SkillI
 const HZ = rules.tickRate;
 export type TargetKind = 'small' | 'dense';
 export type Phase = 'ready' | 'running' | 'collapse' | 'ending' | 'result';
-export type Target = Point & { id: number; kind: TargetKind; hp: number; maxHp: number; xp: number; mass: number; size: number; radius: number; angle: number; speed: number; turn: number; hitAt?: number };
+export type Target = Point & { id: number; kind: TargetKind; particle: ParticleKind; born: number; hp: number; maxHp: number; xp: number; mass: number; size: number; radius: number; angle: number; speed: number; turn: number; hitAt?: number };
 export type Effect = { kind: 'bolt' | 'area' | 'pierce' | 'strike' | 'wave' | 'whip' | 'focus' | 'kill' | 'level' | 'absorb'; from: Point; to: Point; radius: number; width: number; born: number; life: number; source?: SkillId; rarity: Rarity; targetId?: number; anchor?: 'electron' };
 export const maxDamageNumbers = 64;
 export type DamageNumber = Point & { id: number; value: number; born: number; rarity: Rarity };
@@ -21,6 +23,7 @@ export type Result = { outcome: Outcome; trigger: 'gravity' | 'final'; xp: numbe
 type Attack = { id: number; ranks: Ranks; rarities: Rarities; forms: FormValues; damage: number; burstFired: boolean; firstKill?: Point };
 type Pulse = { at: number; order: number; attack: Attack; target: Target };
 type TimedSkill = 'strike' | 'wave' | 'whip' | 'focus';
+export type SkillStatus = { mode: 'linked' | 'timed' | 'conditional'; progress: number; active: boolean; fired: boolean };
 type Sweep = { attack: Attack; from: Point; born: number; previous: number; hit: Set<number>; angle: number };
 type Focus = { attack: Attack; until: number; next: number; target?: Target };
 export type Event = { time: number; kind: string; data: unknown };
@@ -59,6 +62,7 @@ export class Game {
   counts: Record<TargetKind, Count> = { small: { generated: 0, killed: 0, absorbed: 0 }, dense: { generated: 0, killed: 0, absorbed: 0 } };
   events: Event[] = [];
   skillActivations: Partial<Record<SkillId, number>> = {};
+  private skillFiredAt: Partial<Record<SkillId, number>> = {};
   notice: UpgradeId | '' = '';
   noticeUntil = 0;
   combat: boolean;
@@ -119,6 +123,18 @@ export class Game {
   get phaseProgress(): number { return this.phaseTicks / (HZ * (this.phase === 'collapse' ? this.rules.collisionSeconds : this.successfulEnding ? this.rules.successEndingSeconds : this.rules.failureEndingSeconds)); }
   get successfulEnding(): boolean { return this.endingOutcome === 'success'; }
   rank(id: UpgradeId): number { return isSkill(id) ? this.ranks[id] : this.boosts[id]; }
+
+  skillStatus(id: SkillId): SkillStatus {
+    const fired = this.phase === 'running' && this.time - (this.skillFiredAt[id] ?? -1) < .16;
+    if (id === 'burst') return { mode: 'conditional', progress: 0, active: false, fired };
+    const timed = id in this.nextSkill;
+    const skill = id as TimedSkill;
+    const interval = (timed ? this.rules.skills[skill].periodSeconds / this.rate : this.attackInterval) * HZ;
+    const next = timed ? this.nextSkill[skill] : this.nextAttack;
+    const progress = Math.max(0, Math.min(1, 1 - (next - this.tick) / interval));
+    const active = this.phase === 'running' && (id === 'focus' ? this.focus !== null : id === 'wave' ? this.wave !== null : id === 'whip' ? this.whip !== null : false);
+    return { mode: timed ? 'timed' : 'linked', progress, active, fired };
+  }
 
   start(): void {
     if (this.phase !== 'ready') return;
@@ -211,8 +227,9 @@ export class Game {
 
   moveTargets(): void {
     for (const target of this.targets) {
-      target.radius = Math.max(0, target.radius - target.speed / HZ);
-      target.angle += target.turn / HZ;
+      const motion = particleMotion(target.particle, this.time - target.born);
+      target.radius = Math.max(0, target.radius - target.speed * motion.speed / HZ);
+      target.angle += target.turn * motion.turn / HZ;
       Object.assign(target, orbit(target.angle, target.radius));
     }
   }
@@ -306,8 +323,9 @@ export class Game {
     const planned = [];
     for (let i = 0; i < count; i++) {
       const theta = angle + (i - (count - 1) / 2) * (kind === 'small' ? .095 : .46);
-      const hp = data.hp[this.stage], id = this.nextTargetId++;
-      const target: Target = { id, ...orbit(theta, this.rules.spawnRadius), angle: theta, radius: this.rules.spawnRadius, kind, hp, maxHp: hp, xp: data.xp, mass: data.mass, size: data.size, speed: data.speed, turn: data.turn * direction };
+      const id = this.nextTargetId++, particle = particleKind(kind, id, this.stage), heavy = particle === 'neutron';
+      const hp = Math.round(data.hp[this.stage] * (heavy ? 1.2 : 1));
+      const target: Target = { id, ...orbit(theta, this.rules.spawnRadius), angle: theta, radius: this.rules.spawnRadius, kind, particle, born: this.time, hp, maxHp: hp, xp: heavy ? 6 : data.xp, mass: heavy ? 6 : data.mass, size: data.size, speed: data.speed * (heavy ? .85 : 1), turn: data.turn * direction };
       this.targets.push(target);
       this.counts[kind].generated++;
       planned.push({ id, kind, angle: theta, hp });
@@ -364,8 +382,8 @@ export class Game {
     if (attack.firstKill && attack.ranks.burst && !attack.burstFired) {
       attack.burstFired = true;
       const point = attack.firstKill, radius = attack.forms.burst.radius;
-      this.activate('burst', attack.ranks.burst);
       const targets = this.targets.filter(t => t.hp > 0 && distance(t, point) <= radius);
+      if (targets.length) this.activate('burst', attack.ranks.burst);
       closest(targets, point).slice(0, attack.forms.burst.count).forEach(t => {
         this.effect('bolt', point, t, 0, 1.4, .14, 'burst', attack.rarities.burst);
         this.hit(t, attack.damage);
@@ -419,6 +437,7 @@ export class Game {
       if (cast.target) {
         this.effect('focus', origin, cast.target, 0, 1.5, this.rules.skills.focus.tickSeconds, 'focus', cast.attack.rarities.focus, 'electron').targetId = cast.target.id;
         this.hit(cast.target, cast.attack.damage, cast.attack);
+        this.activate('focus', cast.attack.ranks.focus);
         this.discharge(cast.attack);
       }
       cast.next += this.rules.skills.focus.tickSeconds * HZ;
@@ -455,7 +474,7 @@ export class Game {
         id === 'wave' ? form.wave.radius : form.whip.length, id === 'wave' ? 1 : form.whip.arc,
         this.rules.skills[id].duration, id, rarity, id === 'whip' ? 'electron' : undefined);
     }
-    this.activate(id);
+    if (id !== 'focus') this.activate(id);
   }
 
   private hit(target: Target, damage: number, attack?: Attack): void {
@@ -528,6 +547,7 @@ export class Game {
   }
   private activate(id: SkillId, rank = this.ranks[id]): void {
     this.skillActivations[id] ??= this.time;
+    this.skillFiredAt[id] = this.time;
     this.log('skill-effect', { id, rank });
   }
   private log(kind: string, data: unknown): void { this.events.push({ time: this.time, kind, data }); }

@@ -90,7 +90,7 @@ const skillFlow = async () => {
         g.targets = Array.from({ length: 24 }, (_, i) => {
           const x = 185 + i % 6 * 16, y = 108 + Math.floor(i / 6) * 16;
           const hp = id === 'burst' && i === 6 ? 2 : 100;
-          return { id: i, x, y, hp, maxHp: hp, kind: 'small', xp: 1, mass: 1, size: 5, radius: Math.hypot(x - 180, y - 260), angle: Math.atan2(y - 260, x - 180), speed: 0, turn: 0 };
+          return { id: i, x, y, hp, maxHp: hp, kind: 'small', particle: 'quark', born: 0, xp: 1, mass: 1, size: 5, radius: Math.hypot(x - 180, y - 260), angle: Math.atan2(y - 260, x - 180), speed: 0, turn: 0 };
         });
         g.counts.small.generated = g.targets.length;
         if (['strike', 'wave', 'whip', 'focus'].includes(id)) g.fireSkill(id); else g.fireBasic();
@@ -105,9 +105,68 @@ const skillFlow = async () => {
     await skillsPage.close();
 };
 
+const interfaceFlow = async () => {
+  const page = await pageFor(375, 812);
+  await page.getByRole('button', { name: copy.ko.guide, exact: true }).click();
+  assert.deepEqual(await page.locator('.particle-guide > div').allTextContents(), ['q쿼크', 'μ뮤온', 'p양성자', 'n중성자']);
+  await screenshot(page, 'particle-guide');
+  await page.getByRole('button', { name: copy.ko.close, exact: true }).click();
+  await page.evaluate(() => {
+    window.__gameDebug.restart(1, false);
+    const g = window.__gameDebug.getModel();
+    const x = 200, y = 260;
+    g.targets = [{ id: 0, x, y, hp: 1000, maxHp: 1000, kind: 'dense', particle: 'proton', born: 0, xp: 5, mass: 5, size: 8, radius: Math.hypot(x - 180, y - 260), angle: Math.atan2(y - 260, x - 180), speed: 0, turn: 0 }];
+    for (const id of ['strike', 'area', 'burst']) {
+      g.choice = { number: g.selections.length + 1, cards: [{ id, rarity: 'common' }], opened: g.time, deadline: g.time + 8 };
+      g.select(id);
+    }
+    window.__gameDebug.advance(100);
+    g.setHidden(true);
+  });
+  await page.waitForTimeout(120);
+  const strike = page.locator('.slot[data-skill="strike"]');
+  assert.equal(await strike.getAttribute('data-fired'), 'true');
+  assert.deepEqual(await page.locator('.slot[data-skill]').evaluateAll(nodes => nodes.map(n => n.dataset.skill)), ['strike', 'area', 'burst']);
+  assert.equal(await page.locator('.slot[data-skill="area"]').getAttribute('data-mode'), 'linked');
+  assert.equal(await page.locator('.slot[data-skill="burst"] .slot-fill').count(), 0);
+  const bounds = async () => {
+    const fill = await strike.locator('.slot-fill').boundingBox();
+    const value = Number(await strike.getAttribute('aria-valuenow'));
+    const engine = await page.evaluate(() => Math.floor(window.__gameDebug.getModel().skillStatus('strike').progress * 100));
+    assert.equal(value, engine);
+    return { fill, value };
+  };
+  const before = await bounds();
+  const step = async ms => {
+    await page.evaluate(ms => { const g = window.__gameDebug.getModel(); g.setHidden(false); window.__gameDebug.advance(ms); g.setHidden(true); }, ms);
+    await page.waitForTimeout(120);
+  };
+  await step(1800);
+  const after = await bounds();
+  assert.ok(after.value > before.value && after.fill.y < before.fill.y);
+  assert.ok(Math.abs(after.fill.y + after.fill.height - before.fill.y - before.fill.height) < .1);
+  await screenshot(page, 'cooldown-fill');
+  await page.evaluate(() => window.__gameDebug.advance(10000));
+  await page.waitForTimeout(120);
+  assert.deepEqual(await bounds(), after);
+  await step(1800);
+  const fired = await bounds();
+  assert.ok(fired.value < after.value); assert.equal(await strike.getAttribute('data-fired'), 'true');
+  await screenshot(page, 'cooldown-fired');
+  await page.evaluate(() => { const g = window.__gameDebug.getModel(); g.mass = 1000; g.radius = g.core + 4; g.setHidden(false); window.__gameDebug.advance(100); g.setHidden(true); });
+  await page.waitForTimeout(120);
+  assert.equal(await strike.getAttribute('data-fired'), 'false');
+  assert.equal(await page.locator('.arena').innerText(), copy.ko.collapse);
+  assert.equal(await page.locator('.arena [role="status"]').evaluate(n => getComputedStyle(n).clipPath), 'inset(50%)');
+  report('particle names, stable skill order, bottom-up fill and actual activation feedback', { before: before.value, recharging: after.value, fired: fired.value, conditionalHasNoFill: true });
+  await page.close();
+};
+
 try {
   if (process.argv.includes('--skills')) {
     await skillFlow();
+  } else if (process.argv.includes('--interface')) {
+    await interfaceFlow();
   } else if (process.argv.includes('--rarity')) {
     await rarityFlow();
   } else if (process.argv.includes('--production')) {
@@ -215,7 +274,7 @@ try {
           }, { cards, rank, rarity });
           await page.waitForTimeout(100);
           await inspect(page); await inspectCards(page);
-          assert.equal(await page.locator('.card svg').count(), 3);
+          assert.equal(await page.locator('.card .skill-preview').count(), 3);
         }
       }
       await screenshot(page, 'stat-cards-' + width + 'x' + height);
@@ -224,6 +283,7 @@ try {
     }
 
     await skillFlow();
+    await interfaceFlow();
 
     const page = await pageFor(375, 812);
     await page.getByRole('button', { name: 'START' }).click();
@@ -245,7 +305,8 @@ try {
     report('acceleration restores the orbit without removing mass', { before: before.radius, after: recovered.radius, mass: recovered.mass });
 
     await page.evaluate((energy) => { window.__gameDebug.restart(1, false); window.__gameDebug.xp(energy); }, rules.energyGoal);
-    assert.equal(await page.locator('.charged-label').textContent(), '생성 준비 완료');
+    assert.equal(await page.locator('.charge b').textContent(), '100%');
+    assert.equal(await page.locator('.charge').getAttribute('aria-label'), '생성 준비 완료');
     await advance(page, 585000); await screenshot(page, 'final-convergence');
     await advance(page, 6000); await screenshot(page, 'black-hole');
     await advance(page, 10000);
@@ -296,6 +357,6 @@ try {
     await blocked.close();
   }
   assert.deepEqual(errors, []);
-  writeFileSync('artifacts/' + (process.argv.includes('--skills') ? 'skills-browser' : process.argv.includes('--rarity') ? 'rarity-browser' : process.argv.includes('--production') ? 'production' : process.argv.includes('--realtime') ? 'realtime-checks' : 'browser') + '.json', JSON.stringify({ checks, errors }, null, 2));
+  writeFileSync('artifacts/' + (process.argv.includes('--skills') ? 'skills-browser' : process.argv.includes('--interface') ? 'interface-browser' : process.argv.includes('--rarity') ? 'rarity-browser' : process.argv.includes('--production') ? 'production' : process.argv.includes('--realtime') ? 'realtime-checks' : 'browser') + '.json', JSON.stringify({ base, checks, errors }, null, 2));
 } finally { await browser.close(); }
 

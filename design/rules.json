@@ -5,7 +5,7 @@
   "collisionSeconds": 3,
   "successEndingSeconds": 12,
   "failureEndingSeconds": 3,
-  "energyGoal": 23500,
+  "energyGoal": 24000,
   "levelXp": [
     18,
     85,

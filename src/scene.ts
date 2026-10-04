@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
-import { createPixels } from './pixels.ts';
+import { createPixels, particleColors } from './pixels.ts';
+import { particleMotion } from './particles.ts';
 import { effectOrigin, visibleEffects } from './effects.ts';
-import { numberText, rarityColors } from './rules.ts';
+import { numberText } from './rules.ts';
 import { maxDamageNumbers } from './game.ts';
 import { orbit, orbitRadius } from './geometry.ts';
 import type { Point } from './geometry.ts';
@@ -16,7 +17,7 @@ export class ElectronScene extends Phaser.Scene {
   private effectGraphics!: Phaser.GameObjects.Graphics;
   private sprites!: Phaser.GameObjects.Group;
   private width = 0;
-  private height = 0;
+  private centerY = 0;
   private worldScale = 1;
   private damageText!: Phaser.GameObjects.Group;
   private model: () => Game;
@@ -50,12 +51,13 @@ export class ElectronScene extends Phaser.Scene {
     this.sprites.children.forEach(child => { child.setActive(false); (child as Phaser.GameObjects.Image).setVisible(false); });
     this.effectGraphics.clear();
     g.clear();
-    this.width = width; this.height = height; this.worldScale = scale;
+    this.width = width; this.worldScale = scale;
+    this.centerY = height > width ? Math.max(170 * scale + 8, height * .42) : height / 2;
     if (model.phase === 'ready') {
       this.drawIntro(width, height, reduced);
       return;
     }
-    g.setPosition(width / 2 - 180 * scale, height / 2 - 260 * scale);
+    g.setPosition(width / 2 - 180 * scale, this.centerY - 260 * scale);
     g.setScale(scale);
     this.effectGraphics.setPosition(g.x, g.y).setScale(scale);
     const ending = model.phase === 'ending' || model.phase === 'result';
@@ -88,16 +90,26 @@ export class ElectronScene extends Phaser.Scene {
     }
 
     if (!ending && model.mass > 0) {
-      const core = model.core, amount = Math.min(32, 6 + Math.floor(model.mass / 12));
-      g.fillStyle(danger ? AMBER : BLUE, .025); g.fillCircle(180, 260, core + 14);
-      g.lineStyle(.8 / scale, danger ? AMBER : color, .3); g.strokeCircle(180, 260, core);
-      for (let i = 0; i < amount; i++) {
-        const a = i * 2.39996 + clock * (.08 + i % 3 * .03), r = 3 + Math.sqrt((i + .5) / amount) * (core - 3);
-        const p = orbit(a, r);
-        g.fillStyle(i % 3 ? color : WHITE, .25 + (i % 4) * .14);
-        g.fillCircle(p.x, p.y, (1 + (i % 3) * .3) / scale);
+      const core = model.core, step = 3 / scale;
+      g.fillStyle(0x182431, 1); g.fillCircle(180, 260, core);
+      for (let y = -Math.floor(core / step); y <= core / step; y++) {
+        for (let x = -Math.floor(core / step); x <= core / step; x++) {
+          if (Math.hypot(x * step, y * step) > core - 1 / scale) continue;
+          const shade = Math.abs(x * 7 + y * 13) % 5;
+          g.fillStyle([0x425568, 0x657B8D, 0x8FA3B0, 0x344455, 0x556C7F][shade], 1);
+          g.fillRect(180 + x * step - 1 / scale, 260 + y * step - 1 / scale, 2 / scale, 2 / scale);
+        }
       }
-      if (danger) { g.lineStyle(1 / scale, AMBER, .3); g.strokeCircle(180, 260, core + 4); }
+      g.lineStyle(1 / scale, 0x8297A8, .8); g.strokeCircle(180, 260, core);
+      if (danger) {
+        g.lineStyle(2 / scale, AMBER, reduced ? .85 : .65 + .25 * Math.sin(clock * 6));
+        g.beginPath();
+        for (let i = 0; i <= 12; i++) {
+          const p = orbit(angle - .4 + i / 12 * .8, core + 4 / scale);
+          if (!i) g.moveTo(p.x, p.y); else g.lineTo(p.x, p.y);
+        }
+        g.strokePath();
+      }
     }
 
     const warning = model.warningWave;
@@ -117,19 +129,22 @@ export class ElectronScene extends Phaser.Scene {
       const t = absorb ** 1.5, x = lerp(target.x, 180, t), y = lerp(target.y, 260, t);
       const size = Math.max(target.size * 2, (target.kind === 'small' ? 6 : 9) / scale) * (1 - absorb);
       if (size <= 0 || ending && !success) continue;
-      const ink = target.kind === 'small' ? BLUE : AMBER;
-      if (!reduced && !ending) {
-        g.lineStyle(.7 / scale, ink, .2);
-        g.lineBetween(x, y, x + Math.cos(target.angle) * 12, y + Math.sin(target.angle) * 12);
-      }
+      const ink = particleColors[target.particle];
       const hit = !reduced && target.hitAt !== undefined && model.time - target.hitAt < .1;
       const point = this.screen({ x, y });
-      const sprite = this.sprite(point, target.kind, 1, 1 - absorb);
+      const sprite = this.sprite(point, target.particle, 1, 1 - absorb);
       if (hit) { sprite.setTint(WHITE); sprite.setTintFill(); } else sprite.clearTint();
+      const motion = particleMotion(target.particle, model.time - target.born);
+      if (motion.charging && !ending) {
+        g.lineStyle(1 / scale, ink, .8); g.strokeRect(x - 9 / scale, y - 9 / scale, 18 / scale, 18 / scale);
+      }
+      if (target.particle === 'proton' && target.hp > target.maxHp / 2 && !ending) {
+        g.lineStyle(1 / scale, ink, .8); g.strokeRect(x - 8 / scale, y - 8 / scale, 16 / scale, 16 / scale);
+      }
       if (target.kind === 'dense') {
         const hp = Math.ceil(target.hp / target.maxHp * 4);
         for (let i = 0; i < 4; i++) {
-          g.fillStyle(ink, i < hp ? .9 : .15); g.fillCircle(x - 6 / scale + i * 4 / scale, y - size / 2 - 4 / scale, 1.1 / scale);
+          g.fillStyle(ink, i < hp ? .9 : .15); g.fillRect(x - 7 / scale + i * 4 / scale, y - 13 / scale, 2 / scale, 2 / scale);
         }
       } else if (target.hp < target.maxHp) {
         g.lineStyle(1.3 / scale, ink, .9); g.lineBetween(x - size / 2, y - size / 2 - 3 / scale, x - size / 2 + size * target.hp / target.maxHp, y - size / 2 - 3 / scale);
@@ -153,6 +168,10 @@ export class ElectronScene extends Phaser.Scene {
         g.lineStyle(2 / scale, WHITE, 1 - progress);
         g.strokeCircle(180, 260, 4 + Math.sin(progress * Math.PI) * 15);
         g.fillStyle(WHITE, (1 - progress) ** 3); g.fillCircle(180, 260, 4);
+        for (let i = 0; i < 8; i++) {
+          const p = orbit(i * Math.PI / 4, 5 + progress * 35);
+          g.fillStyle(WHITE, 1 - progress); g.fillRect(p.x, p.y, 2 / scale, 2 / scale);
+        }
       }
       return;
     }
@@ -176,7 +195,7 @@ export class ElectronScene extends Phaser.Scene {
       if (reduced && age > .4 || occupied.length >= limit) continue;
       const text = this.damageText.get(0, 0, '') as Phaser.GameObjects.Text;
       const x = width / 2 + (damage.x - 180) * scale;
-      const y = height / 2 + (damage.y - 260) * scale - 4 - (reduced ? 0 : age * 16);
+      const y = this.centerY + (damage.y - 260) * scale - 4 - (reduced ? 0 : age * 16);
       text.setText(numberText(damage.value)).setScale(1);
       let placed = false;
       for (const [dx, dy] of [[0, 0], [0, -10], [-12, -6], [12, -6], [-16, -16], [16, -16]]) {
@@ -240,7 +259,7 @@ export class ElectronScene extends Phaser.Scene {
   }
 
   private screen(point: Point): Point {
-    return { x: this.width / 2 + (point.x - 180) * this.worldScale, y: this.height / 2 + (point.y - 260) * this.worldScale };
+    return { x: this.width / 2 + (point.x - 180) * this.worldScale, y: this.centerY + (point.y - 260) * this.worldScale };
   }
 
   private sprite(point: Point, key: string, scale: number, alpha = 1, depth = .5): Phaser.GameObjects.Image {
@@ -260,7 +279,7 @@ export class ElectronScene extends Phaser.Scene {
       : fx.kind === 'focus' ? this.model().targets.find(target => target.id === fx.targetId) ?? fx.to : fx.to;
     const t = clamp((time - fx.born) / fx.life);
     if (t >= 1) return;
-    const alpha = Math.pow(1 - t, 0.7), ink = rarityColors[fx.rarity];
+    const alpha = Math.pow(1 - t, 0.7), ink = BLUE;
     if (fx.kind === 'wave') {
       g.lineStyle(2 / scale, ink, .8); g.strokeCircle(from.x, from.y, fx.radius * t);
       if (!reduced) { g.lineStyle(1 / scale, WHITE, .65); g.strokeCircle(from.x, from.y, Math.max(0, fx.radius * t - 3 / scale)); }
@@ -300,8 +319,9 @@ export class ElectronScene extends Phaser.Scene {
       g.lineStyle(fx.width, ink, 0.13 * alpha); g.lineBetween(from.x, from.y, to.x, to.y);
       g.lineStyle(1.8 / scale, WHITE, alpha); g.lineBetween(from.x, from.y, to.x, to.y);
     } else if (fx.kind === 'absorb') {
-      g.lineStyle(1.2 / scale, AMBER, alpha * .65); g.strokeCircle(180, 260, fx.radius * (.7 + t * .5));
-      g.fillStyle(AMBER, .05 * alpha); g.fillCircle(180, 260, fx.radius);
+      const x = lerp(from.x, 180, Math.min(1, t * 2)), y = lerp(from.y, 260, Math.min(1, t * 2));
+      g.fillStyle(AMBER, alpha); g.fillRect(x - 2 / scale, y - 2 / scale, 4 / scale, 4 / scale);
+      g.lineStyle(1 / scale, AMBER, alpha * .7); g.strokeCircle(180, 260, fx.radius * (1.25 - t * .5));
     } else if (fx.kind === 'kill') {
       g.fillStyle(ink, alpha);
       const x = lerp(from.x, to.x, t * t), y = lerp(from.y, to.y, t * t);

@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Check, CircleQuestion as CircleHelp, Circle as Orbit, Pause, SlidersHorizontal, WarningDiamond as TriangleAlert } from 'pixelarticons/react';
+import { ArrowRight, CircleQuestion as CircleHelp, Circle as Orbit, Pause, SlidersHorizontal } from 'pixelarticons/react';
 import { GameCanvas } from './GameCanvas.tsx';
 import { SkillPreview } from './SkillPreview.tsx';
-import { LanguagePicker, Rank, SkillIcon } from './ui.tsx';
+import { ChargeIcon, LanguagePicker, ParticleIcon, Rank, SkillIcon, SkillSlot } from './ui.tsx';
 import { useGame } from './useGame.ts';
 import { skillIds, statIds, rarityIds, numberText } from './rules.ts';
 import type { UpgradeId } from './rules.ts';
 import { copy, languages } from './i18n.ts';
 import { skillChange, skillValue } from './skillText.ts';
+import { particleNames, particleSymbols } from './particles.ts';
+import type { ParticleKind } from './particles.ts';
 
 const formatTime = (seconds: number) => `${Math.floor(Math.max(0, seconds) / 60).toString().padStart(2, '0')}:${Math.floor(Math.max(0, seconds) % 60).toString().padStart(2, '0')}`;
 function App() {
@@ -39,7 +41,7 @@ function App() {
   }, [modal, guide, settingsOpen, exitConfirm]);
 
   const choice = game.choice;
-  const owned = skillIds.filter((id) => game.rank(id));
+  const owned = skillIds.filter((id) => game.rank(id)).sort((a, b) => game.selections.findIndex(s => s.id === a) - game.selections.findIndex(s => s.id === b));
   const energyPercent = Math.min(100, Math.floor(game.xp / rules.energyGoal * 100));
   const ready = game.phase === 'ready', result = game.result;
   const secondsLeft = choice ? Math.max(0, choice.deadline - game.time) : 0;
@@ -66,26 +68,18 @@ function App() {
         </div>
       </header> : <section className="hud" aria-label={c.hud}>
         <div className="hud-top">
-          <div className="level"><span>Lv.</span><strong>{game.level.toString().padStart(2, '0')}</strong></div>
-          <div className="boosts" aria-label={c.stats}>{statIds.map((id) => <div className="boost" data-rarity={game.rarities[id]} key={id} aria-label={c.upgrades[id].short + ', ' + value(id)} title={value(id)}><SkillIcon id={id} size={14} /><b>{id === 'power' ? numberText(game.damage) : id === 'rate' ? game.rate.toFixed(2) + '×' : Math.round(game.speed)}</b></div>)}</div>
+          <div className={`charge ${game.charged ? 'charged-label' : ''}`} role="progressbar" aria-label={game.charged ? c.ready : c.charge} aria-valuenow={Math.min(game.xp, rules.energyGoal)} aria-valuemin={0} aria-valuemax={rules.energyGoal}><ChargeIcon progress={energyPercent / 100} /><b>{energyPercent}%</b></div>
+          <time>{formatTime(remaining)}</time>
           <button className="icon-button pause-button" onClick={() => pause(true)} disabled={game.phase === 'result'} aria-label={c.pause}><Pause aria-hidden="true" /></button>
         </div>
-        <div className="energy-status">
-          <span className={game.charged ? 'charged-label' : game.margin < 24 ? 'danger-label' : ''} aria-label={game.charged ? c.ready : (game.margin < 24 ? c.danger + ', ' : '') + c.energy + ' ' + energyPercent + '%'}>
-            {game.charged ? <Check width={12} height={12} aria-hidden="true" /> : game.margin < 24 ? <TriangleAlert width={12} height={12} aria-hidden="true" /> : <Orbit width={12} height={12} aria-hidden="true" />}
-            {game.charged ? c.ready : c.charge + ' ' + energyPercent + '%'}
-          </span>
-          <time>{formatTime(remaining)}</time>
-        </div>
-        <div className="track" role="progressbar" aria-label={c.energy} aria-valuenow={Math.min(game.xp, rules.energyGoal)} aria-valuemin={0} aria-valuemax={rules.energyGoal}><i style={{ width: energyPercent + '%' }} /></div>
+        <div className="boosts" aria-label={c.stats}>{statIds.map((id) => <div className="boost" key={id} aria-label={c.upgrades[id].short + ', ' + value(id)} title={value(id)}><SkillIcon id={id} size={14} /><b>{id === 'power' ? numberText(game.damage) : id === 'rate' ? game.rate.toFixed(2) + '×' : Math.round(game.speed)}</b></div>)}</div>
       </section>}
       <section className="arena" aria-label={c.arena}>
         <GameCanvas model={model} settings={settingsRef} />
         {!ready && !storageOk && <p className="save-notice" role="status">{c.storageFailed}</p>}
         {ready ? <div className="arena-caption"><h1 lang="en">SINGULARITY</h1></div> : <>
-          {game.phase === 'collapse' && <div className="phase-message ending-message"><strong>{c.collapse}</strong></div>}
-          {game.phase === 'ending' && <div className="phase-message ending-message"><strong>{game.successfulEnding ? c.success : c.failure}</strong></div>}
-          {game.phase === 'running' && game.notice && game.time < game.noticeUntil && <div className="toast" data-rarity={game.rarities[game.notice]} role="status"><SkillIcon id={game.notice} size={18} />{c.upgrades[game.notice].short}<Rank value={game.rank(game.notice)} max={rules.maxRank} /></div>}
+          {game.phase === 'collapse' && <span className="sr-only" role="status">{c.collapse}</span>}
+          {game.phase === 'ending' && <span className="sr-only" role="status">{game.successfulEnding ? c.success : c.failure}</span>}
         </>}
       </section>
       <section className="footer" aria-label={ready ? 'START' : c.loadout}>
@@ -94,18 +88,19 @@ function App() {
           <LanguagePicker value={language} onChange={changeLanguage} />
           {notice}
         </div> : <div className="play-footer">
-          <div className="loadout" aria-label={c.loadout}>{Array.from({ length: 4 }, (_, i) => {
-            const id = owned[i];
-            return <div className={`slot ${id ? '' : 'empty'}`} key={i} data-rarity={id ? game.rarities[id] : undefined} aria-label={id ? c.rarities[game.rarities[id]] + ' ' + c.upgrades[id].name + ', ' + c.rank + ' ' + game.rank(id) + '/' + rules.maxRank : c.empty} title={id ? c.upgrades[id].name + ' · ' + value(id) : undefined}>{id ? <><SkillIcon id={id} size={24} /><Rank value={game.rank(id)} max={rules.maxRank} /></> : <i />}</div>;
-          })}</div>
           <div className="xp-status">
-            <div><span>{c.xp}</span><b>{game.nextXp === undefined ? 'MAX' : progress.current + ' / ' + progress.required}</b></div>
+            <div><span className="level">Lv. <b>{game.level.toString().padStart(2, '0')}</b></span><span>XP</span><b>{game.nextXp === undefined ? 'MAX' : progress.current + ' / ' + progress.required}</b></div>
             <div className="xp-track" role="progressbar" aria-label={game.nextXp === undefined ? c.completed : c.xp} aria-valuenow={game.nextXp === undefined ? 1 : progress.current} aria-valuemin={0} aria-valuemax={game.nextXp === undefined ? 1 : progress.required}><i style={{ width: xpPercent + '%' }} /></div>
           </div>
+          <div className="loadout" aria-label={c.loadout}>{Array.from({ length: 4 }, (_, i) => {
+            const id = owned[i];
+            const status = id ? game.skillStatus(id) : null;
+            return <div className={`slot ${id ? '' : 'empty'}`} key={id ? id + game.rank(id) : i} data-skill={id} data-mode={status?.mode} data-active={status?.active} data-fired={status?.fired} data-acquired={game.notice === id && game.time < game.noticeUntil} data-rarity={id ? game.rarities[id] : undefined} role={status && status.mode !== 'conditional' ? 'progressbar' : 'img'} aria-valuemin={status && status.mode !== 'conditional' ? 0 : undefined} aria-valuemax={status && status.mode !== 'conditional' ? 100 : undefined} aria-valuenow={status && status.mode !== 'conditional' ? Math.floor(status.progress * 100) : undefined} aria-label={id ? c.rarities[game.rarities[id]] + ' ' + c.upgrades[id].name + ', ' + c.rank + ' ' + game.rank(id) + '/' + rules.maxRank : c.empty} title={id ? c.upgrades[id].name + ' · ' + value(id) : undefined}>{id && status ? <SkillSlot id={id} status={status} rank={game.rank(id)} max={rules.maxRank} /> : <i />}</div>;
+          })}</div>
         </div>}
       </section>
       {!ready && choice && <section className="choices" aria-label={c.choices}>
-        <div className="choice-header"><strong>{c.growth}</strong><span>{c.countdown(Math.ceil(secondsLeft))}</span></div>
+        <div className="choice-header"><strong>{c.growth}</strong><span aria-label={c.countdown(Math.ceil(secondsLeft))}>{c.auto} {Math.ceil(secondsLeft)}{c.seconds}</span></div>
         <div className="cards">{choice.cards.map(({ id, rarity }, i) => <button key={`${choice.number}-${id}`} className={`card ${i === 0 ? 'auto' : ''}`} data-rarity={rarity} aria-label={c.rarities[rarity] + ' ' + c.upgrades[id].name + ', ' + (game.rank(id) ? c.rankUp(game.rank(id), game.rank(id) + 1) : c.newSkill) + ', ' + change(id, rarity) + (i === 0 ? ', ' + c.auto : '')} onClick={() => { select(id, choice.number); }} disabled={game.paused || game.phase !== 'running'}>
           <span className="card-label"><b>{c.rarities[rarity]}</b>{i === 0 && <ArrowRight width={12} height={12} aria-hidden="true" />}</span>
           <SkillPreview cfg={rules} id={id} rank={game.rank(id) + 1} rarity={rarity} />
@@ -120,6 +115,7 @@ function App() {
       <div className="dialog-body"><p>{c.guideEnergy}</p><p>{c.guideGoal(rules.energyGoal)}</p><p>{c.guideChoice}</p>
         <div className="rarity-guide">{rarityIds.map((rarity) => <span key={rarity} data-rarity={rarity}>{c.rarities[rarity]}<b>{rules.rarity[rarity].chance}%</b></span>)}</div>
         <p>{c.guideRarity}</p>
+        <div className="particle-guide">{(Object.keys(particleNames[language]) as ParticleKind[]).map(id => <div key={id}><ParticleIcon id={id} /><b>{particleSymbols[id]}</b><span>{particleNames[language][id]}</span></div>)}</div>
         <div className="skill-guide">{[...statIds, ...skillIds].map((id) => <div key={id}><SkillIcon id={id} /><div><strong>{c.upgrades[id].name}</strong><p>{c.upgrades[id].description}</p><span>{Array.from({ length: rules.maxRank }, (_, i) => i + 1).map((rank) => <span className="guide-rank" key={rank}>{rank} · {skillValue(id, rank, 'common', language, rules)}</span>)}</span></div></div>)}</div>
         <p className="muted">{c.guideLimits}</p>
       </div>

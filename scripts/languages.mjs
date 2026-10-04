@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { copy, languages } from '../src/i18n.ts';
 import { rules, rarityIds, skillIds, statIds } from '../src/rules.ts';
+import { particleNames } from '../src/particles.ts';
 
 const base = process.env.GAME_URL ?? 'http://localhost:8081';
 const executablePath = process.env.BROWSER_PATH ?? ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(existsSync);
@@ -47,6 +48,7 @@ try {
       if (width === 375) await screenshot(page, `artifacts/screens/ready-${language.id}.png`);
       await page.getByRole('button', { name: c.guide, exact: true }).click();
       assert.equal(await page.locator('.skill-guide > div').count(), skillIds.length + statIds.length);
+      assert.deepEqual(await page.locator('.particle-guide span').allTextContents(), Object.values(particleNames[language.id]));
       await localized(page, language.id, '.guide');
       await page.getByRole('button', { name: c.close, exact: true }).click();
       await page.getByRole('button', { name: 'START', exact: true }).click();

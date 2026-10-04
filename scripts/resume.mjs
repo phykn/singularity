@@ -56,7 +56,7 @@ try {
   const restored = await verifyRestored(page, saved);
   assert.deepEqual(restored.choice, before.choice);
   assert.equal(restored.selections[0].automatic, false);
-  await page.locator('.xp-status').getByText(c.xp, { exact: true }).waitFor();
+  await page.locator('.xp-status').getByRole('progressbar', { name: c.xp, exact: true }).waitFor();
   await page.screenshot({ path: 'artifacts/screens/resumed-cards.png' });
   report('Android viewport reload restores the manual build and pending cards', { seed: restored.seed, xp: restored.xp, level: 1 + rules.levelXp.filter(x => x <= restored.xp).length, manualInputs: saved.inputs.length });
 
@@ -104,7 +104,7 @@ try {
     g.boosts.power = 3; g.rarities.power = 'legendary'; g.ranks.multi = 1;
     g.targets = Array.from({ length: 4 }, (_, id) => {
       const x = 180 + id * 22, y = 142 + id * 12;
-      return { id, x, y, hp: 60, maxHp: 60, kind: 'dense', xp: 5, mass: 5, size: 8, radius: Math.hypot(x - 180, y - 260), angle: Math.atan2(y - 260, x - 180), speed: 0, turn: 0 };
+      return { id, x, y, hp: 60, maxHp: 60, kind: 'dense', particle: 'proton', born: 0, xp: 5, mass: 5, size: 8, radius: Math.hypot(x - 180, y - 260), angle: Math.atan2(y - 260, x - 180), speed: 0, turn: 0 };
     });
     g.fireBasic(); g.advance(100); g.setHidden(true); window.__gameDebug.advance(0);
   });

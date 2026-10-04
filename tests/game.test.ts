@@ -13,7 +13,7 @@ import { bestRecord, readLanguage, readRecord, readRun, readSettings, languageKe
 const close = (a: number, b: number, error = 1e-7) => assert.ok(Math.abs(a - b) < error, a + ' != ' + b);
 function target(id: number, x: number, y: number, hp = 2, kind: TargetKind = 'small'): Target {
   const data = rules.targets[kind];
-  return { id, x, y, hp, maxHp: hp, kind, xp: data.xp, mass: data.mass, size: data.size, radius: Math.hypot(x - 180, y - 260), angle: Math.atan2(y - 260, x - 180), speed: 0, turn: 0 };
+  return { id, x, y, hp, maxHp: hp, kind, particle: kind === 'small' ? 'quark' : 'proton', born: 0, xp: data.xp, mass: data.mass, size: data.size, radius: Math.hypot(x - 180, y - 260), angle: Math.atan2(y - 260, x - 180), speed: 0, turn: 0 };
 }
 function fixture(ranks: Partial<Ranks> = {}, targets: Target[] = []): Game {
   const g = new Game(42, { combat: false }); g.start();
@@ -328,6 +328,7 @@ test('saved runs restore pending cards, moving enemies and reserved attacks with
     const restored = Game.restore(JSON.parse(JSON.stringify(checkpoint)))!;
     assert.ok(restored);
     for (const key of ['phase', 'tick', 'elapsedTicks', 'xp', 'mass', 'radius', 'angle', 'ranks', 'boosts', 'rarities', 'targets', 'effects', 'damageNumbers', 'choice', 'selections', 'events'] as const) assert.deepEqual(restored[key], g[key], seed + ': ' + key);
+    for (const id of skillIds) assert.deepEqual(restored.skillStatus(id), g.skillStatus(id), seed + ': cooldown ' + id);
     restored.advance(610000); g.advance(610000);
     assert.deepEqual(restored.result, g.result); assert.deepEqual(restored.events, g.events);
   }
@@ -648,4 +649,97 @@ test('new skill cooldowns scale with fire rate and every active attack pauses wi
     const before=structuredClone([h.targets,h.events,h.effects,h.damageNumbers]);
     h.advance(5000);assert.deepEqual([h.targets,h.events,h.effects,h.damageNumbers],before);
   }
+});
+
+test('particle species enter gradually and heavy neutrons trade speed for health and mass', () => {
+  for (let stage = 0; stage < 3; stage++) {
+    const g = fixture();
+    g.tick = (stage ? rules.stageEnds[stage - 1] : 0) * rules.tickRate;
+    for (let i = 0; i < 80; i++) g.spawnBatch();
+    const species = [...new Set(g.targets.map(t => t.particle))].sort();
+    assert.deepEqual(species, (stage === 0 ? ['quark', 'proton'] : stage === 1 ? ['quark', 'proton', 'muon'] : ['quark', 'proton', 'muon', 'neutron']).sort());
+    for (const t of g.targets) assert.equal(t.born, g.time);
+    if (stage === 2) {
+      const neutron = g.targets.find(t => t.particle === 'neutron')!;
+      const proton = g.targets.find(t => t.particle === 'proton')!;
+      assert.ok(neutron.hp > proton.hp && neutron.mass > proton.mass && neutron.speed < proton.speed);
+      g.targets = [neutron]; neutron.radius = g.core; g.absorbTargets();
+      assert.equal(g.mass, neutron.mass); assert.equal(g.xp, 0);
+    }
+  }
+});
+
+test('muons pause before a straight dash and recover the average inward pace over a full cycle', () => {
+  const t = target(0, 180, 90, 100); t.particle = 'muon'; t.speed = 10; t.turn = .12;
+  const g = fixture({}, [t]), initial = { radius: t.radius, angle: t.angle };
+  g.advance(300); close(t.radius, initial.radius); close(t.angle, initial.angle);
+  g.advance(250);
+  assert.ok(t.radius < initial.radius - 4); close(t.angle, initial.angle);
+  g.advance(1850);
+  close(t.radius, initial.radius - 24); close(t.angle, initial.angle + .12 * 2.4);
+});
+
+test('linked and timed skill fills keep their progress across rate upgrades and both pause sources', () => {
+  const g = new Game(42); g.start();
+  choose(g, 'area'); choose(g, 'chain'); choose(g, 'strike');
+  g.advance(200);
+  const area = g.skillStatus('area'), strike = g.skillStatus('strike');
+  assert.equal(area.mode, 'linked'); assert.equal(strike.mode, 'timed');
+  assert.ok(area.progress > 0 && area.progress < 1);
+  assert.equal(area.progress, g.skillStatus('chain').progress);
+  choose(g, 'rate');
+  close(g.skillStatus('area').progress, area.progress);
+  close(g.skillStatus('strike').progress, strike.progress);
+  for (const hidden of [false, true]) {
+    hidden ? g.setHidden(true) : g.setManualPause(true);
+    const before = skillIds.map(id => g.skillStatus(id));
+    g.advance(8000); assert.deepEqual(skillIds.map(id => g.skillStatus(id)), before);
+    hidden ? g.setHidden(false) : g.setManualPause(false);
+  }
+  g.advance(100);
+  assert.ok(g.skillStatus('area').progress > area.progress);
+  assert.ok(g.skillStatus('strike').progress > strike.progress);
+});
+
+test('empty scheduled strikes reset their fill without confirming a hit', () => {
+  const g = stationarySkill({}, []); choose(g, 'strike');
+  g.advance(1000 / rules.tickRate);
+  assert.deepEqual(g.skillStatus('strike'), { mode: 'timed', progress: 0, active: false, fired: false });
+  g.advance(rules.skills.strike.periodSeconds * 500);
+  close(g.skillStatus('strike').progress, .5);
+  const t = target(0, 190, 128, 100); g.targets = [t];
+  g.advance(rules.skills.strike.periodSeconds * 500);
+  assert.ok(t.hp < 100); assert.ok(g.skillStatus('strike').fired);
+  close(g.skillStatus('strike').progress, 0);
+  g.mass = 1000; g.radius = g.core + 4; g.advance(1000 / rules.tickRate);
+  assert.equal(g.phase, 'collapse'); assert.equal(g.skillStatus('strike').fired, false);
+});
+
+test('focused arc can be ready while active, never overlaps itself and only confirms actual pulses', () => {
+  const t = target(0, 190, 128, 1000), g = stationarySkill({}, [t]);
+  g.boosts.rate = 5; g.rarities.rate = 'legendary';
+  for (let i = 0; i < 5; i++) choose(g, 'focus');
+  g.advance(1000 / rules.tickRate);
+  assert.ok(g.skillStatus('focus').active && g.skillStatus('focus').fired);
+  close(g.skillStatus('focus').progress, 0);
+  g.advance(1000);
+  assert.ok(g.skillStatus('focus').active); close(g.skillStatus('focus').progress, 1);
+  assert.equal(g.events.filter(e => e.kind === 'hit').length, 6);
+  g.advance(800);
+  assert.equal(g.skillStatus('focus').active, false);
+  assert.equal(g.events.filter(e => e.kind === 'hit').length, 9);
+  g.advance(1000 / rules.tickRate);
+  assert.ok(g.skillStatus('focus').active && g.skillStatus('focus').fired);
+  assert.equal(g.events.filter(e => e.kind === 'hit').length, 10);
+  const empty = stationarySkill({ focus: 1 }, []); empty.fireSkill('focus'); empty.advance(100);
+  assert.ok(empty.skillStatus('focus').active); assert.equal(empty.skillStatus('focus').fired, false);
+});
+
+test('death arc has no invented cooldown and flashes only with an actual secondary target', () => {
+  const g = stationarySkill({ burst: 1 }, [target(0, 190, 128)]);
+  g.fireBasic();
+  assert.deepEqual(g.skillStatus('burst'), { mode: 'conditional', progress: 0, active: false, fired: false });
+  g.targets = [target(1, 190, 128), target(2, 200, 128, 100)];
+  g.fireBasic(); assert.equal(g.skillStatus('burst').fired, true);
+  g.advance(200); assert.equal(g.skillStatus('burst').fired, false);
 });
