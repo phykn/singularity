@@ -5,6 +5,7 @@ import { Random } from '../src/random.ts';
 import { eligibleUpgrades, makeCards } from '../src/growth.ts';
 import { effectOrigin, visibleEffects } from '../src/effects.ts';
 import { orbit } from '../src/geometry.ts';
+import { particleIds } from '../src/particles.ts';
 import type { Target, TargetKind } from '../src/game.ts';
 import { blankBoosts, blankRanks, blankRarities, formValues, isSkill, rarityIds, rollRarity, rules, skillIds, statIds } from '../src/rules.ts';
 import type { Boosts, Ranks, Rarity, UpgradeId } from '../src/rules.ts';
@@ -18,7 +19,7 @@ function target(id: number, x: number, y: number, hp = 2, kind: TargetKind = 'sm
 function fixture(ranks: Partial<Ranks> = {}, targets: Target[] = []): Game {
   const g = new Game(42, { combat: false }); g.start();
   Object.assign(g.ranks, ranks); g.targets = targets;
-  for (const kind of ['small', 'dense'] as const) g.counts[kind].generated = targets.filter((t) => t.kind === kind).length;
+  for (const id of particleIds) g.counts[id].generated = targets.filter(t => t.particle === id).length;
   return g;
 }
 function choose(g: Game, id: UpgradeId, rarity: Rarity = 'common'): void {
@@ -49,11 +50,25 @@ test('moving particles approach and death and absorption are mutually exclusive'
   assert.notEqual(p.x, 180);
   const killed = fixture({}, [target(0, 180, 275)]);
   killed.fireBasic({ x: 180, y: 275 }); killed.absorbTargets();
-  assert.equal(killed.xp, 1); assert.equal(killed.mass, 0); assert.equal(killed.counts.small.absorbed, 0);
+  assert.equal(killed.xp, 1); assert.equal(killed.mass, 0); assert.equal(killed.counts.quark.absorbed, 0);
   const absorbed = fixture({}, [target(0, 180, 278, 100, 'dense')]);
   absorbed.fireBasic({ x: 180, y: 278 }); absorbed.absorbTargets(); absorbed.absorbTargets();
   assert.equal(absorbed.xp, 0); assert.equal(absorbed.mass, rules.targets.dense.mass);
-  assert.equal(absorbed.counts.dense.absorbed, 1); assert.equal(absorbed.targets.length, 0);
+  assert.equal(absorbed.counts.proton.absorbed, 1); assert.equal(absorbed.targets.length, 0);
+});
+
+test('results separate every particle species through death, absorption and survival', () => {
+  const targets = particleIds.flatMap((particle, i) => {
+    const kind = i < 2 ? 'small' : 'dense';
+    return [target(i * 3, 30 + i * 100, 100, 1, kind), target(i * 3 + 1, 180, 260, 100, kind), target(i * 3 + 2, 30 + i * 100, 400, 100, kind)].map(t => ({ ...t, particle }));
+  });
+  const g = fixture({}, targets);
+  for (const t of targets.filter(t => t.hp === 1)) g.fireBasic(t);
+  g.absorbTargets();
+  g.advance(610000);
+  assert.ok(g.result);
+  assert.deepEqual(Object.keys(g.result.counts), particleIds);
+  for (const id of particleIds) assert.deepEqual(g.result.counts[id], { generated: 3, killed: 1, absorbed: 1, remaining: 1 });
 });
 
 test('acceleration recovers an orbit gradually without reducing accumulated mass', () => {
@@ -226,8 +241,8 @@ test('full games conserve particles and are identical at 30 and 60fps', () => {
   for (const seed of [1701, 1702, 1703]) {
     const a = run(seed, 30), b = run(seed, 60);
     assert.deepEqual(a.result, b.result); assert.deepEqual(a.events, b.events);
-    for (const kind of ['small', 'dense'] as const) {
-      const c = a.result!.counts[kind]; assert.equal(c.generated, c.killed + c.absorbed + c.remaining);
+    for (const id of particleIds) {
+      const c = a.result!.counts[id]; assert.equal(c.generated, c.killed + c.absorbed + c.remaining);
     }
     assert.ok(a.result!.seconds <= 600);
   }
@@ -311,7 +326,7 @@ test('damage numbers show calculated strikes including fractions and lethal over
 test('damage-number limits never reduce area hits, kills or XP', () => {
   const g = fixture({ area: 3 }, Array.from({ length: 100 }, (_, id) => target(id, 190, 128)));
   g.fireBasic({ x: 180, y: 128 });
-  assert.equal(g.counts.small.killed, 100); assert.equal(g.xp, 100); assert.equal(g.targets.length, 0);
+  assert.equal(g.counts.quark.killed, 100); assert.equal(g.xp, 100); assert.equal(g.targets.length, 0);
   assert.equal(g.damageNumbers.length, maxDamageNumbers);
   g.mass = 1000; g.radius = g.core + 4; g.advance(1000 / 60);
   assert.equal(g.phase, 'collapse'); assert.deepEqual(g.damageNumbers, []);
@@ -447,12 +462,12 @@ test('fast clear brings the next batch sooner, crowding stops acceleration, and 
   fast.fireBasic(fast.targets[4]);
   fast.fireBasic(fast.targets[0]);
   assert.ok(fast.rushing); assert.equal(fast.xp, 8);
-  const generated = fast.counts.small.generated + fast.counts.dense.generated;
+  const generated = Object.values(fast.counts).reduce((sum, c) => sum + c.generated, 0);
   fast.advance(800);
-  assert.ok(fast.counts.small.generated + fast.counts.dense.generated > generated);
+  assert.ok(Object.values(fast.counts).reduce((sum, c) => sum + c.generated, 0) > generated);
   assert.ok(fast.rushSpawns > 0); assert.ok(fast.score > 0);
   const ordinary = new Game(1); ordinary.start(); ordinary.advance(800);
-  assert.equal(ordinary.counts.small.generated + ordinary.counts.dense.generated, generated);
+  assert.equal(Object.values(ordinary.counts).reduce((sum, c) => sum + c.generated, 0), generated);
   const crowded = fixture({ multi: 3 }, Array.from({ length: 50 }, (_, id) => target(id, 181 + id, 128)));
   crowded.fireBasic(); crowded.fireBasic();
   assert.equal(crowded.xp, 8); assert.equal(crowded.targets.length, 42); assert.equal(crowded.rushing, false);
@@ -592,7 +607,7 @@ test('shockwaves hit on the expanding front once per enemy and grow at every ran
 function stationarySkill(ranks: Partial<Ranks>, targets: Target[]): Game {
   const game = new Game(42, { combat: false, rules: { ...rules, baseSpeed: 0 } });
   game.start(); Object.assign(game.ranks, ranks); game.targets = targets;
-  game.counts.small.generated = targets.length;
+  game.counts.quark.generated = targets.length;
   return game;
 }
 

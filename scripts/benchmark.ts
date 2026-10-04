@@ -39,9 +39,7 @@ for (let seed = 1701; seed <= 1730; seed++) {
     const { level, xp } = event.data as { level: number; xp: number };
     assert.ok(xp >= rules.levelXp[level - 2]);
   }
-  for (const kind of ['small', 'dense'] as const) {
-    const c = row.counts[kind]; assert.equal(c.generated, c.killed + c.absorbed + c.remaining);
-  }
+  for (const c of Object.values(row.counts)) assert.equal(c.generated, c.killed + c.absorbed + c.remaining);
   rows.push(row);
 }
 // This small cohort checks replay; the separate balance cohort measures clear rate.

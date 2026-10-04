@@ -1,4 +1,5 @@
-export type ParticleKind = 'quark' | 'muon' | 'proton' | 'neutron';
+export const particleIds = ['quark', 'muon', 'proton', 'neutron'] as const;
+export type ParticleKind = typeof particleIds[number];
 
 export function particleKind(family: 'small' | 'dense', id: number, stage: number): ParticleKind {
   if (family === 'small') return stage >= 1 && id % 4 === 1 ? 'muon' : 'quark';

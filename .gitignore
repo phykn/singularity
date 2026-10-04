@@ -4,6 +4,7 @@ dist/
 .env.*
 *.log
 artifacts/
+/.codex-remote-attachments/
 
 # Local planning and work notes (runtime rules and checks remain tracked).
 /plan.md

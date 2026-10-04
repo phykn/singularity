@@ -92,7 +92,7 @@ const skillFlow = async () => {
           const hp = id === 'burst' && i === 6 ? 2 : 100;
           return { id: i, x, y, hp, maxHp: hp, kind: 'small', particle: 'quark', born: 0, xp: 1, mass: 1, size: 5, radius: Math.hypot(x - 180, y - 260), angle: Math.atan2(y - 260, x - 180), speed: 0, turn: 0 };
         });
-        g.counts.small.generated = g.targets.length;
+        g.counts.quark.generated = g.targets.length;
         if (['strike', 'wave', 'whip', 'focus'].includes(id)) g.fireSkill(id); else g.fireBasic();
         window.__gameDebug.advance(['wave', 'whip'].includes(id) ? 200 : 100);
         g.setHidden(true);

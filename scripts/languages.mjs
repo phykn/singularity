@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { copy, languages } from '../src/i18n.ts';
 import { rules, rarityIds, skillIds, statIds } from '../src/rules.ts';
-import { particleNames } from '../src/particles.ts';
+import { particleIds, particleNames } from '../src/particles.ts';
 
 const base = process.env.GAME_URL ?? 'http://localhost:8081';
 const executablePath = process.env.BROWSER_PATH ?? ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'].find(existsSync);
@@ -23,6 +23,12 @@ const inspect = async (page) => {
     for (const node of document.querySelectorAll('.card-label, .card strong, .card-value, .arena-caption h1')) {
       if (node.scrollWidth > node.clientWidth + 1 || node.scrollHeight > node.clientHeight + 1) issues.push('Clipped: ' + node.textContent);
     }
+    const hud = [...document.querySelectorAll('.hud-top > *')].map(n => n.getBoundingClientRect());
+    for (let i = 1; i < hud.length; i++) {
+      if (hud[i].left < hud[i - 1].right - .5) issues.push('Overlapping HUD');
+      if (Math.abs(hud[i].y + hud[i].height / 2 - hud[0].y - hud[0].height / 2) > .5) issues.push('Misaligned HUD');
+    }
+    if (hud.length && (hud[0].left < 0 || hud.at(-1).right > innerWidth)) issues.push('Offscreen HUD');
     return issues;
   });
   assert.deepEqual(issues, []);
@@ -53,6 +59,17 @@ try {
       await page.getByRole('button', { name: c.close, exact: true }).click();
       await page.getByRole('button', { name: 'START', exact: true }).click();
       await page.evaluate(() => {
+        const g = window.__gameDebug.getModel();
+        g.setHidden(true);
+        for (const id of ['power', 'rate', 'accel']) { g.boosts[id] = 5; g.rarities[id] = 'legendary'; }
+        g.xp = g.rules.energyGoal;
+        window.__gameDebug.advance(0);
+      });
+      await page.waitForFunction(() => document.querySelector('.charge b')?.textContent === '100%');
+      await inspect(page);
+      if (language.id === 'ko') await screenshot(page, `artifacts/screens/hud-max-${width}x${height}.png`);
+      await page.evaluate(() => window.__gameDebug.restart(10004));
+      await page.evaluate(() => {
         for (let i = 0; i < 120 && !window.__gameDebug.getModel().choice; i++) window.__gameDebug.advance(250);
       });
       await page.locator('.card').first().waitFor();
@@ -75,11 +92,18 @@ try {
       await page.locator('.card').nth(1).click();
       assert.equal(await page.evaluate(() => window.__gameDebug.getModel().selections[0].id), id);
       assert.equal(await page.evaluate(() => window.__gameDebug.getModel().selections[0].automatic), false);
-      await page.evaluate((goal) => { window.__gameDebug.restart(1, false); window.__gameDebug.xp(goal); window.__gameDebug.advance(610000); }, rules.energyGoal);
+      await page.evaluate(() => { window.__gameDebug.restart(20000); window.__gameDebug.advance(610000); });
       await page.getByRole('heading', { name: c.success, exact: true }).waitFor();
       await localized(page, language.id, '.result');
       await inspect(page);
       await page.locator('.result summary').click();
+      const counts = await page.evaluate(() => window.__gameDebug.getModel().result.counts);
+      assert.deepEqual(await page.locator('.result tbody th').allTextContents(), particleIds.map(id => particleNames[language.id][id]));
+      for (const id of particleIds) {
+        const c = counts[id];
+        assert.ok(c.generated > 0, 'Missing species: ' + id);
+        assert.deepEqual(await page.locator(`.result tr[data-particle="${id}"] td`).allTextContents(), [c.generated, c.killed, c.absorbed, c.remaining].map(String));
+      }
       assert.equal(await page.locator('.result .dialog-body').evaluate(n => n.scrollWidth > n.clientWidth + 1), false, 'Result details overflow');
       if (width === 375) await screenshot(page, `artifacts/screens/result-${language.id}.png`);
       await page.getByRole('button', { name: c.retry, exact: true }).click();

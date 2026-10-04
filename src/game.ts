@@ -1,5 +1,5 @@
 import { Random } from './random.ts';
-import { particleKind, particleMotion } from './particles.ts';
+import { particleIds, particleKind, particleMotion } from './particles.ts';
 import type { ParticleKind } from './particles.ts';
 import { eligibleUpgrades, makeCards } from './growth.ts';
 import { CENTER, distance, norm, orbit, orbitRadius } from './geometry.ts';
@@ -19,7 +19,7 @@ export type Count = { generated: number; killed: number; absorbed: number };
 export type Outcome = 'success' | 'collapse-failure';
 export type Selection = { time: number; id: UpgradeId; rank: number; rarity: Rarity; automatic: boolean };
 export type Metrics = { minRadius: number; minMargin: number; dangerSeconds: number; maxTargets: number; maxEffects: number };
-export type Result = { outcome: Outcome; trigger: 'gravity' | 'final'; xp: number; mass: number; radius: number; level: number; speed: number; missingXp: number; seed: number; ranks: Ranks; boosts: Boosts; rarities: Rarities; score: number; rushSpawns: number; seconds: number; collisionTime: number; waves: number; counts: Record<TargetKind, Count & { remaining: number }>; selections: Selection[]; metrics: Metrics };
+export type Result = { outcome: Outcome; trigger: 'gravity' | 'final'; xp: number; mass: number; radius: number; level: number; speed: number; missingXp: number; seed: number; ranks: Ranks; boosts: Boosts; rarities: Rarities; score: number; rushSpawns: number; seconds: number; collisionTime: number; waves: number; counts: Record<ParticleKind, Count & { remaining: number }>; selections: Selection[]; metrics: Metrics };
 type Attack = { id: number; ranks: Ranks; rarities: Rarities; forms: FormValues; damage: number; burstFired: boolean; firstKill?: Point };
 type Pulse = { at: number; order: number; attack: Attack; target: Target };
 type TimedSkill = 'strike' | 'wave' | 'whip' | 'focus';
@@ -59,7 +59,7 @@ export class Game {
   result: Result | null = null;
   manualPaused = false;
   hiddenPaused = false;
-  counts: Record<TargetKind, Count> = { small: { generated: 0, killed: 0, absorbed: 0 }, dense: { generated: 0, killed: 0, absorbed: 0 } };
+  counts = Object.fromEntries(particleIds.map(id => [id, { generated: 0, killed: 0, absorbed: 0 }])) as Record<ParticleKind, Count>;
   events: Event[] = [];
   skillActivations: Partial<Record<SkillId, number>> = {};
   private skillFiredAt: Partial<Record<SkillId, number>> = {};
@@ -239,7 +239,7 @@ export class Game {
     const absorbed = this.targets.filter((t) => t.hp > 0 && t.radius <= core + t.size).sort((a, b) => a.id - b.id);
     for (const target of absorbed) {
       this.mass += target.mass;
-      this.counts[target.kind].absorbed++;
+      this.counts[target.particle].absorbed++;
       this.effect('absorb', target, CENTER, this.core + 10, 1, .5);
       this.log('absorb', { id: target.id, kind: target.kind, mass: this.mass });
     }
@@ -327,7 +327,7 @@ export class Game {
       const hp = Math.round(data.hp[this.stage] * (heavy ? 1.2 : 1));
       const target: Target = { id, ...orbit(theta, this.rules.spawnRadius), angle: theta, radius: this.rules.spawnRadius, kind, particle, born: this.time, hp, maxHp: hp, xp: heavy ? 6 : data.xp, mass: heavy ? 6 : data.mass, size: data.size, speed: data.speed * (heavy ? .85 : 1), turn: data.turn * direction };
       this.targets.push(target);
-      this.counts[kind].generated++;
+      this.counts[particle].generated++;
       planned.push({ id, kind, angle: theta, hp });
     }
     this.metrics.maxTargets = Math.max(this.metrics.maxTargets, this.targets.length);
@@ -487,7 +487,7 @@ export class Game {
     if (this.damageNumbers.length > maxDamageNumbers) this.damageNumbers.splice(0, this.damageNumbers.length - maxDamageNumbers);
     if (target.hp <= 0) {
       if (attack && !attack.firstKill) attack.firstKill = { x: target.x, y: target.y };
-      this.counts[target.kind].killed++;
+      this.counts[target.particle].killed++;
       this.targets = this.targets.filter((t) => t.id !== target.id);
       this.effect('kill', target, this.position, 8, damage, .4);
       const before = this.charged;
@@ -528,7 +528,7 @@ export class Game {
       ranks: { ...this.ranks }, boosts: { ...this.boosts }, seconds: this.seconds,
       rarities: { ...this.rarities }, score: this.score, rushSpawns: this.rushSpawns,
       collisionTime: this.collisionTime, waves: this.waveCount,
-      counts: { small: { ...this.counts.small, remaining: this.targets.filter((t) => t.kind === 'small').length }, dense: { ...this.counts.dense, remaining: this.targets.filter((t) => t.kind === 'dense').length } },
+      counts: Object.fromEntries(particleIds.map(id => [id, { ...this.counts[id], remaining: this.targets.filter(t => t.particle === id).length }])) as Result['counts'],
       selections: [...this.selections], metrics: { ...this.metrics },
     };
     this.log('result', this.result.outcome);

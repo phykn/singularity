@@ -10,8 +10,7 @@ for (let seed = start; seed < start + count; seed++) {
 
   const g = new Game(seed); g.start(); g.advance(610000);
   assert.ok(g.result);
-  for (const kind of ['small', 'dense'] as const) {
-    const c = g.result.counts[kind];
+  for (const c of Object.values(g.result.counts)) {
     assert.equal(c.generated, c.killed + c.absorbed + c.remaining);
   }
   assert.ok(g.result.seconds <= 600);

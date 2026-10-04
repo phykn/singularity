@@ -1,10 +1,9 @@
 import Phaser from 'phaser';
 import { createPixels, particleColors } from './pixels.ts';
-import { particleMotion } from './particles.ts';
 import { effectOrigin, visibleEffects } from './effects.ts';
 import { numberText } from './rules.ts';
 import { maxDamageNumbers } from './game.ts';
-import { orbit, orbitRadius } from './geometry.ts';
+import { orbit } from './geometry.ts';
 import type { Point } from './geometry.ts';
 import type { Effect, Game } from './game.ts';
 
@@ -71,36 +70,14 @@ export class ElectronScene extends Phaser.Scene {
     const angle = model.angle + (collapsing ? progress * progress * Math.PI * 5 : 0);
     const radius = collapsing ? model.radius * (1 - progress ** 1.5) : model.radius * (1 - absorb);
 
-    for (let i = 0; i < 18; i++) {
-      g.fillStyle(WHITE, (.06 + .04 * Math.sin(i + clock * .3)) * (1 - absorb));
-      g.fillCircle((i * 137.51 + 21) % 356, 86 + (i * 91.73 + 18) % 346, .8);
-    }
-
     if (!ending || success && absorb < 1) {
-      if (model.radius < orbitRadius - 2) {
-        g.lineStyle(.7 / scale, 0x343C48, .3 * (1 - absorb)); g.strokeCircle(180, 260, orbitRadius * (1 - absorb));
-      }
       g.lineStyle((danger ? 1.6 : 1) / scale, danger ? AMBER : color, .38 * (1 - absorb));
       g.strokeCircle(180, 260, radius);
-      for (let i = 0; i < 5; i++) {
-        const point = orbit(-Math.PI / 2 + i * Math.PI * 2 / 5, radius);
-        g.fillStyle(i < model.waveCount ? color : 0x47505E, 1 - absorb);
-        g.fillCircle(point.x, point.y, 2 / scale);
-      }
     }
 
     if (!ending && model.mass > 0) {
-      const core = model.core, step = 3 / scale;
-      g.fillStyle(0x182431, 1); g.fillCircle(180, 260, core);
-      for (let y = -Math.floor(core / step); y <= core / step; y++) {
-        for (let x = -Math.floor(core / step); x <= core / step; x++) {
-          if (Math.hypot(x * step, y * step) > core - 1 / scale) continue;
-          const shade = Math.abs(x * 7 + y * 13) % 5;
-          g.fillStyle([0x425568, 0x657B8D, 0x8FA3B0, 0x344455, 0x556C7F][shade], 1);
-          g.fillRect(180 + x * step - 1 / scale, 260 + y * step - 1 / scale, 2 / scale, 2 / scale);
-        }
-      }
-      g.lineStyle(1 / scale, 0x8297A8, .8); g.strokeCircle(180, 260, core);
+      const core = model.core;
+      this.drawCore(core, scale);
       if (danger) {
         g.lineStyle(2 / scale, AMBER, reduced ? .85 : .65 + .25 * Math.sin(clock * 6));
         g.beginPath();
@@ -134,13 +111,6 @@ export class ElectronScene extends Phaser.Scene {
       const point = this.screen({ x, y });
       const sprite = this.sprite(point, target.particle, 1, 1 - absorb);
       if (hit) { sprite.setTint(WHITE); sprite.setTintFill(); } else sprite.clearTint();
-      const motion = particleMotion(target.particle, model.time - target.born);
-      if (motion.charging && !ending) {
-        g.lineStyle(1 / scale, ink, .8); g.strokeRect(x - 9 / scale, y - 9 / scale, 18 / scale, 18 / scale);
-      }
-      if (target.particle === 'proton' && target.hp > target.maxHp / 2 && !ending) {
-        g.lineStyle(1 / scale, ink, .8); g.strokeRect(x - 8 / scale, y - 8 / scale, 16 / scale, 16 / scale);
-      }
       if (target.kind === 'dense') {
         const hp = Math.ceil(target.hp / target.maxHp * 4);
         for (let i = 0; i < 4; i++) {
@@ -187,6 +157,24 @@ export class ElectronScene extends Phaser.Scene {
     if (!collapsing) this.drawDamage(model, width, height, scale, reduced);
   }
 
+  private drawCore(radius: number, scale: number): void {
+    const g = this.graphics, pixel = 2 / scale;
+    const point = ([x, y]: number[]) => new Phaser.Math.Vector2(180 + Math.round(x * radius / pixel) * pixel, 260 + Math.round(y * radius / pixel) * pixel);
+    const hull = [[-.84,-.4],[-.52,-.79],[-.1,-.94],[.36,-.88],[.69,-.6],[.94,-.13],[.78,.37],[.4,.82],[-.12,.96],[-.54,.71],[-.89,.23]];
+    const facets = [
+      { ink: 0x344D60, points: [hull[0],hull[1],hull[2],hull[3],[.18,-.2],[-.3,.06],hull[10]] },
+      { ink: 0x47687A, points: [hull[1],hull[2],hull[3],[-.08,-.49],[-.3,-.12],hull[0]] },
+      { ink: 0x182A37, points: [[.18,-.2],hull[3],hull[4],hull[5],[.46,.2],[.07,.31]] },
+      { ink: 0x385464, points: [hull[5],hull[6],hull[7],[.11,.62],[.07,.31],[.46,.2]] },
+      { ink: 0x142431, points: [hull[7],hull[8],hull[9],hull[10],[-.35,.24],[.11,.62]] },
+      { ink: 0x526F80, points: [[-.35,.24],[-.3,.06],[.18,-.2],[.07,.31],[-.12,.47]] },
+    ];
+    g.fillStyle(0x263E4C, 1); g.fillPoints(hull.map(point), true);
+    for (const facet of facets) { g.fillStyle(facet.ink, 1); g.fillPoints(facet.points.map(point), true); }
+    g.lineStyle(pixel, 0x91B6C6, .75); g.strokePoints([hull[0],hull[1],hull[2]].map(point), false);
+    g.lineStyle(pixel, 0x62889B, .6); g.strokePoints([hull[5],hull[6],hull[7]].map(point), false);
+  }
+
   private drawDamage(model: Game, width: number, height: number, scale: number, reduced: boolean): void {
     const numbers = model.damageNumbers.slice(-maxDamageNumbers).reverse();
     const occupied: Phaser.Geom.Rectangle[] = [], limit = reduced ? 12 : 24;
@@ -217,19 +205,7 @@ export class ElectronScene extends Phaser.Scene {
     const radius = Math.min(width * .44, height * .45, 184), core = radius * .42;
     g.setPosition(0, 0); g.setScale(1);
 
-    for (let i = 0; i < 16; i++) {
-      g.fillStyle(0xA5C1D6, .12 + i % 3 * .06);
-      g.fillCircle((i * 137.51 + 31) % width, (i * 91.73 + 19) % height, i % 4 === 0 ? .8 : .5);
-    }
-    for (const fraction of [.72, 1]) {
-      g.lineStyle(1, 0x7295AF, fraction === 1 ? .4 : .18);
-      g.strokeCircle(x, y, radius * fraction);
-    }
-
-    for (let i = 3; i > 0; i--) {
-      g.lineStyle(2, 0x5898C5, .12 - i * .025);
-      g.strokeCircle(x, y, core + i * 6);
-    }
+    g.lineStyle(1, 0x7295AF, .4); g.strokeCircle(x, y, radius);
     g.fillStyle(0x04060A, 1); g.fillCircle(x, y, core);
     g.lineStyle(.8, 0xA7C4D9, .3); g.strokeCircle(x, y, core);
     for (let i = 0; i < 96; i++) {
@@ -239,13 +215,6 @@ export class ElectronScene extends Phaser.Scene {
         g.lineStyle(stroke, ink, alpha * light);
         g.lineBetween(x + Math.cos(a) * core, y + Math.sin(a) * core, x + Math.cos(next) * core, y + Math.sin(next) * core);
       }
-    }
-
-    for (let i = 0; i < 7; i++) {
-      const phase = (i / 7 + clock * .018) % 1;
-      const r = radius * (.52 + .39 * (1 - phase)), a = i * 2.39996 + clock * .11;
-      g.fillStyle(0x9CD9ED, Math.sin(phase * Math.PI) * .35);
-      g.fillCircle(x + Math.cos(a) * r, y + Math.sin(a) * r, .8);
     }
 
     const angle = -.65 + clock * .24;

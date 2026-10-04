@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, CircleQuestion as CircleHelp, Circle as Orbit, Pause, SlidersHorizontal } from 'pixelarticons/react';
+import { ArrowRight, CircleQuestion as CircleHelp, Pause, SlidersHorizontal } from 'pixelarticons/react';
 import { GameCanvas } from './GameCanvas.tsx';
 import { SkillPreview } from './SkillPreview.tsx';
 import { ChargeIcon, LanguagePicker, ParticleIcon, Rank, SkillIcon, SkillSlot } from './ui.tsx';
@@ -8,8 +8,7 @@ import { skillIds, statIds, rarityIds, numberText } from './rules.ts';
 import type { UpgradeId } from './rules.ts';
 import { copy, languages } from './i18n.ts';
 import { skillChange, skillValue } from './skillText.ts';
-import { particleNames, particleSymbols } from './particles.ts';
-import type { ParticleKind } from './particles.ts';
+import { particleIds, particleNames, particleSymbols } from './particles.ts';
 
 const formatTime = (seconds: number) => `${Math.floor(Math.max(0, seconds) / 60).toString().padStart(2, '0')}:${Math.floor(Math.max(0, seconds) % 60).toString().padStart(2, '0')}`;
 function App() {
@@ -61,7 +60,6 @@ function App() {
   return <main className={`app ${game.charged ? 'is-charged' : ''} ${ready ? 'is-ready' : ''} ${settings.reduced ? 'is-reduced' : ''} ${choice ? 'has-choice' : ''}`}>
     <div className="play-layout" inert={modal}>
       {ready ? <header className="topbar">
-        <Orbit className="brand-mark" width={24} height={24} aria-hidden="true" />
         <div className="header-actions">
           <button className="icon-button" aria-label={c.guide} onClick={() => setGuide(true)}><CircleHelp aria-hidden="true" /></button>
           <button className="icon-button" aria-label={c.settings} onClick={() => setSettingsOpen(true)}><SlidersHorizontal aria-hidden="true" /></button>
@@ -69,10 +67,10 @@ function App() {
       </header> : <section className="hud" aria-label={c.hud}>
         <div className="hud-top">
           <div className={`charge ${game.charged ? 'charged-label' : ''}`} role="progressbar" aria-label={game.charged ? c.ready : c.charge} aria-valuenow={Math.min(game.xp, rules.energyGoal)} aria-valuemin={0} aria-valuemax={rules.energyGoal}><ChargeIcon progress={energyPercent / 100} /><b>{energyPercent}%</b></div>
+          <div className="boosts" aria-label={c.stats}>{statIds.map((id) => <div className="boost" key={id} aria-label={c.upgrades[id].short + ', ' + value(id)} title={value(id)}><SkillIcon id={id} size={14} /><b>{id === 'power' ? numberText(game.damage) : id === 'rate' ? game.rate.toFixed(2) + '×' : Math.round(game.speed)}</b></div>)}</div>
           <time>{formatTime(remaining)}</time>
           <button className="icon-button pause-button" onClick={() => pause(true)} disabled={game.phase === 'result'} aria-label={c.pause}><Pause aria-hidden="true" /></button>
         </div>
-        <div className="boosts" aria-label={c.stats}>{statIds.map((id) => <div className="boost" key={id} aria-label={c.upgrades[id].short + ', ' + value(id)} title={value(id)}><SkillIcon id={id} size={14} /><b>{id === 'power' ? numberText(game.damage) : id === 'rate' ? game.rate.toFixed(2) + '×' : Math.round(game.speed)}</b></div>)}</div>
       </section>}
       <section className="arena" aria-label={c.arena}>
         <GameCanvas model={model} settings={settingsRef} />
@@ -115,7 +113,7 @@ function App() {
       <div className="dialog-body"><p>{c.guideEnergy}</p><p>{c.guideGoal(rules.energyGoal)}</p><p>{c.guideChoice}</p>
         <div className="rarity-guide">{rarityIds.map((rarity) => <span key={rarity} data-rarity={rarity}>{c.rarities[rarity]}<b>{rules.rarity[rarity].chance}%</b></span>)}</div>
         <p>{c.guideRarity}</p>
-        <div className="particle-guide">{(Object.keys(particleNames[language]) as ParticleKind[]).map(id => <div key={id}><ParticleIcon id={id} /><b>{particleSymbols[id]}</b><span>{particleNames[language][id]}</span></div>)}</div>
+        <div className="particle-guide">{particleIds.map(id => <div key={id}><ParticleIcon id={id} /><b>{particleSymbols[id]}</b><span>{particleNames[language][id]}</span></div>)}</div>
         <div className="skill-guide">{[...statIds, ...skillIds].map((id) => <div key={id}><SkillIcon id={id} /><div><strong>{c.upgrades[id].name}</strong><p>{c.upgrades[id].description}</p><span>{Array.from({ length: rules.maxRank }, (_, i) => i + 1).map((rank) => <span className="guide-rank" key={rank}>{rank} · {skillValue(id, rank, 'common', language, rules)}</span>)}</span></div></div>)}</div>
         <p className="muted">{c.guideLimits}</p>
       </div>
@@ -135,7 +133,6 @@ function App() {
 
     {result && <div className="modal result-modal"><section role="dialog" aria-modal="true" aria-labelledby="result-title" className={`dialog result ${result.outcome === 'success' ? 'success' : ''}`}>
       <div className="result-heading">
-        {result.outcome === 'success' && <div className="black-hole-mark" aria-hidden="true" />}
         <span className="result-time">{formatTime(result.seconds)}</span><h2 id="result-title">{title}</h2>
         {result.outcome !== 'success' && <p>{c.missing(result.missingXp)}</p>}
       </div>
@@ -144,7 +141,7 @@ function App() {
         <div className="result-build">{owned.map((id) => <div key={id} data-rarity={game.rarities[id]}><SkillIcon id={id} size={22} /><span>{c.upgrades[id].short}</span><small>{c.rarities[game.rarities[id]]}</small><Rank value={game.rank(id)} max={rules.maxRank} /></div>)}</div>
         <details><summary>{c.details}</summary>
           <p>{c.seed} {result.seed} · {result.trigger === 'gravity' ? c.early : c.final}</p><p>{c.score} {result.score.toLocaleString(languages.find((entry) => entry.id === language)!.html)}</p>
-          <table><thead><tr><th>{c.particle}</th><th>{c.generated}</th><th>{c.killed}</th><th>{c.absorbed}</th><th>{c.remaining}</th></tr></thead><tbody>{(['small', 'dense'] as const).map((kind) => { const counts = result.counts[kind]; return <tr key={kind}><th>{kind === 'small' ? c.small : c.dense}</th><td>{counts.generated}</td><td>{counts.killed}</td><td>{counts.absorbed}</td><td>{counts.remaining}</td></tr>; })}</tbody></table>
+          <table><thead><tr><th scope="col">{c.particle}</th><th scope="col">{c.generated}</th><th scope="col">{c.killed}</th><th scope="col">{c.absorbed}</th><th scope="col">{c.remaining}</th></tr></thead><tbody>{particleIds.map(id => { const counts = result.counts[id]; return <tr key={id} data-particle={id}><th scope="row">{particleNames[language][id]}</th><td>{counts.generated}</td><td>{counts.killed}</td><td>{counts.absorbed}</td><td>{counts.remaining}</td></tr>; })}</tbody></table>
           <p>{c.stats} · {statIds.map((id) => c.upgrades[id].short + ' ' + game.rank(id)).join(' / ')}</p>
           {best && <p>{c.best} · {best.outcome === 'success' ? c.success : c.failure} · {c.energy} {best.xp}</p>}
         </details>{notice}
