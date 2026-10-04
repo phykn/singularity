@@ -19,6 +19,7 @@ import { languages } from '../ui/i18n.ts';
 import type { Language } from '../ui/i18n.ts';
 
 const newSeed = () => crypto.getRandomValues(new Uint32Array(1))[0];
+const frameTickLimit = 8;
 const firstSeed = () => {
   const seed = new URLSearchParams(location.search).get('seed');
   return import.meta.env.DEV && seed !== null && /^\d+$/.test(seed)
@@ -150,7 +151,7 @@ export function useGame() {
       lastSave = 0;
     const visibility = () => {
       if (document.hidden && !model.current!.hiddenPaused)
-        model.current!.advance(Math.max(0, performance.now() - lastWall.current));
+        model.current!.advance(Math.max(0, performance.now() - lastWall.current), frameTickLimit);
       model.current!.setHidden(document.hidden);
       lastWall.current = performance.now();
       if (document.hidden) {
@@ -174,13 +175,16 @@ export function useGame() {
     model.current!.setHidden(document.hidden);
     const step = (wall: number) => {
       const current = model.current!;
-      current.advance(Math.max(0, wall - lastWall.current));
+      current.advance(Math.max(0, wall - lastWall.current), frameTickLimit);
       lastWall.current = wall;
-      for (const event of current.events.slice(heard.current)) {
-        if (event.kind === 'hit')
-          audio.current.play((event.data as { kind: string }).kind === 'dense' ? 'dense' : 'hit');
-        else if (['level', 'wave', 'charged', 'collision', 'ending'].includes(event.kind))
-          audio.current.play(event.kind);
+      if (audio.current.enabled) {
+        for (let i = heard.current; i < current.events.length; i++) {
+          const event = current.events[i];
+          if (event.kind === 'hit')
+            audio.current.play((event.data as { kind: string }).kind === 'dense' ? 'dense' : 'hit');
+          else if (['level', 'wave', 'charged', 'collision', 'ending'].includes(event.kind))
+            audio.current.play(event.kind);
+        }
       }
       heard.current = current.events.length;
       if (current.result && processed.current !== current) {

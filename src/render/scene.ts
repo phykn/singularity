@@ -14,11 +14,12 @@ import { drawEffect } from './lightning.ts';
 export class ElectronScene extends Phaser.Scene {
   private graphics!: Phaser.GameObjects.Graphics;
   private effectGraphics!: Phaser.GameObjects.Graphics;
-  private sprites!: Phaser.GameObjects.Group;
+  private sprites: Phaser.GameObjects.Image[] = [];
+  private spriteCount = 0;
   private width = 0;
   private centerY = 0;
   private worldScale = 1;
-  private damageText!: Phaser.GameObjects.Group;
+  private damageText: Phaser.GameObjects.Text[] = [];
   private model: () => Game;
   private reduced: () => boolean;
   constructor(model: () => Game, reduced: () => boolean) {
@@ -30,22 +31,6 @@ export class ElectronScene extends Phaser.Scene {
     this.graphics = this.add.graphics();
     this.effectGraphics = this.add.graphics().setDepth(1);
     createPixels(this);
-    this.sprites = this.add.group({ classType: Phaser.GameObjects.Image });
-    this.damageText = this.add.group({
-      classType: Phaser.GameObjects.Text,
-      maxSize: maxDamageNumbers,
-      createCallback: (child) => {
-        const text = child as Phaser.GameObjects.Text;
-        text.setStyle({
-          fontFamily: 'Singularity Pixel, monospace',
-          fontSize: '12px',
-          color: '#ecfbff',
-          stroke: '#080a0e',
-          strokeThickness: 2,
-        });
-        text.setOrigin(0.5, 1).setDepth(3).setResolution(1);
-      },
-    });
   }
 
   update(): void {
@@ -56,14 +41,9 @@ export class ElectronScene extends Phaser.Scene {
     const width = this.scale.width,
       height = this.scale.height,
       scale = Math.min(width, height) / 360;
-    this.damageText.children.forEach((child) => {
-      child.setActive(false);
-      (child as Phaser.GameObjects.Text).setVisible(false);
-    });
-    this.sprites.children.forEach((child) => {
-      child.setActive(false);
-      (child as Phaser.GameObjects.Image).setVisible(false);
-    });
+    for (const text of this.damageText) text.setActive(false).setVisible(false);
+    for (const sprite of this.sprites) sprite.setActive(false).setVisible(false);
+    this.spriteCount = 0;
     this.effectGraphics.clear();
     g.clear();
     this.width = width;
@@ -282,7 +262,18 @@ export class ElectronScene extends Phaser.Scene {
     for (const damage of numbers) {
       const age = model.seconds - damage.born;
       if ((reduced && age > 0.4) || occupied.length >= limit) continue;
-      const text = this.damageText.get(0, 0, '') as Phaser.GameObjects.Text;
+      const index = occupied.length;
+      const text = (this.damageText[index] ??= this.add
+        .text(0, 0, '', {
+          fontFamily: 'Singularity Pixel, monospace',
+          fontSize: '12px',
+          color: '#ecfbff',
+          stroke: '#080a0e',
+          strokeThickness: 2,
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(3)
+        .setResolution(1));
       const x = width / 2 + (damage.x - 180) * scale;
       const y = this.centerY + (damage.y - 260) * scale - 4 - (reduced ? 0 : age * 16);
       text.setText(numberText(damage.value)).setScale(1);
@@ -311,7 +302,8 @@ export class ElectronScene extends Phaser.Scene {
       }
       text.setActive(placed).setVisible(placed);
       if (!placed) continue;
-      text.setColor(damage.value >= 5 ? '#ffda96' : damage.value > 2 ? '#f1fcff' : '#b8eefb');
+      const color = damage.value >= 5 ? '#ffda96' : damage.value > 2 ? '#f1fcff' : '#b8eefb';
+      if (text.style.color !== color) text.setColor(color);
       text.setAlpha(reduced ? 1 : 1 - clamp((age - 0.35) / 0.37));
     }
   }
@@ -381,11 +373,12 @@ export class ElectronScene extends Phaser.Scene {
     alpha = 1,
     depth = 0.5,
   ): Phaser.GameObjects.Image {
-    const sprite = this.sprites.get(point.x, point.y, key) as Phaser.GameObjects.Image;
+    const index = this.spriteCount++;
+    const sprite = (this.sprites[index] ??= this.add.image(point.x, point.y, key));
+    if (sprite.texture.key !== key) sprite.setTexture(key);
     return sprite
       .setActive(true)
       .setVisible(true)
-      .setTexture(key)
       .setPosition(Math.round(point.x), Math.round(point.y))
       .setScale(scale)
       .setAlpha(alpha)

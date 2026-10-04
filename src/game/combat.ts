@@ -24,8 +24,34 @@ type Sweep = {
   angle: number;
 };
 type Focus = { attack: Attack; until: number; next: number; target?: Target };
-const closest = (targets: Target[], point: Point) =>
-  [...targets].sort((a, b) => distance(a, point) - distance(b, point) || a.id - b.id);
+function closest(
+  targets: Target[],
+  point: Point,
+  count = 1,
+  range = Infinity,
+  visited?: Set<number>,
+): Target[] {
+  const nearest: { target: Target; distance: number }[] = [];
+  for (const target of targets) {
+    if (target.hp <= 0 || visited?.has(target.id)) continue;
+    const dx = target.x - point.x,
+      dy = target.y - point.y;
+    if (Math.abs(dx) > range || Math.abs(dy) > range) continue;
+    const d = Math.hypot(dx, dy);
+    if (d > range) continue;
+    let index = nearest.length;
+    while (index > 0) {
+      const previous = nearest[index - 1];
+      if (d > previous.distance || (d === previous.distance && target.id >= previous.target.id))
+        break;
+      index--;
+    }
+    if (index >= count) continue;
+    nearest.splice(index, 0, { target, distance: d });
+    if (nearest.length > count) nearest.pop();
+  }
+  return nearest.map((entry) => entry.target);
+}
 export class Combat {
   private readonly game: Game;
   activations: Partial<Record<SkillId, number>> = {};
@@ -110,11 +136,11 @@ export class Combat {
   fireBasic(origin: Point = this.game.position): void {
     const forms = this.game.forms;
     const selected = closest(
-      this.game.targets.filter(
-        (t) => t.hp > 0 && distance(t, origin) <= this.game.rules.primaryRange,
-      ),
+      this.game.targets,
       origin,
-    ).slice(0, forms.multi.count);
+      forms.multi.count,
+      this.game.rules.primaryRange,
+    );
     if (!selected.length) return;
     const attack: Attack = {
       id: this.nextAttackId++,
@@ -176,10 +202,7 @@ export class Combat {
     } else if (id === 'focus') {
       this.focus = { attack, until: this.game.time + form.focus.duration, next: this.game.tick };
     } else {
-      const target = closest(
-        this.game.targets.filter((t) => t.hp > 0),
-        origin,
-      )[0];
+      const target = closest(this.game.targets, origin)[0];
       const angle =
         (target
           ? Math.atan2(target.y - origin.y, target.x - origin.x)
@@ -285,12 +308,7 @@ export class Combat {
     let previous: Point = primary;
     const visited = new Set([primary.id]);
     for (let hop = 0; hop < s.chain.hops; hop++) {
-      const next = closest(
-        this.game.targets.filter(
-          (t) => t.hp > 0 && !visited.has(t.id) && distance(t, previous) <= s.chain.range,
-        ),
-        previous,
-      )[0];
+      const next = closest(this.game.targets, previous, 1, s.chain.range, visited)[0];
       if (!next) break;
       this.game.addEffect('bolt', previous, next, 0, 1.2, 0.34, 'chain', attack.rarities.chain);
       this.activate('chain', attack.ranks.chain);
@@ -306,14 +324,12 @@ export class Combat {
       attack.burstFired = true;
       const point = attack.firstKill,
         radius = attack.forms.burst.radius;
-      const targets = this.game.targets.filter((t) => t.hp > 0 && distance(t, point) <= radius);
+      const targets = closest(this.game.targets, point, attack.forms.burst.count, radius);
       if (targets.length) this.activate('burst', attack.ranks.burst);
-      closest(targets, point)
-        .slice(0, attack.forms.burst.count)
-        .forEach((t) => {
-          this.game.addEffect('bolt', point, t, 0, 1.4, 0.14, 'burst', attack.rarities.burst);
-          this.game.damageTarget(t, attack.damage);
-        });
+      targets.forEach((t) => {
+        this.game.addEffect('bolt', point, t, 0, 1.4, 0.14, 'burst', attack.rarities.burst);
+        this.game.damageTarget(t, attack.damage);
+      });
     }
   }
 
@@ -375,10 +391,7 @@ export class Combat {
         !this.game.targets.includes(cast.target) ||
         distance(cast.target, origin) > form.range
       ) {
-        cast.target = closest(
-          this.game.targets.filter((t) => t.hp > 0 && distance(t, origin) <= form.range),
-          origin,
-        )[0];
+        cast.target = closest(this.game.targets, origin, 1, form.range)[0];
       }
       if (cast.target) {
         this.game.addEffect(

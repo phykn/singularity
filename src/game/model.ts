@@ -58,6 +58,8 @@ export class Game {
   score = 0;
   rushSpawns = 0;
   private kills: { tick: number; energy: number }[] = [];
+  private killHead = 0;
+  private killEnergy = 0;
   private rushUntil = 0;
   targets: Target[] = [];
   effects: Effect[] = [];
@@ -268,10 +270,10 @@ export class Game {
     return game;
   }
 
-  advance(milliseconds: number): void {
+  advance(milliseconds: number, tickLimit = Infinity): void {
     if (this.paused || this.phase === 'ready' || this.phase === 'result') return;
     this.remainder += (milliseconds * this.rules.tickRate) / 1000;
-    const count = Math.floor(this.remainder + 1e-8);
+    const count = Math.min(Math.floor(this.remainder + 1e-8), tickLimit);
     this.remainder -= count;
     for (let i = 0; i < count && !this.result; i++) {
       this.elapsedTicks++;
@@ -530,7 +532,9 @@ export class Game {
   }
 
   damageTarget(target: Target, damage: number, attack?: Attack): void {
-    if (target.hp <= 0 || !this.targets.includes(target)) return;
+    if (target.hp <= 0) return;
+    const index = this.targets.indexOf(target);
+    if (index === -1) return;
     target.hp -= damage;
     if (target.hp < 1e-8) target.hp = 0;
     target.hitAt = this.time;
@@ -548,7 +552,7 @@ export class Game {
     if (target.hp <= 0) {
       if (attack && !attack.firstKill) attack.firstKill = { x: target.x, y: target.y };
       this.counts[target.particle].killed++;
-      this.targets = this.targets.filter((t) => t.id !== target.id);
+      this.targets.splice(index, 1);
       this.addEffect('kill', target, this.position, 8, damage, 0.4);
       const before = this.charged;
       const previous = this.level;
@@ -556,12 +560,19 @@ export class Game {
       this.levelUp(previous);
       this.score += Math.round(target.xp * 10 * (1 + target.radius / this.rules.spawnRadius));
       this.kills.push({ tick: this.tick, energy: target.xp });
-      this.kills = this.kills.filter(
-        (kill) => this.tick - kill.tick < this.rules.rush.windowSeconds * this.rules.tickRate,
-      );
-      if (
-        this.kills.reduce((sum, kill) => sum + kill.energy, 0) >= this.rules.rush.energyThreshold
+      this.killEnergy += target.xp;
+      const windowTicks = this.rules.rush.windowSeconds * this.rules.tickRate;
+      while (
+        this.killHead < this.kills.length &&
+        this.tick - this.kills[this.killHead].tick >= windowTicks
       ) {
+        this.killEnergy -= this.kills[this.killHead++].energy;
+      }
+      if (this.killHead > 1024) {
+        this.kills.splice(0, this.killHead);
+        this.killHead = 0;
+      }
+      if (this.killEnergy >= this.rules.rush.energyThreshold) {
         this.rushUntil = this.tick + this.rules.rush.windowSeconds * this.rules.tickRate;
         if (this.rushing)
           this.nextSpawn = Math.min(

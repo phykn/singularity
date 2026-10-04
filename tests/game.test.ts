@@ -7,6 +7,61 @@ import type { Target } from '../src/game/types.ts';
 import { rules } from '../src/game/rules.ts';
 import { close, target, fixture, choose, run } from './helpers.ts';
 
+test('limited catch-up retains every simulation tick and reaches the same state across frames', () => {
+  const whole = new Game(1705);
+  const chunked = new Game(1705);
+  whole.start();
+  chunked.start();
+  whole.advance(1000);
+  chunked.advance(1000, 8);
+  assert.equal(chunked.elapsedTicks, 8);
+  for (let frame = 0; frame < 7; frame++) chunked.advance(0, 8);
+  assert.equal(chunked.elapsedTicks, 60);
+  assert.deepEqual(chunked.events, whole.events);
+  assert.deepEqual(chunked.targets, whole.targets);
+  assert.deepEqual(chunked.effects, whole.effects);
+  assert.deepEqual(chunked.damageNumbers, whole.damageNumbers);
+  assert.deepEqual(chunked.checkpoint(), whole.checkpoint());
+  chunked.advance(0, 8);
+  assert.equal(chunked.elapsedTicks, 60, 'Draining the backlog does not invent ticks');
+});
+
+test('rush energy expires at its window boundary and remains correct through long kill histories', () => {
+  const g = new Game(1705, {
+    combat: false,
+    rules: { ...rules, rush: { ...rules.rush, windowSeconds: 1, energyThreshold: 2 } },
+  });
+  g.start();
+  const kill = (id: number) => {
+    const enemy = target(id, 180, 128);
+    g.targets = [enemy];
+    g.counts.quark.generated++;
+    g.damageTarget(enemy, 2);
+  };
+  for (let i = 0; i < 1100; i++) {
+    g.tick += rules.tickRate;
+    kill(i);
+    assert.equal(g.rushing, false, 'An expired kill must not contribute energy');
+  }
+  kill(1100);
+  assert.equal(g.rushing, true, 'Two current kills trigger a rush');
+  g.tick += rules.tickRate;
+  kill(1101);
+  assert.equal(g.rushing, false);
+  assert.equal(g.counts.quark.killed, 1102);
+  assert.equal(g.xp, 1102);
+
+  const disabled = new Game(1705, {
+    combat: false,
+    rules: { ...rules, rush: { ...rules.rush, windowSeconds: 0 } },
+  });
+  disabled.start();
+  const enemy = target(0, 180, 128);
+  disabled.targets = [enemy];
+  disabled.damageTarget(enemy, 2);
+  assert.equal(disabled.rushing, false);
+});
+
 test('custom rules control simulation ticks, the initial orbit and the first attack deadline', () => {
   const cfg = {
     ...rules,

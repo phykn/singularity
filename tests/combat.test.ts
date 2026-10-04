@@ -12,6 +12,61 @@ import {
   skillIds,
 } from '../src/game/rules.ts';
 import { close, target, fixture, choose, stationarySkill } from './helpers.ts';
+import { Random } from '../src/game/random.ts';
+import { distance } from '../src/game/geometry.ts';
+
+test('large shuffled crowds retain nearest-target order, exact range edges and ID ties', () => {
+  const random = new Random(7003);
+  const origin = { x: 180, y: 128 };
+  for (let trial = 0; trial < 20; trial++) {
+    const crowd = Array.from({ length: 1000 }, (_, id) =>
+      target(id, 40 + random.next() * 280, 10 + random.next() * 240, 10000),
+    );
+    crowd.push(target(1001, 180 + rules.primaryRange, 128, 10000));
+    crowd.push(target(1002, 180 + rules.primaryRange + 1e-7, 128, 10000));
+    crowd.push(target(1003, 180, 129, 10000), target(1004, 181, 128, 10000));
+    for (let i = crowd.length - 1; i > 0; i--) {
+      const other = Math.floor(random.next() * (i + 1));
+      [crowd[i], crowd[other]] = [crowd[other], crowd[i]];
+    }
+    const g = fixture({ multi: 5 }, crowd);
+    const expected = [...crowd]
+      .filter((t) => distance(t, origin) <= rules.primaryRange)
+      .sort((a, b) => distance(a, origin) - distance(b, origin) || a.id - b.id)
+      .slice(0, g.forms.multi.count)
+      .map((t) => t.id);
+    g.combat.fireBasic(origin);
+    assert.deepEqual(
+      g.events.filter((e) => e.kind === 'hit').map((e) => (e.data as { id: number }).id),
+      expected,
+    );
+  }
+  const edge = fixture({ multi: 5 }, [
+    target(2, origin.x + rules.primaryRange + 1e-7, origin.y, 10000),
+    target(1, origin.x - rules.primaryRange, origin.y, 10000),
+    target(0, origin.x + rules.primaryRange, origin.y, 10000),
+  ]);
+  edge.combat.fireBasic(origin);
+  assert.deepEqual(
+    edge.events.filter((e) => e.kind === 'hit').map((e) => (e.data as { id: number }).id),
+    [0, 1],
+  );
+});
+
+test('a dense area clear conserves every particle and processes deaths in ID order', () => {
+  const crowd = Array.from({ length: 1600 }, (_, id) => target(id, 180 + (id % 8), 128 + (id % 8)));
+  const g = fixture({ area: 5, multi: 5, repeat: 5, chain: 5 }, crowd.reverse());
+  g.combat.fireBasic();
+  assert.equal(g.targets.length, 0);
+  assert.equal(g.xp, 1600);
+  assert.equal(g.counts.quark.killed, 1600);
+  assert.deepEqual(
+    g.events.filter((e) => e.kind === 'kill').map((e) => (e.data as { id: number }).id),
+    Array.from({ length: 1600 }, (_, id) => id),
+  );
+  g.advance(700);
+  assert.equal(g.xp, 1600, 'Reserved repeats do not award dead particles twice');
+});
 
 test('area and pierce share one damage hit, boundaries include the edge, and tie order is stable', () => {
   const origin = { x: 180, y: 128 };
