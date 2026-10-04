@@ -190,6 +190,8 @@ export class Combat {
           0.24,
           id,
           rarity,
+          undefined,
+          attack.ranks[id],
         );
         for (const nearby of [...this.game.targets].sort((a, b) => a.id - b.id)) {
           if (nearby.hp <= 0 || hit.has(nearby.id) || distance(nearby, target) > form.strike.radius)
@@ -227,6 +229,7 @@ export class Combat {
         id,
         rarity,
         id === 'whip' ? 'electron' : undefined,
+        attack.ranks[id],
       );
     }
     if (id !== 'focus') this.activate(id);
@@ -257,6 +260,8 @@ export class Combat {
       attack.rarities.power,
       higherRarity(attack.rarities.multi, attack.rarities.repeat),
     );
+    const source =
+      repeat && attack.ranks.repeat ? 'repeat' : attack.ranks.multi ? 'multi' : undefined;
     this.game.addEffect(
       'bolt',
       origin,
@@ -264,15 +269,27 @@ export class Combat {
       0,
       1.8 + (attack.damage - this.game.rules.baseHitDamage) * 0.5,
       0.32,
-      undefined,
+      source,
       rarity,
       'electron',
+      source ? attack.ranks[source] : 0,
     );
     if (repeat && attack.ranks.repeat) this.activate('repeat', attack.ranks.repeat);
     if (!repeat && pulse.order > 0 && attack.ranks.multi)
       this.activate('multi', attack.ranks.multi);
     if (radius) {
-      this.game.addEffect('area', primary, primary, radius, 1, 0.38, 'area', attack.rarities.area);
+      this.game.addEffect(
+        'area',
+        primary,
+        primary,
+        radius,
+        1,
+        0.38,
+        'area',
+        attack.rarities.area,
+        undefined,
+        attack.ranks.area,
+      );
       this.activate('area', attack.ranks.area);
     }
     if (length) {
@@ -286,6 +303,7 @@ export class Combat {
         'pierce',
         attack.rarities.pierce,
         'electron',
+        attack.ranks.pierce,
       );
       this.activate('pierce', attack.ranks.pierce);
     }
@@ -310,7 +328,18 @@ export class Combat {
     for (let hop = 0; hop < s.chain.hops; hop++) {
       const next = closest(this.game.targets, previous, 1, s.chain.range, visited)[0];
       if (!next) break;
-      this.game.addEffect('bolt', previous, next, 0, 1.2, 0.34, 'chain', attack.rarities.chain);
+      this.game.addEffect(
+        'bolt',
+        previous,
+        next,
+        0,
+        1.2,
+        0.34,
+        'chain',
+        attack.rarities.chain,
+        undefined,
+        attack.ranks.chain,
+      );
       this.activate('chain', attack.ranks.chain);
       this.game.damageTarget(next, attack.damage, attack);
       visited.add(next.id);
@@ -327,7 +356,18 @@ export class Combat {
       const targets = closest(this.game.targets, point, attack.forms.burst.count, radius);
       if (targets.length) this.activate('burst', attack.ranks.burst);
       targets.forEach((t) => {
-        this.game.addEffect('bolt', point, t, 0, 1.4, 0.14, 'burst', attack.rarities.burst);
+        this.game.addEffect(
+          'bolt',
+          point,
+          t,
+          0,
+          1.4,
+          0.14,
+          'burst',
+          attack.rarities.burst,
+          undefined,
+          attack.ranks.burst,
+        );
         this.game.damageTarget(t, attack.damage);
       });
     }
@@ -404,6 +444,7 @@ export class Combat {
           'focus',
           cast.attack.rarities.focus,
           'electron',
+          cast.attack.ranks.focus,
         ).targetId = cast.target.id;
         this.game.damageTarget(cast.target, cast.attack.damage, cast.attack);
         this.activate('focus', cast.attack.ranks.focus);

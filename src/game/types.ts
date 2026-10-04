@@ -1,6 +1,6 @@
 import type { Point } from './geometry.ts';
 import type { ParticleKind } from './particles.ts';
-import type { Boosts, Card, Ranks, Rarities, Rarity, SkillId, UpgradeId } from './rules.ts';
+import type { Boosts, Card, Ranks, Rarities, Rarity, UpgradeId } from './rules.ts';
 
 export type TargetKind = 'small' | 'dense';
 export type Phase = 'ready' | 'running' | 'collapse' | 'ending' | 'result';
@@ -22,14 +22,25 @@ export type Target = Point & {
 };
 export type Effect = {
   kind:
-    'bolt' | 'area' | 'pierce' | 'strike' | 'wave' | 'whip' | 'focus' | 'kill' | 'level' | 'absorb';
+    | 'bolt'
+    | 'area'
+    | 'pierce'
+    | 'strike'
+    | 'wave'
+    | 'whip'
+    | 'focus'
+    | 'kill'
+    | 'level'
+    | 'upgrade'
+    | 'absorb';
   from: Point;
   to: Point;
   radius: number;
   width: number;
   born: number;
   life: number;
-  source?: SkillId;
+  source?: UpgradeId;
+  rank: number;
   rarity: Rarity;
   targetId?: number;
   anchor?: 'electron';

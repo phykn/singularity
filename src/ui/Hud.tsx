@@ -44,6 +44,7 @@ export function Hud({
           {statIds.map((id) => (
             <div
               className="boost"
+              data-acquired={game.notice === id && game.time < game.noticeUntil}
               key={id}
               aria-label={c.upgrades[id].short + ', ' + value(id)}
               title={value(id)}

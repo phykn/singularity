@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { base, capture, launchBrowser } from './browser-support.mjs';
 import { rules, skillIds, statIds, rarityIds } from '../src/game/rules.ts';
 import { copy } from '../src/ui/i18n.ts';
+import { skillColor } from '../src/render/palette.ts';
 
 mkdirSync('artifacts/screens', { recursive: true });
 const browser = await launchBrowser();
@@ -190,6 +191,147 @@ const skillFlow = async () => {
   }
   report('all ten lightning skills render real impacts and damage', { skills: skillIds });
   await skillsPage.close();
+};
+
+const visualFlow = async () => {
+  const page = await pageFor(375, 812);
+  for (const id of skillIds) {
+    const ranks = [];
+    for (const rank of [1, 5]) {
+      const result = await page.evaluate(
+        ({ id, rank }) => {
+          window.__gameDebug.restart(17, false);
+          const g = window.__gameDebug.getModel();
+          g.ranks[id] = rank;
+          const particles = ['quark', 'muon', 'proton', 'neutron'];
+          g.targets = Array.from({ length: 24 }, (_, i) => {
+            const radius = (id === 'wave' ? 18 : 54) + Math.floor(i / 8) * 12;
+            const angle = -1.3 + (i % 8) * 0.37;
+            const x = 180 + Math.cos(angle) * radius,
+              y = 128 + Math.sin(angle) * radius;
+            return {
+              id: i,
+              x,
+              y,
+              hp: 100,
+              maxHp: 100,
+              kind: i % 4 < 2 ? 'small' : 'dense',
+              particle: particles[i % 4],
+              born: 0,
+              xp: 1,
+              mass: 1,
+              size: 5,
+              radius: Math.hypot(x - 180, y - 260),
+              angle: Math.atan2(y - 260, x - 180),
+              speed: 0,
+              turn: 0,
+            };
+          });
+          if (id === 'burst') {
+            const nearest = [...g.targets].sort(
+              (a, b) => Math.hypot(a.x - 180, a.y - 128) - Math.hypot(b.x - 180, b.y - 128),
+            )[0];
+            nearest.hp = nearest.maxHp = 2;
+          }
+          if (['strike', 'wave', 'whip', 'focus'].includes(id)) g.combat.fireSkill(id);
+          else g.combat.fireBasic();
+          window.__gameDebug.advance(
+            ['wave', 'whip'].includes(id) ? 175 : id === 'repeat' ? 100 : 50,
+          );
+          g.setHidden(true);
+          return {
+            effects: g.effects
+              .filter((fx) => fx.source === id)
+              .map((fx) => ({ rank: fx.rank, radius: fx.radius, width: fx.width })),
+            hits: g.events.filter((event) => event.kind === 'hit').length,
+          };
+        },
+        { id, rank },
+      );
+      assert.ok(
+        result.effects.length > 0 && result.hits > 0,
+        id + ' must produce an actual visible attack',
+      );
+      assert.ok(result.effects.every((fx) => fx.rank === rank));
+      const iconColor = await page
+        .locator('.slot[data-skill="' + id + '"] svg')
+        .evaluate((svg) => svg.style.color);
+      const expectedColor = await page.evaluate((color) => {
+        const node = document.createElement('span');
+        node.style.color = color;
+        return node.style.color;
+      }, skillColor(id));
+      assert.equal(iconColor, expectedColor);
+      await screenshot(page, `visual-${id}-rank-${rank}`);
+      ranks.push(result);
+    }
+    if (['multi', 'chain', 'burst', 'strike'].includes(id))
+      assert.ok(ranks[1].hits > ranks[0].hits);
+    if (['area', 'pierce', 'wave', 'whip'].includes(id))
+      assert.ok(
+        ranks[1].effects[0].radius > ranks[0].effects[0].radius ||
+          ranks[1].effects[0].width > ranks[0].effects[0].width,
+      );
+  }
+  report('all ten skills retain their identity and show actual growth from rank one to five', {
+    skills: skillIds,
+  });
+  for (const [width, height] of [
+    [375, 812],
+    [568, 320],
+  ]) {
+    await page.setViewportSize({ width, height });
+    for (const id of [...skillIds, ...statIds]) {
+      await page.evaluate((id) => {
+        window.__gameDebug.restart(17, false);
+        const g = window.__gameDebug.getModel();
+        if (id in g.ranks) g.ranks[id] = id === 'chain' ? 4 : 1;
+        else g.boosts[id] = 1;
+        g.choice = {
+          number: 1,
+          opened: g.time,
+          deadline: g.time + 8,
+          cards: [{ id, rarity: 'rare' }],
+        };
+        window.__gameDebug.advance(0);
+      }, id);
+      await page.locator('.card').first().click();
+      const feedback = page.locator('.upgrade-feedback');
+      await feedback.waitFor();
+      await page.evaluate(() => {
+        window.__gameDebug.getModel().setHidden(true);
+        window.__gameDebug.advance(0);
+      });
+      assert.equal(await feedback.getAttribute('data-skill'), id);
+      const rank = id === 'chain' ? 5 : 2;
+      assert.ok((await feedback.innerText()).includes(`${rank - 1} → ${rank}`));
+      if (id === 'chain') assert.equal(await page.locator('.slot-max').innerText(), 'MAX');
+      const box = await feedback.boundingBox();
+      assert.ok(
+        box.x >= 0 && box.x + box.width <= width && box.y >= 0 && box.y + box.height <= height,
+      );
+      assert.equal(await feedback.evaluate((node) => node.scrollWidth <= node.clientWidth), true);
+      await screenshot(page, `upgrade-${id}-${width}x${height}`);
+      await page.evaluate(() => {
+        const g = window.__gameDebug.getModel();
+        g.setHidden(false);
+        g.setManualPause(true);
+        window.__gameDebug.advance(5000);
+      });
+      assert.equal(await feedback.count(), 1, 'A manual pause preserves upgrade feedback');
+      await page.evaluate(() => {
+        window.__gameDebug.getModel().setManualPause(false);
+        window.__gameDebug.advance(2100);
+        window.__gameDebug.getModel().setHidden(true);
+      });
+      assert.equal(await feedback.count(), 0, 'Feedback clears after its game-time interval');
+    }
+  }
+  report(
+    'manual upgrades confirm every skill and stat, remain legible in both orientations and expire after play resumes',
+    { upgrades: 13, viewports: 2 },
+  );
+  await page.close();
 };
 
 const interfaceFlow = async () => {
@@ -382,6 +524,8 @@ const interfaceFlow = async () => {
 try {
   if (process.argv.includes('--skills')) {
     await skillFlow();
+  } else if (process.argv.includes('--visuals')) {
+    await visualFlow();
   } else if (process.argv.includes('--interface')) {
     await interfaceFlow();
   } else if (process.argv.includes('--rarity')) {
@@ -576,6 +720,7 @@ try {
 
     await skillFlow();
     await interfaceFlow();
+    await visualFlow();
 
     const page = await pageFor(375, 812);
     await page.getByRole('button', { name: 'START' }).click();
@@ -757,15 +902,17 @@ try {
     'artifacts/' +
       (process.argv.includes('--skills')
         ? 'skills-browser'
-        : process.argv.includes('--interface')
-          ? 'interface-browser'
-          : process.argv.includes('--rarity')
-            ? 'rarity-browser'
-            : process.argv.includes('--production')
-              ? 'production'
-              : process.argv.includes('--realtime')
-                ? 'realtime-checks'
-                : 'browser') +
+        : process.argv.includes('--visuals')
+          ? 'visuals-browser'
+          : process.argv.includes('--interface')
+            ? 'interface-browser'
+            : process.argv.includes('--rarity')
+              ? 'rarity-browser'
+              : process.argv.includes('--production')
+                ? 'production'
+                : process.argv.includes('--realtime')
+                  ? 'realtime-checks'
+                  : 'browser') +
       '.json',
     JSON.stringify({ base, checks, errors }, null, 2),
   );

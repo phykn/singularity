@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { blankRanks, blankRarities, formValues, rarityScale, rules } from '../game/rules.ts';
 import type { Rarity, RuleSet, UpgradeId } from '../game/rules.ts';
+import { skillColor } from '../render/palette.ts';
 
 const delay = (index: number) => ({ '--delay': `${index * 0.13}s` }) as CSSProperties;
 const target = (x: number, y: number, key: number) => (
@@ -299,6 +300,7 @@ export function SkillPreview({
   return (
     <svg
       className={`skill-preview preview-${id}`}
+      style={{ color: skillColor(id) }}
       viewBox="0 0 120 64"
       fill="none"
       stroke="currentColor"

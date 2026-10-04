@@ -31,7 +31,7 @@ const inspect = async (page) => {
         issues.push('Offscreen: ' + button.textContent);
     }
     for (const node of document.querySelectorAll(
-      '.card-label, .card strong, .card-value, .arena-caption h1',
+      '.card-label, .card strong, .card-value, .arena-caption h1, .upgrade-feedback',
     )) {
       if (node.scrollWidth > node.clientWidth + 1 || node.scrollHeight > node.clientHeight + 1)
         issues.push('Clipped: ' + node.textContent);
@@ -151,6 +151,10 @@ try {
         await page.evaluate(() => window.__gameDebug.getModel().selections[0].automatic),
         false,
       );
+      await page.locator('.upgrade-feedback').waitFor();
+      await localized(page, language.id, '.upgrade-feedback');
+      await inspect(page);
+      if (width === 375) await screenshot(page, `artifacts/screens/upgrade-${language.id}.png`);
       await page.evaluate(() => {
         window.__gameDebug.restart(20000);
         window.__gameDebug.advance(610000);

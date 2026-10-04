@@ -7,6 +7,8 @@ import { skillValue } from './skillText.ts';
 import type { Game } from '../game/model.ts';
 import { copy } from './i18n.ts';
 import type { Language } from './i18n.ts';
+import type { CSSProperties } from 'react';
+import { skillColor } from '../render/palette.ts';
 
 export function ownedSkills(game: Game): SkillId[] {
   return skillIds
@@ -57,6 +59,7 @@ export function Loadout({ game, language }: { game: Game; language: Language }) 
               className={`slot ${id ? '' : 'empty'}`}
               key={id ? id + game.rank(id) : i}
               data-skill={id}
+              style={id ? ({ '--skill': skillColor(id) } as CSSProperties) : undefined}
               data-mode={status?.mode}
               data-active={status?.active}
               data-fired={status?.fired}

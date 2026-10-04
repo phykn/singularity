@@ -20,7 +20,7 @@ import {
   rules,
   xpForLevel,
 } from './rules.ts';
-import type { FormValues, Rarity, RuleSet, SkillId, UpgradeId } from './rules.ts';
+import type { FormValues, Rarity, RuleSet, UpgradeId } from './rules.ts';
 
 import { Combat } from './combat.ts';
 import type { Attack } from './combat.ts';
@@ -468,17 +468,18 @@ export class Game {
     this.selections.push(selection);
     this.log('skill', selection);
     this.addEffect(
-      'level',
+      'upgrade',
       this.position,
       this.position,
       id === 'accel' ? 30 : 18,
       1,
-      0.5,
-      undefined,
+      0.7,
+      id,
       this.rarities[id],
+      'electron',
     );
     this.notice = id;
-    this.noticeUntil = this.time + 1.5;
+    this.noticeUntil = this.time + 2;
     this.combat.learn(id, previous);
     this.choice = null;
     this.openChoice();
@@ -642,9 +643,10 @@ export class Game {
     radius: number,
     width: number,
     life: number,
-    source?: SkillId,
+    source?: UpgradeId,
     rarity: Rarity = source ? this.rarities[source] : 'common',
     anchor?: Effect['anchor'],
+    rank = source ? this.rank(source) : 0,
   ): Effect {
     if (kind === 'bolt' || kind === 'pierce') life = 0.14;
     const effect = {
@@ -656,6 +658,7 @@ export class Game {
       born: this.seconds,
       life,
       source,
+      rank,
       rarity,
       anchor,
     };

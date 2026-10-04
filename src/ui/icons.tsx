@@ -2,6 +2,7 @@ import { Repeat, SpeedFast, Zap } from 'pixelarticons/react';
 import type { ComponentType, SVGProps } from 'react';
 import type { UpgradeId } from '../game/rules.ts';
 import { art, palettes } from '../render/pixels.ts';
+import { skillColor } from '../render/palette.ts';
 import type { ParticleKind } from '../game/particles.ts';
 
 const statIcons: Partial<Record<UpgradeId, ComponentType<SVGProps<SVGSVGElement>>>> = {
@@ -31,6 +32,7 @@ export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
     return (
       <Icon
         className="skill-icon"
+        style={{ color: skillColor(id) }}
         width={size <= 16 ? 12 : 24}
         height={size <= 16 ? 12 : 24}
         aria-hidden="true"
@@ -40,6 +42,7 @@ export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
   return (
     <svg
       className="skill-icon"
+      style={{ color: skillColor(id) }}
       width={pixels}
       height={pixels}
       viewBox="0 0 16 16"

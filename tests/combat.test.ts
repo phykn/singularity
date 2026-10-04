@@ -15,6 +15,26 @@ import { close, target, fixture, choose, stationarySkill } from './helpers.ts';
 import { Random } from '../src/game/random.ts';
 import { distance } from '../src/game/geometry.ts';
 
+test('reserved repeat visuals retain the cast rank after a skill upgrade', () => {
+  const g = stationarySkill({ repeat: 1 }, [target(0, 210, 128, 100)]);
+  g.combat.fireBasic();
+  choose(g, 'repeat', 'legendary');
+  g.advance(100);
+  const pulse = g.effects.find((fx) => fx.kind === 'bolt' && fx.source === 'repeat');
+  assert.ok(pulse);
+  assert.equal(pulse.rank, 1);
+  assert.equal(pulse.rarity, 'common');
+  assert.equal(g.ranks.repeat, 2);
+  g.combat.fireBasic();
+  g.advance(100);
+  assert.ok(
+    g.effects.some(
+      (fx) =>
+        fx.kind === 'bolt' && fx.source === 'repeat' && fx.rank === 2 && fx.rarity === 'legendary',
+    ),
+  );
+});
+
 test('large shuffled crowds retain nearest-target order, exact range edges and ID ties', () => {
   const random = new Random(7003);
   const origin = { x: 180, y: 128 };

@@ -19,6 +19,7 @@ export function visibleEffects(effects: Effect[], reduced: boolean): Effect[] {
     focus: 1,
     kill: reduced ? 3 : 6,
     level: 2,
+    upgrade: 1,
     absorb: 4,
   };
   const counts: Record<string, number> = {};

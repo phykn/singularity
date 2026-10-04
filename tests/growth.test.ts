@@ -16,7 +16,36 @@ import {
   xpForLevel,
 } from '../src/game/rules.ts';
 import type { Boosts, UpgradeId } from '../src/game/rules.ts';
+import { effectOrigin, visibleEffects } from '../src/render/effects.ts';
 import { close, fixture, choose } from './helpers.ts';
+
+test('every skill and stat upgrade confirms its actual rank and follows the live electron', () => {
+  for (const id of [...skillIds, ...statIds]) {
+    const g = new Game(17, { combat: false });
+    g.start();
+    for (let rank = 1; rank <= 2; rank++) {
+      g.choice = {
+        number: rank,
+        opened: g.time,
+        deadline: g.time + 8,
+        cards: [{ id, rarity: 'rare' }],
+      };
+      assert.ok(g.select(id));
+      const fx = visibleEffects(g.effects, false).find((fx) => fx.kind === 'upgrade');
+      assert.ok(fx);
+      assert.equal(fx.source, id);
+      assert.equal(fx.rank, rank);
+      assert.equal(fx.rarity, 'rare');
+      assert.equal(g.notice, id);
+      g.advance(50);
+      assert.deepEqual(effectOrigin(fx, g.position), g.position);
+      assert.notDeepEqual(g.position, fx.from);
+    }
+    g.advance(2100);
+    assert.ok(g.time >= g.noticeUntil);
+    assert.ok(!g.effects.some((fx) => fx.kind === 'upgrade'));
+  }
+});
 
 test('energy grants opportunities without automatic speed, fire rate or damage', () => {
   const g = fixture();
