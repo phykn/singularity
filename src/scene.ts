@@ -146,7 +146,7 @@ export class ElectronScene extends Phaser.Scene {
       return;
     }
 
-    const electron = orbit(angle, radius), tail = reduced ? 5 : 10 + model.boosts.accel * 7;
+    const electron = orbit(angle, radius), tail = reduced ? 5 : Math.min(45, 10 + model.boosts.accel * 7);
     for (let i = tail; i > 0; i--) {
       const p = orbit(angle - i * .035, radius), next = orbit(angle - (i - 1) * .035, radius);
       g.lineStyle((1 + 2 * (1 - i / tail)) / scale, color, .65 * (1 - i / tail));

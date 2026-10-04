@@ -7,7 +7,7 @@ import { effectOrigin, visibleEffects } from '../src/effects.ts';
 import { orbit } from '../src/geometry.ts';
 import { particleIds } from '../src/particles.ts';
 import type { Target, TargetKind } from '../src/game.ts';
-import { blankBoosts, blankRanks, blankRarities, formValues, isSkill, rarityIds, rollRarity, rules, skillIds, statIds } from '../src/rules.ts';
+import { blankBoosts, blankRanks, blankRarities, formValues, isSkill, rarityIds, rollRarity, rules, skillIds, statIds, levelForXp, xpForLevel } from '../src/rules.ts';
 import type { Boosts, Ranks, Rarity, UpgradeId } from '../src/rules.ts';
 import { bestRecord, readLanguage, readRecord, readRun, readSettings, languageKey, recordKey, runKey, save, saveRun, settingsKey } from '../src/storage.ts';
 
@@ -28,7 +28,7 @@ function choose(g: Game, id: UpgradeId, rarity: Rarity = 'common'): void {
 }
 function run(seed: number, fps: number): Game {
   const g = new Game(seed); g.start();
-  for (let i = 0; i < fps * 610 && !g.result; i++) g.advance(1000 / fps);
+  for (let i = 0; i < fps * 1800 && !g.result; i++) g.advance(1000 / fps);
   assert.ok(g.result); return g;
 }
 
@@ -65,7 +65,7 @@ test('results separate every particle species through death, absorption and surv
   const g = fixture({}, targets);
   for (const t of targets.filter(t => t.hp === 1)) g.fireBasic(t);
   g.absorbTargets();
-  g.advance(610000);
+  g.mass = 1000; g.radius = g.core + 4; g.advance(16000);
   assert.ok(g.result);
   assert.deepEqual(Object.keys(g.result.counts), particleIds);
   for (const id of particleIds) assert.deepEqual(g.result.counts[id], { generated: 3, killed: 1, absorbed: 1, remaining: 1 });
@@ -98,23 +98,67 @@ test('early collision snapshots the energy boundary and cancels combat and cards
     g.setManualPause(false); g.advance(3000); assert.equal(g.phase, 'ending');
     g.advance(12000); assert.ok(g.result);
     assert.deepEqual({ xp: g.xp, mass: g.mass, time: g.time }, frozen);
-    assert.equal(g.result.trigger, 'gravity');
+    assert.equal(g.result.trigger, xp >= rules.energyGoal ? 'energy' : 'gravity');
     assert.equal(g.result.outcome, xp >= rules.energyGoal ? 'success' : 'collapse-failure');
     assert.equal(g.events.some((e) => e.kind === 'hit' && e.time >= frozen.time), false);
   }
 });
 
-test('final convergence finishes in 600 or 591 seconds and never grants pending choices', () => {
-  for (const xp of [rules.energyGoal - 1, rules.energyGoal]) {
-    const g = fixture(); g.advance(584000); g.debugSetXp(xp);
-    assert.ok(g.choice); const count = g.selections.length;
-    g.advance(1000);
-    assert.equal(g.phase, 'collapse'); assert.equal(g.time, 585); assert.equal(g.selections.length, count);
-    g.advance(15000);
-    assert.equal(g.result?.seconds, xp >= rules.energyGoal ? 600 : 591);
-    assert.equal(g.result?.missingXp, xp >= rules.energyGoal ? 0 : 1);
-    assert.equal(g.result?.trigger, 'final');
+test('elapsed time never ends a run and reaching the XP goal starts a successful collapse', () => {
+  const g = fixture(); g.debugSetXp(rules.energyGoal - 1); g.advance(3600000);
+  assert.equal(g.phase, 'running'); assert.equal(g.seconds, 3600);
+  assert.equal(g.stage, rules.stageStarts.length - 1); assert.equal(g.result, null);
+  const enemy = target(0, 180, 128, 1); g.targets = [enemy]; g.counts.quark.generated++;
+  g.fireBasic(enemy); assert.equal(g.xp, rules.energyGoal);
+  const choices = g.selections.length;
+  g.advance(1000 / rules.tickRate);
+  assert.equal(g.phase, 'collapse'); assert.equal(g.choice, null); assert.equal(g.successfulEnding, true);
+  g.advance(15000);
+  assert.equal(g.result?.trigger, 'energy'); assert.equal(g.result?.missingXp, 0);
+  assert.equal(g.selections.length, choices);
+  close(g.result!.seconds, 3615 + 1 / rules.tickRate);
+});
+
+test('XP thresholds continue beyond level 26 with exact boundaries and carried progress', () => {
+  for (const level of [2, 26, 27, 30, 50, 100, 1000, 1000000]) {
+    const xp = xpForLevel(level);
+    assert.equal(levelForXp(xp - 1), level - 1);
+    assert.equal(levelForXp(xp), level);
+    assert.equal(levelForXp(xp + 1), level);
   }
+  assert.equal(xpForLevel(27), 19080);
+  assert.equal(xpForLevel(28), 20620);
+  const g = fixture(); g.debugSetXp(xpForLevel(50) + 17);
+  assert.equal(g.level, 50); assert.equal(g.levelProgress.current, 17);
+  assert.equal(g.levelProgress.required, xpForLevel(51) - xpForLevel(50));
+});
+
+test('maxed skills leave three repeatable stat choices and upgrades work above rank five', () => {
+  const g = fixture({ area: 5, repeat: 5, chain: 5, pierce: 5 });
+  for (const rank of [5, 20, 100]) {
+    g.boosts = { power: rank, rate: rank, accel: rank };
+    for (const danger of [false, true]) {
+      const cards = makeCards({ ranks: g.ranks, boosts: g.boosts, number: 100, danger }, new Random(42));
+      assert.deepEqual([...cards].sort(), [...statIds].sort());
+      if (danger) assert.equal(cards[0], 'accel');
+    }
+    const before = [g.damage, g.rate, g.speed];
+    statIds.forEach(id => choose(g, id));
+    assert.deepEqual(statIds.map(id => g.boosts[id]), [rank + 1, rank + 1, rank + 1]);
+    [g.damage, g.rate, g.speed].forEach((value, i) => assert.ok(value > before[i]));
+    assert.deepEqual(g.ranks, { ...blankRanks(), area: 5, repeat: 5, chain: 5, pierce: 5 });
+  }
+});
+
+test('late spawns keep their stage and scheduled waves continue beyond ten minutes', () => {
+  const g = fixture(); g.tick = 659 * rules.tickRate; g.elapsedTicks = g.tick; g.waveCount = rules.waves.length;
+  g.combat = true;
+  const warning = g.warningWave!; assert.equal(warning.time, 660);
+  g.advance(1000);
+  assert.equal(g.waveCount, 6); assert.equal(g.upcomingWave.time, 780);
+  assert.equal(g.stage, rules.stageStarts.length - 1);
+  assert.ok(g.targets.length >= (rules.waveSmall + rules.waveDense) * rules.waveScale.at(-1)!);
+  assert.ok(g.targets.every(t => Number.isFinite(t.hp) && t.maxHp >= rules.targets.small.hp.at(-1)!));
 });
 
 test('contact at zero margin ends the run; a timely acceleration recovers a narrow orbit', () => {
@@ -148,20 +192,20 @@ test('XP alone levels up immediately, carries overflow, queues cards, and pauses
   assert.equal(boundary.choice?.number, 2); assert.deepEqual(boundary.levelProgress, { current: 3, required: rules.levelXp[2] - rules.levelXp[1] });
 });
 
-test('every rank composition of four forms and three stats keeps three legal cards through the final choice', () => {
+test('all skill-rank combinations keep three legal cards even with maxed skills', () => {
   let states = 0, minimum = Infinity;
   const ids = ['area', 'repeat', 'chain', 'pierce'] as const, base = rules.maxRank + 1;
   for (let bits = 0; bits < base ** ids.length; bits++) {
     let n = bits, spent = 0; const ranks = blankRanks();
     for (const id of ids) { ranks[id] = n % base; n = Math.floor(n / base); spent += ranks[id]; }
     for (let power = 0; power < base; power++) for (let rate = 0; rate < base; rate++) for (let accel = 0; accel < base; accel++) {
-      const sum = spent + power + rate + accel; if (sum >= rules.levelXp.length) continue;
-      const boosts: Boosts = { power, rate, accel }, eligible = eligibleUpgrades(ranks, boosts);
+      const sum = spent + power + rate + accel;
+      const boosts: Boosts = { power, rate, accel }, eligible = eligibleUpgrades(ranks);
       const danger = sum % 2 === 0;
       const cards = makeCards({ ranks, boosts, number: sum + 1, danger }, new Random(9));
       assert.equal(cards.length, 3); assert.equal(new Set(cards).size, 3);
       cards.forEach(id => assert.ok(eligible.includes(id)));
-      if (sum && danger && accel < rules.maxRank) assert.equal(cards[0], 'accel');
+      if (sum && danger) assert.equal(cards[0], 'accel');
       if (sum && eligible.some(isSkill) && eligible.some(id => !isSkill(id))) {
         assert.ok(cards.some(isSkill)); assert.ok(cards.some(id => !isSkill(id)));
       }
@@ -169,8 +213,6 @@ test('every rank composition of four forms and three stats keeps three legal car
     }
   }
   assert.ok(states > 250000); assert.equal(minimum, 3);
-  // Fewer than three eligible types requires four full forms and one full stat.
-  assert.ok(rules.levelXp.length <= (rules.skillSlots + 1) * rules.maxRank);
 });
 
 test('stale, double and expired card inputs cannot alter the next choice', () => {
@@ -244,7 +286,7 @@ test('full games conserve particles and are identical at 30 and 60fps', () => {
     for (const id of particleIds) {
       const c = a.result!.counts[id]; assert.equal(c.generated, c.killed + c.absorbed + c.remaining);
     }
-    assert.ok(a.result!.seconds <= 600);
+    assert.equal(a.result!.trigger, a.result!.outcome === 'success' ? 'energy' : 'gravity');
   }
 });
 
@@ -366,6 +408,25 @@ test('save survives backgrounding and a reload, preserves manual pause, and quit
   assert.ok(saveRun(storage, new Game(g.seed))); assert.equal(readRun(storage), null);
 });
 
+test('saves and records accept a run past ten minutes and a manual choice beyond number 25', () => {
+  const map = new Map<string, string>();
+  const storage = { getItem: (key: string) => map.get(key) ?? null, setItem: (key: string, value: string) => map.set(key, value), removeItem: (key: string) => map.delete(key) } as Storage;
+  const g = new Game(1705); g.start();
+  while (g.time < 1200 && !g.result && (!g.choice || g.choice.number <= 25)) g.advance(250);
+  assert.equal(g.choice?.number, 26);
+  g.advance((g.choice!.deadline - g.time) * 1000 - 1000 / rules.tickRate);
+  assert.ok(g.select(g.choice!.cards[0].id));
+  g.advance(601000 - g.seconds * 1000);
+  assert.ok(g.seconds > 600); assert.ok(g.level > 26);
+  assert.ok(saveRun(storage, g));
+  const restored = readRun(storage)!; assert.ok(restored);
+  assert.deepEqual(restored.checkpoint(), g.checkpoint());
+  restored.advance(120000); g.advance(120000);
+  assert.equal(g.result?.outcome, 'success'); assert.deepEqual(restored.result, g.result);
+  const record = bestRecord(null, g.result!);
+  save(storage, recordKey, record); assert.deepEqual(readRecord(storage), record);
+});
+
 test('ending phases resume at the same frame after saving; bad or incompatible saves do not load', () => {
   const full = run(10004, 60);
   const collisionTick = Math.round(full.collisionTime * rules.tickRate);
@@ -377,7 +438,7 @@ test('ending phases resume at the same frame after saving; bad or incompatible s
   }
   const g = new Game(10004); g.start(); g.advance(123000);
   const checkpoint = g.checkpoint()!;
-  const values = [null, {}, '{', { ...checkpoint, ticks: -1 }, { ...checkpoint, ticks: 36001 }, { ...checkpoint, inputs: [{ tick: 1, id: 'unknown', number: 1 }] }, { ...checkpoint, inputs: [{ tick: 1, id: 'area', number: 1 }] }];
+  const values = [null, {}, '{', { ...checkpoint, ticks: -1 }, { ...checkpoint, ticks: Number.MAX_SAFE_INTEGER + 1 }, { ...checkpoint, inputs: [{ tick: 1, id: 'unknown', number: 1 }] }, { ...checkpoint, inputs: [{ tick: 1, id: 'area', number: 1 }] }];
   for (const value of values) {
     const storage = { getItem: () => typeof value === 'string' ? value : JSON.stringify(value) } as Storage;
     assert.equal(readRun(storage), null);
@@ -669,7 +730,7 @@ test('new skill cooldowns scale with fire rate and every active attack pauses wi
 test('particle species enter gradually and heavy neutrons trade speed for health and mass', () => {
   for (let stage = 0; stage < 3; stage++) {
     const g = fixture();
-    g.tick = (stage ? rules.stageEnds[stage - 1] : 0) * rules.tickRate;
+    g.tick = (stage ? rules.stageStarts[stage] : 0) * rules.tickRate;
     for (let i = 0; i < 80; i++) g.spawnBatch();
     const species = [...new Set(g.targets.map(t => t.particle))].sort();
     assert.deepEqual(species, (stage === 0 ? ['quark', 'proton'] : stage === 1 ? ['quark', 'proton', 'muon'] : ['quark', 'proton', 'muon', 'neutron']).sort());

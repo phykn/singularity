@@ -13,9 +13,9 @@ export const runKey = 'singularity.run';
 
 const checkpointSchema = z.object({
   seed: z.number().int().min(0).max(0xffffffff),
-  ticks: z.number().int().min(0).max((rules.growthSeconds + rules.collisionSeconds + rules.successEndingSeconds) * rules.tickRate),
+  ticks: z.number().int().min(0),
   phase: z.enum(['running', 'collapse', 'ending', 'result']), manualPaused: z.boolean(),
-  inputs: z.array(z.object({ tick: z.number().int().min(0).max(rules.growthSeconds * rules.tickRate), id: z.enum([...skillIds, ...statIds]), number: z.number().int().min(1).max(rules.levelXp.length) })).max(rules.levelXp.length),
+  inputs: z.array(z.object({ tick: z.number().int().min(0), id: z.enum([...skillIds, ...statIds]), number: z.number().int().min(1) })),
 });
 
 export function readRun(storage: Storage): Game | null {
@@ -52,8 +52,8 @@ export function readRecord(storage: Storage): Record | null {
     const value = JSON.parse(storage.getItem(recordKey) ?? 'null');
     if (!value || !['success', 'collapse-failure'].includes(value.outcome)) return null;
     if (!['xp', 'level', 'seed'].every((key) => Number.isSafeInteger(value[key]) && value[key] >= 0)) return null;
-    if (!Number.isFinite(value.speed) || value.speed < rules.baseSpeed || !Number.isFinite(value.collisionTime) || value.collisionTime < 0 || value.collisionTime > rules.growthSeconds) return null;
-    if (value.level < 1 || value.level > rules.levelXp.length + 1 || value.seed > 0xffffffff) return null;
+    if (!Number.isFinite(value.speed) || value.speed < rules.baseSpeed || !Number.isFinite(value.collisionTime) || value.collisionTime < 0) return null;
+    if (value.level < 1 || value.seed > 0xffffffff) return null;
     return value;
   } catch { return null; }
 }

@@ -46,8 +46,9 @@ svg { flex-shrink: 0; }
 .icon-button svg, .start svg { width: 24px; height: 24px; }
 .hud { padding: 0 var(--gutter); }
 .hud-top { display: flex; align-items: center; height: 48px; gap: 8px; }
-.hud-top time { font-size: 24px; line-height: 1; color: #d6e3ed; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.charge { display: flex; align-items: center; gap: 4px; color: #8ce8fb; }
+.hud-top time { font-size: 12px; line-height: 1; color: #97a8b4; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.charge { display: flex; align-items: center; gap: 4px; color: #7899a8; }
+.charge-icon { width: 16px; height: 16px; }
 .charge b { font-size: 12px; min-width: 24px; }
 .boosts { display: flex; align-items: center; margin-left: auto; gap: 8px; white-space: nowrap; }
 .boost { display: flex; gap: 4px; align-items: center; color: #a9bac5; }
@@ -74,21 +75,16 @@ svg { flex-shrink: 0; }
 .start svg { width: 24px; height: 24px; }
 .play-footer { height: 88px; display: grid; grid-template-rows: 24px 48px; gap: 8px; padding-bottom: 8px; }
 .loadout { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-.slot { position: relative; height: 48px; display: flex; justify-content: center; align-items: center; color: var(--blue); border: 1px solid #2b3a4a; overflow: hidden; }
-.slot-art { position: relative; z-index: 1; display: block; margin-top: -6px; }
+.slot { position: relative; height: 48px; display: flex; flex-direction: column; gap: 4px; justify-content: center; align-items: center; color: var(--blue); border: 1px solid #23303b; overflow: hidden; }
+.slot-art { position: relative; z-index: 1; display: block; opacity: .75; }
 .slot-art svg { display: block; }
-.slot .rank { position: absolute; bottom: 3px; z-index: 1; }
-.slot-fill { position: absolute; bottom: 0; left: 0; right: 0; background: #264b63; opacity: .7; }
-.slot[data-fired='true'] { border-color: #ebfaff; box-shadow: inset 0 0 0 1px #b3e6f6; }
-.slot[data-active='true'] .slot-art { color: #f2fcff; }
-.slot[data-active='true']::after { content: ''; position: absolute; inset: 2px; border: 1px solid #91cddd; pointer-events: none; }
-.slot[data-acquired='true'] .slot-art { animation: dock-in .3s steps(4); }
+.slot .rank, .slot-max { position: relative; z-index: 1; height: 12px; display: flex; align-items: center; line-height: 12px; }
+.slot-max { color: #809dad; font-size: 12px; }
+.slot-fill { position: absolute; bottom: 0; left: 0; right: 0; background: #223744; opacity: .55; }
 .slot-mode { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; color: #9bb4c8; }
 .slot-mode.linked { border-left: 2px solid; border-right: 2px solid; height: 4px; }
 .slot-mode.linked::after { content: ''; position: absolute; top: 1px; left: 0; width: 2px; height: 2px; background: currentColor; }
 .slot-mode.conditional { width: 5px; height: 5px; border: 1px solid; }
-.slot[data-fired='true'] .slot-mode.conditional { background: #e9fcff; color: #e9fcff; }
-@keyframes dock-in { from { transform: translateY(-24px); opacity: .15; } to { transform: translateY(0); opacity: 1; } }
 .slot.empty { border-radius: 0; background: #101318; }
 .slot.empty > i { width: 4px; height: 4px; border-radius: 0; background: #474d59; }
 .rank { display: inline-flex; align-items: center; gap: 4px; }
@@ -194,6 +190,7 @@ svg { flex-shrink: 0; }
   .preparation { padding-bottom: 12px; }
 }
 @media (orientation: landscape) and (max-height: 600px) {
+  .hud { padding-inline: 12px; }
   .hud-top { gap: 4px; }
   .charge { gap: 2px; }
   .charge-icon { width: 16px; height: 16px; }
@@ -268,7 +265,8 @@ strong, b { font-weight: 400; }
 .choices { border-top: 2px solid #354e63; box-shadow: 0 -4px #080a0e; }
 .dialog { border: 2px solid #354e63; }
 .card { border-bottom: 2px solid var(--rarity); }
-.slot { background: #111c26; border-bottom: 2px solid #2c4357; }
+.slot { background: #0d151d; border-bottom: 2px solid #23303b; }
+.slot .rank { opacity: .65; }
 .slot.empty { background: #0c141d; border-bottom-color: #1a2837; }
 .rank { gap: 3px; }
 .rank i { width: 4px; height: 3px; }

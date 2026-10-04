@@ -4,13 +4,17 @@ import { GameCanvas } from './GameCanvas.tsx';
 import { SkillPreview } from './SkillPreview.tsx';
 import { ChargeIcon, LanguagePicker, ParticleIcon, Rank, SkillIcon, SkillSlot } from './ui.tsx';
 import { useGame } from './useGame.ts';
-import { skillIds, statIds, rarityIds, numberText } from './rules.ts';
+import { isSkill, skillIds, statIds, rarityIds } from './rules.ts';
 import type { UpgradeId } from './rules.ts';
 import { copy, languages } from './i18n.ts';
 import { skillChange, skillValue } from './skillText.ts';
 import { particleIds, particleNames, particleSymbols } from './particles.ts';
 
-const formatTime = (seconds: number) => `${Math.floor(Math.max(0, seconds) / 60).toString().padStart(2, '0')}:${Math.floor(Math.max(0, seconds) % 60).toString().padStart(2, '0')}`;
+const formatTime = (seconds: number) => {
+  const time = Math.max(0, Math.floor(seconds)), hours = Math.floor(time / 3600);
+  return `${hours ? hours + ':' : ''}${Math.floor(time / 60 % 60).toString().padStart(2, '0')}:${(time % 60).toString().padStart(2, '0')}`;
+};
+const statNumber = new Intl.NumberFormat('en', { notation: 'compact', maximumSignificantDigits: 3 });
 function App() {
   const { game, model, settingsRef, language, settings, best, storageOk, audioUnavailable, begin, select, changeLanguage, changeSettings, toggleSound, ...actions } = useGame();
   const c = copy[language];
@@ -44,8 +48,6 @@ function App() {
   const energyPercent = Math.min(100, Math.floor(game.xp / rules.energyGoal * 100));
   const ready = game.phase === 'ready', result = game.result;
   const secondsLeft = choice ? Math.max(0, choice.deadline - game.time) : 0;
-  const duration = rules.growthSeconds + rules.collisionSeconds + rules.successEndingSeconds;
-  const remaining = game.phase === 'running' ? duration - game.seconds : game.collisionTime + rules.collisionSeconds + (game.successfulEnding ? rules.successEndingSeconds : rules.failureEndingSeconds) - game.seconds;
   const title = result?.outcome === 'success' ? c.success : c.failure;
   const value = (id: UpgradeId, rank = game.rank(id)) => skillValue(id, rank, game.rarities[id], language, rules);
   const change = (id: UpgradeId, rarity: typeof game.rarities[UpgradeId]) => skillChange(id, game.rank(id), rarity, game.rarities[id], language, rules);
@@ -67,8 +69,8 @@ function App() {
       </header> : <section className="hud" aria-label={c.hud}>
         <div className="hud-top">
           <div className={`charge ${game.charged ? 'charged-label' : ''}`} role="progressbar" aria-label={game.charged ? c.ready : c.charge} aria-valuenow={Math.min(game.xp, rules.energyGoal)} aria-valuemin={0} aria-valuemax={rules.energyGoal}><ChargeIcon progress={energyPercent / 100} /><b>{energyPercent}%</b></div>
-          <div className="boosts" aria-label={c.stats}>{statIds.map((id) => <div className="boost" key={id} aria-label={c.upgrades[id].short + ', ' + value(id)} title={value(id)}><SkillIcon id={id} size={14} /><b>{id === 'power' ? numberText(game.damage) : id === 'rate' ? game.rate.toFixed(2) + '×' : Math.round(game.speed)}</b></div>)}</div>
-          <time>{formatTime(remaining)}</time>
+          <div className="boosts" aria-label={c.stats}>{statIds.map((id) => <div className="boost" key={id} aria-label={c.upgrades[id].short + ', ' + value(id)} title={value(id)}><SkillIcon id={id} size={14} /><b>{statNumber.format(id === 'power' ? game.damage : id === 'rate' ? game.rate : game.speed)}{id === 'rate' && '×'}</b></div>)}</div>
+          <time>{formatTime(game.seconds)}</time>
           <button className="icon-button pause-button" onClick={() => pause(true)} disabled={game.phase === 'result'} aria-label={c.pause}><Pause aria-hidden="true" /></button>
         </div>
       </section>}
@@ -87,8 +89,8 @@ function App() {
           {notice}
         </div> : <div className="play-footer">
           <div className="xp-status">
-            <div><span className="level">Lv. <b>{game.level.toString().padStart(2, '0')}</b></span><span>XP</span><b>{game.nextXp === undefined ? 'MAX' : progress.current + ' / ' + progress.required}</b></div>
-            <div className="xp-track" role="progressbar" aria-label={game.nextXp === undefined ? c.completed : c.xp} aria-valuenow={game.nextXp === undefined ? 1 : progress.current} aria-valuemin={0} aria-valuemax={game.nextXp === undefined ? 1 : progress.required}><i style={{ width: xpPercent + '%' }} /></div>
+            <div><span className="level">Lv. <b>{game.level.toString().padStart(2, '0')}</b></span><span>XP</span><b>{progress.current + ' / ' + progress.required}</b></div>
+            <div className="xp-track" role="progressbar" aria-label={c.xp} aria-valuenow={progress.current} aria-valuemin={0} aria-valuemax={progress.required}><i style={{ width: xpPercent + '%' }} /></div>
           </div>
           <div className="loadout" aria-label={c.loadout}>{Array.from({ length: 4 }, (_, i) => {
             const id = owned[i];
@@ -114,7 +116,7 @@ function App() {
         <div className="rarity-guide">{rarityIds.map((rarity) => <span key={rarity} data-rarity={rarity}>{c.rarities[rarity]}<b>{rules.rarity[rarity].chance}%</b></span>)}</div>
         <p>{c.guideRarity}</p>
         <div className="particle-guide">{particleIds.map(id => <div key={id}><ParticleIcon id={id} /><b>{particleSymbols[id]}</b><span>{particleNames[language][id]}</span></div>)}</div>
-        <div className="skill-guide">{[...statIds, ...skillIds].map((id) => <div key={id}><SkillIcon id={id} /><div><strong>{c.upgrades[id].name}</strong><p>{c.upgrades[id].description}</p><span>{Array.from({ length: rules.maxRank }, (_, i) => i + 1).map((rank) => <span className="guide-rank" key={rank}>{rank} · {skillValue(id, rank, 'common', language, rules)}</span>)}</span></div></div>)}</div>
+        <div className="skill-guide">{[...statIds, ...skillIds].map((id) => <div key={id}><SkillIcon id={id} /><div><strong>{c.upgrades[id].name}</strong><p>{c.upgrades[id].description}</p><span>{Array.from({ length: rules.maxRank }, (_, i) => i + 1).map((rank) => <span className="guide-rank" key={rank}>{rank} · {skillValue(id, rank, 'common', language, rules)}</span>)}</span>{!isSkill(id) && <p className="muted">{c.unlimited}</p>}</div></div>)}</div>
         <p className="muted">{c.guideLimits}</p>
       </div>
     </section></div>}
@@ -140,7 +142,7 @@ function App() {
         <div className="result-numbers"><div><span>{c.level}</span><strong>{result.level}</strong></div><div><span>{c.energy}</span><strong>{result.xp}</strong></div><div><span>{c.mass}</span><strong>{result.mass}</strong></div></div>
         <div className="result-build">{owned.map((id) => <div key={id} data-rarity={game.rarities[id]}><SkillIcon id={id} size={22} /><span>{c.upgrades[id].short}</span><small>{c.rarities[game.rarities[id]]}</small><Rank value={game.rank(id)} max={rules.maxRank} /></div>)}</div>
         <details><summary>{c.details}</summary>
-          <p>{c.seed} {result.seed} · {result.trigger === 'gravity' ? c.early : c.final}</p><p>{c.score} {result.score.toLocaleString(languages.find((entry) => entry.id === language)!.html)}</p>
+          <p>{c.seed} {result.seed} · {result.trigger === 'gravity' ? c.early : c.goalReached}</p><p>{c.score} {result.score.toLocaleString(languages.find((entry) => entry.id === language)!.html)}</p>
           <table><thead><tr><th scope="col">{c.particle}</th><th scope="col">{c.generated}</th><th scope="col">{c.killed}</th><th scope="col">{c.absorbed}</th><th scope="col">{c.remaining}</th></tr></thead><tbody>{particleIds.map(id => { const counts = result.counts[id]; return <tr key={id} data-particle={id}><th scope="row">{particleNames[language][id]}</th><td>{counts.generated}</td><td>{counts.killed}</td><td>{counts.absorbed}</td><td>{counts.remaining}</td></tr>; })}</tbody></table>
           <p>{c.stats} · {statIds.map((id) => c.upgrades[id].short + ' ' + game.rank(id)).join(' / ')}</p>
           {best && <p>{c.best} · {best.outcome === 'success' ? c.success : c.failure} · {c.energy} {best.xp}</p>}

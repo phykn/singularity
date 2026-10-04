@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { chromium, devices } from 'playwright';
 import { Game } from '../src/game.ts';
 import { copy } from '../src/i18n.ts';
-import { rules } from '../src/rules.ts';
+import { rules, levelForXp } from '../src/rules.ts';
 import { runKey } from '../src/storage.ts';
 
 const base = process.env.GAME_URL ?? 'http://localhost:8081';
@@ -58,7 +58,7 @@ try {
   assert.equal(restored.selections[0].automatic, false);
   await page.locator('.xp-status').getByRole('progressbar', { name: c.xp, exact: true }).waitFor();
   await page.screenshot({ path: 'artifacts/screens/resumed-cards.png' });
-  report('Android viewport reload restores the manual build and pending cards', { seed: restored.seed, xp: restored.xp, level: 1 + rules.levelXp.filter(x => x <= restored.xp).length, manualInputs: saved.inputs.length });
+  report('Android viewport reload restores the manual build and pending cards', { seed: restored.seed, xp: restored.xp, level: levelForXp(restored.xp), manualInputs: saved.inputs.length });
 
   await page.getByRole('button', { name: c.pause, exact: true }).click();
   const paused = await snapshot(page);

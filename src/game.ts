@@ -4,7 +4,7 @@ import type { ParticleKind } from './particles.ts';
 import { eligibleUpgrades, makeCards } from './growth.ts';
 import { CENTER, distance, norm, orbit, orbitRadius } from './geometry.ts';
 import type { Point } from './geometry.ts';
-import { blankBoosts, blankRanks, blankRarities, coreRadius, formValues, higherRarity, isSkill, orbitTarget, rarityIds, rarityScale, rollRarity, rules } from './rules.ts';
+import { blankBoosts, blankRanks, blankRarities, coreRadius, formValues, higherRarity, isSkill, levelForXp, orbitTarget, rarityIds, rarityScale, rollRarity, rules, xpForLevel } from './rules.ts';
 import type { Boosts, Card, FormValues, Ranks, Rarities, Rarity, RuleSet, SkillId, UpgradeId } from './rules.ts';
 
 const HZ = rules.tickRate;
@@ -19,7 +19,7 @@ export type Count = { generated: number; killed: number; absorbed: number };
 export type Outcome = 'success' | 'collapse-failure';
 export type Selection = { time: number; id: UpgradeId; rank: number; rarity: Rarity; automatic: boolean };
 export type Metrics = { minRadius: number; minMargin: number; dangerSeconds: number; maxTargets: number; maxEffects: number };
-export type Result = { outcome: Outcome; trigger: 'gravity' | 'final'; xp: number; mass: number; radius: number; level: number; speed: number; missingXp: number; seed: number; ranks: Ranks; boosts: Boosts; rarities: Rarities; score: number; rushSpawns: number; seconds: number; collisionTime: number; waves: number; counts: Record<ParticleKind, Count & { remaining: number }>; selections: Selection[]; metrics: Metrics };
+export type Result = { outcome: Outcome; trigger: 'gravity' | 'energy'; xp: number; mass: number; radius: number; level: number; speed: number; missingXp: number; seed: number; ranks: Ranks; boosts: Boosts; rarities: Rarities; score: number; rushSpawns: number; seconds: number; collisionTime: number; waves: number; counts: Record<ParticleKind, Count & { remaining: number }>; selections: Selection[]; metrics: Metrics };
 type Attack = { id: number; ranks: Ranks; rarities: Rarities; forms: FormValues; damage: number; burstFired: boolean; firstKill?: Point };
 type Pulse = { at: number; order: number; attack: Attack; target: Target };
 type TimedSkill = 'strike' | 'wave' | 'whip' | 'focus';
@@ -67,7 +67,7 @@ export class Game {
   noticeUntil = 0;
   combat: boolean;
   collisionTime = 0;
-  collisionTrigger: 'gravity' | 'final' = 'final';
+  collisionTrigger: 'gravity' | 'energy' = 'gravity';
   metrics: Metrics = { minRadius: orbitRadius, minMargin: orbitRadius - rules.coreRadius - rules.electronRadius, dangerSeconds: 0, maxTargets: 0, maxEffects: 0 };
   private randomSpawn: Random;
   private randomCards: Random;
@@ -99,7 +99,7 @@ export class Game {
 
   get time(): number { return this.tick / HZ; }
   get seconds(): number { return this.elapsedTicks / HZ; }
-  get level(): number { return 1 + this.rules.levelXp.filter((xp) => this.xp >= xp).length; }
+  get level(): number { return levelForXp(this.xp, this.rules); }
   get speed(): number { return this.rules.baseSpeed * (1 + this.rules.speedPerRank * this.boosts.accel * rarityScale(this.rarities.accel, this.rules)); }
   get damage(): number { return this.rules.baseHitDamage + this.rules.damagePerRank * this.boosts.power * rarityScale(this.rarities.power, this.rules); }
   get rate(): number { return 1 + this.rules.ratePerRank * this.boosts.rate * rarityScale(this.rarities.rate, this.rules); }
@@ -112,13 +112,17 @@ export class Game {
   get charged(): boolean { return this.xp >= this.rules.energyGoal; }
   get paused(): boolean { return this.manualPaused || this.hiddenPaused; }
   get position(): Point { return orbit(this.angle, this.radius); }
-  get stage(): number { return Math.max(0, this.rules.stageEnds.findIndex((end) => this.time < end)); }
-  get nextXp(): number | undefined { return this.rules.levelXp[this.level - 1]; }
+  get stage(): number { return this.rules.stageStarts.filter(start => this.time >= start).length - 1; }
+  get nextXp(): number { return xpForLevel(this.level + 1, this.rules); }
   get levelProgress(): { current: number; required: number } {
-    const previous = this.rules.levelXp[this.level - 2] ?? 0;
-    return { current: this.xp - previous, required: (this.nextXp ?? previous) - previous };
+    const previous = xpForLevel(this.level, this.rules);
+    return { current: this.xp - previous, required: this.nextXp - previous };
   }
-  get upcomingWave() { return this.waves[this.waveCount]; }
+  get upcomingWave() {
+    if (this.waveCount < this.waves.length) return this.waves[this.waveCount];
+    const last = this.waves.at(-1)!, repeat = this.waveCount - this.waves.length + 1;
+    return { time: last.time + repeat * this.rules.waveRepeatSeconds, angle: (last.angle + repeat * Math.PI * (3 - Math.sqrt(5))) % (Math.PI * 2) };
+  }
   get warningWave() { const wave = this.upcomingWave; return this.phase === 'running' && wave && wave.time - this.time <= this.rules.waveWarningSeconds ? wave : null; }
   get phaseProgress(): number { return this.phaseTicks / (HZ * (this.phase === 'collapse' ? this.rules.collisionSeconds : this.successfulEnding ? this.rules.successEndingSeconds : this.rules.failureEndingSeconds)); }
   get successfulEnding(): boolean { return this.endingOutcome === 'success'; }
@@ -190,7 +194,7 @@ export class Game {
 
   private step(): void {
     this.tick++;
-    if (this.tick >= this.rules.growthSeconds * HZ) { this.collide('final'); return; }
+    if (this.charged) { this.collide('energy'); return; }
     if (this.choice && this.time >= this.choice.deadline) this.select(this.choice.cards[0].id, true);
     if (this.combat && this.tick + 1e-8 >= this.nextSpawn) {
       const rushing = this.rushing;
@@ -201,10 +205,11 @@ export class Game {
     const wave = this.upcomingWave;
     if (wave && this.time >= wave.time) {
       if (this.combat) {
-        this.spawnGroup('small', Math.round(this.rules.waveSmall / 2 * this.rules.waveScale[this.waveCount]), wave.angle, 1);
-        this.spawnGroup('small', Math.round(this.rules.waveSmall / 2 * this.rules.waveScale[this.waveCount]), wave.angle + Math.PI, -1);
-        this.spawnGroup('dense', Math.round(this.rules.waveDense / 2 * this.rules.waveScale[this.waveCount]), wave.angle + .15, 1);
-        this.spawnGroup('dense', Math.round(this.rules.waveDense / 2 * this.rules.waveScale[this.waveCount]), wave.angle + Math.PI + .15, -1);
+        const scale = this.rules.waveScale[Math.min(this.waveCount, this.rules.waveScale.length - 1)];
+        this.spawnGroup('small', Math.round(this.rules.waveSmall / 2 * scale), wave.angle, 1);
+        this.spawnGroup('small', Math.round(this.rules.waveSmall / 2 * scale), wave.angle + Math.PI, -1);
+        this.spawnGroup('dense', Math.round(this.rules.waveDense / 2 * scale), wave.angle + .15, 1);
+        this.spawnGroup('dense', Math.round(this.rules.waveDense / 2 * scale), wave.angle + Math.PI + .15, -1);
       }
       this.waveCount++;
       this.log('wave', { number: this.waveCount, angle: wave.angle });
@@ -216,6 +221,7 @@ export class Game {
     due.forEach((pulse) => this.hitPulse(pulse, this.position, true));
     if (this.combat && this.tick + 1e-8 >= this.nextAttack) { this.fireBasic(); this.nextAttack += this.attackInterval * HZ; }
     this.updateSkills();
+    if (this.charged) { this.collide('energy'); return; }
     this.absorbTargets();
     this.updateOrbit();
     this.metrics.minRadius = Math.min(this.metrics.minRadius, this.radius);
@@ -285,7 +291,7 @@ export class Game {
     const card = this.choice.cards.find((card) => card.id === id);
     if (!card) return false;
     if (!automatic && this.time >= this.choice.deadline) return false;
-    if (!eligibleUpgrades(this.ranks, this.boosts, this.rules).includes(id)) return false;
+    if (!eligibleUpgrades(this.ranks, this.rules).includes(id)) return false;
     const previous = this.rank(id), oldRate = this.rate;
     this.rarities[id] = higherRarity(this.rarities[id], card.rarity);
     if (isSkill(id)) this.ranks[id]++; else this.boosts[id]++;
@@ -506,7 +512,7 @@ export class Game {
     }
   }
 
-  private collide(trigger: 'gravity' | 'final'): void {
+  private collide(trigger: 'gravity' | 'energy'): void {
     this.endingOutcome = this.charged ? 'success' : 'collapse-failure';
     this.collisionTime = this.time;
     this.collisionTrigger = trigger;

@@ -13,13 +13,13 @@ export function SkillPreview({ id, rank, rarity = 'common', cfg = rules }: { id:
   let art;
   switch (id) {
     case 'power':
-      art = <>{origin}{target(102, 32, 0)}<path className="preview-beam" strokeWidth={3 + rank * scale * 3} d="M20 32 45 25 52 39 76 26 99 32" /><path className="preview-bolt" strokeWidth={1 + rank * scale} d="M20 32 45 25 52 39 76 26 99 32" /></>;
+      art = <>{origin}{target(102, 32, 0)}<path className="preview-beam" strokeWidth={Math.min(24, 3 + rank * scale * 3)} d="M20 32 45 25 52 39 76 26 99 32" /><path className="preview-bolt" strokeWidth={Math.min(8, 1 + rank * scale)} d="M20 32 45 25 52 39 76 26 99 32" /></>;
       break;
     case 'rate':
-      art = <>{origin}{target(102, 32, 0)}{[0, 1, 2].map((i) => <path key={i} className="preview-bolt" style={{ ...delay(i), animationDuration: `${1.3 / (1 + rank * rules.ratePerRank * scale)}s` }} d={`M20 ${22 + i * 10}h23l8 -5 13 10 12 -5h23`} />)}</>;
+      art = <>{origin}{target(102, 32, 0)}{[0, 1, 2].map((i) => <path key={i} className="preview-bolt" style={{ ...delay(i), animationDuration: `${Math.max(.6, 1.3 / (1 + rank * rules.ratePerRank * scale))}s` }} d={`M20 ${22 + i * 10}h23l8 -5 13 10 12 -5h23`} />)}</>;
       break;
     case 'accel':
-      art = <><circle className="preview-ghost" cx="60" cy="32" r="14" /><circle className="preview-ghost" cx="60" cy="32" r="25" /><circle cx="60" cy="32" r="4" className="preview-target" /><g className="preview-orbit" style={{ animationDuration: `${3 / (1 + rank * rules.speedPerRank * scale)}s` }}><path d="M60 7a25 25 0 0 1 25 25" /><circle className="preview-source" cx="85" cy="32" r="3" /></g></>;
+      art = <><circle className="preview-ghost" cx="60" cy="32" r="14" /><circle className="preview-ghost" cx="60" cy="32" r="25" /><circle cx="60" cy="32" r="4" className="preview-target" /><g className="preview-orbit" style={{ animationDuration: `${Math.max(.8, 3 / (1 + rank * rules.speedPerRank * scale))}s` }}><path d="M60 7a25 25 0 0 1 25 25" /><circle className="preview-source" cx="85" cy="32" r="3" /></g></>;
       break;
     case 'area': {
       const base = rules.skills.area.radii;

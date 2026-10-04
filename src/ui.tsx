@@ -47,9 +47,9 @@ export function ChargeIcon({ progress }: { progress: number }) {
 export function SkillSlot({ id, status, rank, max }: { id: SkillId; status: SkillStatus; rank: number; max: number }) {
   return <>
     {status.mode !== 'conditional' && <i className="slot-fill" style={{ height: Math.floor(status.progress * 24) * 100 / 24 + '%' }} />}
-    <span className="slot-art"><SkillIcon id={id} size={32} /></span>
+    <span className="slot-art"><SkillIcon id={id} size={16} /></span>
     <span className={'slot-mode ' + status.mode} aria-hidden="true" />
-    <Rank value={rank} max={max} />
+    {rank >= max ? <span className="slot-max" aria-hidden="true">MAX</span> : <Rank value={rank} max={max} />}
   </>;
 }
 

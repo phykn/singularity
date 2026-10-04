@@ -61,8 +61,8 @@ try {
       await page.evaluate(() => {
         const g = window.__gameDebug.getModel();
         g.setHidden(true);
-        for (const id of ['power', 'rate', 'accel']) { g.boosts[id] = 5; g.rarities[id] = 'legendary'; }
-        g.xp = g.rules.energyGoal;
+        for (const id of ['power', 'rate', 'accel']) { g.boosts[id] = 1000; g.rarities[id] = 'legendary'; }
+        g.xp = g.rules.energyGoal; g.elapsedTicks = 3661 * g.rules.tickRate;
         window.__gameDebug.advance(0);
       });
       await page.waitForFunction(() => document.querySelector('.charge b')?.textContent === '100%');

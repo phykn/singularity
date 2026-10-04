@@ -137,12 +137,19 @@ const interfaceFlow = async () => {
     return { fill, value };
   };
   const before = await bounds();
+  const appearance = () => strike.evaluate(node => {
+    const style = getComputedStyle(node), inner = getComputedStyle(node, '::after'), icon = getComputedStyle(node.querySelector('.slot-art'));
+    return [style.borderColor, style.boxShadow, inner.content, icon.color, icon.animationName];
+  });
+  const quiet = await appearance();
+  assert.equal(quiet[1], 'none'); assert.equal(quiet[2], 'none'); assert.equal(quiet[4], 'none');
   const step = async ms => {
     await page.evaluate(ms => { const g = window.__gameDebug.getModel(); g.setHidden(false); window.__gameDebug.advance(ms); g.setHidden(true); }, ms);
     await page.waitForTimeout(120);
   };
   await step(1800);
   const after = await bounds();
+  assert.deepEqual(await appearance(), quiet);
   assert.ok(after.value > before.value && after.fill.y < before.fill.y);
   assert.ok(Math.abs(after.fill.y + after.fill.height - before.fill.y - before.fill.height) < .1);
   await screenshot(page, 'cooldown-fill');
@@ -152,13 +159,46 @@ const interfaceFlow = async () => {
   await step(1800);
   const fired = await bounds();
   assert.ok(fired.value < after.value); assert.equal(await strike.getAttribute('data-fired'), 'true');
+  assert.deepEqual(await appearance(), quiet);
+  await page.evaluate(() => { window.__gameDebug.getModel().ranks.strike = 5; window.__gameDebug.advance(0); });
+  await strike.locator('.slot-max').waitFor();
+  assert.equal(await strike.locator('.slot-max').innerText(), 'MAX');
+  assert.equal(await strike.locator('.rank').count(), 0);
   await screenshot(page, 'cooldown-fired');
   await page.evaluate(() => { const g = window.__gameDebug.getModel(); g.mass = 1000; g.radius = g.core + 4; g.setHidden(false); window.__gameDebug.advance(100); g.setHidden(true); });
   await page.waitForTimeout(120);
   assert.equal(await strike.getAttribute('data-fired'), 'false');
   assert.equal(await page.locator('.arena').innerText(), copy.ko.collapse);
   assert.equal(await page.locator('.arena [role="status"]').evaluate(n => getComputedStyle(n).clipPath), 'inset(50%)');
-  report('particle names, stable skill order, bottom-up fill and actual activation feedback', { before: before.value, recharging: after.value, fired: fired.value, conditionalHasNoFill: true });
+  report('quiet cooldown fills keep their timing without flashing borders and maxed skills show MAX', { before: before.value, recharging: after.value, fired: fired.value, conditionalHasNoFill: true, unchangedAppearance: quiet });
+  await page.evaluate(() => {
+    window.__gameDebug.restart(1, false);
+    window.__gameDebug.advance(600000);
+    window.__gameDebug.getModel().setHidden(true);
+  });
+  await page.waitForTimeout(120);
+  assert.equal((await snapshot(page)).phase, 'running');
+  assert.equal(await page.locator('.hud time').innerText(), '10:00');
+  assert.equal(await page.locator('.xp-status').innerText().then(t => t.includes('MAX')), false);
+  await screenshot(page, 'uncapped-clock');
+  await page.evaluate(() => {
+    const g = window.__gameDebug.getModel();
+    g.setHidden(false);
+    g.ranks = { ...g.ranks, area: 5, chain: 5, wave: 5, strike: 5 };
+    g.boosts = { power: 6, rate: 6, accel: 6 };
+    g.selections = Array.from({length: 20}, (_, i) => ({time: i, id: ['area', 'chain', 'wave', 'strike'][i % 4], rank: Math.floor(i / 4) + 1, rarity: 'common', automatic: false}));
+    window.__gameDebug.xp(g.rules.energyGoal - 1);
+    g.setHidden(true);
+  });
+  await page.locator('.card').first().waitFor();
+  assert.deepEqual((await snapshot(page)).choice.cards.map(c => c.id).sort(), ['accel', 'power', 'rate']);
+  assert.equal(await page.locator('.slot-max').count(), 4);
+  await inspect(page); await inspectCards(page); await screenshot(page, 'max-skills-stat-choice');
+  await page.evaluate(() => window.__gameDebug.getModel().setHidden(false));
+  const id = (await snapshot(page)).choice.cards[1].id;
+  await page.locator('.card').nth(1).click();
+  assert.equal((await snapshot(page)).boosts[id], 7);
+  report('elapsed clock passes ten minutes and full skill slots still offer repeatable stat upgrades', { upgradedStat: id, rank: 7 });
   await page.close();
 };
 
@@ -209,7 +249,7 @@ try {
     });
     await screenshot(page, 'realtime-result');
     writeFileSync('artifacts/realtime.json', JSON.stringify({ viewport: [375, 812], seed: 20000, elapsedWallSeconds: (Date.now() - started) / 1000, samples, result: s.result, expected, errors }, null, 2));
-    assert.equal(s.result?.outcome, 'success'); assert.equal(s.result.seconds, 600);
+    assert.equal(s.result?.outcome, 'success'); assert.equal(s.result.trigger, 'energy');
     assert.deepEqual(s.result, expected); assert.deepEqual(errors, []);
     report('normal clock: full autonomous game', { wallSeconds: (Date.now() - started) / 1000, result: s.result.outcome, xp: s.xp });
   } else {
@@ -247,7 +287,7 @@ try {
       await page.evaluate(() => window.__gameDebug.restart(20000));
       await advance(page, 610000); await page.getByRole('heading', { name: '블랙홀 생성', exact: true }).waitFor();
       await inspect(page); await screenshot(page, 'result-' + name);
-      assert.equal((await snapshot(page)).result.seconds, 600);
+      assert.equal((await snapshot(page)).result.trigger, 'energy');
       await page.getByRole('button', { name: '다시하기' }).click();
       assert.equal((await snapshot(page)).seed, 20000);
       await page.evaluate(() => window.__gameDebug.restart(10004));
@@ -307,7 +347,7 @@ try {
     await page.evaluate((energy) => { window.__gameDebug.restart(1, false); window.__gameDebug.xp(energy); }, rules.energyGoal);
     assert.equal(await page.locator('.charge b').textContent(), '100%');
     assert.equal(await page.locator('.charge').getAttribute('aria-label'), '생성 준비 완료');
-    await advance(page, 585000); await screenshot(page, 'final-convergence');
+    await advance(page, 100); await screenshot(page, 'energy-collapse');
     await advance(page, 6000); await screenshot(page, 'black-hole');
     await advance(page, 10000);
     assert.equal((await snapshot(page)).result.outcome, 'success');

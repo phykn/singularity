@@ -1,11 +1,11 @@
 {
   "status": "free-build-playtest-values",
   "tickRate": 60,
-  "growthSeconds": 585,
   "collisionSeconds": 3,
   "successEndingSeconds": 12,
   "failureEndingSeconds": 3,
   "energyGoal": 24000,
+  "levelXpStep": 60,
   "levelXp": [
     18,
     85,
@@ -55,12 +55,12 @@
   "primaryRange": 92,
   "spawnRadius": 170,
   "introBatches": 3,
-  "stageEnds": [
+  "stageStarts": [
+    0,
     90,
     210,
     330,
-    450,
-    585
+    450
   ],
   "smallBatchProbabilityByStage": [
     0.9,
@@ -77,6 +77,7 @@
     540
   ],
   "waveWarningSeconds": 3,
+  "waveRepeatSeconds": 120,
   "waveSmall": 12,
   "waveDense": 2,
   "smallBatchSize": 10,

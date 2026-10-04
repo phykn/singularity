@@ -1,9 +1,10 @@
 # SINGULARITY
 
-A mobile browser game about an orbiting electron, growing lightning, and a final black hole. Movement and combat are automatic; each run lasts up to ten minutes.
+A mobile browser game about an orbiting electron, growing lightning, and a final black hole. Movement and combat are automatic, with no time limit.
 
 - Choose one of three upgrades, or let the game choose after eight seconds.
 - Combine four lightning skills with five ranks and four rarities.
+- Keep leveling and improving stats. Reach the XP goal to form a black hole.
 - Stop incoming particles from building central mass and collapsing your orbit.
 - Play in Korean, English, Chinese, or Japanese. Progress saves locally.
 
