@@ -157,14 +157,20 @@ test('save survives backgrounding and a reload, preserves manual pause, and quit
   assert.equal(readRun(storage), null);
 });
 
-test('saves and records accept a run past ten minutes and a manual choice beyond number 25', () => {
+test('saves and records accept a run past ten minutes and a manual choice beyond number 25', (t) => {
+  // Raise only this fixture's XP goal so a strong build keeps playing past ten minutes.
+  const goal = rules.energyGoal;
+  t.after(() => {
+    rules.energyGoal = goal;
+  });
+  rules.energyGoal = 100000;
   const map = new Map<string, string>();
   const storage = {
     getItem: (key: string) => map.get(key) ?? null,
     setItem: (key: string, value: string) => map.set(key, value),
     removeItem: (key: string) => map.delete(key),
   } as Storage;
-  const g = new Game(92055);
+  const g = new Game(96057);
   g.start();
   while (g.time < 1200 && !g.result && (!g.choice || g.choice.number <= 25)) g.advance(250);
   assert.equal(g.choice?.number, 26);
@@ -177,8 +183,8 @@ test('saves and records accept a run past ten minutes and a manual choice beyond
   const restored = readRun(storage)!;
   assert.ok(restored);
   assert.deepEqual(restored.checkpoint(), g.checkpoint());
-  restored.advance(120000);
-  g.advance(120000);
+  restored.advance(1800000);
+  g.advance(1800000);
   assert.equal(g.result?.outcome, 'success');
   assert.deepEqual(restored.result, g.result);
   const record = bestRecord(null, g.result!);

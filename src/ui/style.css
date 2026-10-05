@@ -593,9 +593,6 @@ svg {
   transform-origin: 60px 32px;
   animation: preview-ring 2.4s ease-out infinite;
 }
-.preview-area .preview-ring {
-  animation-name: preview-bolt;
-}
 .preview-ripple {
   stroke: #f1fcff;
   stroke-width: 1;
@@ -1382,22 +1379,8 @@ b {
 .language-picker button[aria-pressed='true'] {
   box-shadow: inset 0 -2px #8ce8fb;
 }
-g.preview-whip {
-  transform-origin: 28px 40px;
-  animation: preview-whip 2.4s steps(12) infinite;
-}
 g.preview-focus {
   animation: preview-focus 2s steps(2) infinite;
-}
-@keyframes preview-whip {
-  0%,
-  10% {
-    transform: rotate(calc(var(--arc) / -2));
-  }
-  60%,
-  100% {
-    transform: rotate(calc(var(--arc) / 2));
-  }
 }
 @keyframes preview-focus {
   0%,
@@ -1518,4 +1501,23 @@ g.preview-focus {
   to {
     opacity: 1;
   }
+}
+
+.preview-orb {
+  animation: orb-travel 2.4s steps(12) infinite;
+}
+@keyframes orb-travel {
+  0%,
+  15% {
+    transform: translateX(-10px);
+  }
+  70%,
+  100% {
+    transform: translateX(8px);
+  }
+}
+.slot-mode.charging {
+  border: 1px solid currentColor;
+  width: 5px;
+  height: 6px;
 }

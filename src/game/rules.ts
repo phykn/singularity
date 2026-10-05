@@ -65,17 +65,20 @@ export function formValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rule
   const s = cfg.skills;
   const scale = (id: SkillId) => rarityScale(rarities[id], cfg);
   const extra = (id: SkillId) => (ranks[id] ? cfg.rarity[rarities[id]].extra : 0);
+  const multi = s.multi.primaries[ranks.multi] + extra('multi');
   return {
-    area: { radius: s.area.radii[ranks.area] * scale('area') },
-    repeat: { hits: s.repeat.hits[ranks.repeat] + extra('repeat') },
-    multi: { count: s.multi.primaries[ranks.multi] + extra('multi') },
+    repeat: {
+      hits: s.repeat.hits[ranks.repeat] + extra('repeat'),
+      damage: s.repeat.damage * (ranks.repeat ? scale('repeat') : 1),
+    },
+    multi: { count: multi, damage: 1 / (1 + s.multi.spreadCost * (multi - 1)) },
     chain: {
-      hops: s.chain.hops[ranks.chain] + extra('chain') * 2,
+      hops: s.chain.hops[ranks.chain] + extra('chain'),
       range: s.chain.ranges[ranks.chain] * scale('chain') * reach,
     },
     pierce: {
       length: s.pierce.lengths[ranks.pierce] * scale('pierce') * reach,
-      width: s.pierce.widths[ranks.pierce] * scale('pierce'),
+      width: s.pierce.widths[ranks.pierce],
     },
     burst: {
       radius: s.burst.radii[ranks.burst] * scale('burst'),
@@ -84,23 +87,51 @@ export function formValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rule
     },
     strike: {
       count: s.strike.counts[ranks.strike] + extra('strike'),
-      radius: s.strike.radii[ranks.strike] * scale('strike'),
       range: s.strike.range * reach,
+      damage: s.strike.damage[ranks.strike] * scale('strike'),
     },
-    wave: {
-      radius: s.wave.radii[ranks.wave] * scale('wave'),
-      push: s.wave.push[ranks.wave] * scale('wave'),
-    },
-    whip: {
-      length: s.whip.lengths[ranks.whip] * scale('whip') * reach,
-      arc: (s.whip.arcs[ranks.whip] * Math.PI) / 180,
+    repel: {
+      count: s.repel.counts[ranks.repel] + extra('repel'),
+      range: s.repel.range * reach,
+      push: s.repel.push[ranks.repel] * scale('repel'),
     },
     focus: {
       range: s.focus.ranges[ranks.focus] * scale('focus') * reach,
       duration: s.focus.durations[ranks.focus],
       damage: s.focus.damage * scale('focus'),
-      slow: ranks.focus ? Math.max(0.25, s.focus.slow[ranks.focus] / scale('focus')) : 1,
     },
+    orb: {
+      radius: s.orb.radii[ranks.orb] * scale('orb') * reach,
+      duration: s.orb.duration[ranks.orb],
+      damage: s.orb.damage * scale('orb'),
+    },
+    charge: {
+      threshold: s.charge.threshold[ranks.charge],
+      damage: s.charge.damage[ranks.charge] * scale('charge'),
+    },
+    bridge: {
+      length: s.bridge.lengths[ranks.bridge] * scale('bridge') * reach,
+      duration: s.bridge.duration[ranks.bridge],
+      count: s.bridge.count[ranks.bridge] + extra('bridge'),
+      damage: s.bridge.damage[ranks.bridge] * scale('bridge'),
+    },
+    gather: {
+      radius: s.gather.radii[ranks.gather] * scale('gather') * reach,
+      count: s.gather.count[ranks.gather] + extra('gather'),
+      pull: s.gather.pull[ranks.gather] * scale('gather'),
+    },
+    stun: { duration: s.stun.duration[ranks.stun] * scale('stun') },
+    chase: {
+      threshold: s.chase.threshold[ranks.chase],
+      count: s.chase.count[ranks.chase] + extra('chase'),
+      damage: s.chase.damage[ranks.chase] * scale('chase'),
+    },
+    surge: {
+      kills: Math.max(3, s.surge.kills[ranks.surge] - extra('surge')),
+      duration: s.surge.duration[ranks.surge],
+      damage: s.surge.damage * scale('surge'),
+    },
+    return: { damage: s.return.damage[ranks.return] * scale('return') },
   };
 }
 export type FormValues = ReturnType<typeof formValues>;

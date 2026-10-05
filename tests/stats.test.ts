@@ -4,8 +4,8 @@ import { Game } from '../src/game/model.ts';
 import { rules, recoveryMass, rangeScale, skillIds } from '../src/game/rules.ts';
 import { choose, close, fixture, stationarySkill, target } from './helpers.ts';
 
-test('field reach acquires distant targets without changing damage, speed or splash geometry', () => {
-  const g = fixture({ area: 1, burst: 1, wave: 1 }, [target(0, 280, 128)]);
+test('field reach acquires distant targets without changing damage, speed or damage geometry', () => {
+  const g = fixture({ pierce: 1, burst: 1, repel: 1 }, [target(0, 280, 128)]);
   const before = { forms: g.forms, damage: g.damage, speed: g.speed, radius: g.targetRadius };
   g.combat.fireBasic();
   assert.equal(g.xp, 0);
@@ -15,10 +15,8 @@ test('field reach acquires distant targets without changing damage, speed or spl
   assert.equal(g.damage, before.damage);
   assert.equal(g.speed, before.speed);
   assert.equal(g.targetRadius, before.radius);
-  assert.deepEqual(g.forms.area, before.forms.area);
   assert.deepEqual(g.forms.burst, before.forms.burst);
-  assert.deepEqual(g.forms.wave, before.forms.wave);
-  assert.equal(g.forms.strike.radius, before.forms.strike.radius);
+  assert.deepEqual(g.forms.repel.push, before.forms.repel.push);
   assert.equal(g.forms.pierce.width, before.forms.pierce.width);
 });
 
@@ -35,29 +33,28 @@ test('repeat retargets at the cast reach and an upgrade does not rewrite reserve
     if (upgradedBeforeCast) choose(g, 'range');
     g.combat.fireBasic();
     if (!upgradedBeforeCast) choose(g, 'range');
-    g.advance(rules.skills.repeat.delaySeconds * 1000);
-    assert.equal(g.xp, upgradedBeforeCast ? 2 : 1);
+    g.advance(
+      (Math.ceil(rules.skills.repeat.delaySeconds * rules.tickRate) * 1000) / rules.tickRate,
+    );
+    assert.equal(g.xp, 1);
+    assert.equal(g.targets[0].hp < g.targets[0].maxHp, upgradedBeforeCast);
   }
 });
 
-test('reach extends chain jumps, piercing beams and lashes while keeping widths and angles', () => {
-  for (const id of ['chain', 'pierce', 'whip'] as const) {
+test('reach extends chain jumps, piercing beams while keeping beam widths', () => {
+  for (const id of ['chain', 'pierce'] as const) {
     const x = id === 'chain' ? 241 : id === 'pierce' ? 339 : 253;
     const g = stationarySkill({ [id]: 1 }, [target(0, 190, 128, 100), target(1, x, 128, 100)]);
     const before = g.forms;
     choose(g, 'range');
     choose(g, 'range');
-    if (id === 'whip') {
-      g.combat.fireSkill(id);
-      g.advance(400);
-    } else g.combat.fireBasic();
+    g.combat.fireBasic();
     assert.ok(g.targets[1].hp < 100, id + ' must reach the distant target');
-    assert.equal(g.forms.whip.arc, before.whip.arc);
     assert.equal(g.forms.pierce.width, before.pierce.width);
   }
 });
 
-test('strike and focus acquire farther targets; focus slow uses the same extended range', () => {
+test('strike and focus acquire farther targets; focus has no implicit slow', () => {
   for (const id of ['strike', 'focus'] as const) {
     const offset = id === 'strike' ? 170 : 100;
     const t = target(0, 180 + offset, 128, 100);
@@ -70,16 +67,12 @@ test('strike and focus acquire farther targets; focus slow uses the same extende
     g.combat.fireSkill(id);
     g.advance(50);
     assert.ok(t.hp < 100);
-    if (id === 'focus') {
-      assert.ok(g.combat.movementScale(t) < 1);
-      t.x = g.position.x + g.forms.focus.range + 1;
-      assert.equal(g.combat.movementScale(t), 1);
-    }
+    assert.equal(g.combat.movementScale(t), 1);
   }
 });
 
 test('mass vent is instant, consumes a choice, preserves XP and stats, and never becomes passive healing', () => {
-  const g = fixture({ area: 2 });
+  const g = fixture({ pierce: 2 });
   g.xp = 100;
   g.mass = 120;
   g.radius = g.targetRadius;
@@ -118,7 +111,7 @@ test('recovery is absent in safe orbits and remains available alongside maxed sk
     g.choice = null;
     g.mass = 140;
     g.radius = g.targetRadius;
-    g.ranks = { ...g.ranks, area: 5, chain: 5, multi: 5, repeat: 5 };
+    g.ranks = { ...g.ranks, pierce: 5, chain: 5, multi: 5, repeat: 5 };
     g.debugSetXp(210);
     assert.equal(g.choice!.cards[0].id, 'recover');
     assert.equal(g.choice!.cards.length, 3);
@@ -128,7 +121,7 @@ test('recovery is absent in safe orbits and remains available alongside maxed sk
 
 test('global cooldown reduction retains progress for every timed skill', () => {
   const g = stationarySkill({}, [target(0, 190, 128, 100000)]);
-  for (const id of ['strike', 'wave', 'whip', 'focus'] as const) choose(g, id);
+  for (const id of ['strike', 'repel', 'orb', 'focus'] as const) choose(g, id);
   g.advance(250);
   const before = skillIds.map((id) => g.combat.status(id).progress);
   const oldInterval = g.attackInterval;

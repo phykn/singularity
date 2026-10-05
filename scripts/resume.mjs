@@ -126,7 +126,7 @@ try {
   });
 
   await page.evaluate(() => {
-    window.__gameDebug.restart(20000);
+    window.__gameDebug.restart(96057);
     window.__gameDebug.advance(240000);
   });
   await page.waitForTimeout(1200);
@@ -147,7 +147,7 @@ try {
   });
 
   await page.evaluate(() => {
-    window.__gameDebug.restart(20000);
+    window.__gameDebug.restart(96057);
     window.__gameDebug.advance(610000);
   });
   await page.getByRole('heading', { name: c.success, exact: true }).waitFor();
@@ -202,8 +202,10 @@ try {
     window.__gameDebug.advance(0);
   });
   const damage = await page.evaluate(() => window.__gameDebug.getModel().damageNumbers);
-  assert.ok(damage.length >= 2);
-  assert.ok(damage.every((n) => Math.abs(n.value - 6.8) < 1e-8));
+  const power = rules.baseHitDamage + 3 * rules.damagePerRank * rules.rarity.legendary.scale;
+  const expectedDamage = [power, power / (1 + rules.skills.multi.spreadCost)];
+  assert.equal(damage.length, 2);
+  assert.ok(damage.every((n, i) => Math.abs(n.value - expectedDamage[i]) < 1e-8));
   await page.waitForTimeout(150);
   await capture(page, 'artifacts/screens/damage-numbers.png');
   report('damage numbers render fractional upgraded damage on a mobile screen', {

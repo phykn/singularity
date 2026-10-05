@@ -81,12 +81,7 @@ export class ElectronScene extends Phaser.Scene {
       for (let i = model.effects.length - 1; i >= 0; i--) {
         const fx = model.effects[i];
         if (clock - fx.born >= 0.05) break;
-        if (
-          fx.kind === 'strike' ||
-          fx.kind === 'wave' ||
-          fx.source === 'burst' ||
-          (fx.kind === 'whip' && fx.rank >= 4)
-        ) {
+        if (fx.kind === 'strike' || (fx.source === 'charge' && fx.kind === 'bolt')) {
           this.impactAt = clock;
           break;
         }

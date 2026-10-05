@@ -98,50 +98,6 @@ export function SkillPreview({
         </>
       );
       break;
-    case 'area': {
-      const base = rules.skills.area.radii;
-      const radius = (s[id].radius / (base[rules.maxRank] * rules.rarity.legendary.scale)) * 27;
-      art = (
-        <>
-          {[
-            [-18, -13],
-            [17, 10],
-            [6, -22],
-          ].map(([x, y], i) => target(60 + x, 32 + y, i))}
-          {rank > 1 && (
-            <circle
-              className="preview-ghost"
-              cx="60"
-              cy="32"
-              r={
-                ((base[rank - 1] * scale) / (base[rules.maxRank] * rules.rarity.legendary.scale)) *
-                27
-              }
-            />
-          )}
-          <circle className="preview-ghost" cx="60" cy="32" r={radius} />
-          <circle className="preview-ring" cx="60" cy="32" r={radius} />
-          {[0, 1, 2, 3].map((i) => {
-            const angle = (i * Math.PI) / 2,
-              x = Math.round(60 + Math.cos(angle) * radius * 0.8),
-              y = Math.round(32 + Math.sin(angle) * radius * 0.8);
-            return (
-              <g key={i}>
-                {bolt(
-                  `M60 32 ${Math.round((60 + x) / 2) + 2} ${Math.round((32 + y) / 2) - 2} ${x} ${y}`,
-                  undefined,
-                  1,
-                )}
-              </g>
-            );
-          })}
-          {origin}
-          {target(60, 32, 4)}
-          {bolt('M20 32h10l4-4 8 8 4-4h14')}
-        </>
-      );
-      break;
-    }
     case 'burst': {
       const count = s.burst.count,
         radius =
@@ -185,68 +141,131 @@ export function SkillPreview({
         </>
       );
       break;
-    case 'wave': {
-      const radius =
-        9 +
-        (s.wave.radius / (rules.skills.wave.radii[rules.maxRank] * rules.rarity.legendary.scale)) *
-          18;
+    case 'repel':
       art = (
         <>
-          {source(60, 32)}
-          {target(60 + radius, 32, 0)}
-          {target(60 - radius, 32, 1)}
-          <circle className="preview-ring" cx="60" cy="32" r={radius} />
-          <circle className="preview-ghost" cx="60" cy="32" r={radius} />
-          <circle className="preview-ring preview-ripple" cx="60" cy="32" r={radius * 0.65} />
+          {origin}
+          {target(73, 21, 0)}
+          {target(83, 45, 1)}
+          {bolt('M20 32 38 24 44 32 70 21')}
+          {bolt('M20 32 44 42 52 36 80 45')}
+          <path className="preview-contact" d="M85 20h20m-4-4 4 4-4 4M95 44h15m-4-4 4 4-4 4" />
         </>
       );
       break;
-    }
-    case 'whip': {
-      const length =
-          45 +
-          (s.whip.length /
-            (rules.skills.whip.lengths[rules.maxRank] * rules.rarity.legendary.scale)) *
-            35,
-        points = [
-          [0, 0],
-          [0.16, -0.04],
-          [0.3, -0.22],
-          [0.48, -0.32],
-          [0.7, -0.28],
-          [0.84, -0.18],
-          [0.82, 0.02],
-          [0.7, 0.12],
-          [0.58, 0.1],
-          [0.52, 0.04],
-          [0.6, -0.02],
-          [0.7, 0.02],
-          [0.78, 0.1],
-        ].map(
-          ([x, y]) =>
-            `${Math.round((28 + x * length) / 2) * 2} ${Math.round((40 + y * length) / 2) * 2}`,
-        ),
-        d = `M${points.slice(0, 7).join('L')}`,
-        tip = `M${points.slice(6).join('L')}`;
+    case 'orb':
       art = (
         <>
-          {source(28, 40)}
-          {target(28 + length * 0.9, 28, 0)}
-          {target(28 + length * 0.72, 51, 1)}
-          <g
-            className="preview-whip"
-            style={{ '--arc': `${Math.round((s.whip.arc * 24) / Math.PI)}deg` } as CSSProperties}
-          >
-            <path className="preview-sheath" strokeWidth="7" d={d} />
-            <path strokeWidth="4" d={d} />
-            <path className="preview-hot" strokeWidth="2" d={d} />
-            <path strokeWidth="2" d={tip} />
-            <path className="preview-hot" strokeWidth="1" d={tip} />
+          {origin}
+          <path className="preview-ghost" d="M24 32h80" />
+          {target(79, 14, 0)}
+          {target(91, 50, 1)}
+          <g className="preview-orb">
+            {source(53, 32)}
+            {bolt('M56 29 64 20 70 24 76 14')}
+            {bolt('M56 35 67 42 76 37 88 50')}
           </g>
         </>
       );
       break;
-    }
+    case 'charge':
+      art = (
+        <>
+          {origin}
+          {target(98, 32, 0)}
+          {bolt('M20 32 42 24 50 39 70 28 95 32', undefined, 1)}
+          {[0, 1, 2].map((i) => (
+            <rect
+              key={i}
+              className="preview-bolt"
+              style={delay(i)}
+              x={88 + i * 7}
+              y="16"
+              width="4"
+              height="4"
+              fill="currentColor"
+              stroke="none"
+            />
+          ))}
+          {bolt('M20 32h30l8-9 9 15 28-6', { '--delay': '.65s' } as CSSProperties, 4)}
+        </>
+      );
+      break;
+    case 'bridge':
+      art = (
+        <>
+          {target(24, 42, 0)}
+          {target(96, 22, 1)}
+          <path className="preview-ghost" d="M60 8v46m-4-4 4 4 4-4" />
+          {target(60, 32, 2)}
+          {bolt('M24 42 39 32 48 36 61 27 70 32 96 22', undefined, 1)}
+          <rect x="21" y="39" width="5" height="5" fill="currentColor" />
+          <rect x="93" y="19" width="5" height="5" fill="currentColor" />
+        </>
+      );
+      break;
+    case 'gather':
+      art = (
+        <>
+          {target(62, 32, 0)}
+          {target(27, 14, 1)}
+          {target(28, 50, 2)}
+          {target(103, 32, 3)}
+          {bolt('M29 16 44 20 42 26 58 30', undefined, 1)}
+          {bolt('M30 48 44 42 40 38 58 34', delay(1), 1)}
+          {bolt('M100 32 85 26 81 35 66 32', delay(2), 1)}
+          <path d="m49 24 8 6-9 1m28-4-8 5 9 3" />
+        </>
+      );
+      break;
+    case 'stun':
+      art = (
+        <>
+          {origin}
+          {target(94, 32, 0)}
+          {bolt('M20 32h24l6-8 7 15 11-7h23')}
+          <path className="preview-flash" d="M83 21v22m22-22v22M90 15l4-5 3 7 4-5" />
+        </>
+      );
+      break;
+    case 'chase':
+      art = (
+        <>
+          {origin}
+          {target(70, 16, 0)}
+          {target(101, 43, 1)}
+          <path className="preview-ghost" d="M63 7h14m17 25h14" />
+          <path stroke="#e59a9a" d="M94 25h4" />
+          {bolt('M20 32 49 37 62 32 79 46 98 43', undefined, 2)}
+        </>
+      );
+      break;
+    case 'surge':
+      art = (
+        <>
+          {source(40, 32)}
+          {[0, 1, 2].map((i) => (
+            <g key={i}>
+              {target(100, 12 + i * 20, i)}
+              {bolt(`M45 32 63 ${18 + i * 12} 76 ${24 + i * 8} 97 ${12 + i * 20}`, delay(i), 1)}
+            </g>
+          ))}
+          <path className="preview-flash" d="M31 20l4-6m-9 18h-6m11 12 4 6" />
+        </>
+      );
+      break;
+    case 'return':
+      art = (
+        <>
+          {source(18, 46)}
+          <path className="preview-ghost" d="M18 14v23m-4-5 4 5 4-5M18 14h74" />
+          {target(99, 16, 0)}
+          {target(58, 37, 1)}
+          {bolt('M97 18 78 23 82 30 57 37 41 34 23 45', { '--delay': '.3s' } as CSSProperties)}
+          <path d="m30 38-7 7 9 1" />
+        </>
+      );
+      break;
     case 'focus':
       art = (
         <>

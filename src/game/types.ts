@@ -19,15 +19,24 @@ export type Target = Point & {
   speed: number;
   turn: number;
   hitAt?: number;
+  charge?: number;
+  stunUntil?: number;
+  stunReady?: number;
+  pushReady?: number;
+  gatherReady?: number;
+  controlCount?: number;
 };
 export type Effect = {
   kind:
     | 'bolt'
-    | 'area'
     | 'pierce'
     | 'strike'
-    | 'wave'
-    | 'whip'
+    | 'orb'
+    | 'bridge'
+    | 'charge'
+    | 'stun'
+    | 'surge'
+    | 'return'
     | 'focus'
     | 'kill'
     | 'level'
@@ -88,7 +97,7 @@ export type Result = {
   metrics: Metrics;
 };
 export type SkillStatus = {
-  mode: 'linked' | 'timed' | 'conditional';
+  mode: 'linked' | 'timed' | 'conditional' | 'charging';
   progress: number;
   active: boolean;
   fired: boolean;

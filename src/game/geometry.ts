@@ -10,6 +10,7 @@ export const orbit = (angle: number, radius = orbitRadius): Point => ({
 export const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 export const norm = (p: Point): Point => {
   const d = Math.hypot(p.x, p.y);
+  if (d < 1e-8) return { x: 1, y: 0 };
   return { x: p.x / d, y: p.y / d };
 };
 

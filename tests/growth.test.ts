@@ -82,7 +82,7 @@ test('XP thresholds continue beyond level 26 with exact boundaries and carried p
 });
 
 test('maxed skills leave three repeatable stat choices and upgrades work above rank five', () => {
-  const g = fixture({ area: 5, repeat: 5, chain: 5, pierce: 5 });
+  const g = fixture({ burst: 5, repeat: 5, chain: 5, pierce: 5 });
   for (const rank of [5, 20, 100]) {
     g.boosts = { power: rank, rate: rank, range: rank };
     for (const danger of [false, true]) {
@@ -101,7 +101,7 @@ test('maxed skills leave three repeatable stat choices and upgrades work above r
       [rank + 1, rank + 1, rank + 1],
     );
     [g.damage, g.rate, g.range].forEach((value, i) => assert.ok(value > before[i]));
-    assert.deepEqual(g.ranks, { ...blankRanks(), area: 5, repeat: 5, chain: 5, pierce: 5 });
+    assert.deepEqual(g.ranks, { ...blankRanks(), burst: 5, repeat: 5, chain: 5, pierce: 5 });
   }
 });
 
@@ -163,7 +163,7 @@ test('XP alone levels up immediately, carries overflow, queues cards, and pauses
 test('all skill-rank combinations keep three legal cards even with maxed skills', () => {
   let states = 0,
     minimum = Infinity;
-  const ids = ['area', 'repeat', 'chain', 'pierce'] as const,
+  const ids = ['burst', 'repeat', 'chain', 'pierce'] as const,
     base = rules.maxRank + 1;
   for (let bits = 0; bits < base ** ids.length; bits++) {
     let n = bits,
@@ -226,7 +226,7 @@ test('every lightning form can be offered from the first choice without a growth
       random,
     );
     cards.forEach((id) => opening.add(id));
-    ranks.wave = 1;
+    ranks.repel = 1;
     makeCards({ ranks, boosts, number: 2, danger: false, recoverable: true }, random).forEach(
       (id) => later.add(id),
     );
@@ -245,7 +245,7 @@ test('opening auto-selection keeps an immediately visible attack even when anoth
     const game = new Game(seed, { combat: false });
     game.start();
     game.debugSetXp(rules.levelXp[0]);
-    assert.ok(['area', 'chain', 'multi'].includes(game.choice!.cards[0].id));
+    assert.ok(['pierce', 'chain', 'multi', 'orb'].includes(game.choice!.cards[0].id));
   }
 });
 
@@ -262,8 +262,8 @@ test('rarity roll boundaries and seeded base frequencies match published odds', 
   for (const id of rarityIds) close(counts[id] / 1000, rules.rarity[id].chance, 0.5);
 });
 
-test('new runs have ten lightning skills and always offer owned upgrades', () => {
-  assert.equal(skillIds.length, 10);
+test('new runs have sixteen lightning skills and always offer owned upgrades', () => {
+  assert.equal(skillIds.length, 16);
   const g = fixture();
   g.debugSetXp(18);
   for (let seed = 0; seed < 128; seed++) {

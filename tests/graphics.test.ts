@@ -96,7 +96,9 @@ const effect: Effect = {
 
 test('lightning remains finite at mobile scales and never changes combat data', () => {
   for (const id of skillIds) {
-    const kind = ['multi', 'repeat', 'chain', 'burst'].includes(id) ? 'bolt' : id;
+    const kind = ['multi', 'repeat', 'chain', 'burst', 'repel', 'gather', 'chase'].includes(id)
+      ? 'bolt'
+      : id;
     const fx = { ...effect, source: id, kind } as Effect;
     const before = structuredClone(fx);
     for (const scale of [0.65, 1, 1.75])
@@ -135,39 +137,4 @@ test('focused lightning follows the current electron and tracked particle', () =
     );
   }
   assert.deepEqual({ fx, enemy, electron }, before);
-});
-
-test('splash shows its fixed hit radius while the wave front expands', () => {
-  for (const progress of [0.25, 0.75]) {
-    const area = drawing(),
-      wave = drawing();
-    drawEffect(
-      area.graphics,
-      { ...effect, kind: 'area', source: 'area' },
-      1 + progress,
-      1,
-      true,
-      effect.from,
-      [],
-    );
-    drawEffect(
-      wave.graphics,
-      { ...effect, kind: 'wave', source: 'wave' },
-      1 + progress,
-      1,
-      true,
-      effect.from,
-      [],
-    );
-    assert.ok(
-      area.commands.some(
-        ({ method, args }) => method === 'fillCircle' && args[2] === effect.radius,
-      ),
-    );
-    assert.ok(
-      wave.commands.some(
-        ({ method, args }) => method === 'strokeCircle' && args[2] === effect.radius * progress,
-      ),
-    );
-  }
 });

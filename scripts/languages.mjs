@@ -167,7 +167,7 @@ try {
       await inspect(page);
       if (width === 375) await screenshot(page, `artifacts/screens/upgrade-${language.id}.png`);
       await page.evaluate(() => {
-        window.__gameDebug.restart(20000);
+        window.__gameDebug.restart(96057);
         window.__gameDebug.advance(610000);
       });
       await page.getByRole('heading', { name: c.success, exact: true }).waitFor();

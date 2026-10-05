@@ -373,7 +373,8 @@ export class Game {
         target.radius -
           (target.speed * motion.speed * this.combat.movementScale(target)) / this.rules.tickRate,
       );
-      target.angle += (target.turn * motion.turn) / this.rules.tickRate;
+      target.angle +=
+        (target.turn * motion.turn * this.combat.movementScale(target)) / this.rules.tickRate;
       Object.assign(target, orbit(target.angle, target.radius));
     }
   }
@@ -582,6 +583,7 @@ export class Game {
     if (target.hp <= 0) {
       if (attack && !attack.firstKill) attack.firstKill = { x: target.x, y: target.y };
       this.counts[target.particle].killed++;
+      this.combat.killed();
       this.targets.splice(index, 1);
       this.addEffect({
         kind: 'kill',
@@ -692,7 +694,9 @@ export class Game {
     };
     this.effects.push(effect);
     if (this.effects.length > 160) {
-      const discard = this.effects.findIndex((fx) => ['kill', 'absorb', 'area'].includes(fx.kind));
+      const discard = this.effects.findIndex((fx) =>
+        ['kill', 'absorb', 'charge', 'stun'].includes(fx.kind),
+      );
       this.effects.splice(Math.max(0, discard), 1);
     }
     this.metrics.maxEffects = Math.max(this.metrics.maxEffects, this.effects.length);

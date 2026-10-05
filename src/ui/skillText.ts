@@ -31,8 +31,6 @@ export function skillValue(
     scale = rarityScale(rarity, cfg),
     n = numberText;
   switch (id) {
-    case 'area':
-      return `${m.radius} ${n(s.area.radius)}`;
     case 'repeat':
       return m.hits(String(s.repeat.hits));
     case 'multi':
@@ -44,13 +42,27 @@ export function skillValue(
     case 'burst':
       return `${m.radius} ${n(s.burst.radius)} · ×${n(s.burst.damage)}`;
     case 'strike':
-      return `${m.targets(String(s.strike.count))} · ×${n(cfg.skills.strike.damage)}`;
-    case 'wave':
-      return `${m.radius} ${n(s.wave.radius)} · ${m.push} ${n(s.wave.push)}`;
-    case 'whip':
-      return `${m.length} ${n(s.whip.length)} · ${Math.round((s.whip.arc * 180) / Math.PI)}°`;
+      return `${m.targets(String(s.strike.count))} · ×${n(s.strike.damage)}`;
+    case 'repel':
+      return `${m.targets(String(s.repel.count))} · ${m.push} ${n(s.repel.push)}`;
     case 'focus':
-      return `${n(s.focus.duration)}${c.seconds} · ${m.slow} ${Math.round((1 - s.focus.slow) * 100)}%`;
+      return `${n(s.focus.duration)}${c.seconds} · ×${n(s.focus.damage)}`;
+    case 'orb':
+      return `${n(s.orb.duration)}${c.seconds} · ${m.radius} ${n(s.orb.radius)}`;
+    case 'charge':
+      return `${m.charge} ${n(s.charge.threshold)} · ×${n(s.charge.damage)}`;
+    case 'bridge':
+      return `${m.length} ${n(s.bridge.length)} · ${n(s.bridge.duration)}${c.seconds}`;
+    case 'gather':
+      return `${m.targets(String(s.gather.count))} · ${m.radius} ${n(s.gather.radius)}`;
+    case 'stun':
+      return `${m.stun} ${n(s.stun.duration)}${c.seconds}`;
+    case 'chase':
+      return `${m.health} <=${Math.round(s.chase.threshold * 100)}% · ×${n(s.chase.damage)}`;
+    case 'surge':
+      return `${m.kills} ${s.surge.kills} · ${n(s.surge.duration)}${c.seconds}`;
+    case 'return':
+      return `${m.damage} ×${n(s.return.damage)}`;
     case 'power':
       return `${m.damage} ${n(cfg.baseHitDamage + cfg.damagePerRank * rank * scale)}`;
     case 'rate':
@@ -58,7 +70,7 @@ export function skillValue(
     case 'range':
       return `${m.range} +${n((rangeScale(rank, rarity, cfg) - 1) * 100)}%`;
     case 'recover':
-      return `${c.mass} −${recoveryMass(rarity, cfg)}`;
+      return `${c.mass} -${recoveryMass(rarity, cfg)}`;
   }
 }
 
@@ -92,9 +104,7 @@ export function skillChange(
     case 'range':
       return `${c.metric.range} +${numberText((rangeScale(current + 1, rarity, cfg) / rangeScale(current, previous, cfg) - 1) * 100)}%`;
     case 'recover':
-      return `${c.mass} −${numberText(Math.min(mass, recoveryMass(rarity, cfg)))}`;
-    case 'area':
-      return text.area[current ? 1 : 0];
+      return `${c.mass} -${numberText(Math.min(mass, recoveryMass(rarity, cfg)))}`;
     case 'repeat':
       return count(before.repeat.hits, after.repeat.hits, text.repeat);
     case 'multi':
@@ -109,11 +119,16 @@ export function skillChange(
       return c.metric.targets(
         current ? `${before.strike.count}→${after.strike.count}` : String(after.strike.count),
       );
-    case 'wave':
-      return text.wave[current ? 1 : 0];
-    case 'whip':
-      return text.whip[current ? 1 : 0];
+    case 'repel':
     case 'focus':
-      return text.focus[current ? 1 : 0];
+    case 'orb':
+    case 'charge':
+    case 'bridge':
+    case 'gather':
+    case 'stun':
+    case 'chase':
+    case 'surge':
+    case 'return':
+      return text[id][current ? 1 : 0];
   }
 }

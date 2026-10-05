@@ -31,7 +31,7 @@ export function makeCards(state: CardState, random: Random, cfg: RuleSet = rules
   if (number === 1) {
     const forms = pool.filter(isSkill),
       cards = forms.slice(0, cfg.choiceCount);
-    const broad = (id: SkillId) => ['area', 'chain', 'multi'].includes(id);
+    const broad = (id: SkillId) => ['chain', 'multi', 'pierce', 'orb'].includes(id);
     const auto = cards.find(broad) ?? forms.find(broad)!;
     if (!cards.includes(auto)) cards[2] = auto;
     return [auto, ...cards.filter((id) => id !== auto)];

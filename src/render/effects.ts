@@ -11,11 +11,14 @@ export function visibleEffects(effects: Effect[], reduced: boolean): Effect[] {
     primary: reduced ? 6 : 12,
     chain: reduced ? 10 : 18,
     pierce: 3,
-    area: 2,
     burst: 6,
     strike: reduced ? 3 : 8,
-    wave: reduced ? 4 : 8,
-    whip: reduced ? 4 : 8,
+    orb: reduced ? 6 : 12,
+    bridge: reduced ? 3 : 5,
+    charge: reduced ? 4 : 10,
+    stun: reduced ? 4 : 8,
+    surge: 1,
+    return: reduced ? 5 : 10,
     focus: reduced ? 4 : 8,
     kill: reduced ? 3 : 8,
     level: 2,
@@ -23,13 +26,17 @@ export function visibleEffects(effects: Effect[], reduced: boolean): Effect[] {
     absorb: 4,
   };
   const counts: Record<string, number> = {};
-  const beams = new Set<number>();
+  const beams = new Set<string>();
   return [...effects]
     .reverse()
     .filter((effect) => {
-      if (effect.kind === 'focus' && effect.targetId !== undefined) {
-        if (beams.has(effect.targetId)) return false;
-        beams.add(effect.targetId);
+      if (
+        ['focus', 'orb', 'bridge', 'charge'].includes(effect.kind) &&
+        effect.targetId !== undefined
+      ) {
+        const key = effect.kind + effect.targetId;
+        if (beams.has(key)) return false;
+        beams.add(key);
       }
       const key =
         effect.kind === 'bolt'

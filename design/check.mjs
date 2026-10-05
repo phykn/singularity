@@ -8,7 +8,8 @@ assert.ok(r.rangeFalloff > 0);
 assert.ok(r.recovery.minMass > 0 && r.recovery.mass >= r.recovery.minMass);
 assert.ok(!('supportPerRank' in r) && !('speedPerRank' in r));
 assert.ok(r.introBatchSize > 0 && r.introBatches > 0);
-assert.equal(Object.keys(r.skills).length, 10);
+assert.equal(Object.keys(r.skills).length, 16);
+assert.ok(!('area' in r.skills) && !('whip' in r.skills) && !('wave' in r.skills));
 assert.ok(r.levelXp.every((n, i, a) => n > 0 && (!i || a[i - 1] < n)));
 assert.ok(r.levelXpStep > 0);
 for (const level of [2, 26, 27, 50, 100]) {

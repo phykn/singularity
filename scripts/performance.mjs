@@ -48,7 +48,7 @@ try {
       game.mass = 80;
       game.radius = 100;
       game.boosts = { power: 4, rate: 4, range: 4 };
-      Object.assign(game.ranks, { area: 5, multi: 5, repeat: 5, chain: 5 });
+      Object.assign(game.ranks, { pierce: 5, multi: 5, repeat: 5, chain: 5 });
       const particles = ['quark', 'muon', 'proton', 'neutron'];
       game.targets = Array.from({ length: count }, (_, id) => {
         const radius = 40 + ((id * 79) % 130);
@@ -163,66 +163,81 @@ try {
     console.log(JSON.stringify(row));
   }
   const live = [];
-  for (const count of [200, 800]) {
-    await page.evaluate((count) => {
-      const debug = window.__gameDebug;
-      debug.restart(1705, false);
-      const game = debug.getModel();
-      game.setHidden(true);
-      game.mass = 80;
-      game.radius = 100;
-      game.boosts = { power: 4, rate: 4, range: 4 };
-      Object.assign(game.ranks, { area: 5, multi: 5, repeat: 5, chain: 5 });
-      game.selections = ['area', 'multi', 'repeat', 'chain'].flatMap((id) =>
-        Array.from({ length: 5 }, (_, index) => ({
-          time: 0,
-          id,
-          rank: index + 1,
-          rarity: 'common',
-          automatic: true,
-        })),
-      );
-      const particles = ['quark', 'muon', 'proton', 'neutron'];
-      game.targets = Array.from({ length: count }, (_, id) => {
-        const radius = 40 + ((id * 79) % 130),
-          angle = id * Math.PI * (3 - Math.sqrt(5));
-        const particle = particles[id % 4],
-          kind = id % 4 < 2 ? 'small' : 'dense';
-        const hp = Math.round(
-          game.rules.targets[kind].hp.at(-1) * (particle === 'neutron' ? 1.2 : 1),
+  const scenarios = [
+    { count: 200, skills: ['pierce', 'multi', 'repeat', 'chain'], name: '200' },
+    { count: 800, skills: ['pierce', 'multi', 'repeat', 'chain'], name: '800' },
+    { count: 800, skills: ['orb', 'bridge', 'multi', 'repeat'], name: 'persistent' },
+    { count: 800, skills: ['gather', 'stun', 'return', 'repel'], name: 'control' },
+    { count: 800, skills: ['focus', 'charge', 'repeat', 'chain'], name: 'charge' },
+  ];
+  for (const { count, skills, name } of scenarios) {
+    await page.evaluate(
+      ({ count, skills, name }) => {
+        const debug = window.__gameDebug;
+        debug.restart(1705, false);
+        const game = debug.getModel();
+        game.setHidden(true);
+        game.mass = 80;
+        game.radius = 100;
+        game.boosts = { power: 4, rate: 4, range: 4 };
+        for (const id of skills) {
+          game.ranks[id] = 5;
+          game.combat.learn(id, 0);
+        }
+        game.selections = skills.flatMap((id) =>
+          Array.from({ length: 5 }, (_, index) => ({
+            time: 0,
+            id,
+            rank: index + 1,
+            rarity: 'common',
+            automatic: true,
+          })),
         );
-        return {
-          id,
-          x: 180 + Math.cos(angle) * radius,
-          y: 260 + Math.sin(angle) * radius,
-          radius,
-          angle,
-          particle,
-          kind,
-          hp,
-          maxHp: hp,
-          born: 0,
-          xp: particle === 'neutron' ? 6 : game.rules.targets[kind].xp,
-          mass: 1,
-          size: id % 4 < 2 ? 5 : 8,
-          speed: 0,
-          turn: 0.12,
+        const particles = ['quark', 'muon', 'proton', 'neutron'];
+        game.targets = Array.from({ length: count }, (_, id) => {
+          const radius = 40 + ((id * 79) % 130),
+            angle = id * Math.PI * (3 - Math.sqrt(5));
+          const particle = particles[id % 4],
+            kind = id % 4 < 2 ? 'small' : 'dense';
+          const hp = Math.round(
+            game.rules.targets[kind].hp.at(-1) *
+              (particle === 'neutron' ? 1.2 : 1) *
+              (Number.isNaN(Number(name)) ? 5 : 1),
+          );
+          return {
+            id,
+            x: 180 + Math.cos(angle) * radius,
+            y: 260 + Math.sin(angle) * radius,
+            radius,
+            angle,
+            particle,
+            kind,
+            hp,
+            maxHp: hp,
+            born: 0,
+            xp: particle === 'neutron' ? 6 : game.rules.targets[kind].xp,
+            mass: 1,
+            size: id % 4 < 2 ? 5 : 8,
+            speed: 0,
+            turn: 0.12,
+          };
+        });
+        for (const particle of particles) game.counts[particle].generated = count / 4;
+        game.combatEnabled = true;
+        game.nextSpawn = game.tick + 60 * game.rules.tickRate;
+        game.setHidden(false);
+        window.__simulationTimes = [];
+        const advance = game.advance;
+        game.advance = function (ms, ...args) {
+          const start = performance.now();
+          const result = advance.call(this, ms, ...args);
+          if (ms > 0) window.__simulationTimes.push(performance.now() - start);
+          return result;
         };
-      });
-      for (const particle of particles) game.counts[particle].generated = count / 4;
-      game.combatEnabled = true;
-      game.nextSpawn = game.tick + 60 * game.rules.tickRate;
-      game.setHidden(false);
-      window.__simulationTimes = [];
-      const advance = game.advance;
-      game.advance = function (ms, ...args) {
-        const start = performance.now();
-        const result = advance.call(this, ms, ...args);
-        if (ms > 0) window.__simulationTimes.push(performance.now() - start);
-        return result;
-      };
-      debug.advance(0);
-    }, count);
+        debug.advance(0);
+      },
+      { count, skills, name },
+    );
     await page.waitForTimeout(500);
     const result = await page.evaluate(
       () =>
@@ -265,16 +280,16 @@ try {
     assert.ok(result.targets <= count);
     assert.ok(result.hits > 0, 'Live crowd must actually execute lightning attacks');
     console.log('LIVE ' + JSON.stringify(result));
-    writeFileSync(`${output}/live-${count}.json`, JSON.stringify(result, null, 2));
+    writeFileSync(`${output}/live-${name}.json`, JSON.stringify(result, null, 2));
     await client.send('Emulation.setCPUThrottlingRate', { rate: 1 });
     assert.ok(
       await page.evaluate(() =>
         document.fonts.check('12px "Singularity Pixel"', '0123456789 MAX XP'),
       ),
     );
-    const screenshot = await capture(page, `${output}/live-${count}.png`);
+    const screenshot = await capture(page, `${output}/live-${name}.png`);
     await client.send('Emulation.setCPUThrottlingRate', { rate: slowdown });
-    live.push({ initialTargets: count, ...result, screenshot });
+    live.push({ initialTargets: count, skills, name, ...result, screenshot });
   }
   assert.deepEqual(errors, []);
   writeFileSync(

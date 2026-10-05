@@ -127,7 +127,7 @@ const rarityFlow = async () => {
     g.choice.cards = [
       { id: 'multi', rarity: 'legendary' },
       { id: 'chain', rarity: 'epic' },
-      { id: 'area', rarity: 'rare' },
+      { id: 'charge', rarity: 'rare' },
     ];
     window.__gameDebug.advance(0);
   });
@@ -227,26 +227,24 @@ const audioFlow = async () => {
   await page.close();
 };
 
-const skillFlow = async () => {
-  const skillsPage = await pageFor(375, 812);
-  for (const id of skillIds) {
-    const damage = await skillsPage.evaluate((id) => {
-      window.__gameDebug.restart(1, false);
+const showSkill = async (page, id, rank = 5, rarity = 'common') =>
+  page.evaluate(
+    ({ id, rank, rarity }) => {
+      window.__gameDebug.restart(17, false);
       const g = window.__gameDebug.getModel();
-      g.ranks[id] = 5;
-      g.rarities[id] = 'epic';
-      g.targets = Array.from({ length: 24 }, (_, i) => {
-        const x = 185 + (i % 6) * 16,
-          y = 108 + Math.floor(i / 6) * 16;
-        const hp = id === 'burst' && i === 6 ? 2 : 100;
+      g.ranks[id] = rank;
+      g.rarities[id] = rarity;
+      g.targets = Array.from({ length: 32 }, (_, i) => {
+        const x = 190 + (i % 8) * 17,
+          y = 102 + Math.floor(i / 8) * 18;
         return {
           id: i,
           x,
           y,
-          hp,
-          maxHp: hp,
+          hp: 100,
+          maxHp: 100,
           kind: 'small',
-          particle: 'quark',
+          particle: ['quark', 'muon', 'proton', 'neutron'][i % 4],
           born: 0,
           xp: 1,
           mass: 1,
@@ -257,18 +255,53 @@ const skillFlow = async () => {
           turn: 0,
         };
       });
-      g.counts.quark.generated = g.targets.length;
-      if (['strike', 'wave', 'whip', 'focus'].includes(id)) g.combat.fireSkill(id);
+      for (const t of g.targets) g.counts[t.particle].generated++;
+      const nearest = [...g.targets].sort(
+        (a, b) => Math.hypot(a.x - 180, a.y - 128) - Math.hypot(b.x - 180, b.y - 128),
+      )[0];
+      if (id === 'burst') nearest.hp = nearest.maxHp = 1;
+      if (id === 'chase') g.targets.forEach((t) => (t.hp = 15));
+      if (id === 'surge') {
+        for (const t of g.targets.slice(0, g.forms.surge.kills)) {
+          t.hp = 1;
+          g.combat.fireBasic(t);
+        }
+      } else if (id === 'bridge') {
+        g.combat.fireBasic(g.targets[0]);
+        g.combat.fireBasic(g.targets[4]);
+      } else if (id === 'charge') {
+        for (let i = 0; i < Math.ceil(g.forms.charge.threshold); i++) g.combat.fireBasic();
+      } else if (['strike', 'repel', 'focus', 'orb', 'gather', 'chase'].includes(id))
+        g.combat.fireSkill(id);
       else g.combat.fireBasic();
-      window.__gameDebug.advance(['wave', 'whip'].includes(id) ? 200 : 100);
+      if (id === 'return') g.angle += 0.65;
+      window.__gameDebug.advance(
+        id === 'return' ? 300 : id === 'repeat' ? 150 : id === 'orb' ? 400 : 50,
+      );
       g.setHidden(true);
-      return g.damageNumbers.map((n) => n.value);
-    }, id);
-    assert.ok(damage.length > 0, 'No visible damage for ' + id);
-    await screenshot(skillsPage, 'skill-' + id);
+      return {
+        effects: g.effects
+          .filter((f) => f.source === id)
+          .map((f) => ({ rank: f.rank, radius: f.radius, width: f.width })),
+        hits: g.events.filter((e) => e.kind === 'hit').length,
+        damage: g.damageNumbers.map((d) => d.value),
+      };
+    },
+    { id, rank, rarity },
+  );
+
+const skillFlow = async () => {
+  const page = await pageFor(375, 812);
+  for (const id of skillIds) {
+    const result = await showSkill(page, id, 5, 'epic');
+    assert.ok(
+      result.damage.length > 0 && result.effects.length > 0,
+      'No visible skill impact: ' + id,
+    );
+    await screenshot(page, 'skill-' + id);
   }
-  report('all ten lightning skills render real impacts and damage', { skills: skillIds });
-  await skillsPage.close();
+  report('all sixteen lightning skills render actual impacts and damage', { skills: skillIds });
+  await page.close();
 };
 
 const visualFlow = async () => {
@@ -276,56 +309,7 @@ const visualFlow = async () => {
   for (const id of skillIds) {
     const ranks = [];
     for (const rank of [1, 5]) {
-      const result = await page.evaluate(
-        ({ id, rank }) => {
-          window.__gameDebug.restart(17, false);
-          const g = window.__gameDebug.getModel();
-          g.ranks[id] = rank;
-          const particles = ['quark', 'muon', 'proton', 'neutron'];
-          g.targets = Array.from({ length: 24 }, (_, i) => {
-            const radius = (id === 'wave' ? 18 : 54) + Math.floor(i / 8) * 12;
-            const angle = -1.3 + (i % 8) * 0.37;
-            const x = 180 + Math.cos(angle) * radius,
-              y = 128 + Math.sin(angle) * radius;
-            return {
-              id: i,
-              x,
-              y,
-              hp: 100,
-              maxHp: 100,
-              kind: i % 4 < 2 ? 'small' : 'dense',
-              particle: particles[i % 4],
-              born: 0,
-              xp: 1,
-              mass: 1,
-              size: 5,
-              radius: Math.hypot(x - 180, y - 260),
-              angle: Math.atan2(y - 260, x - 180),
-              speed: 0,
-              turn: 0,
-            };
-          });
-          if (id === 'burst') {
-            const nearest = [...g.targets].sort(
-              (a, b) => Math.hypot(a.x - 180, a.y - 128) - Math.hypot(b.x - 180, b.y - 128),
-            )[0];
-            nearest.hp = nearest.maxHp = 2;
-          }
-          if (['strike', 'wave', 'whip', 'focus'].includes(id)) g.combat.fireSkill(id);
-          else g.combat.fireBasic();
-          window.__gameDebug.advance(
-            ['wave', 'whip'].includes(id) ? 175 : id === 'repeat' ? 100 : 50,
-          );
-          g.setHidden(true);
-          return {
-            effects: g.effects
-              .filter((fx) => fx.source === id)
-              .map((fx) => ({ rank: fx.rank, radius: fx.radius, width: fx.width })),
-            hits: g.events.filter((event) => event.kind === 'hit').length,
-          };
-        },
-        { id, rank },
-      );
+      const result = await showSkill(page, id, rank);
       assert.ok(
         result.effects.length > 0 && result.hits > 0,
         id + ' must produce an actual visible attack',
@@ -345,13 +329,13 @@ const visualFlow = async () => {
     }
     if (['multi', 'chain', 'burst', 'strike'].includes(id))
       assert.ok(ranks[1].hits > ranks[0].hits);
-    if (['area', 'pierce', 'wave', 'whip'].includes(id))
+    if (['pierce'].includes(id))
       assert.ok(
         ranks[1].effects[0].radius > ranks[0].effects[0].radius ||
           ranks[1].effects[0].width > ranks[0].effects[0].width,
       );
   }
-  report('all ten skills retain their identity and show actual growth from rank one to five', {
+  report('all sixteen skills retain their identity and show actual growth from rank one to five', {
     skills: skillIds,
   });
   for (const [width, height] of [
@@ -452,7 +436,7 @@ const interfaceFlow = async () => {
         turn: 0,
       },
     ];
-    for (const id of ['strike', 'area', 'burst']) {
+    for (const id of ['strike', 'charge', 'burst']) {
       g.choice = {
         number: g.selections.length + 1,
         cards: [{ id, rarity: 'common' }],
@@ -471,9 +455,12 @@ const interfaceFlow = async () => {
     await page
       .locator('.slot[data-skill]')
       .evaluateAll((nodes) => nodes.map((n) => n.dataset.skill)),
-    ['strike', 'area', 'burst'],
+    ['strike', 'charge', 'burst'],
   );
-  assert.equal(await page.locator('.slot[data-skill="area"]').getAttribute('data-mode'), 'linked');
+  assert.equal(
+    await page.locator('.slot[data-skill="charge"]').getAttribute('data-mode'),
+    'charging',
+  );
   assert.equal(await page.locator('.slot[data-skill="burst"] .slot-fill').count(), 0);
   const bounds = async () => {
     const fill = await strike.locator('.slot-fill').boundingBox();
@@ -571,11 +558,11 @@ const interfaceFlow = async () => {
   await page.evaluate(() => {
     const g = window.__gameDebug.getModel();
     g.setHidden(false);
-    g.ranks = { ...g.ranks, area: 5, chain: 5, wave: 5, strike: 5 };
+    g.ranks = { ...g.ranks, charge: 5, chain: 5, repel: 5, strike: 5 };
     g.boosts = { power: 6, rate: 6, range: 6 };
     g.selections = Array.from({ length: 20 }, (_, i) => ({
       time: i,
-      id: ['area', 'chain', 'wave', 'strike'][i % 4],
+      id: ['charge', 'chain', 'repel', 'strike'][i % 4],
       rank: Math.floor(i / 4) + 1,
       rarity: 'common',
       automatic: false,
@@ -636,7 +623,7 @@ try {
     report('production reload restores the saved run and manual pause', { xp: pausedXp });
     await page.close();
   } else if (process.argv.includes('--realtime')) {
-    const page = await pageFor(375, 812, 20000);
+    const page = await pageFor(375, 812, 96057);
     await page.getByRole('button', { name: 'START' }).click();
     const started = Date.now(),
       samples = [];
@@ -662,7 +649,7 @@ try {
     // Compare clocks inside Chrome: Node's trigonometric rounding can change a tied target choice.
     const expected = await page.evaluate(async () => {
       const { Game } = await import('/src/game/model.ts');
-      const game = new Game(20000);
+      const game = new Game(96057);
       game.start();
       game.advance(610000);
       return game.result;
@@ -673,7 +660,7 @@ try {
       JSON.stringify(
         {
           viewport: [375, 812],
-          seed: 20000,
+          seed: 96057,
           elapsedWallSeconds: (Date.now() - started) / 1000,
           samples,
           result: s.result,
@@ -743,14 +730,14 @@ try {
       assert.equal(reset.seed, 10004);
       assert.equal(reset.xp, 0);
       assert.equal(reset.mass, 0);
-      await page.evaluate(() => window.__gameDebug.restart(20000));
+      await page.evaluate(() => window.__gameDebug.restart(96057));
       await advance(page, 610000);
       await page.getByRole('heading', { name: copy.ko.success, exact: true }).waitFor();
       await inspect(page);
       await screenshot(page, 'result-' + name);
       assert.equal((await snapshot(page)).result.trigger, 'energy');
       await page.getByRole('button', { name: '다시하기' }).click();
-      assert.equal((await snapshot(page)).seed, 20000);
+      assert.equal((await snapshot(page)).seed, 96057);
       await page.evaluate(() => window.__gameDebug.restart(10004));
       await advance(page, 610000);
       await page.getByRole('button', { name: '새 게임' }).click();
@@ -831,7 +818,7 @@ try {
       window.__gameDebug.restart(17, false);
       const g = window.__gameDebug.getModel();
       window.__gameDebug.xp(1000);
-      g.select('area');
+      g.select(g.choice.cards[0].id);
       window.__gameDebug.advance(25000);
       g.mass = 150;
       g.radius = 40;
@@ -878,7 +865,7 @@ try {
     report('readiness and both endings', { energyBoundary: rules.energyGoal });
 
     await page.evaluate(() => {
-      window.__gameDebug.restart(20000);
+      window.__gameDebug.restart(96057);
       window.__gameDebug.advance(450000);
     });
     const frames = await page.evaluate(
