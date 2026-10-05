@@ -2,7 +2,7 @@
 
 **From a tiny electron to a powerful singularity.**
 
-A pixel-art survival game about protecting an orbiting electron and growing its lightning. Movement and attacks are automatic. You choose the skills and combinations that keep you alive.
+A pixel-art survival game set around a lone orbiting electron. Automatic combat and evolving lightning bring a miniature cosmic battle to your browser.
 
 <p align="center">
   <img src="docs/images/gameplay-1.jpg" width="32%" alt="Incoming particles surrounding the electron's orbit" />
@@ -12,11 +12,11 @@ A pixel-art survival game about protecting an orbiting electron and growing its 
 
 ## About the game
 
-Defeat enemies to earn XP, then choose one of three upgrades each time you level up. Missed particles accumulate in the core and shrink your orbit. Grow strong enough to form a singularity before the orbit collapses.
+At the center of SINGULARITY is a single electron and an increasingly unstable orbit. Waves of particles, branching lightning, and a growing core turn a simple circular arena into a battle for survival, with a singularity waiting at the end.
 
-- **Build your own lightning** — Combine four of sixteen skills and upgrade them through multiple ranks.
-- **Make every choice count** — A skill's rarity locks when you first acquire it. Take it now or wait for a better roll.
-- **Jump straight in** — Play in your browser, with progress saved automatically on your device.
+- **Evolving lightning** — Sixteen distinct skills, from branching bolts to electric orbs.
+- **Pixel-art space** — A dark cosmic arena with crisp icons and vivid electrical effects.
+- **Browser play** — Automatic movement and combat, with progress saved locally on your device.
 - **Mobile and desktop** — Supports Korean, English, Chinese, and Japanese.
 
 ## Run locally
