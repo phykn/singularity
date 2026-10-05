@@ -4,6 +4,7 @@ import { base, capture, launchBrowser, observeScene, showSuccess } from './brows
 import { rules, skillIds, upgradeIds, rarityIds } from '../src/game/rules.ts';
 import { copy } from '../src/ui/i18n.ts';
 import { skillColor } from '../src/render/palette.ts';
+import { WARNING_RED } from '../src/render/warning.ts';
 
 mkdirSync('artifacts/screens', { recursive: true });
 const browser = await launchBrowser();
@@ -987,8 +988,87 @@ const orbFlow = async () => {
   await page.close();
 };
 
+const waveWarningFlow = async () => {
+  for (const [width, height] of [
+    [320, 568],
+    [568, 320],
+  ]) {
+    const page = await browser.newPage({
+      viewport: { width, height },
+      isMobile: true,
+      hasTouch: true,
+    });
+    page.on('pageerror', (error) => errors.push(error.message));
+    await observeScene(page);
+    await page.goto(base);
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForFunction(() => !!window.__gameScene && !!window.__gameDebug);
+    await page.evaluate(() => {
+      const debug = window.__gameDebug;
+      debug.restart(10004, false);
+      const g = debug.getModel();
+      g.tick = g.elapsedTicks = 87 * g.rules.tickRate;
+      g.combatEnabled = true;
+      g.nextSpawn = Infinity;
+      g.spawnBatch();
+      g.setHidden(true);
+      debug.advance(0);
+    });
+    const sample = () =>
+      page.evaluate((red) => {
+        const scene = window.__gameScene,
+          graphics = scene.graphics,
+          styles = [];
+        const lineStyle = graphics.lineStyle;
+        graphics.lineStyle = function (width, color, alpha) {
+          if (color === red) styles.push({ width: width * scene.worldScale, alpha });
+          return lineStyle.call(this, width, color, alpha);
+        };
+        try {
+          scene.update();
+        } finally {
+          graphics.lineStyle = lineStyle;
+        }
+        return styles;
+      }, WARNING_RED);
+    const peak = await sample();
+    assert.equal(peak.length, 2);
+    peak.forEach((style) => {
+      assert.ok(Math.abs(style.width - 3) < 1e-6);
+      assert.ok(style.alpha > 0.9);
+    });
+    await screenshot(page, 'wave-warning-bright-' + width + 'x' + height);
+    await page.evaluate(() => {
+      const debug = window.__gameDebug,
+        g = debug.getModel();
+      g.setHidden(false);
+      debug.advance(250);
+      g.setHidden(true);
+    });
+    const dim = await sample();
+    dim.forEach((style) => assert.ok(style.alpha < 0.35));
+    await page.waitForTimeout(100);
+    assert.deepEqual(await sample(), dim, 'Warning must freeze with the paused simulation');
+    await screenshot(page, 'wave-warning-dim-' + width + 'x' + height);
+    await page.evaluate(() => {
+      const debug = window.__gameDebug,
+        g = debug.getModel();
+      g.setHidden(false);
+      debug.advance(3000);
+      g.setHidden(true);
+    });
+    assert.deepEqual(await sample(), []);
+    assert.equal(await page.evaluate(() => window.__gameDebug.getModel().waveCount), 1);
+    await inspect(page);
+    report('red wave warnings pulse, pause and expire ' + width + 'x' + height, { peak, dim });
+    await page.close();
+  }
+};
+
 try {
-  if (process.argv.includes('--orb')) {
+  if (process.argv.includes('--warning')) {
+    await waveWarningFlow();
+  } else if (process.argv.includes('--orb')) {
     await orbFlow();
   } else if (process.argv.includes('--qa')) {
     await qaFlow();
@@ -997,6 +1077,7 @@ try {
   } else if (process.argv.includes('--audio')) {
     await audioFlow();
   } else if (process.argv.includes('--skills')) {
+    await waveWarningFlow();
     await skillFlow();
   } else if (process.argv.includes('--visuals')) {
     await visualFlow();
@@ -1189,6 +1270,7 @@ try {
       await page.close();
     }
 
+    await waveWarningFlow();
     await skillFlow();
     await interfaceFlow();
     await visualFlow();
@@ -1373,21 +1455,23 @@ try {
     'artifacts/' +
       (process.argv.includes('--polish')
         ? 'polish-browser'
-        : process.argv.includes('--audio')
-          ? 'audio-browser'
-          : process.argv.includes('--skills')
-            ? 'skills-browser'
-            : process.argv.includes('--visuals')
-              ? 'visuals-browser'
-              : process.argv.includes('--interface')
-                ? 'interface-browser'
-                : process.argv.includes('--rarity')
-                  ? 'rarity-browser'
-                  : process.argv.includes('--production')
-                    ? 'production'
-                    : process.argv.includes('--realtime')
-                      ? 'realtime-checks'
-                      : 'browser') +
+        : process.argv.includes('--warning')
+          ? 'warning-browser'
+          : process.argv.includes('--audio')
+            ? 'audio-browser'
+            : process.argv.includes('--skills')
+              ? 'skills-browser'
+              : process.argv.includes('--visuals')
+                ? 'visuals-browser'
+                : process.argv.includes('--interface')
+                  ? 'interface-browser'
+                  : process.argv.includes('--rarity')
+                    ? 'rarity-browser'
+                    : process.argv.includes('--production')
+                      ? 'production'
+                      : process.argv.includes('--realtime')
+                        ? 'realtime-checks'
+                        : 'browser') +
       '.json',
     JSON.stringify({ base, checks, errors }, null, 2),
   );

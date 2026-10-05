@@ -28,7 +28,6 @@ type Pulse = {
   target?: Target;
   from?: Point;
   reverse?: Point;
-  returnTarget?: number;
   anchored: boolean;
 };
 type Focus = {
@@ -80,6 +79,7 @@ export class Combat {
   private lastNode?: { point: Point; id: number; time: number };
   private nextBridge = 0;
   private surgeCharge = 0;
+  private storedCharge = 0;
   private lastKill = -Infinity;
   private surgeUntil = 0;
   private nextSurge = 0;
@@ -101,7 +101,7 @@ export class Combat {
       .sort((a, b) => a.at - b.at || a.order - b.order);
     this.pulses = this.pulses.filter((p) => p.at > g.tick + 1e-8);
     for (const pulse of due) {
-      if (pulse.reverse) this.reverse(pulse.attack, pulse.reverse, pulse.returnTarget);
+      if (pulse.reverse) this.reverse(pulse.attack, pulse.reverse);
       else {
         const from = pulse.anchored ? g.position : pulse.from!;
         const target =
@@ -155,11 +155,7 @@ export class Combat {
     if (id === 'charge')
       return {
         mode: 'charging',
-        progress: Math.min(
-          1,
-          g.targets.reduce((max, t) => Math.max(max, t.charge ?? 0), 0) /
-            (g.forms.charge.threshold || 1),
-        ),
+        progress: Math.min(1, this.storedCharge / (g.forms.charge.threshold || 1)),
         active: false,
         fired,
       };
@@ -220,10 +216,10 @@ export class Combat {
     this.bridges = [];
     this.lastNode = undefined;
     this.surgeCharge = 0;
+    this.storedCharge = 0;
     this.surgeUntil = 0;
     this.surgeAttack = undefined;
     for (const target of this.game.targets) {
-      target.charge = 0;
       target.stunUntil = 0;
     }
   }
@@ -277,7 +273,9 @@ export class Combat {
             ? s.orb.damage
             : id === 'chase'
               ? s.chase.damage
-              : g.rules.skills[id].damage;
+              : id === 'gather'
+                ? s.gather.damage
+                : g.rules.skills[id].damage;
     const attack = this.begin(id, multiplier),
       branches = s.multi.count;
     const within = (range: number) =>
@@ -319,13 +317,14 @@ export class Combat {
         g.range * 1.5,
       );
       const moved = new Set<number>();
+      const reserved = new Set(anchors.map((target) => target.id));
       let fired = 0;
       for (const anchor of anchors) {
         const point = { ...anchor };
         fired += this.volley(attack, origin, [anchor], true);
         const group = closest(g.targets, point, s.gather.count, s.gather.radius);
         for (const target of group) {
-          if (moved.has(target.id) || target === anchor || g.time < (target.gatherReady ?? 0))
+          if (moved.has(target.id) || reserved.has(target.id) || g.time < (target.gatherReady ?? 0))
             continue;
           moved.add(target.id);
           target.gatherReady = g.time + g.rules.skills.gather.immunitySeconds;
@@ -337,7 +336,12 @@ export class Combat {
           target.angle = Math.atan2(y - CENTER.y, x - CENTER.x);
           target.radius = Math.max(target.radius, Math.hypot(x - CENTER.x, y - CENTER.y));
           Object.assign(target, orbit(target.angle, target.radius));
-          this.effect(attack, 'bolt', from, target, 0, 0.22);
+          this.emit(
+            { ...attack, damage: attack.damage * 0.5, depth: 1, firstKill: undefined },
+            from,
+            target,
+            false,
+          );
         }
       }
       if (fired > 1) this.activate('multi', attack.ranks.multi);
@@ -480,7 +484,6 @@ export class Combat {
           push: false,
         },
         reverse: point,
-        returnTarget: target.id,
         anchored: false,
       });
   }
@@ -532,6 +535,38 @@ export class Combat {
     const g = this.game;
     g.damageTarget(target, damage, attack);
     if (attack.ranks.bridge && attack.depth === 0) this.connect(attack, target);
+    if (attack.ranks.charge && attack.source !== 'charge' && attack.depth < 2) {
+      this.storedCharge = Math.min(
+        attack.forms.charge.threshold,
+        this.storedCharge + Math.min(1, damage / attack.power),
+      );
+      const recipient = target.hp > 0 ? target : closest(g.targets, g.position, 1, attack.range)[0];
+      if (recipient && this.storedCharge + 1e-8 >= attack.forms.charge.threshold) {
+        this.storedCharge = 0;
+        const charged = {
+          ...attack,
+          source: 'charge' as const,
+          damage: attack.power * attack.forms.charge.damage,
+          firstKill: undefined,
+          depth: attack.depth + 1,
+          push: false,
+        };
+        this.effect(charged, 'bolt', g.position, recipient, 0, 0.2, true, 'charge', 4);
+        this.activate('charge', attack.ranks.charge);
+        this.resolve(charged, recipient, g.position, true);
+      } else
+        this.effect(
+          attack,
+          'charge',
+          g.position,
+          g.position,
+          10,
+          0.3,
+          true,
+          'charge',
+          this.storedCharge / attack.forms.charge.threshold,
+        );
+    }
     if (target.hp <= 0) return;
     if (attack.push && g.time >= (target.pushReady ?? 0)) {
       target.pushReady = g.time + g.rules.skills.repel.immunitySeconds;
@@ -549,35 +584,6 @@ export class Combat {
       target.stunReady = target.stunUntil + g.rules.skills.stun.immunitySeconds;
       this.effect(attack, 'stun', target, target, target.size + 3, duration, false, 'stun');
       this.activate('stun', attack.ranks.stun);
-    }
-    if (attack.ranks.charge && attack.source !== 'charge' && attack.depth < 2) {
-      target.charge = (target.charge ?? 0) + Math.min(1, damage / attack.power);
-      if (target.charge + 1e-8 >= attack.forms.charge.threshold) {
-        target.charge = 0;
-        const charged = {
-          ...attack,
-          source: 'charge' as const,
-          damage: attack.power * attack.forms.charge.damage,
-          firstKill: undefined,
-          depth: attack.depth + 1,
-          push: false,
-        };
-        this.effect(charged, 'bolt', g.position, target, 0, 0.2, true, 'charge', 4);
-        this.activate('charge', attack.ranks.charge);
-        this.resolve(charged, target, g.position, true);
-      } else
-        this.effect(
-          attack,
-          'charge',
-          target,
-          target,
-          target.size + 2,
-          0.3,
-          false,
-          'charge',
-          target.charge / attack.forms.charge.threshold,
-          target.id,
-        );
     }
   }
 
@@ -604,11 +610,9 @@ export class Combat {
     this.volley(child, from, targets, false);
   }
 
-  private reverse(attack: Attack, from: Point, originTarget?: number): void {
+  private reverse(attack: Attack, from: Point): void {
     const to = this.game.position,
-      targets = onSegment(this.game.targets, from, to, this.game.rules.skills.return.width).filter(
-        (t) => t.id !== originTarget || distance(t, from) > 4,
-      ),
+      targets = onSegment(this.game.targets, from, to, attack.forms.return.width),
       target = targets[0];
     this.effect(attack, 'return', from, to, 0, 0.2, false, 'return');
     this.activate('return', attack.ranks.return);
@@ -754,7 +758,7 @@ export class Combat {
         g.targets,
         bridge.from,
         bridge.to,
-        g.rules.skills.bridge.width,
+        bridge.attack.forms.bridge.width,
       )) {
         if (bridge.hit.has(target.id)) continue;
         bridge.hit.add(target.id);

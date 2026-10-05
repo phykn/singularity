@@ -9,6 +9,7 @@ import type { Point } from '../game/geometry.ts';
 import type { Game } from '../game/model.ts';
 import { BLUE, WHITE, AMBER, GOLD, skillColors } from './palette.ts';
 import { drawEffect, drawOrb, drawSurge } from './lightning.ts';
+import { drawWaveWarning } from './warning.ts';
 export class ElectronScene extends Phaser.Scene {
   private graphics!: Phaser.GameObjects.Graphics;
   private effectGraphics!: Phaser.GameObjects.Graphics;
@@ -94,18 +95,13 @@ export class ElectronScene extends Phaser.Scene {
     if (model.mass > 0 && (!ending || !ending.success || ending.electron))
       this.drawCore(model.core * (ending?.success ? 1 - ending.absorb * 0.7 : 1), scale);
     const warning = model.warningWave;
-    if (warning) {
-      g.lineStyle(1 / scale, AMBER, 0.65);
-      for (const offset of [0, Math.PI]) {
-        g.beginPath();
-        for (let i = 0; i <= 12; i++) {
-          const p = orbit(warning.angle + offset - 0.2 + i / 30, 172);
-          if (!i) g.moveTo(p.x, p.y);
-          else g.lineTo(p.x, p.y);
-        }
-        g.strokePath();
-      }
-    }
+    if (warning)
+      drawWaveWarning(
+        g,
+        warning.angle,
+        model.time - warning.time + model.rules.waveWarningSeconds,
+        scale,
+      );
     for (const target of model.targets) {
       if (ending && !ending.success && !ending.electron) continue;
       const absorb = ending?.absorb ?? 0;

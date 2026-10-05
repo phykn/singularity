@@ -8,6 +8,7 @@ import type { Effect } from '../src/game/types.ts';
 import { skillIds, upgradeIds } from '../src/game/rules.ts';
 import { glyphs, glyphPaths } from '../src/ui/glyphs.ts';
 import { close, target } from './helpers.ts';
+import { drawWaveWarning, WARNING_RED } from '../src/render/warning.ts';
 
 test('native sprites paint only palette pixels within their texture bounds', () => {
   const textures: string[] = [];
@@ -101,6 +102,28 @@ function drawing() {
   ) as Phaser.GameObjects.Graphics;
   return { graphics, commands };
 }
+test('wave warnings mark both incoming directions in red and pulse with simulation time', () => {
+  const peak = drawing(),
+    dim = drawing(),
+    paused = drawing();
+  drawWaveWarning(peak.graphics, 0, 0, 0.5);
+  drawWaveWarning(dim.graphics, 0, 0.25, 0.5);
+  drawWaveWarning(paused.graphics, 0, 0.25, 0.5);
+  assert.deepEqual(dim.commands, paused.commands);
+  const styles = peak.commands.filter((c) => c.method === 'lineStyle');
+  assert.equal(styles.length, 2);
+  styles.forEach((c) => {
+    assert.equal(c.args[0] * 0.5, 3);
+    assert.equal(c.args[1], WARNING_RED);
+    close(c.args[2], 0.95);
+  });
+  dim.commands.filter((c) => c.method === 'lineStyle').forEach((c) => close(c.args[2], 0.3));
+  assert.equal(peak.commands.filter((c) => c.method === 'strokePath').length, 2);
+  const marks = peak.commands.filter((c) => c.method === 'fillRect');
+  assert.equal(marks.length, 4);
+  assert.ok(marks[0].args[0] > 180 && marks[2].args[0] < 180);
+});
+
 const effect: Effect = {
   kind: 'focus',
   source: 'focus',

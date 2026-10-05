@@ -118,7 +118,7 @@ writeFileSync(
     {
       sourceHash: hash,
       policy,
-      target: 0.1,
+      target: [0.1, 0.15],
       scope:
         policy === 'auto'
           ? 'Automatic highest-rarity selection, first card on ties, with uncapped time and stats; human clear rates may differ.'

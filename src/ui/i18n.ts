@@ -147,7 +147,7 @@ const ko = {
     gather: {
       name: '자기 응집',
       short: '자기 응집',
-      description: '바깥쪽의 적을 중심으로 주변 적을 모음',
+      description: '바깥쪽의 적에게 주변 적을 모으며 방전',
     },
     stun: {
       name: '단락',
@@ -199,11 +199,11 @@ const ko = {
     orb: ['이동하며 방전', '지속·범위 ↑'],
     charge: ['충전 후 방전', '충전↓위력↑'],
     bridge: ['통과하는 적 공격', '전류선 강화'],
-    gather: ['주변 적 모으기', '대상·당기기 ↑'],
+    gather: ['모으며 방전', '대상·위력 ↑'],
     stun: ['잠깐 마비', '마비 시간 ↑'],
     chase: ['약해진 적 추격', '대상·위력 ↑'],
     surge: ['연속 처치 후 난사', '폭주 시간 ↑'],
-    return: ['전자 쪽으로 역류', '역류 위력 ↑'],
+    return: ['전자 쪽으로 역류', '경로·위력 ↑'],
   },
 };
 type Copy = typeof ko;
@@ -359,7 +359,7 @@ const en: Copy = {
     gather: {
       name: 'Magnetic Gather',
       short: 'Gather',
-      description: 'Gather nearby enemies around an outer target',
+      description: 'Gather and zap nearby enemies around an outer target',
     },
     stun: {
       name: 'Short Circuit',
@@ -411,11 +411,11 @@ const en: Copy = {
     orb: ['Travel & zap', 'Time · reach ↑'],
     charge: ['Store & release', 'Charge cost ↓'],
     bridge: ['Zap crossings', 'Stronger wire'],
-    gather: ['Gather enemies', 'Targets · pull ↑'],
+    gather: ['Gather & zap', 'Targets · power ↑'],
     stun: ['Brief stun', 'Longer stun'],
     chase: ['Finish weak foes', 'Targets · power ↑'],
     surge: ['Kills fuel a flurry', 'Longer flurry'],
-    return: ['Return to electron', 'Return power ↑'],
+    return: ['Return to electron', 'Path · power ↑'],
   },
 };
 
@@ -519,7 +519,7 @@ const zh: Copy = {
       short: '电流桥',
       description: '连接两个命中点，攻击穿过电流线的敌人',
     },
-    gather: { name: '磁力聚集', short: '磁力聚集', description: '将附近敌人聚向外侧目标' },
+    gather: { name: '磁力聚集', short: '磁力聚集', description: '将附近敌人聚向外侧目标并放电' },
     stun: { name: '短路', short: '短路', description: '命中短暂麻痹，同一敌人无法连续麻痹' },
     chase: { name: '追击闪电', short: '追击闪电', description: '优先追击剩余生命较低的敌人' },
     surge: {
@@ -558,11 +558,11 @@ const zh: Copy = {
     orb: ['移动放电', '持续·范围 ↑'],
     charge: ['蓄电放电', '蓄电需求 ↓'],
     bridge: ['攻击穿越敌人', '强化电流桥'],
-    gather: ['聚集敌人', '目标·拉力 ↑'],
+    gather: ['聚集放电', '目标·威力 ↑'],
     stun: ['短暂麻痹', '麻痹时间 ↑'],
     chase: ['追击弱敌', '目标·威力 ↑'],
     surge: ['击杀后连射', '暴走时间 ↑'],
-    return: ['朝电子回流', '回流威力 ↑'],
+    return: ['朝电子回流', '路径·威力 ↑'],
   },
 };
 
@@ -694,7 +694,7 @@ const ja: Copy = {
     gather: {
       name: '磁気収束',
       short: '磁気収束',
-      description: '外側の敵を中心に周囲の敵を集める',
+      description: '外側の敵に周囲の敵を集めて放電',
     },
     stun: { name: '短絡', short: '短絡', description: '命中で短い麻痺。同じ敵への連続麻痺は不可' },
     chase: { name: '追撃の雷', short: '追撃の雷', description: '残り体力の少ない敵を優先して追撃' },
@@ -738,11 +738,11 @@ const ja: Copy = {
     orb: ['飛びながら放電', '持続・範囲 ↑'],
     charge: ['蓄電して放電', '必要蓄電 ↓'],
     bridge: ['横切る敵を攻撃', '電流線を強化'],
-    gather: ['敵を集める', '対象・引力 ↑'],
+    gather: ['集めて放電', '対象・威力 ↑'],
     stun: ['短い麻痺', '麻痺時間 ↑'],
     chase: ['弱った敵を追撃', '対象・威力 ↑'],
     surge: ['撃破後に連射', '暴走時間 ↑'],
-    return: ['電子へ逆流', '逆流威力 ↑'],
+    return: ['電子へ逆流', '経路・威力 ↑'],
   },
 };
 

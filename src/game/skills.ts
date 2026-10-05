@@ -49,7 +49,7 @@ export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rul
       damage: s.orb.damage * scale('orb'),
     },
     charge: {
-      threshold: s.charge.threshold[ranks.charge],
+      threshold: s.charge.threshold[ranks.charge] / scale('charge'),
       damage: s.charge.damage[ranks.charge] * scale('charge'),
     },
     bridge: {
@@ -57,11 +57,13 @@ export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rul
       duration: s.bridge.duration[ranks.bridge],
       count: s.bridge.count[ranks.bridge] + extra('bridge'),
       damage: s.bridge.damage[ranks.bridge] * scale('bridge'),
+      width: s.bridge.width[ranks.bridge] * scale('bridge'),
     },
     gather: {
       radius: s.gather.radii[ranks.gather] * scale('gather') * reach,
       count: s.gather.count[ranks.gather] + extra('gather'),
       pull: s.gather.pull[ranks.gather] * scale('gather'),
+      damage: s.gather.damage[ranks.gather] * scale('gather'),
     },
     stun: { duration: s.stun.duration[ranks.stun] * scale('stun') },
     chase: {
@@ -74,7 +76,10 @@ export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rul
       duration: s.surge.duration[ranks.surge],
       damage: s.surge.damage * scale('surge'),
     },
-    return: { damage: s.return.damage[ranks.return] * scale('return') },
+    return: {
+      damage: s.return.damage[ranks.return] * scale('return'),
+      width: s.return.width[ranks.return] * scale('return'),
+    },
   };
 }
 export type SkillValues = ReturnType<typeof skillValues>;

@@ -46,7 +46,7 @@ for (const id of ['focus', 'gather'] as const)
     if (id === 'focus') g.advance(1000 / rules.tickRate);
     assert.equal(g.combat.status('multi').fired, true);
     close(g.combat.status('multi').progress, 0);
-    const expected = g.damage * rules.skills[id].damage;
+    const expected = g.damage * (id === 'gather' ? g.forms.gather.damage : rules.skills[id].damage);
     close(10000 - ts[0].hp, expected);
     close(10000 - ts[1].hp, expected * (id === 'focus' ? g.forms.multi.damage : 1));
     const h = stationarySkill({ [id]: 1, multi: 1 }, [target(0, 190, 128, 10000)]);
@@ -134,7 +134,7 @@ test('orbs travel and fork; their emitted lightning carries charge and chain mod
   const g = stationarySkill({ orb: 3, multi: 1, chain: 1, charge: 1 }, ts);
   g.combat.fireSkill('orb');
   g.advance(500);
-  assert.ok(g.targets.some((t) => (t.charge ?? 0) > 0));
+  assert.ok(g.combat.status('charge').progress > 0 || g.combat.activations.charge !== undefined);
   assert.ok(g.combat.orbPoints.some((p) => p.x > g.position.x));
   assert.ok(g.combat.activations.multi !== undefined && g.combat.activations.chain !== undefined);
   assert.equal(g.combat.orbPoints.length, 2);
@@ -177,15 +177,16 @@ test('charge only releases after enough weighted hits and cannot charge its own 
   const hits = Math.ceil(g.forms.charge.threshold);
   for (let i = 0; i < hits - 1; i++) g.combat.fireBasic();
   assert.equal(g.combat.activations.charge, undefined);
-  assert.equal(p.charge, hits - 1);
+  close(g.combat.status('charge').progress, (hits - 1) / g.forms.charge.threshold);
   g.combat.fireBasic();
   assert.ok(g.combat.activations.charge !== undefined);
-  assert.equal(p.charge, 0);
+  assert.equal(g.combat.status('charge').progress, 0);
   assert.equal(g.events.filter((e) => e.kind === 'hit').length, hits + 1);
   const h = stationarySkill({ charge: 1, repeat: 1 }, [target(0, 200, 128, 10000)]);
   h.combat.fireBasic();
   h.advance(150);
-  assert.ok(h.targets[0].charge! > 1 && h.targets[0].charge! < 2);
+  const stored = h.combat.status('charge').progress * h.forms.charge.threshold;
+  assert.ok(stored > 1 && stored < 2);
 });
 
 test('bridge persists at impact sites, damages a crossing once and expires', () => {
@@ -290,7 +291,7 @@ test('return uses the current electron position without teleporting and never re
   g.advance(300);
   assert.deepEqual(g.position, position);
   assert.ok(p.hp < 100);
-  assert.ok(p.charge! > 0);
+  assert.ok(g.combat.status('charge').progress > 0 || g.combat.activations.charge !== undefined);
   const returned = g.effects.find((f) => f.kind === 'return')!;
   assert.ok(returned);
   close(returned.from.x, 190);

@@ -19,7 +19,6 @@ export type Target = Point & {
   speed: number;
   turn: number;
   hitAt?: number;
-  charge?: number;
   stunUntil?: number;
   stunReady?: number;
   pushReady?: number;
