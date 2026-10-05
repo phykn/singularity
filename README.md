@@ -1,8 +1,8 @@
 # SINGULARITY
 
-**From a tiny electron to a powerful singularity.**
+**One electron. A whole lot of lightning.**
 
-A pixel-art survival game set around a lone orbiting electron. Automatic combat and evolving lightning bring a miniature cosmic battle to your browser.
+A pixel-art survival game where a lone electron lights up the dark. The combat is automatic, the lightning keeps growing, and your orbit won't hold forever.
 
 **[Play now — singularity.phykn-kr.workers.dev](https://singularity.phykn-kr.workers.dev/)**
 
@@ -14,12 +14,12 @@ A pixel-art survival game set around a lone orbiting electron. Automatic combat 
 
 ## About the game
 
-At the center of SINGULARITY is a single electron and an increasingly unstable orbit. Waves of particles, branching lightning, and a growing core turn a simple circular arena into a battle for survival, with a singularity waiting at the end.
+Particles pour in. The core swells. The space around you closes in. Each run turns a quiet orbit into an electrical storm, with a singularity just beyond the chaos.
 
-- **Evolving lightning** — Sixteen distinct skills, from branching bolts to electric orbs.
-- **Pixel-art space** — A dark cosmic arena with crisp icons and vivid electrical effects.
-- **Browser play** — Automatic movement and combat, with progress saved locally on your device.
-- **Mobile and desktop** — Supports Korean, English, Chinese, and Japanese.
+- **Let the sparks fly** — Sixteen lightning skills, from branching bolts to roaming electric orbs.
+- **Small pixels, big impact** — Bright electrical effects against a dark cosmic backdrop.
+- **Open a tab. Enter orbit.** — Play in your browser, with progress saved on your device.
+- **Mobile and desktop** — Available in Korean, English, Chinese, and Japanese.
 
 ## Run locally
 
