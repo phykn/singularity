@@ -13,15 +13,17 @@ export function UpgradeFeedback({ game, language }: { game: Game; language: Lang
   return (
     <div
       className="upgrade-feedback"
-      key={id + rank}
+      key={game.selections.length}
       style={{ '--skill': skillColor(id) } as CSSProperties}
       data-skill={id}
       role="status"
-      aria-label={c.upgrades[id].name + ', ' + c.rankUp(rank - 1, rank)}
+      aria-label={
+        c.upgrades[id].name + ', ' + (id === 'recover' ? c.instant : c.rankUp(rank - 1, rank))
+      }
     >
       <SkillIcon id={id} size={16} />
       <strong>{c.upgrades[id].short}</strong>
-      <span>{rank === 1 ? 'Lv. 1' : `${rank - 1} → ${rank}`}</span>
+      <span>{id === 'recover' ? c.instant : rank === 1 ? 'Lv. 1' : `${rank - 1} → ${rank}`}</span>
     </div>
   );
 }

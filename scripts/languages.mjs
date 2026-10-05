@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { base, capture, launchBrowser } from './browser-support.mjs';
 import { copy, languages } from '../src/ui/i18n.ts';
-import { rules, rarityIds, skillIds, statIds } from '../src/game/rules.ts';
+import { rules, rarityIds, upgradeIds } from '../src/game/rules.ts';
 import { particleIds } from '../src/game/particles.ts';
 import { particleNames } from '../src/ui/i18n.ts';
 
@@ -98,10 +98,7 @@ try {
       await inspect(page);
       if (width === 375) await screenshot(page, `artifacts/screens/ready-${language.id}.png`);
       await page.getByRole('button', { name: c.guide, exact: true }).click();
-      assert.equal(
-        await page.locator('.skill-guide > div').count(),
-        skillIds.length + statIds.length,
-      );
+      assert.equal(await page.locator('.skill-guide > div').count(), upgradeIds.length);
       assert.deepEqual(
         await page.locator('.particle-guide span').allTextContents(),
         Object.values(particleNames[language.id]),
@@ -112,7 +109,7 @@ try {
       await page.evaluate(() => {
         const g = window.__gameDebug.getModel();
         g.setHidden(true);
-        for (const id of ['power', 'rate', 'accel']) {
+        for (const id of ['power', 'rate', 'range']) {
           g.boosts[id] = 1000;
           g.rarities[id] = 'legendary';
         }
@@ -239,7 +236,7 @@ try {
       await page.goto(base);
       await page.waitForFunction(() => !!window.__gameDebug);
       await page.getByRole('button', { name: language.label, exact: true }).click();
-      const ids = [...skillIds, ...statIds];
+      const ids = upgradeIds;
       for (const rarity of rarityIds)
         for (let rank = 1; rank <= rules.maxRank; rank++)
           for (let i = 0; i < ids.length; i += 3) {
@@ -249,6 +246,7 @@ try {
                 const g = window.__gameDebug.getModel();
                 for (const id of ids) {
                   if (id in g.ranks) g.ranks[id] = rank - 1;
+                  else if (id === 'recover') g.mass = 120;
                   else g.boosts[id] = rank - 1;
                 }
                 g.choice = {

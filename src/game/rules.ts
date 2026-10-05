@@ -3,18 +3,19 @@ import values from '../../design/rules.json' with { type: 'json' };
 export const rules = values;
 export type RuleSet = typeof rules;
 export type SkillId = keyof typeof rules.skills;
-export type StatId = 'power' | 'rate' | 'accel';
-export type UpgradeId = SkillId | StatId;
+export type StatId = 'power' | 'rate' | 'range';
+export type UpgradeId = SkillId | StatId | 'recover';
 export type Rarity = keyof typeof rules.rarity;
 export type Rarities = Record<UpgradeId, Rarity>;
 export type Card = { id: UpgradeId; rarity: Rarity };
 export type Ranks = Record<SkillId, number>;
 export type Boosts = Record<StatId, number>;
 export const skillIds = Object.keys(values.skills) as SkillId[];
-export const statIds: StatId[] = ['power', 'rate', 'accel'];
+export const statIds: StatId[] = ['power', 'rate', 'range'];
+export const upgradeIds: UpgradeId[] = [...skillIds, ...statIds, 'recover'];
 export const rarityIds: Rarity[] = ['common', 'rare', 'epic', 'legendary'];
 export const blankRarities = (): Rarities =>
-  Object.fromEntries([...skillIds, ...statIds].map((id) => [id, 'common'])) as Rarities;
+  Object.fromEntries(upgradeIds.map((id) => [id, 'common'])) as Rarities;
 export const higherRarity = (a: Rarity, b: Rarity): Rarity =>
   rarityIds.indexOf(a) >= rarityIds.indexOf(b) ? a : b;
 export const rarityScale = (rarity: Rarity, cfg: RuleSet = rules) => cfg.rarity[rarity].scale;
@@ -28,8 +29,16 @@ export function rollRarity(roll: number, cfg: RuleSet = rules): Rarity {
 }
 export const maxDamageNumbers = 64;
 export const blankRanks = (): Ranks => Object.fromEntries(skillIds.map((id) => [id, 0])) as Ranks;
-export const blankBoosts = (): Boosts => ({ power: 0, rate: 0, accel: 0 });
+export const blankBoosts = (): Boosts => ({ power: 0, rate: 0, range: 0 });
 export const isSkill = (id: UpgradeId): id is SkillId => skillIds.includes(id as SkillId);
+
+export function rangeScale(rank: number, rarity: Rarity, cfg: RuleSet = rules): number {
+  const strength = rank * rarityScale(rarity, cfg);
+  return 1 + (cfg.rangeBonus * strength) / (cfg.rangeFalloff + strength);
+}
+
+export const recoveryMass = (rarity: Rarity, cfg: RuleSet = rules) =>
+  Math.round(cfg.recovery.mass * rarityScale(rarity, cfg));
 
 export function xpForLevel(level: number, cfg: RuleSet = rules): number {
   if (level <= 1) return 0;
@@ -52,7 +61,7 @@ export function levelForXp(xp: number, cfg: RuleSet = rules): number {
   return 1 + thresholds.length + extra;
 }
 
-export function formValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rules) {
+export function formValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rules, reach = 1) {
   const s = cfg.skills;
   const scale = (id: SkillId) => rarityScale(rarities[id], cfg);
   const extra = (id: SkillId) => (ranks[id] ? cfg.rarity[rarities[id]].extra : 0);
@@ -62,10 +71,10 @@ export function formValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rule
     multi: { count: s.multi.primaries[ranks.multi] + extra('multi') },
     chain: {
       hops: s.chain.hops[ranks.chain] + extra('chain') * 2,
-      range: s.chain.ranges[ranks.chain] * scale('chain'),
+      range: s.chain.ranges[ranks.chain] * scale('chain') * reach,
     },
     pierce: {
-      length: s.pierce.lengths[ranks.pierce] * scale('pierce'),
+      length: s.pierce.lengths[ranks.pierce] * scale('pierce') * reach,
       width: s.pierce.widths[ranks.pierce] * scale('pierce'),
     },
     burst: {
@@ -76,17 +85,18 @@ export function formValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rule
     strike: {
       count: s.strike.counts[ranks.strike] + extra('strike'),
       radius: s.strike.radii[ranks.strike] * scale('strike'),
+      range: s.strike.range * reach,
     },
     wave: {
       radius: s.wave.radii[ranks.wave] * scale('wave'),
       push: s.wave.push[ranks.wave] * scale('wave'),
     },
     whip: {
-      length: s.whip.lengths[ranks.whip] * scale('whip'),
+      length: s.whip.lengths[ranks.whip] * scale('whip') * reach,
       arc: (s.whip.arcs[ranks.whip] * Math.PI) / 180,
     },
     focus: {
-      range: s.focus.ranges[ranks.focus] * scale('focus'),
+      range: s.focus.ranges[ranks.focus] * scale('focus') * reach,
       duration: s.focus.durations[ranks.focus],
       damage: s.focus.damage * scale('focus'),
       slow: ranks.focus ? Math.max(0.25, s.focus.slow[ranks.focus] / scale('focus')) : 1,
@@ -97,11 +107,5 @@ export type FormValues = ReturnType<typeof formValues>;
 
 export const coreRadius = (mass: number, cfg: RuleSet = rules) =>
   cfg.coreRadius + Math.min(cfg.coreGrowthMax, cfg.coreGrowth * mass);
-export const orbitTarget = (mass: number, accel: number, cfg: RuleSet = rules) =>
-  Math.max(
-    0,
-    Math.min(
-      cfg.orbitRadius,
-      cfg.orbitRadius + cfg.supportPerRank * accel - cfg.gravityPerMass * mass,
-    ),
-  );
+export const orbitTarget = (mass: number, cfg: RuleSet = rules) =>
+  Math.max(0, Math.min(cfg.orbitRadius, cfg.orbitRadius - cfg.gravityPerMass * mass));

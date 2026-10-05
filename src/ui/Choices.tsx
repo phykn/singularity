@@ -21,7 +21,7 @@ export function Choices({
     rules = game.rules,
     choice = game.choice;
   const change = (id: UpgradeId, rarity: Rarity) =>
-    skillChange(id, game.rank(id), rarity, game.rarities[id], language, rules);
+    skillChange(id, game.rank(id), rarity, game.rarities[id], language, rules, game.mass);
   const previous = useRef<{ choice: Choice; ranks: number[]; values: string[] } | null>(null);
   const [receipt, setReceipt] = useState<{
     choice: Choice;
@@ -77,7 +77,11 @@ export function Choices({
                   ' ' +
                   c.upgrades[id].name +
                   ', ' +
-                  (game.rank(id) ? c.rankUp(game.rank(id), game.rank(id) + 1) : c.newSkill) +
+                  (id === 'recover'
+                    ? c.instant
+                    : game.rank(id)
+                      ? c.rankUp(game.rank(id), game.rank(id) + 1)
+                      : c.newSkill) +
                   ', ' +
                   change(id, rarity) +
                   (i === 0 ? ', ' + c.auto : '')
@@ -93,7 +97,15 @@ export function Choices({
                 </span>
                 <SkillPreview cfg={rules} id={id} rank={game.rank(id) + 1} rarity={rarity} />
                 <strong>{c.upgrades[id].short}</strong>
-                <span className="card-value">{change(id, rarity)}</span>
+                <span className="card-value">
+                  {change(id, rarity)}
+                  {id === 'recover' && (
+                    <>
+                      <br />
+                      {c.instant}
+                    </>
+                  )}
+                </span>
               </button>
             ))}
           </div>
@@ -120,7 +132,15 @@ export function Choices({
                 </span>
                 <SkillPreview cfg={rules} id={id} rank={receipt.ranks[i]} rarity={rarity} />
                 <strong>{c.upgrades[id].short}</strong>
-                <span className="card-value">{receipt.values[i]}</span>
+                <span className="card-value">
+                  {receipt.values[i]}
+                  {id === 'recover' && (
+                    <>
+                      <br />
+                      {c.instant}
+                    </>
+                  )}
+                </span>
               </div>
             ))}
           </div>

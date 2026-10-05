@@ -47,7 +47,7 @@ try {
       game.tick = game.elapsedTicks = 27000;
       game.mass = 80;
       game.radius = 100;
-      game.boosts = { power: 4, rate: 4, accel: 4 };
+      game.boosts = { power: 4, rate: 4, range: 4 };
       Object.assign(game.ranks, { area: 5, multi: 5, repeat: 5, chain: 5 });
       const particles = ['quark', 'muon', 'proton', 'neutron'];
       game.targets = Array.from({ length: count }, (_, id) => {
@@ -171,7 +171,7 @@ try {
       game.setHidden(true);
       game.mass = 80;
       game.radius = 100;
-      game.boosts = { power: 4, rate: 4, accel: 4 };
+      game.boosts = { power: 4, rate: 4, range: 4 };
       Object.assign(game.ranks, { area: 5, multi: 5, repeat: 5, chain: 5 });
       game.selections = ['area', 'multi', 'repeat', 'chain'].flatMap((id) =>
         Array.from({ length: 5 }, (_, index) => ({

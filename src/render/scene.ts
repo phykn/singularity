@@ -161,13 +161,7 @@ export class ElectronScene extends Phaser.Scene {
     if (!ending) {
       for (const fx of visibleEffects(model.effects, reduced))
         drawEffect(this.effectGraphics, fx, model.seconds, scale, reduced, position, model.targets);
-      this.drawTrail(
-        model.angle,
-        model.radius,
-        reduced ? 5 : Math.min(45, 10 + model.boosts.accel * 7),
-        color,
-        scale,
-      );
+      this.drawTrail(model.angle, model.radius, reduced ? 5 : 10, color, scale);
       this.drawElectron(position, 1, color);
       this.drawDamage(model, width, height, scale, reduced);
       return;

@@ -1,16 +1,26 @@
-import { Repeat, SpeedFast, Zap } from 'pixelarticons/react';
-import type { ComponentType, SVGProps } from 'react';
-import type { SkillId, UpgradeId } from '../game/rules.ts';
+import type { UpgradeId } from '../game/rules.ts';
 import { art, palettes } from '../render/pixels.ts';
 import { skillColor } from '../render/palette.ts';
 import type { ParticleKind } from '../game/particles.ts';
 
-const statIcons: Partial<Record<UpgradeId, ComponentType<SVGProps<SVGSVGElement>>>> = {
-  power: Zap,
-  rate: Repeat,
-  accel: SpeedFast,
-};
-const skillGlyphs: Record<SkillId, { shape: string; light: string; field?: string }> = {
+const skillGlyphs: Record<UpgradeId, { shape: string; light: string; field?: string }> = {
+  power: {
+    shape: 'M7 1h5L8 6h5L5 15l2-6H2z',
+    light: 'M7 1h3v1H7zM6 6h3v2H6z',
+  },
+  rate: {
+    shape: 'M4 2h7v2H5v2H3v4h2v2h6v2H4v-2H2v-2H1V6h1V4h2zM11 1h2v1h2v2h-2v2h-2zM10 6h2v4H6V8h4z',
+    light: 'M10 6h2v2h-2z',
+  },
+  range: {
+    shape: 'M1 5h2v6H1zM13 5h2v6h-2zM4 7h5V5h2v2h2v2h-2v2H9V9H4z',
+    light: 'M4 7h3v2H4z',
+  },
+  recover: {
+    shape:
+      'M5 1h6v2H5zM3 3h2v2H3zM1 5h2v6H1zM3 11h2v2H3zM5 13h6v2H5zM11 11h2v2h-2zM7 7h5V4h2v2h2v4h-2v2h-2V9H7z',
+    light: 'M5 6h3v4H5z',
+  },
   area: {
     shape:
       'M5 1h6v2h2v2h2v6h-2v2h-2v2H5v-2H3v-2H1V5h2V3h2zM6 3v2H5v1H3v4h2v1h1v2h4v-2h1v-1h2V6h-2V5h-1V3z',
@@ -56,20 +66,8 @@ const skillGlyphs: Record<SkillId, { shape: string; light: string; field?: strin
 };
 
 export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
-  const Icon = statIcons[id];
-  if (Icon)
-    return (
-      <Icon
-        className="skill-icon"
-        style={{ color: skillColor(id) }}
-        width={size <= 16 ? 12 : 24}
-        height={size <= 16 ? 12 : 24}
-        shapeRendering="crispEdges"
-        aria-hidden="true"
-      />
-    );
   const pixels = size >= 24 ? 32 : 16;
-  const glyph = skillGlyphs[id as SkillId];
+  const glyph = skillGlyphs[id];
   return (
     <svg
       className="skill-icon"

@@ -75,7 +75,7 @@ writeFileSync(
   JSON.stringify(
     {
       sourceHash: hash,
-      target: 0.25,
+      target: 0.1,
       scope:
         'Automatic first-card selection with uncapped time and stats; human clear rates may differ.',
       validationSeeds: [start, start + count - 1],

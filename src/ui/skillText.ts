@@ -1,5 +1,13 @@
 import { numberText } from '../format.ts';
-import { blankRanks, blankRarities, formValues, rarityScale, rules } from '../game/rules.ts';
+import {
+  blankRanks,
+  blankRarities,
+  formValues,
+  rarityScale,
+  rangeScale,
+  recoveryMass,
+  rules,
+} from '../game/rules.ts';
 import type { Rarity, RuleSet, UpgradeId } from '../game/rules.ts';
 import { copy } from './i18n.ts';
 import type { Language } from './i18n.ts';
@@ -10,8 +18,14 @@ export function skillValue(
   rarity: Rarity = 'common',
   language: Language = 'ko',
   cfg: RuleSet = rules,
+  reach = 1,
 ): string {
-  const s = formValues({ ...blankRanks(), [id]: rank }, { ...blankRarities(), [id]: rarity }, cfg);
+  const s = formValues(
+    { ...blankRanks(), [id]: rank },
+    { ...blankRarities(), [id]: rarity },
+    cfg,
+    reach,
+  );
   const c = copy[language],
     m = c.metric,
     scale = rarityScale(rarity, cfg),
@@ -41,8 +55,10 @@ export function skillValue(
       return `${m.damage} ${n(cfg.baseHitDamage + cfg.damagePerRank * rank * scale)}`;
     case 'rate':
       return `${m.rate} +${Math.round(cfg.ratePerRank * rank * scale * 100)}%`;
-    case 'accel':
-      return `${m.speed} ${Math.round(cfg.baseSpeed * (1 + cfg.speedPerRank * rank * scale))}`;
+    case 'range':
+      return `${m.range} +${n((rangeScale(rank, rarity, cfg) - 1) * 100)}%`;
+    case 'recover':
+      return `${c.mass} −${recoveryMass(rarity, cfg)}`;
   }
 }
 
@@ -53,6 +69,7 @@ export function skillChange(
   previous: Rarity = 'common',
   language: Language = 'ko',
   cfg: RuleSet = rules,
+  mass = Infinity,
 ): string {
   const before = formValues(
     { ...blankRanks(), [id]: current },
@@ -72,8 +89,10 @@ export function skillChange(
       return `${numberText(cfg.baseHitDamage + current * cfg.damagePerRank * rarityScale(previous, cfg))}→${numberText(cfg.baseHitDamage + (current + 1) * cfg.damagePerRank * rarityScale(rarity, cfg))}`;
     case 'rate':
       return text.rate;
-    case 'accel':
-      return text.accel;
+    case 'range':
+      return `${c.metric.range} +${numberText((rangeScale(current + 1, rarity, cfg) / rangeScale(current, previous, cfg) - 1) * 100)}%`;
+    case 'recover':
+      return `${c.mass} −${numberText(Math.min(mass, recoveryMass(rarity, cfg)))}`;
     case 'area':
       return text.area[current ? 1 : 0];
     case 'repeat':

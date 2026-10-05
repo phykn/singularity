@@ -245,7 +245,7 @@ test('basic lightning modifiers change actual hit coverage at each rank', () => 
   }
 });
 
-test('rarity persists through lower-quality upgrades and improves real damage and orbit support', () => {
+test('rarity persists through lower-quality upgrades and improves real damage and reach', () => {
   const g = fixture({}, [target(0, 190, 128, 20)]);
   choose(g, 'power', 'legendary');
   g.combat.fireBasic();
@@ -254,16 +254,21 @@ test('rarity persists through lower-quality upgrades and improves real damage an
   assert.equal(g.rarities.power, 'legendary');
   g.combat.fireBasic();
   close(g.targets[0].hp, 11.2);
-  choose(g, 'accel', 'legendary');
+  choose(g, 'range', 'legendary');
+  const reach = g.range;
+  choose(g, 'range', 'common');
+  assert.equal(g.rarities.range, 'legendary');
+  assert.ok(g.range > reach);
   g.mass = 100;
   g.advance(30000);
-  close(g.radius, 86.2);
-  close(g.speed, 222);
+  close(g.radius, rules.orbitRadius - 100 * rules.gravityPerMass);
+  close(g.speed, rules.baseSpeed);
   assert.equal(g.mass, 100);
   g.debugSetXp(10000);
   g.advance(50000);
   for (const card of g.choice?.cards ?? [])
-    assert.ok(rarityIds.indexOf(card.rarity) >= rarityIds.indexOf(g.rarities[card.id]));
+    if (card.id !== 'recover')
+      assert.ok(rarityIds.indexOf(card.rarity) >= rarityIds.indexOf(g.rarities[card.id]));
 });
 
 test('all four rarities change actual geometry or hit counts across basic lightning modifiers', () => {

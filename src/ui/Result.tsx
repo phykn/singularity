@@ -112,6 +112,9 @@ export function Result({
             {c.stats} ·{' '}
             {statIds.map((id) => c.upgrades[id].short + ' ' + game.rank(id)).join(' / ')}
           </p>
+          {result.selections.some((s) => s.id === 'recover') && (
+            <p>{c.recoveryCount(result.selections.filter((s) => s.id === 'recover').length)}</p>
+          )}
           {best && (
             <p>
               {c.best} · {best.outcome === 'success' ? c.success : c.failure} · {c.energy} {best.xp}

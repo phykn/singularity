@@ -7,7 +7,7 @@
   "energyGoal": 24000,
   "levelXpStep": 60,
   "levelXp": [
-    18, 85, 210, 380, 600, 880, 1220, 1620, 2080, 2600, 3180, 3820, 4520, 5280, 6100, 6980, 7920,
+    14, 85, 210, 380, 600, 880, 1220, 1620, 2080, 2600, 3180, 3820, 4520, 5280, 6100, 6980, 7920,
     8920, 9980, 11100, 12280, 13520, 14820, 16180, 17600
   ],
   "choiceSeconds": 8,
@@ -18,9 +18,10 @@
   "attackBaseSeconds": 0.47,
   "ratePerRank": 0.35,
   "baseSpeed": 150,
-  "speedPerRank": 0.3,
+  "rangeBonus": 0.8,
+  "rangeFalloff": 5,
+  "recovery": { "mass": 50, "minMass": 30 },
   "orbitRadius": 132,
-  "supportPerRank": 12,
   "gravityPerMass": 0.65,
   "inwardSpeed": 4,
   "outwardSpeed": 6,
@@ -33,8 +34,9 @@
   "combo": { "echoDamage": 0.35, "secondaryDamage": 0.7 },
   "spawnRadius": 170,
   "introBatches": 3,
+  "introBatchSize": 8,
   "stageStarts": [0, 90, 210, 330, 450],
-  "smallBatchProbabilityByStage": [0.9, 0.6, 0.9, 0.5, 0.75],
+  "smallBatchProbabilityByStage": [0.9, 0.6, 0.6, 0.2, 0.4],
   "waves": [90, 210, 330, 450, 540],
   "waveWarningSeconds": 3,
   "waveRepeatSeconds": 120,
@@ -140,11 +142,11 @@
   "rush": {
     "windowSeconds": 2,
     "energyThreshold": 8,
-    "spawnSecondsByStage": [0.8, 0.75, 0.65, 0.55, 0.45],
-    "maxTargetsByStage": [12, 28, 52, 88, 140]
+    "spawnSecondsByStage": [1.1, 0.9, 0.65, 0.5, 0.36],
+    "maxTargetsByStage": [10, 28, 64, 112, 190]
   },
   "maxRank": 5,
-  "batchScale": [1, 1.4, 2, 3, 4],
-  "waveScale": [1, 1.5, 2, 3, 4],
-  "spawnSecondsByStage": [2.4, 2.2, 2, 1.8, 1.6]
+  "batchScale": [0.6, 1.2, 2.8, 5, 7],
+  "waveScale": [1, 1.5, 2.8, 5, 7],
+  "spawnSecondsByStage": [3, 2.5, 2, 1.6, 1.3]
 }

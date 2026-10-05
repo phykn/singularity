@@ -280,6 +280,23 @@ export function drawEffect(
       spark(g, from, 3, ink, alpha, scale);
     }
   } else if (fx.kind === 'upgrade') {
+    if (fx.source === 'range') {
+      ring(g, from, fx.radius, ink, alpha * 0.22, scale, reduced, 1);
+      return;
+    }
+    if (fx.source === 'recover') {
+      ring(g, from, fx.radius * (1 + t * 0.6), ink, alpha * 0.65, scale, reduced, 1);
+      if (!reduced) {
+        for (let i = 0; i < 6; i++) {
+          const angle = (i * Math.PI) / 3 + fx.born;
+          const x = Math.round((from.x + Math.cos(angle) * fx.radius * (0.5 + t)) * scale) / scale;
+          const y = Math.round((from.y + Math.sin(angle) * fx.radius * (0.5 + t)) * scale) / scale;
+          g.fillStyle(ink, alpha * 0.7);
+          g.fillRect(x, y, 2 / scale, 2 / scale);
+        }
+      }
+      return;
+    }
     const radius = (9 + t * (16 + strength * 8)) / scale;
     ring(g, from, radius, ink, alpha * 0.85, scale, reduced, 2);
     if (!reduced) {

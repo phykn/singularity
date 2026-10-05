@@ -1,4 +1,5 @@
 import { isSkill, rarityIds, skillIds, statIds } from '../game/rules.ts';
+import type { UpgradeId } from '../game/rules.ts';
 import type { RuleSet } from '../game/rules.ts';
 import { particleIds } from '../game/particles.ts';
 import { particleNames, particleSymbols } from './i18n.ts';
@@ -49,20 +50,24 @@ export function Guide({
           ))}
         </div>
         <div className="skill-guide">
-          {[...statIds, ...skillIds].map((id) => (
+          {([...statIds, 'recover', ...skillIds] as UpgradeId[]).map((id) => (
             <div key={id}>
               <SkillIcon id={id} />
               <div>
                 <strong>{c.upgrades[id].name}</strong>
                 <p>{c.upgrades[id].description}</p>
                 <span>
-                  {Array.from({ length: rules.maxRank }, (_, i) => i + 1).map((rank) => (
+                  {Array.from(
+                    { length: id === 'recover' ? 1 : rules.maxRank },
+                    (_, i) => i + 1,
+                  ).map((rank) => (
                     <span className="guide-rank" key={rank}>
-                      {rank} · {skillValue(id, rank, 'common', language, rules)}
+                      {id === 'recover' ? c.instant : rank} ·{' '}
+                      {skillValue(id, rank, 'common', language, rules)}
                     </span>
                   ))}
                 </span>
-                {!isSkill(id) && <p className="muted">{c.unlimited}</p>}
+                {!isSkill(id) && id !== 'recover' && <p className="muted">{c.unlimited}</p>}
               </div>
             </div>
           ))}

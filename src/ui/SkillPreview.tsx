@@ -73,21 +73,28 @@ export function SkillPreview({
         </>
       );
       break;
-    case 'accel':
+    case 'range':
+      art = (
+        <>
+          {origin}
+          <path className="preview-ghost" d="M51 9v8m0 30v8M19 52h78m-5-4 5 4-5 4" />
+          {target(53, 27, 0)}
+          {target(105, 32, 1)}
+          {bolt('M20 32h34l8-6 13 12 13-6h14')}
+        </>
+      );
+      break;
+    case 'recover':
       art = (
         <>
           <circle className="preview-ghost" cx="60" cy="32" r="14" />
           <circle className="preview-ghost" cx="60" cy="32" r="25" />
           {target(60, 32, 0)}
-          <g
-            className="preview-orbit"
-            style={{
-              animationDuration: `${Math.max(0.8, 3 / (1 + rank * rules.speedPerRank * scale))}s`,
-            }}
-          >
-            <path d="M60 7a25 25 0 0 1 25 25" />
+          <g className="preview-restore">
+            <path d="M60 7a25 25 0 1 1-25 25" />
             {source(85, 32)}
           </g>
+          <path d="M72 32h20m-4-4 4 4-4 4" />
         </>
       );
       break;

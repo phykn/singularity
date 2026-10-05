@@ -16,6 +16,8 @@ import {
   orbitTarget,
   rarityIds,
   rarityScale,
+  rangeScale,
+  recoveryMass,
   rollRarity,
   rules,
   xpForLevel,
@@ -123,11 +125,16 @@ export class Game {
     return levelForXp(this.xp, this.rules);
   }
   get speed(): number {
-    return (
-      this.rules.baseSpeed *
-      (1 +
-        this.rules.speedPerRank * this.boosts.accel * rarityScale(this.rarities.accel, this.rules))
-    );
+    return this.rules.baseSpeed;
+  }
+  get reach(): number {
+    return rangeScale(this.boosts.range, this.rarities.range, this.rules);
+  }
+  get range(): number {
+    return this.rules.primaryRange * this.reach;
+  }
+  get recoverable(): boolean {
+    return this.mass >= this.rules.recovery.minMass;
   }
   get damage(): number {
     return (
@@ -141,7 +148,7 @@ export class Game {
     );
   }
   get forms(): FormValues {
-    return formValues(this.ranks, this.rarities, this.rules);
+    return formValues(this.ranks, this.rarities, this.rules, this.reach);
   }
   get rushing(): boolean {
     return (
@@ -157,11 +164,7 @@ export class Game {
     return coreRadius(this.mass, this.rules);
   }
   get targetRadius(): number {
-    return orbitTarget(
-      this.mass,
-      this.boosts.accel * rarityScale(this.rarities.accel, this.rules),
-      this.rules,
-    );
+    return orbitTarget(this.mass, this.rules);
   }
   get margin(): number {
     return this.radius - this.core - this.rules.electronRadius;
@@ -217,7 +220,7 @@ export class Game {
     return this.endingOutcome === 'success';
   }
   rank(id: UpgradeId): number {
-    return isSkill(id) ? this.ranks[id] : this.boosts[id];
+    return id === 'recover' ? 0 : isSkill(id) ? this.ranks[id] : this.boosts[id];
   }
 
   start(): void {
@@ -433,14 +436,17 @@ export class Game {
     const number = this.selections.length + 1;
     const danger = this.margin < this.rules.dangerMargin;
     const cards = makeCards(
-      { ranks: this.ranks, boosts: this.boosts, number, danger },
+      { ranks: this.ranks, boosts: this.boosts, number, danger, recoverable: this.recoverable },
       this.randomCards,
       this.rules,
     ).map((id) => ({
       id,
-      rarity: higherRarity(this.rarities[id], rollRarity(this.randomRarity.next(), this.rules)),
+      rarity: higherRarity(
+        id === 'recover' ? 'common' : this.rarities[id],
+        rollRarity(this.randomRarity.next(), this.rules),
+      ),
     }));
-    if (number > 1 && !(danger && cards[0].id === 'accel')) {
+    if (number > 1 && !(danger && cards[0].id === 'recover')) {
       const best = cards.reduce((a, b) =>
         rarityIds.indexOf(b.rarity) > rarityIds.indexOf(a.rarity) ? b : a,
       );
@@ -467,11 +473,16 @@ export class Game {
     const card = this.choice.cards.find((card) => card.id === id);
     if (!card) return false;
     if (!automatic && this.time >= this.choice.deadline) return false;
-    if (!eligibleUpgrades(this.ranks, this.rules).includes(id)) return false;
+    if (!eligibleUpgrades(this.ranks, this.rules, this.recoverable).includes(id)) return false;
     const previous = this.rank(id),
       oldRate = this.rate;
-    this.rarities[id] = higherRarity(this.rarities[id], card.rarity);
-    if (isSkill(id)) this.ranks[id]++;
+    this.rarities[id] =
+      id === 'recover' ? card.rarity : higherRarity(this.rarities[id], card.rarity);
+    if (id === 'recover') {
+      const removed = Math.min(this.mass, recoveryMass(card.rarity, this.rules));
+      this.mass -= removed;
+      this.log('recover', { removed, mass: this.mass });
+    } else if (isSkill(id)) this.ranks[id]++;
     else this.boosts[id]++;
     if (id === 'rate') this.combat.rescaleCooldowns(oldRate);
     const selection = {
@@ -485,14 +496,14 @@ export class Game {
     this.log('skill', selection);
     this.addEffect({
       kind: 'upgrade',
-      from: this.position,
+      from: id === 'recover' ? CENTER : this.position,
       to: this.position,
-      radius: id === 'accel' ? 30 : 18,
+      radius: id === 'recover' ? this.core + 14 : id === 'range' ? this.range : 18,
       width: 1,
       life: 0.7,
       source: id,
       rarity: this.rarities[id],
-      anchor: 'electron',
+      anchor: id === 'recover' ? undefined : 'electron',
     });
     this.notice = id;
     this.noticeUntil = this.time + 2;
@@ -510,7 +521,9 @@ export class Game {
     const kind =
       intro || roll < this.rules.smallBatchProbabilityByStage[this.stage] ? 'small' : 'dense';
     const size = kind === 'small' ? this.rules.smallBatchSize : this.rules.denseBatchSize;
-    const count = Math.round(size * (intro ? 1 : this.rules.batchScale[this.stage]));
+    const count = intro
+      ? this.rules.introBatchSize
+      : Math.max(1, Math.round(size * this.rules.batchScale[this.stage]));
     this.spawnGroup(kind, count, intro ? this.angle + 0.35 : angle, direction);
     this.batchCount++;
   }

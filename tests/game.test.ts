@@ -133,7 +133,7 @@ test('results separate every particle species through death, absorption and surv
     assert.deepEqual(g.result.counts[id], { generated: 3, killed: 1, absorbed: 1, remaining: 1 });
 });
 
-test('acceleration recovers an orbit gradually without reducing accumulated mass', () => {
+test('mass vent immediately removes mass and restores the orbit gradually at fixed movement speed', () => {
   const g = fixture();
   g.mass = 80;
   g.advance(30000);
@@ -141,14 +141,14 @@ test('acceleration recovers an orbit gradually without reducing accumulated mass
   assert.ok(g.radius < rules.orbitRadius);
   const before = g.radius,
     speed = g.speed;
-  choose(g, 'accel');
-  assert.ok(g.speed > speed);
+  choose(g, 'recover');
+  assert.equal(g.speed, speed);
+  assert.equal(g.mass, 80 - rules.recovery.mass);
   assert.equal(g.radius, before);
   g.advance(1000);
   close(g.radius, before + rules.outwardSpeed);
-  g.advance(1000);
-  close(g.radius, before + rules.supportPerRank);
-  assert.equal(g.mass, 80);
+  g.advance(10000);
+  close(g.radius, before + rules.recovery.mass * rules.gravityPerMass);
   for (let i = 0; i < 36; i++) {
     const p = orbit((i * Math.PI) / 18, g.radius);
     close(Math.hypot(p.x - 180, p.y - 260), g.radius);
@@ -234,7 +234,7 @@ test('late spawns keep their stage and scheduled waves continue beyond ten minut
   );
 });
 
-test('contact at zero margin ends the run; a timely acceleration recovers a narrow orbit', () => {
+test('contact at zero margin ends the run; a timely mass vent recovers a narrow orbit', () => {
   const unsafe = fixture();
   unsafe.mass = 1000;
   unsafe.radius = unsafe.core + 4;
@@ -243,7 +243,7 @@ test('contact at zero margin ends the run; a timely acceleration recovers a narr
   const recover = fixture();
   recover.mass = (rules.orbitRadius - 40) / rules.gravityPerMass;
   recover.radius = 40;
-  choose(recover, 'accel');
+  choose(recover, 'recover');
   recover.advance(2000);
   assert.equal(recover.phase, 'running');
   close(recover.radius, 52);
@@ -289,23 +289,24 @@ test('full games conserve particles and are identical at 30 and 60fps', () => {
   }
 });
 
-test('fast clear brings the next batch sooner, crowding stops acceleration, and score only rewards kills', () => {
+test('fast clear brings the next batch sooner, crowding stops rush, and score only rewards kills', () => {
   const fast = new Game(1);
   fast.ranks.area = 3;
   fast.ranks.chain = 3;
   fast.start();
-  fast.combat.fireBasic(fast.targets[4]);
-  fast.combat.fireBasic(fast.targets[0]);
+  fast.spawnBatch();
+  while (fast.targets.length) fast.combat.fireBasic(fast.targets[0]);
   assert.ok(fast.rushing);
   assert.ok(fast.xp >= rules.rush.energyThreshold);
   const generated = Object.values(fast.counts).reduce((sum, c) => sum + c.generated, 0);
-  fast.advance(800);
+  fast.advance(rules.rush.spawnSecondsByStage[0] * 1000);
   assert.ok(Object.values(fast.counts).reduce((sum, c) => sum + c.generated, 0) > generated);
   assert.ok(fast.rushSpawns > 0);
   assert.ok(fast.score > 0);
   const ordinary = new Game(1);
   ordinary.start();
-  ordinary.advance(800);
+  ordinary.spawnBatch();
+  ordinary.advance(rules.rush.spawnSecondsByStage[0] * 1000);
   assert.equal(
     Object.values(ordinary.counts).reduce((sum, c) => sum + c.generated, 0),
     generated,
@@ -348,7 +349,13 @@ test('later stages increase group size, wave size and intake rate without changi
   assert.ok(late.targets.length > first.targets.length * 3);
   assert.ok(rules.spawnSecondsByStage[4] < rules.spawnSecondsByStage[0]);
   assert.ok(rules.rush.spawnSecondsByStage[4] < rules.rush.spawnSecondsByStage[0]);
-  assert.equal(late.targets[0].hp, rules.targets.small.hp[4]);
+  const existing = first.targets[0],
+    hp = existing.hp;
+  first.tick = late.tick;
+  first.spawnBatch();
+  assert.equal(existing.hp, hp);
+  assert.ok(late.targets.some((t) => t.kind === 'small'));
+  assert.ok(late.targets.some((t) => t.kind === 'dense'));
 });
 
 test('particle species enter gradually and heavy neutrons trade speed for health and mass', () => {

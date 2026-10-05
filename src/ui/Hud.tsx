@@ -25,7 +25,7 @@ export function Hud({
     rules = game.rules;
   const energyPercent = Math.min(100, Math.floor((game.xp / rules.energyGoal) * 100));
   const value = (id: UpgradeId, rank = game.rank(id)) =>
-    skillValue(id, rank, game.rarities[id], language, rules);
+    skillValue(id, rank, game.rarities[id], language, rules, game.reach);
   return (
     <section className="hud" aria-label={c.hud}>
       <div className="hud-top">
@@ -52,7 +52,7 @@ export function Hud({
               <SkillIcon id={id} size={14} />
               <b>
                 {statNumber.format(
-                  id === 'power' ? game.damage : id === 'rate' ? game.rate : game.speed,
+                  id === 'power' ? game.damage : id === 'rate' ? game.rate : game.range,
                 )}
                 {id === 'rate' && '×'}
               </b>

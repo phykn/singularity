@@ -164,7 +164,7 @@ test('saves and records accept a run past ten minutes and a manual choice beyond
     setItem: (key: string, value: string) => map.set(key, value),
     removeItem: (key: string) => map.delete(key),
   } as Storage;
-  const g = new Game(1705);
+  const g = new Game(92055);
   g.start();
   while (g.time < 1200 && !g.result && (!g.choice || g.choice.number <= 25)) g.advance(250);
   assert.equal(g.choice?.number, 26);

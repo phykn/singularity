@@ -12,6 +12,7 @@ import {
   rules,
   skillIds,
   statIds,
+  upgradeIds,
   levelForXp,
   xpForLevel,
 } from '../src/game/rules.ts';
@@ -20,10 +21,11 @@ import { effectOrigin, visibleEffects } from '../src/render/effects.ts';
 import { close, fixture, choose } from './helpers.ts';
 
 test('every skill and stat upgrade confirms its actual rank and follows the live electron', () => {
-  for (const id of [...skillIds, ...statIds]) {
+  for (const id of upgradeIds) {
     const g = new Game(17, { combat: false });
     g.start();
     for (let rank = 1; rank <= 2; rank++) {
+      if (id === 'recover') g.mass = 150;
       g.choice = {
         number: rank,
         opened: g.time,
@@ -34,11 +36,14 @@ test('every skill and stat upgrade confirms its actual rank and follows the live
       const fx = visibleEffects(g.effects, false).find((fx) => fx.kind === 'upgrade');
       assert.ok(fx);
       assert.equal(fx.source, id);
-      assert.equal(fx.rank, rank);
+      assert.equal(fx.rank, id === 'recover' ? 0 : rank);
       assert.equal(fx.rarity, 'rare');
       assert.equal(g.notice, id);
       g.advance(50);
-      assert.deepEqual(effectOrigin(fx, g.position), g.position);
+      assert.deepEqual(
+        effectOrigin(fx, g.position),
+        id === 'recover' ? { x: 180, y: 260 } : g.position,
+      );
       assert.notDeepEqual(g.position, fx.from);
     }
     g.advance(2100);
@@ -79,22 +84,23 @@ test('XP thresholds continue beyond level 26 with exact boundaries and carried p
 test('maxed skills leave three repeatable stat choices and upgrades work above rank five', () => {
   const g = fixture({ area: 5, repeat: 5, chain: 5, pierce: 5 });
   for (const rank of [5, 20, 100]) {
-    g.boosts = { power: rank, rate: rank, accel: rank };
+    g.boosts = { power: rank, rate: rank, range: rank };
     for (const danger of [false, true]) {
       const cards = makeCards(
-        { ranks: g.ranks, boosts: g.boosts, number: 100, danger },
+        { ranks: g.ranks, boosts: g.boosts, number: 100, danger, recoverable: danger },
         new Random(42),
       );
-      assert.deepEqual([...cards].sort(), [...statIds].sort());
-      if (danger) assert.equal(cards[0], 'accel');
+      if (danger) assert.equal(cards[0], 'recover');
+      else assert.deepEqual([...cards].sort(), [...statIds].sort());
+      assert.equal(cards.length, 3);
     }
-    const before = [g.damage, g.rate, g.speed];
+    const before = [g.damage, g.rate, g.range];
     statIds.forEach((id) => choose(g, id));
     assert.deepEqual(
       statIds.map((id) => g.boosts[id]),
       [rank + 1, rank + 1, rank + 1],
     );
-    [g.damage, g.rate, g.speed].forEach((value, i) => assert.ok(value > before[i]));
+    [g.damage, g.rate, g.range].forEach((value, i) => assert.ok(value > before[i]));
     assert.deepEqual(g.ranks, { ...blankRanks(), area: 5, repeat: 5, chain: 5, pierce: 5 });
   }
 });
@@ -170,16 +176,19 @@ test('all skill-rank combinations keep three legal cards even with maxed skills'
     }
     for (let power = 0; power < base; power++)
       for (let rate = 0; rate < base; rate++)
-        for (let accel = 0; accel < base; accel++) {
-          const sum = spent + power + rate + accel;
-          const boosts: Boosts = { power, rate, accel },
-            eligible = eligibleUpgrades(ranks);
+        for (let range = 0; range < base; range++) {
+          const sum = spent + power + rate + range;
+          const boosts: Boosts = { power, rate, range };
           const danger = sum % 2 === 0;
-          const cards = makeCards({ ranks, boosts, number: sum + 1, danger }, new Random(9));
+          const eligible = eligibleUpgrades(ranks, rules, danger);
+          const cards = makeCards(
+            { ranks, boosts, number: sum + 1, danger, recoverable: danger },
+            new Random(9),
+          );
           assert.equal(cards.length, 3);
           assert.equal(new Set(cards).size, 3);
           cards.forEach((id) => assert.ok(eligible.includes(id)));
-          if (sum && danger) assert.equal(cards[0], 'accel');
+          if (sum && danger) assert.equal(cards[0], 'recover');
           if (sum && eligible.some(isSkill) && eligible.some((id) => !isSkill(id))) {
             assert.ok(cards.some(isSkill));
             assert.ok(cards.some((id) => !isSkill(id)));
@@ -212,13 +221,18 @@ test('every lightning form can be offered from the first choice without a growth
     const random = new Random(seed),
       ranks = blankRanks(),
       boosts = blankBoosts();
-    const cards = makeCards({ ranks, boosts, number: 1, danger: false }, random);
+    const cards = makeCards(
+      { ranks, boosts, number: 1, danger: false, recoverable: false },
+      random,
+    );
     cards.forEach((id) => opening.add(id));
     ranks.wave = 1;
-    makeCards({ ranks, boosts, number: 2, danger: false }, random).forEach((id) => later.add(id));
+    makeCards({ ranks, boosts, number: 2, danger: false, recoverable: true }, random).forEach(
+      (id) => later.add(id),
+    );
   }
   assert.deepEqual(opening, new Set(skillIds));
-  assert.deepEqual(later, new Set([...skillIds, ...statIds]));
+  assert.deepEqual(later, new Set(upgradeIds));
   for (const id of skillIds) {
     const game = fixture();
     choose(game, id);
@@ -256,7 +270,10 @@ test('new runs have ten lightning skills and always offer owned upgrades', () =>
     for (const danger of [false, true]) {
       const ranks = { ...blankRanks(), strike: 2, focus: 1 },
         boosts = blankBoosts();
-      const cards = makeCards({ ranks, boosts, number: 8, danger }, new Random(seed));
+      const cards = makeCards(
+        { ranks, boosts, number: 8, danger, recoverable: danger },
+        new Random(seed),
+      );
       assert.equal(cards.length, new Set(cards).size);
       assert.ok(cards.some((id) => id === 'strike' || id === 'focus'));
     }

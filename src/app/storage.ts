@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Game } from '../game/model.ts';
 import type { Result } from '../game/types.ts';
-import { rules, skillIds, statIds } from '../game/rules.ts';
+import { rules, upgradeIds } from '../game/rules.ts';
 import type { Language } from '../ui/i18n.ts';
 
 export type Settings = { sound: boolean; reduced: boolean };
@@ -19,7 +19,7 @@ const checkpointSchema = z.object({
   inputs: z.array(
     z.object({
       tick: z.number().int().min(0),
-      id: z.enum([...skillIds, ...statIds]),
+      id: z.enum(upgradeIds),
       number: z.number().int().min(1),
     }),
   ),

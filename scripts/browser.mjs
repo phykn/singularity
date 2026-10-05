@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { base, capture, launchBrowser } from './browser-support.mjs';
-import { rules, skillIds, statIds, rarityIds } from '../src/game/rules.ts';
+import { rules, skillIds, upgradeIds, rarityIds } from '../src/game/rules.ts';
 import { copy } from '../src/ui/i18n.ts';
 import { skillColor } from '../src/render/palette.ts';
 
@@ -359,11 +359,12 @@ const visualFlow = async () => {
     [568, 320],
   ]) {
     await page.setViewportSize({ width, height });
-    for (const id of [...skillIds, ...statIds]) {
+    for (const id of upgradeIds) {
       await page.evaluate((id) => {
         window.__gameDebug.restart(17, false);
         const g = window.__gameDebug.getModel();
         if (id in g.ranks) g.ranks[id] = id === 'chain' ? 4 : 1;
+        else if (id === 'recover') g.mass = 120;
         else g.boosts[id] = 1;
         g.choice = {
           number: 1,
@@ -382,7 +383,11 @@ const visualFlow = async () => {
       });
       assert.equal(await feedback.getAttribute('data-skill'), id);
       const rank = id === 'chain' ? 5 : 2;
-      assert.ok((await feedback.innerText()).includes(`${rank - 1} → ${rank}`));
+      assert.ok(
+        (await feedback.innerText()).includes(
+          id === 'recover' ? copy.ko.instant : `${rank - 1} → ${rank}`,
+        ),
+      );
       if (id === 'chain') assert.equal(await page.locator('.slot-max').innerText(), 'MAX');
       const box = await feedback.boundingBox();
       assert.ok(
@@ -407,7 +412,7 @@ const visualFlow = async () => {
   }
   report(
     'manual upgrades confirm every skill and stat, remain legible in both orientations and expire after play resumes',
-    { upgrades: 13, viewports: 2 },
+    { upgrades: upgradeIds.length, viewports: 2 },
   );
   await page.close();
 };
@@ -567,7 +572,7 @@ const interfaceFlow = async () => {
     const g = window.__gameDebug.getModel();
     g.setHidden(false);
     g.ranks = { ...g.ranks, area: 5, chain: 5, wave: 5, strike: 5 };
-    g.boosts = { power: 6, rate: 6, accel: 6 };
+    g.boosts = { power: 6, rate: 6, range: 6 };
     g.selections = Array.from({ length: 20 }, (_, i) => ({
       time: i,
       id: ['area', 'chain', 'wave', 'strike'][i % 4],
@@ -580,8 +585,8 @@ const interfaceFlow = async () => {
   });
   await page.locator('.card').first().waitFor();
   assert.deepEqual((await snapshot(page)).choice.cards.map((c) => c.id).sort(), [
-    'accel',
     'power',
+    'range',
     'rate',
   ]);
   assert.equal(await page.locator('.slot-max').count(), 4);
@@ -706,10 +711,7 @@ try {
       assert.equal((await snapshot(page)).seed, 10004);
       await page.getByRole('button', { name: '도움말', exact: true }).click();
       await inspect(page);
-      assert.equal(
-        await page.locator('.skill-guide > div').count(),
-        skillIds.length + statIds.length,
-      );
+      assert.equal(await page.locator('.skill-guide > div').count(), upgradeIds.length);
       await page.getByRole('button', { name: '닫기', exact: true }).click();
       await page.getByRole('button', { name: 'START' }).click();
       const playing = await inspect(page);
@@ -762,7 +764,7 @@ try {
       [568, 320],
     ]) {
       const page = await pageFor(width, height);
-      const ids = [...skillIds, ...statIds];
+      const ids = upgradeIds;
       for (const rarity of rarityIds)
         for (let rank = 1; rank <= rules.maxRank; rank++) {
           for (let i = 0; i < ids.length; i += 3) {
@@ -774,6 +776,7 @@ try {
                 g.setHidden(true);
                 for (const id of cards) {
                   if (id in g.ranks) g.ranks[id] = rank - 1;
+                  else if (id === 'recover') g.mass = 120;
                   else g.boosts[id] = rank - 1;
                 }
                 g.choice = {
@@ -793,7 +796,7 @@ try {
           }
         }
       await screenshot(page, 'stat-cards-' + width + 'x' + height);
-      report('all thirteen card types and five ranks fit ' + width + 'x' + height, {
+      report('all upgrade cards fit ' + width + 'x' + height, {
         variants: ids.length * rules.maxRank * rarityIds.length,
       });
       await page.close();
@@ -832,7 +835,7 @@ try {
       window.__gameDebug.advance(25000);
       g.mass = 150;
       g.radius = 40;
-      g.choice.cards = ['accel', 'power', 'rate'].map((id) => ({ id, rarity: 'common' }));
+      g.choice.cards = ['recover', 'power', 'rate'].map((id) => ({ id, rarity: 'common' }));
     });
     await screenshot(page, 'gravity-danger');
     const before = await snapshot(page);
@@ -840,9 +843,10 @@ try {
     await advance(page, 2000);
     const recovered = await snapshot(page);
     assert.ok(recovered.radius > before.radius);
-    assert.equal(recovered.mass, before.mass);
+    assert.equal(recovered.mass, before.mass - rules.recovery.mass);
+    assert.equal(recovered.xp, before.xp);
     await screenshot(page, 'gravity-recovery');
-    report('acceleration restores the orbit without removing mass', {
+    report('mass vent removes mass and restores the orbit while keeping XP', {
       before: before.radius,
       after: recovered.radius,
       mass: recovered.mass,

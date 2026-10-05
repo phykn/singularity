@@ -613,9 +613,9 @@ svg {
   opacity: 0.3;
   animation: preview-bolt 2.4s infinite both;
 }
-.preview-orbit {
+.preview-restore {
   transform-origin: 60px 32px;
-  animation: preview-orbit 6s linear infinite;
+  animation: preview-restore 2.4s steps(8) infinite;
 }
 @keyframes preview-bolt {
   0%,
@@ -666,9 +666,16 @@ svg {
     opacity: 0.15;
   }
 }
-@keyframes preview-orbit {
-  to {
-    transform: rotate(360deg);
+@keyframes preview-restore {
+  0%,
+  15% {
+    transform: scale(0.56);
+    opacity: 0.5;
+  }
+  60%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
   }
 }
 @keyframes enter {

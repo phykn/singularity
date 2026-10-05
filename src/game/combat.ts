@@ -10,6 +10,7 @@ export type Attack = {
   rarities: Rarities;
   forms: FormValues;
   damage: number;
+  range: number;
   burstFired: boolean;
   firstKill?: Point;
   source?: TimedSkill;
@@ -156,12 +157,7 @@ export class Combat {
 
   fireBasic(origin: Point = this.game.position): void {
     const forms = this.game.forms;
-    const selected = closest(
-      this.game.targets,
-      origin,
-      forms.multi.count,
-      this.game.rules.primaryRange,
-    );
+    const selected = closest(this.game.targets, origin, forms.multi.count, this.game.range);
     if (!selected.length) return;
     const attack: Attack = {
       id: this.nextAttackId++,
@@ -169,6 +165,7 @@ export class Combat {
       rarities: { ...this.game.rarities },
       forms,
       damage: this.game.damage,
+      range: this.game.range,
       burstFired: false,
     };
     selected.forEach((target, order) => {
@@ -210,7 +207,7 @@ export class Combat {
     const branches = form.multi.count;
     if (id === 'strike') {
       const selected = this.game.targets
-        .filter((t) => t.hp > 0 && distance(t, origin) <= this.game.rules.skills.strike.range)
+        .filter((t) => t.hp > 0 && distance(t, origin) <= form.strike.range)
         .sort((a, b) => b.hp - a.hp || distance(a, origin) - distance(b, origin) || a.id - b.id)
         .slice(0, form.strike.count + branches - 1);
       if (!selected.length) return false;
@@ -304,6 +301,7 @@ export class Combat {
       rarities: { ...this.game.rarities },
       forms: this.game.forms,
       damage,
+      range: this.game.range,
       burstFired: false,
     };
   }
@@ -313,7 +311,7 @@ export class Combat {
     let primary = pulse.target;
     if (!primary || primary.hp <= 0 || !this.game.targets.includes(primary)) {
       if (!repeat) return;
-      primary = closest(this.game.targets, origin, 1, this.game.rules.primaryRange)[0];
+      primary = closest(this.game.targets, origin, 1, attack.range)[0];
       if (!primary) return;
     }
     const rarity = higherRarity(
