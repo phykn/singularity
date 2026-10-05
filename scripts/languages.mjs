@@ -90,8 +90,9 @@ try {
         hasTouch: true,
       });
       page.on('pageerror', (e) => errors.push(e.message));
-      await page.goto(base + '/?seed=10004');
+      await page.goto(base);
       await page.waitForFunction(() => !!window.__gameDebug);
+      await page.evaluate(() => window.__gameDebug.prepare(10004));
       await page.getByRole('button', { name: language.label, exact: true }).click();
       await page.waitForFunction((html) => document.documentElement.lang === html, language.html);
       assert.equal(await page.locator('.policy-picker, .planned, .arena-caption p').count(), 0);

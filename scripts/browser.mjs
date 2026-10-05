@@ -23,11 +23,13 @@ const pageFor = async (width, height, seed = 10004) => {
   page.on('pageerror', (error) => errors.push(error.message));
   if (base.includes('ngrok'))
     await page.setExtraHTTPHeaders({ 'ngrok-skip-browser-warning': 'true' });
-  await page.goto(base + '/?seed=' + seed);
+  await page.goto(base);
   await page.waitForSelector('canvas');
   await page.evaluate(() => document.fonts.ready);
-  if (!process.argv.includes('--production'))
+  if (!process.argv.includes('--production')) {
     await page.waitForFunction(() => !!window.__gameDebug);
+    await page.evaluate((seed) => window.__gameDebug.prepare(seed), seed);
+  }
   return page;
 };
 const inspect = async (page) => {
@@ -61,6 +63,22 @@ const inspect = async (page) => {
   return value;
 };
 const inspectCards = async (page) => {
+  if ((await page.locator('html').getAttribute('lang')) === 'ko') {
+    const lines = await page
+      .locator('.card[data-upgrade="charge"] .card-value')
+      .evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          return {
+            text: node.textContent,
+            rows: [...new Set([...range.getClientRects()].map((rect) => Math.round(rect.top)))],
+          };
+        }),
+      );
+    for (const row of lines)
+      assert.equal(row.rows.length, 1, 'Charge text wraps: ' + JSON.stringify(row));
+  }
   const clipped = await page
     .locator('.card-value, .card strong, .card-label, .card-stage')
     .evaluateAll((nodes) =>
@@ -988,6 +1006,7 @@ try {
     await rarityFlow();
   } else if (process.argv.includes('--production')) {
     const page = await pageFor(375, 812);
+    const seed = await page.evaluate(() => localStorage.getItem('singularity.seed'));
     assert.equal(await page.evaluate(() => typeof window.__gameDebug), 'undefined');
     await page.getByRole('button', { name: 'START' }).click();
     await page.locator('.hud').waitFor();
@@ -995,16 +1014,14 @@ try {
     await screenshot(page, 'production');
     report('production starts without debug hooks', { base });
     await page.getByRole('button', { name: copy.ko.pause, exact: true }).click();
-    const pausedHud = await page.locator('.hud').innerText();
-    const pausedXp = await page.locator('.xp-status').innerText();
     await page.reload();
-    await page.getByRole('button', { name: copy.ko.resume, exact: true }).waitFor();
-    assert.equal(await page.locator('.hud').innerText(), pausedHud);
-    assert.equal(await page.locator('.xp-status').innerText(), pausedXp);
+    await page.getByRole('button', { name: 'START', exact: true }).waitFor();
+    assert.notEqual(await page.evaluate(() => localStorage.getItem('singularity.seed')), seed);
+    assert.equal(await page.locator('.hud, .pause-panel').count(), 0);
     assert.equal(await page.evaluate(() => typeof window.__gameDebug), 'undefined');
-    await page.getByRole('button', { name: copy.ko.resume, exact: true }).click();
-    await page.locator('.pause-panel').waitFor({ state: 'hidden' });
-    report('production reload restores the saved run and manual pause', { xp: pausedXp });
+    await page.getByRole('button', { name: 'START', exact: true }).click();
+    assert.match(await page.locator('.xp-status').innerText(), /0\s*\/\s*14/);
+    report('production reload returns to a fresh run', {});
     await page.close();
   } else if (process.argv.includes('--realtime')) {
     const page = await pageFor(375, 812, 96009);
@@ -1111,7 +1128,7 @@ try {
       await page.getByRole('button', { name: '그만하기', exact: true }).click();
       const reset = await snapshot(page);
       assert.equal(reset.phase, 'ready');
-      assert.equal(reset.seed, 10004);
+      assert.notEqual(reset.seed, 10004);
       assert.equal(reset.xp, 0);
       assert.equal(reset.mass, 0);
       await showSuccess(page, 96048);
@@ -1120,7 +1137,7 @@ try {
       await screenshot(page, 'result-' + name);
       assert.equal((await snapshot(page)).result.trigger, 'energy');
       await page.getByRole('button', { name: '다시하기' }).click();
-      assert.equal((await snapshot(page)).seed, 96048);
+      assert.notEqual((await snapshot(page)).seed, 96048);
       await page.evaluate(() => window.__gameDebug.restart(10004));
       await advance(page, 610000);
       await page.getByRole('button', { name: '새 게임' }).click();

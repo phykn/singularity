@@ -42,7 +42,7 @@ try {
     await held;
     await route.continue();
   });
-  await page.goto(base + '/?seed=10004', { waitUntil: 'domcontentloaded' });
+  await page.goto(base, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!window.__gameDebug);
   assert.equal(await page.locator('.start').isDisabled(), true);
   await page.waitForTimeout(900);
@@ -60,30 +60,24 @@ try {
     const game = debug.getModel();
     game.setHidden(true);
     window.dispatchEvent(new PageTransitionEvent('pagehide'));
-    return { elapsed: game.elapsedTicks, choice: game.choice };
+    return { seed: game.seed, elapsed: game.elapsedTicks, choice: game.choice };
   });
   assert.ok(expected.choice);
   held = new Promise((resolve) => (release = resolve));
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!window.__gameDebug);
-  await page.locator('.render-status').waitFor();
+  assert.equal(await page.locator('.start').isDisabled(), true);
   await page.waitForTimeout(900);
   const loading = await state(page);
-  assert.equal(loading.elapsed, expected.elapsed);
-  assert.deepEqual(loading.choice, expected.choice);
+  assert.equal(loading.elapsed, 0);
+  assert.equal(loading.choice, null);
   assert.equal(loading.paused, false);
-  assert.equal(await page.locator('.play-layout').getAttribute('inert'), '');
-  await screenshotWhileLoading(page, 'artifacts/screens/startup-restored-loading.png');
+  assert.notEqual(await page.evaluate(() => window.__gameDebug.getModel().seed), expected.seed);
+  await screenshotWhileLoading(page, 'artifacts/screens/startup-refreshed-loading.png');
   release();
-  await page.locator('.render-status').waitFor({ state: 'hidden' });
-  await page.waitForFunction(
-    (tick) => window.__gameDebug.getModel().elapsedTicks > tick,
-    expected.elapsed,
-  );
-  report('a restored pending choice does not advance while the scene loads', {
-    elapsed: expected.elapsed,
-    choice: expected.choice.number,
-  });
+  await page.getByRole('button', { name: 'START', exact: true }).click();
+  await page.locator('.hud').waitFor();
+  report('refresh starts a new seed and stays ready while the scene loads', { elapsed: 0 });
   await page.evaluate(() => {
     const canvas = document.querySelector('canvas');
     const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');

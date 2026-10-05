@@ -1,8 +1,5 @@
-import { createCheckpoint, restoreCheckpoint } from '../game/replay.ts';
-import { z } from 'zod';
-import type { Game } from '../game/model.ts';
 import type { Result } from '../game/types.ts';
-import { rules, upgradeIds } from '../game/rules.ts';
+import { rules } from '../game/rules.ts';
 import type { Language } from '../ui/i18n.ts';
 
 export type Settings = { sound: boolean };
@@ -10,41 +7,6 @@ export type Record = Pick<Result, 'outcome' | 'xp' | 'level' | 'speed' | 'seed' 
 export const settingsKey = 'singularity.settings';
 export const recordKey = 'singularity.record';
 export const languageKey = 'singularity.language';
-export const runKey = 'singularity.run';
-
-const checkpointSchema = z.object({
-  seed: z.number().int().min(0).max(0xffffffff),
-  ticks: z.number().int().min(0),
-  phase: z.enum(['running', 'collapse', 'ending', 'result']),
-  manualPaused: z.boolean(),
-  inputs: z.array(
-    z.object({
-      tick: z.number().int().min(0),
-      id: z.enum(upgradeIds),
-      number: z.number().int().min(1),
-    }),
-  ),
-});
-
-export function readRun(storage: Storage): Game | null {
-  try {
-    const checkpoint = checkpointSchema.safeParse(JSON.parse(storage.getItem(runKey) ?? 'null'));
-    return checkpoint.success ? restoreCheckpoint(checkpoint.data) : null;
-  } catch {
-    return null;
-  }
-}
-
-export function saveRun(storage: Storage, game: Game): boolean {
-  const checkpoint = createCheckpoint(game);
-  if (checkpoint) return save(storage, runKey, checkpoint);
-  try {
-    storage.removeItem(runKey);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export function readLanguage(storage: Storage): Language {
   try {

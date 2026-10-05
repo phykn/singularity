@@ -5,7 +5,6 @@ import type { GameAudio } from './audio.ts';
 
 type SessionEffects = {
   sound: () => boolean;
-  saveRun: (game: Game) => void;
   saveResult: (result: Result) => boolean;
   redraw: () => void;
 };
@@ -20,7 +19,6 @@ export class GameSession {
   private lastWall = 0;
   private lastDraw = 0;
   private lastDrawTick = -1;
-  private lastSave = 0;
   private lastRecordSave = -Infinity;
   private processed: Game | null = null;
   private heard: number;
@@ -37,7 +35,6 @@ export class GameSession {
     this.lastWall = wall;
     if (!ready) {
       this.audio.suspend();
-      this.effects.saveRun(this.game);
     } else if (this.effects.sound() && !this.game.paused && this.game.phase !== 'ready')
       void this.audio.unlock();
     this.effects.redraw();
@@ -47,7 +44,6 @@ export class GameSession {
     if (!this.renderReady) return;
     this.lastWall = wall;
     this.game.start();
-    this.effects.saveRun(this.game);
     this.effects.redraw();
   }
 
@@ -58,7 +54,6 @@ export class GameSession {
     this.heard = 0;
     this.processed = null;
     this.lastRecordSave = -Infinity;
-    this.effects.saveRun(game);
     this.effects.redraw();
   }
 
@@ -66,14 +61,12 @@ export class GameSession {
     this.game.setManualPause(paused);
     this.lastWall = wall;
     if (paused) this.audio.suspend();
-    this.effects.saveRun(this.game);
     this.effects.redraw();
   }
 
   select(id: UpgradeId, number: number): void {
     if (!this.renderReady) return;
     this.game.select(id, false, number);
-    this.effects.saveRun(this.game);
     this.effects.redraw();
   }
 
@@ -84,7 +77,6 @@ export class GameSession {
     this.lastWall = wall;
     if (hidden) {
       this.audio.suspend();
-      this.effects.saveRun(this.game);
     } else if (this.renderReady && this.effects.sound() && !this.game.manualPaused)
       void this.audio.unlock();
     this.effects.redraw();
@@ -93,7 +85,6 @@ export class GameSession {
   suspend(wall: number): void {
     this.game.setHidden(true);
     this.lastWall = wall;
-    this.effects.saveRun(this.game);
     this.audio.suspend();
   }
 
@@ -106,16 +97,6 @@ export class GameSession {
     if (game.result && this.processed !== game && wall - this.lastRecordSave >= 1000) {
       if (this.effects.saveResult(game.result)) this.processed = game;
       this.lastRecordSave = wall;
-      this.effects.saveRun(game);
-    }
-    if (
-      !game.hiddenPaused &&
-      game.phase !== 'ready' &&
-      game.phase !== 'result' &&
-      wall - this.lastSave >= 1000
-    ) {
-      this.effects.saveRun(game);
-      this.lastSave = wall;
     }
     if (wall - this.lastDraw > 80 && game.elapsedTicks !== this.lastDrawTick) {
       this.effects.redraw();
@@ -131,7 +112,6 @@ export class GameSession {
   }
 
   dispose(): void {
-    this.effects.saveRun(this.game);
     this.audio.destroy();
   }
 }

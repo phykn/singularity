@@ -43,9 +43,9 @@ export default function App() {
   const ready = game.phase === 'ready';
   const modal = panel !== null || game.manualPaused || game.phase === 'result';
 
-  function replace(seed?: number) {
+  function replace() {
     setHomecoming(game.result?.outcome === 'success');
-    actions.replace(seed);
+    actions.replace();
     setExitConfirm(false);
     setPanel(null);
   }
@@ -197,7 +197,7 @@ export default function App() {
           <div className="dialog-actions">
             {exitConfirm ? (
               <>
-                <button className="primary" onClick={() => replace(game.seed)}>
+                <button className="primary" onClick={replace}>
                   {c.quitConfirm}
                 </button>
                 <button className="text-button" onClick={() => setExitConfirm(false)}>
@@ -225,8 +225,8 @@ export default function App() {
         language={language}
         best={best}
         notice={notice}
-        onRetry={() => replace(game.seed)}
-        onNewRun={() => replace()}
+        onRetry={replace}
+        onNewRun={replace}
       />
     </main>
   );

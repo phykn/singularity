@@ -18,7 +18,7 @@ Particles pour in. The core swells. The space around you closes in. Each run tur
 
 - **Let the sparks fly** — Sixteen lightning skills, from branching bolts to roaming electric orbs.
 - **Small pixels, big impact** — Bright electrical effects against a dark cosmic backdrop.
-- **Open a tab. Enter orbit.** — Play in your browser, with progress saved on your device.
+- **Open a tab. Enter orbit.** — A fresh run every time, with preferences and best results saved on your device.
 - **Mobile and desktop** — Available in Korean, English, Chinese, and Japanese.
 
 ## Run locally

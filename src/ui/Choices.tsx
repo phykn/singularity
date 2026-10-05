@@ -74,6 +74,7 @@ export function Choices({
                 key={`${choice.number}-${id}`}
                 className={`card ${id === game.automaticCard?.id ? 'auto' : ''}`}
                 data-rarity={rarity}
+                data-upgrade={id}
                 aria-label={
                   c.rarities[rarity] +
                   ' ' +
@@ -124,6 +125,7 @@ export function Choices({
                 className="choice-echo"
                 data-selected={id === receipt.selected}
                 data-rarity={rarity}
+                data-upgrade={id}
                 key={id}
               >
                 <span className="card-label">

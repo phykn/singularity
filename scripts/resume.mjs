@@ -3,8 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { devices } from 'playwright';
 import { base, capture, launchBrowser, observeScene } from './browser-support.mjs';
 import { copy } from '../src/ui/i18n.ts';
-import { rules, levelForXp } from '../src/game/rules.ts';
-import { runKey } from '../src/app/storage.ts';
+import { rules } from '../src/game/rules.ts';
 
 const browser = await launchBrowser();
 const context = await browser.newContext({ ...devices['Pixel 7'] });
@@ -49,95 +48,102 @@ const open = async () => {
   await page.waitForFunction(() => !!window.__gameDebug);
   return page;
 };
-const verifyRestored = async (page, checkpoint) => {
-  const { actual, expected, foregroundTicks } = await page.evaluate(
-    async ({ fields, checkpoint }) => {
-      const { restoreCheckpoint } = await import('/src/game/replay.ts');
-      const game = window.__gameDebug.getModel();
-      const restored = restoreCheckpoint(checkpoint);
-      if (restored)
-        restored.advance(((game.elapsedTicks - checkpoint.ticks) * 1000) / restored.rules.tickRate);
-      const state = (g) => Object.fromEntries(fields.map((key) => [key, g[key]]));
-      return {
-        actual: state(game),
-        expected: restored && state(restored),
-        foregroundTicks: Math.ceil((performance.now() * game.rules.tickRate) / 1000),
-      };
-    },
-    { fields, checkpoint },
-  );
-  assert.ok(expected);
-  assert.ok(actual.elapsedTicks >= checkpoint.ticks);
-  assert.ok(
-    actual.elapsedTicks - checkpoint.ticks <= foregroundTicks + 2 * rules.tickRate,
-    'Returning may consume foreground time and a periodic-save gap, but no closed-tab time',
-  );
-  // Replay in the same JS runtime so every coordinate can be compared exactly.
-  assert.deepEqual(actual, expected);
-  assert.equal(
-    await page
-      .locator('.app')
-      .innerText()
-      .then((t) => t.includes('undefined')),
-    false,
-  );
-  return actual;
-};
 mkdirSync('artifacts/screens', { recursive: true });
 try {
   let page = await open();
+  const seen = new Set();
+  const verifyFresh = async (previous) => {
+    await page.getByRole('button', { name: 'START', exact: true }).waitFor();
+    const game = await snapshot(page);
+    assert.equal(game.phase, 'ready');
+    assert.equal(game.tick, 0);
+    assert.equal(game.xp, 0);
+    assert.equal(game.choice, null);
+    assert.deepEqual(game.selections, []);
+    assert.notEqual(game.seed, previous);
+    assert.ok(!seen.has(game.seed), 'A new page repeated a seed');
+    seen.add(game.seed);
+    return game.seed;
+  };
+  let seed = await verifyFresh();
+  for (let i = 0; i < 4; i++) {
+    await page.reload();
+    await page.waitForFunction(() => !!window.__gameDebug);
+    seed = await verifyFresh(seed);
+  }
+  report('refresh uses a new seed even when the URL contains a seed parameter', {
+    seeds: [...seen],
+  });
+
   await page.getByRole('button', { name: 'START' }).click();
   await page.evaluate(() => {
     for (let i = 0; i < 120 && !window.__gameDebug.getModel().choice; i++)
       window.__gameDebug.advance(250);
   });
   await page.locator('.card').nth(1).click();
+  await page.getByRole('button', { name: c.pause, exact: true }).click();
+  const paused = await snapshot(page);
   await page.evaluate(() => {
-    for (let i = 0; i < 360 && !window.__gameDebug.getModel().choice; i++)
-      window.__gameDebug.advance(250);
     Object.defineProperty(document, 'hidden', { configurable: true, value: true });
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  const saved = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), runKey);
-  assert.equal(saved.inputs.length, 1);
-  const before = await snapshot(page);
-  assert.ok(before.choice);
-  await page.reload();
-  await page.waitForFunction(() => !!window.__gameDebug);
-  const restored = await verifyRestored(page, saved);
-  assert.deepEqual(restored.choice, before.choice);
-  assert.equal(restored.selections[0].automatic, false);
-  await page.locator('.xp-status').getByRole('progressbar', { name: c.xp, exact: true }).waitFor();
-  await capture(page, 'artifacts/screens/resumed-cards.png');
-  report('Android viewport reload restores the manual build and pending cards', {
-    seed: restored.seed,
-    xp: restored.xp,
-    level: levelForXp(restored.xp),
-    manualInputs: saved.inputs.length,
+  await page.waitForTimeout(250);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    document.dispatchEvent(new Event('visibilitychange'));
   });
-
-  await page.getByRole('button', { name: c.pause, exact: true }).click();
-  const paused = await snapshot(page);
-  await page.reload();
-  await page.waitForFunction(() => !!window.__gameDebug);
-  await page.getByRole('button', { name: c.resume, exact: true }).waitFor();
-  assert.deepEqual(await snapshot(page), paused);
-  await page.waitForTimeout(500);
   assert.deepEqual(await snapshot(page), paused);
   await page.getByRole('button', { name: c.resume, exact: true }).click();
-  await page.waitForTimeout(150);
+  await page.waitForTimeout(100);
+  assert.equal((await snapshot(page)).seed, paused.seed);
   assert.ok((await snapshot(page)).tick > paused.tick);
-  report('manual pause survives a reload and resumes only when requested', {
-    pausedAt: paused.tick,
-  });
+  await page.getByRole('button', { name: c.pause, exact: true }).click();
+  await page.reload();
+  await page.waitForFunction(() => !!window.__gameDebug);
+  seed = await verifyFresh(seed);
+  await capture(page, 'artifacts/screens/fresh-after-reload.png');
+  report('backgrounding resumes the live run; refreshing discards its build and pause', { seed });
+
+  for (const action of [c.retry, c.newRun]) {
+    await page.evaluate(() => {
+      const g = window.__gameDebug.getModel();
+      g.start();
+      window.__gameDebug.advance(1800000);
+    });
+    await page.getByRole('button', { name: action, exact: true }).click();
+    seed = await verifyFresh(seed);
+  }
+  assert.ok(await page.evaluate(() => localStorage.getItem('singularity.record')));
+  report('retry and new game both generate fresh seeds', { seed });
+
+  await page.getByRole('button', { name: 'START' }).click();
+  await page.getByRole('button', { name: c.pause, exact: true }).click();
+  await page.getByRole('button', { name: c.quit, exact: true }).click();
+  await page.getByRole('button', { name: c.quitConfirm, exact: true }).click();
+  seed = await verifyFresh(seed);
+  report('ending a run returns to a new seed', { seed });
 
   await page.evaluate(() => {
-    window.__gameDebug.restart(96009);
-    window.__gameDebug.advance(240000);
+    localStorage.setItem('singularity.language', JSON.stringify('en'));
+    localStorage.setItem('singularity.settings', JSON.stringify({ sound: true }));
   });
-  await page.waitForTimeout(1200);
-  const periodic = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), runKey);
-  assert.ok(periodic.ticks >= 240 * rules.tickRate);
+  const record = await page.evaluate(() => localStorage.getItem('singularity.record'));
+  await page.reload();
+  await page.waitForFunction(() => !!window.__gameDebug);
+  seed = await verifyFresh(seed);
+  assert.equal(await page.locator('html').getAttribute('lang'), 'en');
+  await page.getByRole('button', { name: copy.en.settings, exact: true }).click();
+  assert.equal(
+    await page.locator('.settings-panel .setting-row').first().getAttribute('aria-pressed'),
+    'true',
+  );
+  assert.equal(await page.evaluate(() => localStorage.getItem('singularity.record')), record);
+  await page.getByRole('button', { name: copy.en.close, exact: true }).click();
+  await page.getByRole('button', { name: '한국어', exact: true }).click();
+  report('fresh runs preserve language, sound preferences and best results', {});
+
+  await page.getByRole('button', { name: 'START' }).click();
+  await page.evaluate(() => window.__gameDebug.advance(10000));
   const cdp = await context.newCDPSession(page);
   await new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error('Renderer crash timed out')), 30000);
@@ -152,35 +158,9 @@ try {
   });
   await page.close();
   page = await open();
-  const afterCrash = await verifyRestored(page, periodic);
-  await capture(page, 'artifacts/screens/resumed-after-crash.png');
-  report('a terminated renderer recovers the periodic save without an unload event', {
-    savedTicks: periodic.ticks,
-    restoredTicks: afterCrash.elapsedTicks,
-  });
-
-  await page.evaluate(() => {
-    window.__gameDebug.restart(96009);
-    window.__gameDebug.advance(610000);
-  });
-  await page.getByRole('heading', { name: c.success, exact: true }).waitFor();
-  const result = (await snapshot(page)).result;
-  await page.reload();
-  await page.getByRole('heading', { name: c.success, exact: true }).waitFor();
-  assert.deepEqual((await snapshot(page)).result, result);
-  report('a completed run survives reloading without starting a new game', {
-    seconds: result.seconds,
-    xp: result.xp,
-  });
-  await page.getByRole('button', { name: c.retry, exact: true }).click();
-  await page.getByRole('button', { name: 'START', exact: true }).click();
-  await page.getByRole('button', { name: c.pause, exact: true }).click();
-  await page.getByRole('button', { name: c.quit, exact: true }).click();
-  await page.getByRole('button', { name: c.quitConfirm, exact: true }).click();
-  assert.equal(await page.evaluate((key) => localStorage.getItem(key), runKey), null);
-  await page.reload();
-  await page.getByRole('button', { name: 'START', exact: true }).waitFor();
-  report('explicitly ending a run clears its save', { phase: (await snapshot(page)).phase });
+  seed = await verifyFresh(seed);
+  await capture(page, 'artifacts/screens/fresh-after-crash.png');
+  report('a terminated renderer opens a fresh run instead of replaying the old seed', { seed });
 
   await page.evaluate(() => {
     window.__gameDebug.restart(42, false);
@@ -260,12 +240,11 @@ try {
   await failed.locator('.result .setting-notice').waitFor();
   await failed.waitForFunction(() => window.recordAttempts >= 2);
   assert.equal(await failed.evaluate(() => localStorage.getItem('singularity.record')), null);
-  assert.ok(await failed.evaluate(() => localStorage.getItem('singularity.run')));
   assert.equal(await failed.locator('.result .setting-notice').innerText(), c.storageFailed);
   await failed.evaluate(() => window.restoreWrites());
   await failed.waitForFunction(() => !!localStorage.getItem('singularity.record'));
   await failed.locator('.result .setting-notice').waitFor({ state: 'hidden' });
-  report('a failed record write stays visible through successful run saves and retries', {
+  report('a failed best-result write retries until it succeeds', {
     outcome: await failed.evaluate(
       () => JSON.parse(localStorage.getItem('singularity.record')).outcome,
     ),
@@ -294,7 +273,7 @@ try {
   await failed.evaluate(() => window.restoreWrites());
   await failed.locator('.settings-panel .setting-row').first().click();
   await failed.locator('.settings-panel .setting-notice').waitFor({ state: 'hidden' });
-  report('saving another preference or run does not hide an unsaved settings warning', {});
+  report('saving another preference does not hide an unsaved settings warning', {});
   await failed.close();
   assert.deepEqual(errors, []);
   writeFileSync(

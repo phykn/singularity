@@ -2,31 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Game } from '../game/model.ts';
 import { GameAudio } from './audio.ts';
 import { GameSession } from './session.ts';
+import { newSeed } from './seed.ts';
 import {
   bestRecord,
   readLanguage,
   readRecord,
-  readRun,
   readSettings,
   languageKey,
   recordKey,
-  runKey,
   save,
-  saveRun,
   settingsKey,
 } from './storage.ts';
 import type { Record as Best, Settings } from './storage.ts';
 import type { UpgradeId } from '../game/rules.ts';
 import { languages } from '../ui/i18n.ts';
 import type { Language } from '../ui/i18n.ts';
-
-const newSeed = () => crypto.getRandomValues(new Uint32Array(1))[0];
-const firstSeed = () => {
-  const seed = new URLSearchParams(location.search).get('seed');
-  return import.meta.env.DEV && seed !== null && /^\d+$/.test(seed)
-    ? Number(seed) >>> 0
-    : newSeed();
-};
 
 export function useGame() {
   const [language, setLanguage] = useState<Language>(() => {
@@ -61,21 +51,9 @@ export function useGame() {
   bestRef.current = best;
   const [audio] = useState(() => new GameAudio());
   const [session] = useState(() => {
-    let game: Game;
-    try {
-      game = readRun(localStorage) ?? new Game(firstSeed());
-    } catch {
-      game = new Game(firstSeed());
-    }
+    const game = new Game(newSeed());
     return new GameSession(game, audio, {
       sound: () => settingsRef.current.sound,
-      saveRun: (game) => {
-        try {
-          reportSave(runKey, saveRun(localStorage, game));
-        } catch {
-          reportSave(runKey, false);
-        }
-      },
       saveResult: (result) => {
         const record = bestRecord(bestRef.current, result);
         bestRef.current = record;
@@ -136,8 +114,8 @@ export function useGame() {
       changeSettings({ ...settingsRef.current, sound: false });
   }
 
-  function replace(seed = newSeed()) {
-    const game = new Game(seed);
+  function replace() {
+    const game = new Game(newSeed(session.game.seed));
     game.setHidden(document.hidden);
     session.replace(game, performance.now());
   }
@@ -183,6 +161,11 @@ export function useGame() {
     if (!import.meta.env.DEV) return;
     window.__gameDebug = {
       getModel: getGame,
+      prepare: (seed: number) => {
+        const game = new Game(seed);
+        game.setHidden(document.hidden);
+        session.replace(game, performance.now());
+      },
       advance: (ms: number) => session.advance(ms, performance.now()),
       xp: (xp: number) => {
         session.game.debugSetXp(xp);
@@ -223,6 +206,7 @@ declare global {
   interface Window {
     __gameDebug?: {
       getModel: () => Game;
+      prepare: (seed: number) => void;
       advance: (ms: number) => void;
       xp: (xp: number) => void;
       restart: (seed: number, combat?: boolean) => void;

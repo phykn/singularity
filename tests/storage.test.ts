@@ -7,13 +7,10 @@ import {
   bestRecord,
   readLanguage,
   readRecord,
-  readRun,
   readSettings,
   languageKey,
   recordKey,
-  runKey,
   save,
-  saveRun,
   settingsKey,
 } from '../src/app/storage.ts';
 import { fixture, run } from './helpers.ts';
@@ -124,22 +121,16 @@ test('saved runs restore pending cards, moving enemies and reserved attacks with
   }
 });
 
-test('save survives backgrounding and a reload, preserves manual pause, and quit discards the run', () => {
-  const map = new Map<string, string>();
-  const storage = {
-    getItem: (key: string) => map.get(key) ?? null,
-    setItem: (key: string, value: string) => map.set(key, value),
-    removeItem: (key: string) => map.delete(key),
-  } as Storage;
+test('checkpoints preserve manual pause but omit background pause; ready games have no checkpoint', () => {
   const g = new Game(10004);
   g.start();
   for (let i = 0; i < 1800 && !g.choice; i++) g.advance(1000 / 60);
   assert.ok(g.choice);
   g.setManualPause(true);
   g.setHidden(true);
-  assert.ok(saveRun(storage, g));
-  assert.ok(map.get(runKey)!.length < 2000);
-  const restored = readRun(storage)!;
+  const checkpoint = JSON.stringify(createCheckpoint(g));
+  assert.ok(checkpoint.length < 2000);
+  const restored = restoreCheckpoint(JSON.parse(checkpoint))!;
   assert.ok(restored.manualPaused);
   assert.equal(restored.hiddenPaused, false);
   assert.deepEqual(restored.choice, g.choice);
@@ -152,13 +143,11 @@ test('save survives backgrounding and a reload, preserves manual pause, and quit
   restored.advance(610000);
   g.advance(610000);
   assert.deepEqual(restored.result, g.result);
-  assert.ok(saveRun(storage, restored));
-  assert.deepEqual(readRun(storage)?.result, restored.result);
-  assert.ok(saveRun(storage, new Game(g.seed)));
-  assert.equal(readRun(storage), null);
+  assert.deepEqual(restoreCheckpoint(createCheckpoint(restored)!)?.result, restored.result);
+  assert.equal(createCheckpoint(new Game(g.seed)), null);
 });
 
-test('saves and records accept a run past ten minutes and a manual choice beyond number 25', (t) => {
+test('checkpoints and records accept a run past ten minutes and a manual choice beyond number 25', (t) => {
   // Isolate long-save behavior from the current difficulty: extend the goal and
   // reduce gravity so this fixture can reliably reach choice 26 and ten minutes.
   const goal = rules.energyGoal,
@@ -184,8 +173,7 @@ test('saves and records accept a run past ten minutes and a manual choice beyond
   g.advance(601000 - g.seconds * 1000);
   assert.ok(g.seconds > 600);
   assert.ok(g.level > 26);
-  assert.ok(saveRun(storage, g));
-  const restored = readRun(storage)!;
+  const restored = restoreCheckpoint(JSON.parse(JSON.stringify(createCheckpoint(g))))!;
   assert.ok(restored);
   assert.deepEqual(createCheckpoint(restored), createCheckpoint(g));
   restored.advance(1800000);
@@ -197,7 +185,7 @@ test('saves and records accept a run past ten minutes and a manual choice beyond
   assert.deepEqual(readRecord(storage), record);
 });
 
-test('ending phases resume at the same frame after saving; bad or incompatible saves do not load', () => {
+test('ending phases replay at the same frame from a checkpoint', () => {
   const full = run(10004, 60);
   const collisionTick = Math.round(full.collisionTime * rules.tickRate);
   for (const extra of [0, 60, 210, 900]) {
@@ -212,37 +200,4 @@ test('ending phases resume at the same frame after saving; bad or incompatible s
     restored.advance(16000);
     assert.deepEqual(restored.result, g.result);
   }
-  const g = new Game(10004);
-  g.start();
-  g.advance(123000);
-  const checkpoint = createCheckpoint(g)!;
-  const values = [
-    null,
-    {},
-    '{',
-    { ...checkpoint, ticks: -1 },
-    { ...checkpoint, ticks: Number.MAX_SAFE_INTEGER + 1 },
-    { ...checkpoint, inputs: [{ tick: 1, id: 'unknown', number: 1 }] },
-    { ...checkpoint, inputs: [{ tick: 1, id: 'area', number: 1 }] },
-  ];
-  for (const value of values) {
-    const storage = {
-      getItem: () => (typeof value === 'string' ? value : JSON.stringify(value)),
-    } as Storage;
-    assert.equal(readRun(storage), null);
-  }
-  const blocked = {
-    getItem: () => {
-      throw new Error('blocked');
-    },
-    setItem: () => {
-      throw new Error('blocked');
-    },
-    removeItem: () => {
-      throw new Error('blocked');
-    },
-  } as unknown as Storage;
-  assert.equal(readRun(blocked), null);
-  assert.equal(saveRun(blocked, g), false);
-  assert.equal(saveRun(blocked, new Game(1)), false);
 });
