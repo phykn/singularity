@@ -201,16 +201,14 @@ export class ElectronScene extends Phaser.Scene {
     }
     if (ending.stage === 'impact') {
       const t = clamp((model.phaseProgress * model.rules.failureEndingSeconds) / 0.2);
-      g.lineStyle(1 / scale, AMBER, 0.8 * (1 - t));
-      g.strokeCircle(180, 260, (4 + 10 * t) / scale);
-      g.fillStyle(WHITE, (reduced ? 0.3 : 1) * (1 - t));
-      g.fillRect(180 - 5 / scale, 260, 10 / scale, 1 / scale);
-      g.fillRect(180, 260 - 5 / scale, 1 / scale, 10 / scale);
+      g.lineStyle(1 / scale, AMBER, (reduced ? 0.25 : 0.55) * (1 - t));
+      g.strokeCircle(180, 260, Math.round(8 * (1 - t) + 2) / scale);
+      g.fillStyle(WHITE, (reduced ? 0.2 : 0.6) * (1 - t) ** 2);
+      g.fillCircle(180, 260, 2 / scale);
     }
-    if (ending.flash && !reduced) {
-      g.fillStyle(WHITE, ending.flash * 0.8);
-      g.fillRect(180 - 9 / scale, 260 - 2 / scale, 18 / scale, 4 / scale);
-      g.fillRect(180 - 2 / scale, 260 - 9 / scale, 4 / scale, 18 / scale);
+    if (ending.success && ending.flash && !reduced) {
+      g.fillStyle(WHITE, ending.flash * 0.6);
+      g.fillCircle(180, 260, 5 / scale);
     }
   }
 

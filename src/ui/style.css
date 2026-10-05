@@ -502,9 +502,9 @@ svg {
 .card,
 .choice-echo {
   min-width: 0;
-  height: 128px;
+  height: 136px;
   display: grid;
-  grid-template-rows: 16px 40px 16px 32px;
+  grid-template-rows: 16px 48px 16px 32px;
   gap: 2px;
   padding: 8px 6px;
   background: #101e2a;
@@ -551,17 +551,33 @@ svg {
 .skill-preview {
   color: var(--blue);
   width: 100%;
-  height: 40px;
+  height: 48px;
   align-self: center;
   overflow: hidden;
 }
 .preview-target {
-  stroke: #6a8390;
-  fill: #8ce8fb08;
+  stroke: #243944;
+  stroke-width: 1;
+  fill: #607b89;
 }
 .preview-source {
   fill: #e7fbff;
   stroke: none;
+}
+.preview-sheath {
+  opacity: 0.14;
+}
+.preview-hot {
+  stroke: #f1fcff;
+}
+.preview-contact {
+  stroke-width: 1;
+  opacity: 0.4;
+}
+.preview-chain .preview-bolt,
+.preview-chain .preview-contact {
+  animation: preview-link 2.4s steps(4) infinite both;
+  animation-delay: var(--delay, 0s);
 }
 .preview-ghost {
   stroke: #527380;
@@ -579,6 +595,12 @@ svg {
 }
 .preview-area .preview-ring {
   animation-name: preview-bolt;
+}
+.preview-ripple {
+  stroke: #f1fcff;
+  stroke-width: 1;
+  fill: none;
+  animation-delay: 0.12s;
 }
 .preview-repeat .preview-bolt {
   animation-name: preview-pulse;
@@ -616,6 +638,17 @@ svg {
   }
   5%,
   15% {
+    opacity: 1;
+  }
+}
+@keyframes preview-link {
+  0%,
+  40%,
+  100% {
+    opacity: 0.25;
+  }
+  8%,
+  22% {
     opacity: 1;
   }
 }
@@ -1342,11 +1375,11 @@ b {
 .language-picker button[aria-pressed='true'] {
   box-shadow: inset 0 -2px #8ce8fb;
 }
-.preview-whip {
-  transform-origin: 46px 32px;
+g.preview-whip {
+  transform-origin: 28px 40px;
   animation: preview-whip 2.4s steps(12) infinite;
 }
-.preview-focus {
+g.preview-focus {
   animation: preview-focus 2s steps(2) infinite;
 }
 @keyframes preview-whip {

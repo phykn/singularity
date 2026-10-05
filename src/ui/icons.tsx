@@ -10,32 +10,49 @@ const statIcons: Partial<Record<UpgradeId, ComponentType<SVGProps<SVGSVGElement>
   rate: Repeat,
   accel: SpeedFast,
 };
-const skillPaths: Record<SkillId, string> = {
-  area: 'M5 1h6v1H5zM2 3h2v2H2zM12 3h2v2h-2zM1 6h1v4H1zM14 6h1v4h-1zM2 11h2v2H2zM12 11h2v2h-2zM5 14h6v1H5zM7 3h2v3H7zM3 7h3v2H3zM10 7h3v2h-3zM7 10h2v3H7z',
-  repeat: 'M4 0h4L4 5h3L0 12l2-5H0zM11 2h4l-4 5h3l-7 7 2-5H7z',
-  multi: 'M3 7h4v2H3zM6 5h2v2H6zM8 3h4v2H8zM7 7h5v2H7zM6 9h2v2H6zM8 11h4v2H8z',
-  chain: 'M4 3h3v2H4zM6 4h2v3H6zM9 8h2v2H9zM10 9h2v3h-2z',
-  pierce: 'M0 7h12V5h2v2h2v2h-2v2h-2V9H0z',
-  burst:
-    'M3 3h2v2H3zM4 4h2v2H4zM10 4h2v2h-2zM11 3h2v2h-2zM3 11h2v2H3zM4 10h2v2H4zM10 10h2v2h-2zM11 11h2v2h-2z',
-  strike: 'M8 0h5v2h-3v2H8v2h4v2h-2v2H8v2H6V8H3V6h2V4h3z',
-  wave: 'M7 0h2v3H7zM6 1h1v1H6zM9 1h1v1H9zM0 7h3v2H0zM1 6h1v1H1zM1 9h1v1H1zM13 7h3v2h-3zM14 6h1v1h-1zM14 9h1v1h-1zM7 13h2v3H7zM6 14h1v1H6zM9 14h1v1H9zM5 4h6v1H5zM4 5h1v6H4zM11 5h1v6h-1zM5 11h6v1H5z',
-  whip: 'M4 2h6v1H4zM10 3h3v2h-3zM13 5h2v5h-2zM12 10h2v2h-2zM4 10h3v2H4zM7 8h3v2H7zM10 6h3v2h-3z',
-  focus:
-    'M2 7h8v2H2zM9 3h3v1H9zM8 4h1v2H8zM14 4h1v2h-1zM12 3h2v1h-2zM8 10h1v2H8zM9 12h3v1H9zM14 10h1v2h-1zM12 12h2v1h-2z',
-};
-const skillTargets: Record<SkillId, string> = {
-  area: 'M7 6h2v1h1v2H9v1H7V9H6V7h1z',
-  repeat: 'M4 13h6v1h1v1H3v-1h1z',
-  multi: 'M0 7h3v2H0zM12 2h3v3h-3zM12 7h3v3h-3zM12 12h3v3h-3z',
-  chain: 'M1 1h3v3H1zM7 6h3v3H7zM12 12h3v3h-3z',
-  pierce: 'M4 4h3v1H5v6h2v1H4zM9 4h3v1h-2v6h2v1H9z',
-  burst:
-    'M5 5h2v2H5zM7 7h2v2H7zM9 9h2v2H9zM9 5h2v2H9zM5 9h2v2H5zM0 0h3v3H0zM13 0h3v3h-3zM0 13h3v3H0zM13 13h3v3h-3z',
-  strike: 'M5 13h5v1h2v1H3v-1h2z',
-  wave: 'M7 7h2v2H7z',
-  whip: 'M1 12h3v3H1z',
-  focus: 'M11 6h2v1h1v2h-1v1h-2V9h-1V7h1z',
+const skillGlyphs: Record<SkillId, { shape: string; light: string; field?: string }> = {
+  area: {
+    shape:
+      'M5 1h6v2h2v2h2v6h-2v2h-2v2H5v-2H3v-2H1V5h2V3h2zM6 3v2H5v1H3v4h2v1h1v2h4v-2h1v-1h2V6h-2V5h-1V3z',
+    light: 'M8 5h3L8 8h2l-4 4 1-3H5z',
+  },
+  repeat: {
+    field: 'M5 2h4L6 6h2l-6 7 2-5H2z',
+    shape: 'M11 3h4l-3 4h2l-6 7 2-5H8z',
+    light: 'M11 3h3v1h-3z',
+  },
+  multi: {
+    shape: 'M3 6h4V4h2V2h5v3h-4v2H8v2h2v2h4v3H9v-2H7v-2H3z',
+    light: 'M1 7h3v2H1zM12 2h2v2h-2zM12 12h2v2h-2z',
+  },
+  chain: {
+    shape: 'M6 1h4v4H8v2H6v2H5v4H1V9h2V7h1V5h2zM10 5h2v2h-1v1h2v1h2v4h-4V9H9V7H8V5z',
+    light: 'M7 2h2v2H7zM2 10h2v2H2zM12 10h2v2h-2z',
+  },
+  pierce: {
+    shape: 'M1 6h9V3h2v2h2v2h1v2h-1v2h-2v2h-2v-3H1z',
+    light: 'M3 7h8v2H3z',
+  },
+  burst: {
+    shape: 'M2 2h3v2h2v2h2V4h2V2h3v3h-2v2h-2v2h2v2h2v3h-3v-2H9v-2H7v2H5v2H2v-3h2V9h2V7H4V5H2z',
+    light: 'M6 6h4v4H6z',
+  },
+  strike: {
+    shape: 'M8 1h6L9 7h4L4 15l2-6H2z',
+    light: 'M8 1h4v1H8zM6 7h3v2H6z',
+  },
+  wave: {
+    shape: 'M8 1h3v2h2v2h2v6h-2v2h-2v2H8v-2h2v-2h2V5h-2V3H8zM5 4h2v2h2v4H7v2H5v-2h1V6H5z',
+    light: 'M1 6h3v4H1z',
+  },
+  whip: {
+    shape: 'M2 13v-3h2V8h3V6h3V5h2V3H7V1h5v1h2v2h1v3h-2v2H9v2H6v2H5v2H2z',
+    light: 'M2 11h2v2H2zM8 2h3v1H8z',
+  },
+  focus: {
+    shape: 'M2 2h3v2h3v2h3v1h2v2h-2v1H8v2H5v2H2v-2h3v-2h3V9H2V7h6V6H5V4H2z',
+    light: 'M12 5h2v1h1v4h-1v1h-2v-1h-1V6h1z',
+  },
 };
 
 export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
@@ -52,6 +69,7 @@ export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
       />
     );
   const pixels = size >= 24 ? 32 : 16;
+  const glyph = skillGlyphs[id as SkillId];
   return (
     <svg
       className="skill-icon"
@@ -63,8 +81,9 @@ export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
       shapeRendering="crispEdges"
       aria-hidden="true"
     >
-      <path d={skillPaths[id as keyof typeof skillPaths]} />
-      <path d={skillTargets[id as SkillId]} fill="#f1fcff" />
+      {glyph.field && <path d={glyph.field} opacity={0.55} />}
+      <path d={glyph.shape} fillRule="evenodd" />
+      <path d={glyph.light} fill="#f1fcff" />
     </svg>
   );
 }
