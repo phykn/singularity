@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { ArrowRight, CircleQuestion as CircleHelp, SlidersHorizontal } from 'pixelarticons/react';
+import {
+  ArrowRight,
+  CircleQuestion as CircleHelp,
+  Github,
+  SlidersHorizontal,
+  Star,
+} from 'pixelarticons/react';
 import { GameCanvas } from '../render/GameCanvas.tsx';
 import { Hud } from '../ui/Hud.tsx';
 import { Loadout } from '../ui/Loadout.tsx';
@@ -64,6 +70,18 @@ export default function App() {
       <div className="play-layout" inert={modal || (!ready && !renderReady)}>
         {ready ? (
           <header className="topbar">
+            <a
+              className="github-link"
+              href="https://github.com/phykn/singularity"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="GitHub"
+              title="GitHub"
+            >
+              <Github aria-hidden="true" />
+              <span>GitHub</span>
+              <Star className="github-star" aria-hidden="true" />
+            </a>
             <div className="header-actions">
               <button
                 className="icon-button"

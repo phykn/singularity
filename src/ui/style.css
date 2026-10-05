@@ -74,6 +74,7 @@ button:disabled {
   opacity: 0.5;
 }
 button:focus-visible,
+a:focus-visible,
 summary:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: -3px;
@@ -128,6 +129,60 @@ svg {
 }
 .topbar .icon-button {
   color: #8796a5;
+}
+.github-link {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  left: calc(var(--gutter) - 8px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  background: #10151b;
+  color: #9eacba;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+.github-link svg {
+  width: 24px;
+  height: 24px;
+}
+.github-link .github-star {
+  width: 14px;
+  height: 14px;
+  color: #f4d477;
+  animation: github-twinkle 2.8s ease-in-out infinite;
+}
+@keyframes github-twinkle {
+  0%,
+  55%,
+  100% {
+    opacity: 0.5;
+  }
+  75% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .github-link .github-star {
+    animation: none;
+  }
+}
+.github-link:active,
+.github-link:focus-visible {
+  color: var(--blue);
+  border-color: var(--blue);
+  background: var(--surface);
+}
+@media (hover: hover) and (pointer: fine) {
+  .github-link:hover {
+    color: var(--blue);
+    border-color: var(--blue);
+    background: var(--surface);
+  }
 }
 .header-actions {
   display: flex;
@@ -890,6 +945,9 @@ svg {
   }
 }
 @media (orientation: portrait) and (max-height: 680px) {
+  .github-link {
+    top: 6px;
+  }
   .is-ready .play-layout {
     grid-template-rows: 56px minmax(0, 1fr) auto;
   }
@@ -904,6 +962,9 @@ svg {
   }
 }
 @media (orientation: landscape) and (max-height: 600px) {
+  .github-link {
+    top: 6px;
+  }
   .hud {
     padding-inline: 8px;
   }
