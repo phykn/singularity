@@ -988,6 +988,68 @@ const orbFlow = async () => {
   await page.close();
 };
 
+const speedFlow = async () => {
+  for (const [width, height] of [
+    [320, 568],
+    [375, 812],
+    [430, 932],
+    [568, 320],
+    [812, 375],
+  ]) {
+    const page = await pageFor(width, height);
+    await page.getByRole('button', { name: 'START' }).click();
+    const button = page.locator('.speed-button');
+    assert.equal(await button.innerText(), '1×');
+    for (const speed of [1.5, 2, 1]) {
+      await button.tap();
+      assert.equal(await button.innerText(), speed + '×');
+      assert.equal(
+        await button.getAttribute('aria-label'),
+        copy.ko.playbackSpeed + ' ' + speed + '×',
+      );
+    }
+    await button.tap();
+    await button.tap();
+    await inspect(page);
+    const overlaps = await page.evaluate(() => {
+      const nodes = [...document.querySelector('.hud-top').children];
+      return nodes
+        .slice(1)
+        .filter(
+          (node, i) =>
+            nodes[i].getBoundingClientRect().right > node.getBoundingClientRect().left + 0.5,
+        )
+        .map((node) => node.className);
+    });
+    assert.deepEqual(overlaps, []);
+    await screenshot(page, 'speed-' + width + 'x' + height);
+    await page.getByRole('button', { name: copy.ko.pause, exact: true }).tap();
+    const tick = (await snapshot(page)).time;
+    await page.waitForTimeout(150);
+    assert.equal((await snapshot(page)).time, tick);
+    await page.getByRole('button', { name: copy.ko.resume, exact: true }).tap();
+    assert.equal(await button.innerText(), '2×');
+    if (width === 375) {
+      const measured = await page.evaluate(async () => {
+        const g = window.__gameDebug.getModel();
+        const start = performance.now(),
+          before = g.time;
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        return { wall: (performance.now() - start) / 1000, game: g.time - before };
+      });
+      assert.ok(Math.abs(measured.game / measured.wall - 2) < 0.25, JSON.stringify(measured));
+      report('2x playback advances the live simulation at twice wall speed', measured);
+    }
+    await page.getByRole('button', { name: copy.ko.pause, exact: true }).tap();
+    await page.getByRole('button', { name: copy.ko.quit, exact: true }).tap();
+    await page.getByRole('button', { name: copy.ko.quitConfirm, exact: true }).tap();
+    await page.getByRole('button', { name: 'START' }).tap();
+    assert.equal(await button.innerText(), '1×');
+    report('speed controls cycle, pause and reset on mobile ' + width + 'x' + height, {});
+    await page.close();
+  }
+};
+
 const waveWarningFlow = async () => {
   for (const [width, height] of [
     [320, 568],
@@ -1066,7 +1128,9 @@ const waveWarningFlow = async () => {
 };
 
 try {
-  if (process.argv.includes('--warning')) {
+  if (process.argv.includes('--speed')) {
+    await speedFlow();
+  } else if (process.argv.includes('--warning')) {
     await waveWarningFlow();
   } else if (process.argv.includes('--orb')) {
     await orbFlow();
@@ -1270,6 +1334,7 @@ try {
       await page.close();
     }
 
+    await speedFlow();
     await waveWarningFlow();
     await skillFlow();
     await interfaceFlow();
@@ -1455,23 +1520,25 @@ try {
     'artifacts/' +
       (process.argv.includes('--polish')
         ? 'polish-browser'
-        : process.argv.includes('--warning')
-          ? 'warning-browser'
-          : process.argv.includes('--audio')
-            ? 'audio-browser'
-            : process.argv.includes('--skills')
-              ? 'skills-browser'
-              : process.argv.includes('--visuals')
-                ? 'visuals-browser'
-                : process.argv.includes('--interface')
-                  ? 'interface-browser'
-                  : process.argv.includes('--rarity')
-                    ? 'rarity-browser'
-                    : process.argv.includes('--production')
-                      ? 'production'
-                      : process.argv.includes('--realtime')
-                        ? 'realtime-checks'
-                        : 'browser') +
+        : process.argv.includes('--speed')
+          ? 'speed-browser'
+          : process.argv.includes('--warning')
+            ? 'warning-browser'
+            : process.argv.includes('--audio')
+              ? 'audio-browser'
+              : process.argv.includes('--skills')
+                ? 'skills-browser'
+                : process.argv.includes('--visuals')
+                  ? 'visuals-browser'
+                  : process.argv.includes('--interface')
+                    ? 'interface-browser'
+                    : process.argv.includes('--rarity')
+                      ? 'rarity-browser'
+                      : process.argv.includes('--production')
+                        ? 'production'
+                        : process.argv.includes('--realtime')
+                          ? 'realtime-checks'
+                          : 'browser') +
       '.json',
     JSON.stringify({ base, checks, errors }, null, 2),
   );

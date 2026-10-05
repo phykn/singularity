@@ -14,6 +14,7 @@ const frameTickLimit = 8;
 export class GameSession {
   game: Game;
   renderReady = false;
+  playbackSpeed: 1 | 1.5 | 2 = 1;
   private audio: Pick<GameAudio, 'enabled' | 'update' | 'unlock' | 'suspend' | 'destroy'>;
   private effects: SessionEffects;
   private lastWall = 0;
@@ -49,6 +50,7 @@ export class GameSession {
 
   replace(game: Game, wall: number): void {
     this.game = game;
+    this.playbackSpeed = 1;
     this.lastWall = wall;
     this.lastDrawTick = -1;
     this.heard = 0;
@@ -70,9 +72,15 @@ export class GameSession {
     this.effects.redraw();
   }
 
+  cycleSpeed(wall: number): void {
+    this.step(wall);
+    this.playbackSpeed = this.playbackSpeed === 1 ? 1.5 : this.playbackSpeed === 1.5 ? 2 : 1;
+    this.effects.redraw();
+  }
+
   setHidden(hidden: boolean, wall: number): void {
     if (this.renderReady && hidden && !this.game.hiddenPaused)
-      this.game.advance(Math.max(0, wall - this.lastWall), frameTickLimit);
+      this.game.advance(Math.max(0, wall - this.lastWall) * this.playbackSpeed, frameTickLimit);
     this.game.setHidden(hidden);
     this.lastWall = wall;
     if (hidden) {
@@ -90,7 +98,8 @@ export class GameSession {
 
   step(wall: number): void {
     const game = this.game;
-    if (this.renderReady) game.advance(Math.max(0, wall - this.lastWall), frameTickLimit);
+    if (this.renderReady)
+      game.advance(Math.max(0, wall - this.lastWall) * this.playbackSpeed, frameTickLimit);
     this.lastWall = wall;
     if (this.audio.enabled) this.audio.update(game, this.heard);
     this.heard = game.events.length;

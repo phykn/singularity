@@ -263,6 +263,17 @@ svg {
 .pause-button {
   margin-right: -8px;
 }
+.speed-button,
+.pause-button {
+  flex-shrink: 0;
+}
+.speed-button {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.speed-button:not(:disabled) {
+  color: var(--blue);
+}
 .choice-track {
   height: 2px;
   border-radius: 0;
@@ -922,6 +933,9 @@ svg {
     width: 16px;
     height: 16px;
   }
+  .boost {
+    flex-direction: column;
+  }
 }
 @media (max-width: 340px) {
   .hud-top {
@@ -985,6 +999,7 @@ svg {
     gap: 4px;
   }
   .boost {
+    flex-direction: column;
     gap: 2px;
   }
   .app {

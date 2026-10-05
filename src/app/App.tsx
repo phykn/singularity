@@ -29,6 +29,8 @@ export default function App() {
     storageOk,
     audioUnavailable,
     renderReady,
+    playbackSpeed,
+    cycleSpeed,
     onRenderReady,
     begin,
     select,
@@ -100,7 +102,13 @@ export default function App() {
             </div>
           </header>
         ) : (
-          <Hud game={game} language={language} onPause={() => pause(true)} />
+          <Hud
+            game={game}
+            language={language}
+            playbackSpeed={playbackSpeed}
+            onSpeed={cycleSpeed}
+            onPause={() => pause(true)}
+          />
         )}
         <section className="arena" aria-label={c.arena}>
           <GameCanvas getGame={getGame} onReady={onRenderReady} />

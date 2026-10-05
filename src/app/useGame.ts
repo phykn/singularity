@@ -192,6 +192,8 @@ export function useGame() {
     storageOk,
     audioUnavailable,
     renderReady: session.renderReady,
+    playbackSpeed: session.playbackSpeed,
+    cycleSpeed: () => session.cycleSpeed(performance.now()),
     onRenderReady,
     begin,
     pause,

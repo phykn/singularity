@@ -15,10 +15,14 @@ const statNumber = new Intl.NumberFormat('en', {
 export function Hud({
   game,
   language,
+  playbackSpeed,
+  onSpeed,
   onPause,
 }: {
   game: Game;
   language: Language;
+  playbackSpeed: number;
+  onSpeed: () => void;
   onPause: () => void;
 }) {
   const c = copy[language],
@@ -66,6 +70,15 @@ export function Hud({
           ))}
         </div>
         <time>{formatTime(game.seconds)}</time>
+        <button
+          className="icon-button speed-button"
+          onClick={onSpeed}
+          disabled={game.phase !== 'running'}
+          aria-label={`${c.playbackSpeed} ${playbackSpeed}×`}
+          title={c.playbackSpeed}
+        >
+          {playbackSpeed}×
+        </button>
         <button
           className="icon-button pause-button"
           onClick={onPause}

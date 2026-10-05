@@ -144,3 +144,55 @@ test('a failed best-result write retries until it succeeds', () => {
   run.step(10000);
   assert.equal(attempts, 3);
 });
+
+test('playback speeds advance the same simulation at 30 and 60fps without changing stats', () => {
+  for (const fps of [30, 60]) {
+    for (const speed of [1, 1.5, 2]) {
+      const { run } = session();
+      run.setRenderReady(true, 0);
+      run.begin(0);
+      while (run.playbackSpeed !== speed) run.cycleSpeed(0);
+      for (let frame = 1; frame <= fps; frame++) run.step((frame * 1000) / fps);
+      const expected = new Game(10004);
+      expected.start();
+      expected.advance(1000 * speed);
+      assert.equal(run.game.elapsedTicks, 60 * speed);
+      assert.deepEqual(run.game.events, expected.events);
+      assert.deepEqual(run.game.targets, expected.targets);
+      assert.equal(run.game.rate, expected.rate);
+      assert.equal(run.game.speed, expected.speed);
+    }
+  }
+});
+
+test('speed changes settle the old interval and preserve pause, visibility and fresh-run behavior', () => {
+  const { run } = session();
+  run.setRenderReady(true, 0);
+  run.begin(0);
+  run.cycleSpeed(50);
+  assert.equal(run.game.elapsedTicks, 3);
+  assert.equal(run.playbackSpeed, 1.5);
+  run.cycleSpeed(150);
+  run.step(150); // Drain retained catch-up ticks without adding wall time.
+  assert.equal(run.game.elapsedTicks, 12);
+  assert.equal(run.playbackSpeed, 2);
+  run.setHidden(true, 200);
+  assert.equal(run.game.elapsedTicks, 18);
+  run.step(5000);
+  assert.equal(run.game.elapsedTicks, 18);
+  run.setHidden(false, 5000);
+  run.step(5050);
+  assert.equal(run.game.elapsedTicks, 24);
+  run.pause(true, 5050);
+  run.step(9000);
+  assert.equal(run.game.elapsedTicks, 24);
+  assert.equal(run.playbackSpeed, 2);
+  run.pause(false, 9000);
+  run.step(9050);
+  assert.equal(run.game.elapsedTicks, 30);
+  run.cycleSpeed(9050);
+  assert.equal(run.playbackSpeed, 1);
+  run.cycleSpeed(9050);
+  run.replace(new Game(42), 9050);
+  assert.equal(run.playbackSpeed, 1);
+});
