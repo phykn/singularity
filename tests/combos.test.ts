@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { skillIds, rules } from '../src/game/rules.ts';
 import type { SkillId } from '../src/game/rules.ts';
-import { timedSkills } from '../src/game/combat.ts';
+import { timedSkills } from '../src/game/skills.ts';
 import { choose, stationarySkill, target } from './helpers.ts';
 
 // Exercise actual shared hits, geometry and trigger state rather than a hand-written combo table.

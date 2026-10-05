@@ -1,3 +1,4 @@
+import { createCheckpoint } from '../src/game/replay.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../src/game/model.ts';
@@ -94,10 +95,10 @@ for (const success of [true, false]) {
     let quietFrames = 0;
     let radius = Infinity;
     for (let i = 0; i < 400 && !game.result; i++) {
-      const before = game.checkpoint();
+      const before = createCheckpoint(game);
       const frame = endingFrame(game)!;
       assert.ok(frame);
-      assert.deepEqual(game.checkpoint(), before);
+      assert.deepEqual(createCheckpoint(game), before);
       if (stages.at(-1) !== frame.stage) stages.push(frame.stage);
       if (frame.electron) {
         assert.ok(frame.radius <= radius + 1e-8);

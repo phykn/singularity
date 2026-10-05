@@ -1,5 +1,6 @@
+import { createCheckpoint, restoreCheckpoint } from '../game/replay.ts';
 import { z } from 'zod';
-import { Game } from '../game/model.ts';
+import type { Game } from '../game/model.ts';
 import type { Result } from '../game/types.ts';
 import { rules, upgradeIds } from '../game/rules.ts';
 import type { Language } from '../ui/i18n.ts';
@@ -28,14 +29,14 @@ const checkpointSchema = z.object({
 export function readRun(storage: Storage): Game | null {
   try {
     const checkpoint = checkpointSchema.safeParse(JSON.parse(storage.getItem(runKey) ?? 'null'));
-    return checkpoint.success ? Game.restore(checkpoint.data) : null;
+    return checkpoint.success ? restoreCheckpoint(checkpoint.data) : null;
   } catch {
     return null;
   }
 }
 
 export function saveRun(storage: Storage, game: Game): boolean {
-  const checkpoint = game.checkpoint();
+  const checkpoint = createCheckpoint(game);
   if (checkpoint) return save(storage, runKey, checkpoint);
   try {
     storage.removeItem(runKey);

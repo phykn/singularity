@@ -1,27 +1,22 @@
 import { useEffect, useRef } from 'react';
-import type { RefObject } from 'react';
 import Phaser from 'phaser';
 import { ElectronScene } from './scene.ts';
 import type { Game } from '../game/model.ts';
-import type { Settings } from '../app/storage.ts';
 
 export function GameCanvas({
-  model,
-  settings,
+  getGame,
+  getReduced,
   onReady,
 }: {
-  model: RefObject<Game | null>;
-  settings: RefObject<Settings>;
+  getGame: () => Game;
+  getReduced: () => boolean;
   onReady: (ready: boolean) => void;
 }) {
   const node = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const canvas = node.current!;
     onReady(false);
-    const scene = new ElectronScene(
-      () => model.current!,
-      () => settings.current.reduced,
-    );
+    const scene = new ElectronScene(getGame, getReduced);
     let engine: Phaser.Game | undefined,
       observer: ResizeObserver | undefined,
       disposed = false;
@@ -72,7 +67,7 @@ export function GameCanvas({
       observer?.disconnect();
       engine?.destroy(true);
     };
-  }, [model, settings, onReady]);
+  }, [getGame, getReduced, onReady]);
 
   return <div className="canvas" ref={node} />;
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Game } from '../game/model.ts';
 import { GameAudio } from './audio.ts';
+import { GameSession } from './session.ts';
 import {
   bestRecord,
   readLanguage,
@@ -9,6 +10,7 @@ import {
   readSettings,
   languageKey,
   recordKey,
+  runKey,
   save,
   saveRun,
   settingsKey,
@@ -19,7 +21,6 @@ import { languages } from '../ui/i18n.ts';
 import type { Language } from '../ui/i18n.ts';
 
 const newSeed = () => crypto.getRandomValues(new Uint32Array(1))[0];
-const frameTickLimit = 8;
 const firstSeed = () => {
   const seed = new URLSearchParams(location.search).get('seed');
   return import.meta.env.DEV && seed !== null && /^\d+$/.test(seed)
@@ -51,72 +52,71 @@ export function useGame() {
     }
   });
   const [storageOk, setStorageOk] = useState(true);
+  const failedSaves = useRef(new Set<string>());
   const [audioUnavailable, setAudioUnavailable] = useState(false);
-  const [renderReady, setRenderReady] = useState(false);
-  const rendered = useRef(false);
   const [, redraw] = useState(0);
-  const model = useRef<Game | null>(null);
-  model.current ??= (() => {
-    try {
-      return readRun(localStorage) ?? new Game(firstSeed());
-    } catch {
-      return new Game(firstSeed());
-    }
-  })();
+  const force = () => redraw((n) => n + 1);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const bestRef = useRef(best);
   bestRef.current = best;
-  const [sound] = useState(() => new GameAudio());
-  const audio = useRef(sound);
-  const lastWall = useRef(performance.now());
-  const processed = useRef<Game | null>(null);
-  const heard = useRef(model.current.events.length);
-  const force = () => redraw((n) => n + 1);
-  const game = model.current;
-  const persist = useCallback((current = model.current!) => {
+  const [audio] = useState(() => new GameAudio());
+  const [session] = useState(() => {
+    let game: Game;
     try {
-      setStorageOk(saveRun(localStorage, current));
+      game = readRun(localStorage) ?? new Game(firstSeed());
     } catch {
-      setStorageOk(false);
+      game = new Game(firstSeed());
     }
-  }, []);
-
+    return new GameSession(game, audio, {
+      sound: () => settingsRef.current.sound,
+      saveRun: (game) => {
+        try {
+          reportSave(runKey, saveRun(localStorage, game));
+        } catch {
+          reportSave(runKey, false);
+        }
+      },
+      saveResult: (result) => {
+        const record = bestRecord(bestRef.current, result);
+        bestRef.current = record;
+        setBest(record);
+        return write(recordKey, record);
+      },
+      redraw: force,
+    });
+  });
+  const getGame = useCallback(() => session.game, [session]);
+  const getReduced = useCallback(() => settingsRef.current.reduced, []);
   const onRenderReady = useCallback(
-    (ready: boolean) => {
-      rendered.current = ready;
-      lastWall.current = performance.now();
-      setRenderReady(ready);
-      if (!ready) {
-        audio.current.suspend();
-        persist();
-      } else if (
-        settingsRef.current.sound &&
-        !model.current!.paused &&
-        model.current!.phase !== 'ready'
-      )
-        void audio.current.unlock();
-    },
-    [persist],
+    (ready: boolean) => session.setRenderReady(ready, performance.now()),
+    [session],
   );
+
+  function reportSave(key: string, ok: boolean): boolean {
+    if (ok) failedSaves.current.delete(key);
+    else failedSaves.current.add(key);
+    setStorageOk(failedSaves.current.size === 0);
+    return ok;
+  }
+
+  function write(key: string, value: unknown): boolean {
+    try {
+      return reportSave(key, save(localStorage, key, value));
+    } catch {
+      return reportSave(key, false);
+    }
+  }
 
   function changeSettings(next: Settings) {
     settingsRef.current = next;
     setSettings(next);
-    try {
-      setStorageOk(save(localStorage, settingsKey, next));
-    } catch {
-      setStorageOk(false);
-    }
+    write(settingsKey, next);
   }
 
   function changeLanguage(next: Language) {
     setLanguage(next);
-    try {
-      setStorageOk(save(localStorage, languageKey, next));
-    } catch {
-      setStorageOk(false);
-    }
+    write(languageKey, next);
   }
 
   useEffect(() => {
@@ -124,7 +124,7 @@ export function useGame() {
   }, [language]);
 
   async function enableAudio() {
-    const enabled = await audio.current.unlock();
+    const enabled = await audio.unlock();
     if (enabled !== null) setAudioUnavailable(!enabled);
     return enabled;
   }
@@ -133,167 +133,90 @@ export function useGame() {
     const sound = !settingsRef.current.sound;
     changeSettings({ ...settingsRef.current, sound });
     setAudioUnavailable(false);
-    if (!sound) audio.current.suspend();
+    if (!sound) audio.suspend();
     else if ((await enableAudio()) === false && settingsRef.current.sound)
       changeSettings({ ...settingsRef.current, sound: false });
   }
 
   function replace(seed = newSeed()) {
-    const next = new Game(seed);
-    next.setHidden(document.hidden);
-    model.current = next;
-    persist(next);
-    heard.current = 0;
-    processed.current = null;
-    lastWall.current = performance.now();
-    force();
+    const game = new Game(seed);
+    game.setHidden(document.hidden);
+    session.replace(game, performance.now());
   }
 
   function begin() {
-    if (!rendered.current) return;
+    if (!session.renderReady) return;
     if (settingsRef.current.sound) void enableAudio();
-    lastWall.current = performance.now();
-    model.current!.start();
-    persist();
-    force();
+    session.begin(performance.now());
   }
 
   function pause(paused: boolean) {
-    model.current!.setManualPause(paused);
-    persist();
-    lastWall.current = performance.now();
-    if (paused) audio.current.suspend();
-    else if (settingsRef.current.sound) void enableAudio();
-    force();
+    session.pause(paused, performance.now());
+    if (!paused && settingsRef.current.sound) void enableAudio();
   }
 
   useEffect(() => {
-    let frame = 0,
-      lastDraw = 0,
-      lastDrawTick = -1,
-      lastSave = 0;
-    const visibility = () => {
-      if (rendered.current && document.hidden && !model.current!.hiddenPaused)
-        model.current!.advance(Math.max(0, performance.now() - lastWall.current), frameTickLimit);
-      model.current!.setHidden(document.hidden);
-      lastWall.current = performance.now();
-      if (document.hidden) {
-        audio.current.suspend();
-        persist();
-      } else if (rendered.current && settingsRef.current.sound && !model.current!.manualPaused)
-        void audio.current.unlock();
-      force();
-    };
-    const suspend = () => {
-      model.current!.setHidden(true);
-      persist();
-      audio.current.suspend();
-      lastWall.current = performance.now();
-    };
+    let frame = 0;
+    const visibility = () => session.setHidden(document.hidden, performance.now());
+    const suspend = () => session.suspend(performance.now());
     document.addEventListener('visibilitychange', visibility);
     document.addEventListener('freeze', suspend);
     document.addEventListener('resume', visibility);
     window.addEventListener('pagehide', suspend);
     window.addEventListener('pageshow', visibility);
-    model.current!.setHidden(document.hidden);
+    session.game.setHidden(document.hidden);
     const step = (wall: number) => {
-      const current = model.current!;
-      if (rendered.current) current.advance(Math.max(0, wall - lastWall.current), frameTickLimit);
-      lastWall.current = wall;
-      if (audio.current.enabled) audio.current.update(current, heard.current);
-      heard.current = current.events.length;
-      if (current.result && processed.current !== current) {
-        processed.current = current;
-        const record = bestRecord(bestRef.current, current.result);
-        bestRef.current = record;
-        setBest(record);
-        try {
-          setStorageOk(save(localStorage, recordKey, record));
-        } catch {
-          setStorageOk(false);
-        }
-        persist(current);
-      }
-      if (
-        !current.hiddenPaused &&
-        current.phase !== 'ready' &&
-        current.phase !== 'result' &&
-        wall - lastSave >= 1000
-      ) {
-        persist(current);
-        lastSave = wall;
-      }
-      if (wall - lastDraw > 80 && current.elapsedTicks !== lastDrawTick) {
-        force();
-        lastDraw = wall;
-        lastDrawTick = current.elapsedTicks;
-      }
+      session.step(wall);
       frame = requestAnimationFrame(step);
     };
     frame = requestAnimationFrame(step);
     return () => {
-      persist();
       cancelAnimationFrame(frame);
       document.removeEventListener('visibilitychange', visibility);
       document.removeEventListener('freeze', suspend);
       document.removeEventListener('resume', visibility);
       window.removeEventListener('pagehide', suspend);
       window.removeEventListener('pageshow', visibility);
-      audio.current.destroy();
+      session.dispose();
     };
-  }, []);
+  }, [session]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     window.__gameDebug = {
-      getModel: () => model.current!,
-      advance: (ms: number) => {
-        model.current!.advance(ms);
-        lastWall.current = performance.now();
-        force();
-      },
+      getModel: getGame,
+      advance: (ms: number) => session.advance(ms, performance.now()),
       xp: (xp: number) => {
-        model.current!.debugSetXp(xp);
+        session.game.debugSetXp(xp);
         force();
       },
       restart: (seed: number, combat = true) => {
-        const next = new Game(seed, { combat });
-        model.current = next;
-        heard.current = 0;
-        processed.current = null;
-        next.start();
-        persist(next);
-        lastWall.current = performance.now();
-        force();
+        const game = new Game(seed, { combat });
+        game.setHidden(document.hidden);
+        game.start();
+        session.replace(game, performance.now());
       },
     };
     return () => {
       delete window.__gameDebug;
     };
-  }, []);
-
-  function select(id: UpgradeId, number: number) {
-    if (!rendered.current) return;
-    model.current!.select(id, false, number);
-    persist();
-    force();
-  }
+  }, [session, getGame]);
 
   return {
-    game,
-    model,
-    settingsRef,
+    game: session.game,
+    getGame,
+    getReduced,
     language,
     settings,
     best,
     storageOk,
     audioUnavailable,
-    renderReady,
+    renderReady: session.renderReady,
     onRenderReady,
     begin,
     pause,
     replace,
-    select,
+    select: (id: UpgradeId, number: number) => session.select(id, number),
     changeLanguage,
     changeSettings,
     toggleSound,

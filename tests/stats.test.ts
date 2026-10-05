@@ -1,3 +1,4 @@
+import { createCheckpoint, restoreCheckpoint } from '../src/game/replay.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../src/game/model.ts';
@@ -142,7 +143,7 @@ test('replay restores manual range and recovery selections with the same future'
         g.choice?.cards.find((c) => c.id === 'range');
       if (card) g.select(card.id);
       if (!['recover', 'range'].every((id) => g.selections.some((s) => s.id === id))) continue;
-      const restored = Game.restore(g.checkpoint()!)!;
+      const restored = restoreCheckpoint(createCheckpoint(g)!)!;
       assert.ok(restored);
       assert.deepEqual(restored.boosts, g.boosts);
       assert.equal(restored.mass, g.mass);

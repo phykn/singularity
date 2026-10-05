@@ -1,3 +1,4 @@
+import { createCheckpoint } from '../src/game/replay.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../src/game/model.ts';
@@ -21,7 +22,7 @@ test('limited catch-up retains every simulation tick and reaches the same state 
   assert.deepEqual(chunked.targets, whole.targets);
   assert.deepEqual(chunked.effects, whole.effects);
   assert.deepEqual(chunked.damageNumbers, whole.damageNumbers);
-  assert.deepEqual(chunked.checkpoint(), whole.checkpoint());
+  assert.deepEqual(createCheckpoint(chunked), createCheckpoint(whole));
   chunked.advance(0, 8);
   assert.equal(chunked.elapsedTicks, 60, 'Draining the backlog does not invent ticks');
 });

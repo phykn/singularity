@@ -1,5 +1,6 @@
+import { skillValues } from '../game/skills.ts';
 import type { CSSProperties } from 'react';
-import { blankRanks, blankRarities, formValues, rarityScale, rules } from '../game/rules.ts';
+import { blankRanks, blankRarities, rarityScale, rules } from '../game/rules.ts';
 import type { Rarity, RuleSet, UpgradeId } from '../game/rules.ts';
 import { skillColor } from '../render/palette.ts';
 
@@ -38,7 +39,7 @@ export function SkillPreview({
   cfg?: RuleSet;
 }) {
   const rules = cfg;
-  const s = formValues({ ...blankRanks(), [id]: rank }, { ...blankRarities(), [id]: rarity }, cfg);
+  const s = skillValues({ ...blankRanks(), [id]: rank }, { ...blankRarities(), [id]: rarity }, cfg);
   const scale = rarityScale(rarity, cfg);
   const origin = source(16, 32);
   let art;

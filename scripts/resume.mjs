@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { devices } from 'playwright';
 import { base, capture, launchBrowser } from './browser-support.mjs';
-import { Game } from '../src/game/model.ts';
 import { copy } from '../src/ui/i18n.ts';
 import { rules, levelForXp } from '../src/game/rules.ts';
 import { runKey } from '../src/app/storage.ts';
@@ -31,7 +30,6 @@ const fields = [
   'selections',
   'result',
 ];
-const state = (g) => Object.fromEntries(fields.map((key) => [key, g[key]]));
 const snapshot = (page) =>
   page.evaluate((fields) => {
     const g = window.__gameDebug.getModel();
@@ -51,23 +49,25 @@ const open = async () => {
   return page;
 };
 const verifyRestored = async (page, checkpoint) => {
-  const actual = await snapshot(page),
-    expected = Game.restore(checkpoint);
+  const { actual, expected } = await page.evaluate(
+    async ({ fields, checkpoint }) => {
+      const { restoreCheckpoint } = await import('/src/game/replay.ts');
+      const game = window.__gameDebug.getModel();
+      const restored = restoreCheckpoint(checkpoint);
+      if (restored)
+        restored.advance(((game.elapsedTicks - checkpoint.ticks) * 1000) / restored.rules.tickRate);
+      const state = (g) => Object.fromEntries(fields.map((key) => [key, g[key]]));
+      return { actual: state(game), expected: restored && state(restored) };
+    },
+    { fields, checkpoint },
+  );
   assert.ok(expected);
   assert.ok(
     actual.elapsedTicks >= checkpoint.ticks && actual.elapsedTicks - checkpoint.ticks < 120,
     'Returning must not simulate background time',
   );
-  expected.advance(((actual.elapsedTicks - checkpoint.ticks) * 1000) / rules.tickRate);
-  const coordinates = (key, value) =>
-    typeof value === 'number' && (key === 'x' || key === 'y')
-      ? Math.round(value * 1e8) / 1e8
-      : value;
-  // Chrome and Node can differ by one floating-point unit in trigonometric coordinates.
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(actual, coordinates)),
-    JSON.parse(JSON.stringify(state(expected), coordinates)),
-  );
+  // Replay in the same JS runtime so every coordinate can be compared exactly.
+  assert.deepEqual(actual, expected);
   assert.equal(
     await page
       .locator('.app')
@@ -213,6 +213,65 @@ try {
     scaleFactor: devices['Pixel 7'].deviceScaleFactor,
   });
   await page.close();
+  const failed = await browser.newPage({ ...devices['Pixel 7'] });
+  failed.on('pageerror', (error) => errors.push(error.message));
+  await failed.goto(base + '/?seed=10004');
+  await failed.getByRole('button', { name: 'START', exact: true }).click();
+  await failed.evaluate(() => {
+    const write = Storage.prototype.setItem;
+    window.restoreWrites = () => {
+      Storage.prototype.setItem = write;
+    };
+    window.recordAttempts = 0;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'singularity.record') {
+        window.recordAttempts++;
+        throw new Error('record write blocked');
+      }
+      return write.call(this, key, value);
+    };
+    window.__gameDebug.xp(24000);
+    window.__gameDebug.advance(10000);
+  });
+  await failed.locator('.result .setting-notice').waitFor();
+  await failed.waitForFunction(() => window.recordAttempts >= 2);
+  assert.equal(await failed.evaluate(() => localStorage.getItem('singularity.record')), null);
+  assert.ok(await failed.evaluate(() => localStorage.getItem('singularity.run')));
+  assert.equal(await failed.locator('.result .setting-notice').innerText(), c.storageFailed);
+  await failed.evaluate(() => window.restoreWrites());
+  await failed.waitForFunction(() => !!localStorage.getItem('singularity.record'));
+  await failed.locator('.result .setting-notice').waitFor({ state: 'hidden' });
+  report('a failed record write stays visible through successful run saves and retries', {
+    outcome: await failed.evaluate(
+      () => JSON.parse(localStorage.getItem('singularity.record')).outcome,
+    ),
+  });
+
+  await failed.getByRole('button', { name: c.newRun, exact: true }).click();
+  await failed.getByRole('button', { name: c.settings, exact: true }).click();
+  await failed.evaluate(() => {
+    const write = Storage.prototype.setItem;
+    window.restoreWrites = () => {
+      Storage.prototype.setItem = write;
+    };
+    Storage.prototype.setItem = function (key, value) {
+      if (key === 'singularity.settings') throw new Error('settings write blocked');
+      return write.call(this, key, value);
+    };
+  });
+  await failed.locator('.settings-panel .setting-row').nth(1).click();
+  await failed.locator('.settings-panel .setting-notice').waitFor();
+  await failed.locator('.settings-panel .language-picker button').first().click();
+  await failed.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
+  assert.equal(
+    await failed.locator('.settings-panel .setting-notice').innerText(),
+    c.storageFailed,
+  );
+  await failed.evaluate(() => window.restoreWrites());
+  await failed.locator('.settings-panel .setting-row').nth(1).click();
+  await failed.locator('.settings-panel .setting-notice').waitFor({ state: 'hidden' });
+  report('saving another preference or run does not hide an unsaved settings warning', {});
+  await failed.close();
   assert.deepEqual(errors, []);
   writeFileSync(
     'artifacts/resume.json',

@@ -1,3 +1,4 @@
+import { createCheckpoint, restoreCheckpoint } from '../src/game/replay.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../src/game/model.ts';
@@ -92,8 +93,8 @@ test('saved runs restore pending cards, moving enemies and reserved attacks with
       g.advance(1000 / 60);
       if (g.choice && g.selections.length < 2) g.select(g.choice.cards[1].id);
     }
-    const checkpoint = g.checkpoint()!;
-    const restored = Game.restore(JSON.parse(JSON.stringify(checkpoint)))!;
+    const checkpoint = createCheckpoint(g)!;
+    const restored = restoreCheckpoint(JSON.parse(JSON.stringify(checkpoint)))!;
     assert.ok(restored);
     for (const key of [
       'phase',
@@ -182,7 +183,7 @@ test('saves and records accept a run past ten minutes and a manual choice beyond
   assert.ok(saveRun(storage, g));
   const restored = readRun(storage)!;
   assert.ok(restored);
-  assert.deepEqual(restored.checkpoint(), g.checkpoint());
+  assert.deepEqual(createCheckpoint(restored), createCheckpoint(g));
   restored.advance(1800000);
   g.advance(1800000);
   assert.equal(g.result?.outcome, 'success');
@@ -199,7 +200,7 @@ test('ending phases resume at the same frame after saving; bad or incompatible s
     const g = new Game(10004);
     g.start();
     g.advance(((collisionTick + extra) * 1000) / rules.tickRate);
-    const restored = Game.restore(g.checkpoint()!)!;
+    const restored = restoreCheckpoint(createCheckpoint(g)!)!;
     assert.ok(restored);
     assert.equal(restored.phase, g.phase);
     assert.equal(restored.phaseProgress, g.phaseProgress);
@@ -210,7 +211,7 @@ test('ending phases resume at the same frame after saving; bad or incompatible s
   const g = new Game(10004);
   g.start();
   g.advance(123000);
-  const checkpoint = g.checkpoint()!;
+  const checkpoint = createCheckpoint(g)!;
   const values = [
     null,
     {},

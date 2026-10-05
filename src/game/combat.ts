@@ -1,7 +1,9 @@
+import { timedSkills } from './skills.ts';
+import type { SkillValues, TimedSkill } from './skills.ts';
 import { CENTER, distance, norm, orbit } from './geometry.ts';
 import type { Point } from './geometry.ts';
 import { closest, onSegment } from './targeting.ts';
-import type { FormValues, Ranks, Rarities, SkillId, UpgradeId } from './rules.ts';
+import type { Ranks, Rarities, SkillId, UpgradeId } from './rules.ts';
 import type { Effect, SkillStatus, Target } from './types.ts';
 import type { Game } from './model.ts';
 
@@ -9,7 +11,7 @@ export type Attack = {
   id: number;
   ranks: Ranks;
   rarities: Rarities;
-  forms: FormValues;
+  forms: SkillValues;
   power: number;
   damage: number;
   range: number;
@@ -19,8 +21,6 @@ export type Attack = {
   budget: { burst: boolean };
   push?: boolean;
 };
-export const timedSkills = ['strike', 'repel', 'focus', 'orb', 'gather', 'chase'] as const;
-export type TimedSkill = (typeof timedSkills)[number];
 type Pulse = {
   at: number;
   order: number;

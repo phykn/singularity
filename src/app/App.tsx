@@ -16,8 +16,8 @@ import { useGame } from './useGame.ts';
 export default function App() {
   const {
     game,
-    model,
-    settingsRef,
+    getGame,
+    getReduced,
     language,
     settings,
     best,
@@ -92,7 +92,7 @@ export default function App() {
           <Hud game={game} language={language} onPause={() => pause(true)} />
         )}
         <section className="arena" aria-label={c.arena}>
-          <GameCanvas model={model} settings={settingsRef} onReady={onRenderReady} />
+          <GameCanvas getGame={getGame} getReduced={getReduced} onReady={onRenderReady} />
           {!ready && !renderReady && (
             <p className="render-status" role="status">
               {c.loading}

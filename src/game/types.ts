@@ -103,10 +103,3 @@ export type SkillStatus = {
   fired: boolean;
 };
 export type Event = { time: number; kind: string; data: unknown };
-export type Checkpoint = {
-  seed: number;
-  ticks: number;
-  phase: Exclude<Phase, 'ready'>;
-  manualPaused: boolean;
-  inputs: { tick: number; id: UpgradeId; number: number }[];
-};

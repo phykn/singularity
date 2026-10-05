@@ -1,3 +1,5 @@
+import type { SkillValues } from './skills.ts';
+import { skillValues } from './skills.ts';
 import { Random } from './random.ts';
 import { particleIds, particleKind, particleMotion } from './particles.ts';
 import type { ParticleKind } from './particles.ts';
@@ -9,7 +11,6 @@ import {
   blankRanks,
   blankRarities,
   coreRadius,
-  formValues,
   higherRarity,
   isSkill,
   levelForXp,
@@ -22,13 +23,12 @@ import {
   rules,
   xpForLevel,
 } from './rules.ts';
-import type { FormValues, RuleSet, UpgradeId } from './rules.ts';
+import type { RuleSet, UpgradeId } from './rules.ts';
 
 import { Combat } from './combat.ts';
 import type { Attack } from './combat.ts';
 import { maxDamageNumbers } from './rules.ts';
 import type {
-  Checkpoint,
   Choice,
   Count,
   DamageNumber,
@@ -147,8 +147,8 @@ export class Game {
       1 + this.rules.ratePerRank * this.boosts.rate * rarityScale(this.rarities.rate, this.rules)
     );
   }
-  get forms(): FormValues {
-    return formValues(this.ranks, this.rarities, this.rules, this.reach);
+  get forms(): SkillValues {
+    return skillValues(this.ranks, this.rarities, this.rules, this.reach);
   }
   get rushing(): boolean {
     return (
@@ -237,41 +237,6 @@ export class Game {
   }
   setHidden(paused: boolean): void {
     this.hiddenPaused = paused;
-  }
-
-  checkpoint(): Checkpoint | null {
-    if (this.phase === 'ready' || !this.combatEnabled) return null;
-    return {
-      seed: this.seed,
-      ticks: this.elapsedTicks,
-      phase: this.phase,
-      manualPaused: this.manualPaused,
-      inputs: this.selections.flatMap((selection, i) =>
-        selection.automatic
-          ? []
-          : [
-              {
-                tick: Math.round(selection.time * this.rules.tickRate),
-                id: selection.id,
-                number: i + 1,
-              },
-            ],
-      ),
-    };
-  }
-
-  static restore(checkpoint: Checkpoint): Game | null {
-    const game = new Game(checkpoint.seed);
-    game.start();
-    for (const input of checkpoint.inputs) {
-      if (input.tick < game.tick || input.tick > checkpoint.ticks) return null;
-      game.advance(((input.tick - game.tick) * 1000) / game.rules.tickRate);
-      if (!game.select(input.id, false, input.number)) return null;
-    }
-    game.advance(((checkpoint.ticks - game.elapsedTicks) * 1000) / game.rules.tickRate);
-    if (game.elapsedTicks !== checkpoint.ticks || game.phase !== checkpoint.phase) return null;
-    game.manualPaused = checkpoint.manualPaused;
-    return game;
   }
 
   advance(milliseconds: number, tickLimit = Infinity): void {

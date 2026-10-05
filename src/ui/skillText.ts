@@ -1,8 +1,8 @@
+import { skillValues } from '../game/skills.ts';
 import { numberText } from '../format.ts';
 import {
   blankRanks,
   blankRarities,
-  formValues,
   rarityScale,
   rangeScale,
   recoveryMass,
@@ -20,7 +20,7 @@ export function skillValue(
   cfg: RuleSet = rules,
   reach = 1,
 ): string {
-  const s = formValues(
+  const s = skillValues(
     { ...blankRanks(), [id]: rank },
     { ...blankRarities(), [id]: rarity },
     cfg,
@@ -83,12 +83,12 @@ export function skillChange(
   cfg: RuleSet = rules,
   mass = Infinity,
 ): string {
-  const before = formValues(
+  const before = skillValues(
     { ...blankRanks(), [id]: current },
     { ...blankRarities(), [id]: previous },
     cfg,
   );
-  const after = formValues(
+  const after = skillValues(
     { ...blankRanks(), [id]: current + 1 },
     { ...blankRarities(), [id]: rarity },
     cfg,

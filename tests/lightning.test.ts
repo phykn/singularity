@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../src/game/model.ts';
-import { timedSkills } from '../src/game/combat.ts';
+import { timedSkills } from '../src/game/skills.ts';
 import { blankRanks, rarityIds, rules, skillIds, maxDamageNumbers } from '../src/game/rules.ts';
 import { effectOrigin, visibleEffects } from '../src/render/effects.ts';
 import { close, choose, stationarySkill, target } from './helpers.ts';
