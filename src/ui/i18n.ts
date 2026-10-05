@@ -55,7 +55,7 @@ const ko = {
   details: '상세 기록',
   seed: '시드',
   early: '핵 충돌',
-  goalReached: '블랙홀 형성',
+  goalReached: '특이점',
   particle: '입자',
   generated: '등장',
   killed: '처치',
