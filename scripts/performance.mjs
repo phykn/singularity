@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { base, capture, launchBrowser } from './browser-support.mjs';
+import { base, capture, launchBrowser, observeScene } from './browser-support.mjs';
 
 // Frozen crowds isolate drawing; live crowds also exercise movement and attacks.
 // CPU throttling approximates a slower processor, not a particular phone.
@@ -19,21 +19,12 @@ page.on('pageerror', (error) => {
   console.error(error.message);
 });
 try {
-  await page.route('**/src/render/scene.ts*', async (route) => {
-    const response = await route.fetch();
-    const body = await response.text();
-    await route.fulfill({
-      response,
-      body:
-        body +
-        '\nconst create = ElectronScene.prototype.create; ElectronScene.prototype.create = function(...args) { window.__perfScene = this; return create.apply(this, args); };',
-    });
-  });
+  await observeScene(page);
   await page.goto(base + '/?seed=1705');
   await page.waitForFunction(() => !!window.__gameDebug);
   await page.waitForSelector('canvas');
   await page.evaluate(() => document.fonts.ready);
-  await page.waitForFunction(() => !!window.__perfScene);
+  await page.waitForFunction(() => !!window.__gameScene);
   const client = await page.context().newCDPSession(page);
   await client.send('Emulation.setCPUThrottlingRate', { rate: slowdown });
   const rows = [];
@@ -47,7 +38,7 @@ try {
       game.tick = game.elapsedTicks = 27000;
       game.mass = 80;
       game.radius = 100;
-      game.boosts = { power: 4, rate: 4, range: 4 };
+      game.boosts = { power: 4, rate: 4, range: 4, speed: 4 };
       Object.assign(game.ranks, { pierce: 5, multi: 5, repeat: 5, chain: 5 });
       const particles = ['quark', 'muon', 'proton', 'neutron'];
       game.targets = Array.from({ length: count }, (_, id) => {
@@ -81,7 +72,7 @@ try {
       await client.send('Profiler.start');
     }
     const row = await page.evaluate(async () => {
-      const scene = window.__perfScene;
+      const scene = window.__gameScene;
       const game = window.__gameDebug.getModel();
       const quantile = (values, fraction) => {
         const sorted = [...values].sort((a, b) => a - b);
@@ -179,7 +170,7 @@ try {
         game.setHidden(true);
         game.mass = 80;
         game.radius = 100;
-        game.boosts = { power: 4, rate: 4, range: 4 };
+        game.boosts = { power: 4, rate: 4, range: 4, speed: 4 };
         for (const id of skills) {
           game.ranks[id] = 5;
           game.combat.learn(id, 0);

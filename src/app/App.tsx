@@ -17,7 +17,6 @@ export default function App() {
   const {
     game,
     getGame,
-    getReduced,
     language,
     settings,
     best,
@@ -28,7 +27,6 @@ export default function App() {
     begin,
     select,
     changeLanguage,
-    changeSettings,
     toggleSound,
     ...actions
   } = useGame();
@@ -56,17 +54,12 @@ export default function App() {
     </p>
   );
   const settingsControls = (
-    <Settings
-      settings={settings}
-      language={language}
-      changeSettings={changeSettings}
-      toggleSound={toggleSound}
-    />
+    <Settings settings={settings} language={language} toggleSound={toggleSound} />
   );
 
   return (
     <main
-      className={`app ${game.charged ? 'is-charged' : ''} ${ready ? 'is-ready' : ''} ${ready && homecoming ? 'is-homecoming' : ''} ${settings.reduced ? 'is-reduced' : ''} ${game.choice ? 'has-choice' : ''}`}
+      className={`app ${game.charged ? 'is-charged' : ''} ${ready ? 'is-ready' : ''} ${ready && homecoming ? 'is-homecoming' : ''} ${game.choice ? 'has-choice' : ''}`}
     >
       <div className="play-layout" inert={modal || (!ready && !renderReady)}>
         {ready ? (
@@ -92,7 +85,7 @@ export default function App() {
           <Hud game={game} language={language} onPause={() => pause(true)} />
         )}
         <section className="arena" aria-label={c.arena}>
-          <GameCanvas getGame={getGame} getReduced={getReduced} onReady={onRenderReady} />
+          <GameCanvas getGame={getGame} onReady={onRenderReady} />
           {!ready && !renderReady && (
             <p className="render-status" role="status">
               {c.loading}
@@ -109,6 +102,13 @@ export default function App() {
             </div>
           ) : (
             <>
+              {game.phase === 'running' &&
+                !game.charged &&
+                game.margin < game.rules.dangerMargin && (
+                  <span className="sr-only danger-status" role="status">
+                    {c.danger}
+                  </span>
+                )}
               <UpgradeFeedback game={game} language={language} />
               {game.phase === 'collapse' && (
                 <span className="sr-only" role="status">
@@ -158,7 +158,7 @@ export default function App() {
           </div>
         </Dialog>
       )}
-      {game.manualPaused && (
+      {game.manualPaused && panel === null && (
         <Dialog
           titleId="pause-title"
           className="pause-panel"
@@ -190,6 +190,9 @@ export default function App() {
               <>
                 <button className="primary" onClick={() => pause(false)}>
                   {c.resume}
+                </button>
+                <button className="text-button" onClick={() => setPanel('guide')}>
+                  {c.guide}
                 </button>
                 <button className="text-button" onClick={() => setExitConfirm(true)}>
                   {c.quit}

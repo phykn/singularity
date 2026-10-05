@@ -37,11 +37,10 @@ export function useGame() {
     }
   });
   const [settings, setSettings] = useState<Settings>(() => {
-    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     try {
-      return readSettings(localStorage, reduced);
+      return readSettings(localStorage);
     } catch {
-      return { sound: false, reduced };
+      return { sound: false };
     }
   });
   const [best, setBest] = useState<Best | null>(() => {
@@ -87,7 +86,6 @@ export function useGame() {
     });
   });
   const getGame = useCallback(() => session.game, [session]);
-  const getReduced = useCallback(() => settingsRef.current.reduced, []);
   const onRenderReady = useCallback(
     (ready: boolean) => session.setRenderReady(ready, performance.now()),
     [session],
@@ -205,7 +203,6 @@ export function useGame() {
   return {
     game: session.game,
     getGame,
-    getReduced,
     language,
     settings,
     best,
@@ -218,7 +215,6 @@ export function useGame() {
     replace,
     select: (id: UpgradeId, number: number) => session.select(id, number),
     changeLanguage,
-    changeSettings,
     toggleSound,
   };
 }

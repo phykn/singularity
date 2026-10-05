@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { base, capture, launchBrowser } from './browser-support.mjs';
+import { base, capture, launchBrowser, showSuccess } from './browser-support.mjs';
 import { copy, languages } from '../src/ui/i18n.ts';
 import { rules, rarityIds, upgradeIds } from '../src/game/rules.ts';
 import { particleIds } from '../src/game/particles.ts';
@@ -31,7 +31,7 @@ const inspect = async (page) => {
         issues.push('Offscreen: ' + button.textContent);
     }
     for (const node of document.querySelectorAll(
-      '.card-label, .card strong, .card-value, .arena-caption h1, .upgrade-feedback',
+      '.card-label, .card strong, .card-value, .card-stage, .arena-caption h1, .upgrade-feedback',
     )) {
       if (node.scrollWidth > node.clientWidth + 1 || node.scrollHeight > node.clientHeight + 1)
         issues.push('Clipped: ' + node.textContent);
@@ -109,7 +109,7 @@ try {
       await page.evaluate(() => {
         const g = window.__gameDebug.getModel();
         g.setHidden(true);
-        for (const id of ['power', 'rate', 'range']) {
+        for (const id of ['power', 'rate', 'range', 'speed']) {
           g.boosts[id] = 1000;
           g.rarities[id] = 'legendary';
         }
@@ -139,6 +139,14 @@ try {
           choice: window.__gameDebug.getModel().choice,
         }),
       );
+      await page.getByRole('button', { name: c.guide, exact: true }).click();
+      assert.equal(await page.getByRole('dialog').count(), 1);
+      await localized(page, language.id, '.guide');
+      await inspect(page);
+      await page.evaluate(() => window.__gameDebug.advance(10000));
+      await page.getByRole('button', { name: c.close, exact: true }).click();
+      await page.locator('.pause-panel').waitFor();
+      assert.equal(await page.getByRole('dialog').count(), 1);
       if (width === 375) {
         const other = languages[(languages.indexOf(language) + 1) % languages.length];
         await page.getByRole('button', { name: other.label, exact: true }).click();
@@ -166,10 +174,7 @@ try {
       await localized(page, language.id, '.upgrade-feedback');
       await inspect(page);
       if (width === 375) await screenshot(page, `artifacts/screens/upgrade-${language.id}.png`);
-      await page.evaluate(() => {
-        window.__gameDebug.restart(96057);
-        window.__gameDebug.advance(610000);
-      });
+      await showSuccess(page);
       await page.getByRole('heading', { name: c.success, exact: true }).waitFor();
       await page.evaluate(() => {
         const game = window.__gameDebug.getModel();

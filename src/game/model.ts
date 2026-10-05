@@ -125,7 +125,11 @@ export class Game {
     return levelForXp(this.xp, this.rules);
   }
   get speed(): number {
-    return this.rules.baseSpeed;
+    return (
+      this.rules.baseSpeed *
+      (1 +
+        this.rules.speedPerRank * this.boosts.speed * rarityScale(this.rarities.speed, this.rules))
+    );
   }
   get reach(): number {
     return rangeScale(this.boosts.range, this.rarities.range, this.rules);
@@ -174,6 +178,11 @@ export class Game {
   }
   get paused(): boolean {
     return this.manualPaused || this.hiddenPaused;
+  }
+  get automaticCard() {
+    return this.choice?.cards.reduce((a, b) =>
+      rarityIds.indexOf(b.rarity) > rarityIds.indexOf(a.rarity) ? b : a,
+    );
   }
   get position(): Point {
     return orbit(this.angle, this.radius);
@@ -268,8 +277,7 @@ export class Game {
       this.collide('energy');
       return;
     }
-    if (this.choice && this.time >= this.choice.deadline)
-      this.select(this.choice.cards[0].id, true);
+    if (this.choice && this.time >= this.choice.deadline) this.select(this.automaticCard!.id, true);
     if (this.combatEnabled && this.tick + 1e-8 >= this.nextSpawn) {
       const rushing = this.rushing;
       this.spawnBatch();
@@ -280,7 +288,9 @@ export class Game {
       this.nextSpawn +=
         (rushing
           ? this.rules.rush.spawnSecondsByStage[this.stage]
-          : this.rules.spawnSecondsByStage[this.stage]) * this.rules.tickRate;
+          : this.rules.spawnSecondsByStage[this.stage]) *
+        this.rules.tickRate *
+        (1 + (this.randomSpawn.next() * 2 - 1) * this.rules.spawnVariation.intervalFraction);
     }
     const wave = this.upcomingWave;
     if (wave && this.time >= wave.time) {
@@ -405,20 +415,15 @@ export class Game {
       { ranks: this.ranks, boosts: this.boosts, number, danger, recoverable: this.recoverable },
       this.randomCards,
       this.rules,
-    ).map((id) => ({
-      id,
-      rarity: higherRarity(
-        id === 'recover' ? 'common' : this.rarities[id],
-        rollRarity(this.randomRarity.next(), this.rules),
-      ),
-    }));
-    if (number > 1 && !(danger && cards[0].id === 'recover')) {
-      const best = cards.reduce((a, b) =>
-        rarityIds.indexOf(b.rarity) > rarityIds.indexOf(a.rarity) ? b : a,
-      );
-      if (rarityIds.indexOf(best.rarity) - rarityIds.indexOf(cards[0].rarity) >= 2)
-        cards.unshift(...cards.splice(cards.indexOf(best), 1));
-    }
+    ).map((id) => {
+      const rolled = rollRarity(this.randomRarity.next(), this.rules);
+      const rarity = isSkill(id)
+        ? this.ranks[id]
+          ? this.rarities[id]
+          : rolled
+        : higherRarity(id === 'recover' ? 'common' : this.rarities[id], rolled);
+      return { id, rarity };
+    });
     this.choice = {
       cards,
       number,
@@ -442,8 +447,11 @@ export class Game {
     if (!eligibleUpgrades(this.ranks, this.rules, this.recoverable).includes(id)) return false;
     const previous = this.rank(id),
       oldRate = this.rate;
-    this.rarities[id] =
-      id === 'recover' ? card.rarity : higherRarity(this.rarities[id], card.rarity);
+    if (isSkill(id)) {
+      if (previous === 0) this.rarities[id] = card.rarity;
+    } else
+      this.rarities[id] =
+        id === 'recover' ? card.rarity : higherRarity(this.rarities[id], card.rarity);
     if (id === 'recover') {
       const removed = Math.min(this.mass, recoveryMass(card.rarity, this.rules));
       this.mass -= removed;
@@ -489,25 +497,43 @@ export class Game {
     const size = kind === 'small' ? this.rules.smallBatchSize : this.rules.denseBatchSize;
     const count = intro
       ? this.rules.introBatchSize
-      : Math.max(1, Math.round(size * this.rules.batchScale[this.stage]));
-    this.spawnGroup(kind, count, intro ? this.angle + 0.35 : angle, direction);
+      : Math.max(
+          1,
+          Math.round(
+            size *
+              this.rules.batchScale[this.stage] *
+              (1 + (this.randomSpawn.next() * 2 - 1) * this.rules.spawnVariation.batchFraction),
+          ),
+        );
+    const cfg = this.rules.spawnVariation;
+    const center = intro
+      ? this.angle +
+        cfg.introAngleMin +
+        this.randomSpawn.next() * (cfg.introAngleMax - cfg.introAngleMin)
+      : angle;
+    this.spawnGroup(kind, count, center, direction);
     this.batchCount++;
   }
 
   private spawnGroup(kind: TargetKind, count: number, angle: number, direction: number): void {
     const data = this.rules.targets[kind];
+    const cfg = this.rules.spawnVariation;
     const planned = [];
     for (let i = 0; i < count; i++) {
-      const theta = angle + (i - (count - 1) / 2) * (kind === 'small' ? 0.095 : 0.46);
+      const theta =
+        angle +
+        (i - (count - 1) / 2) * (kind === 'small' ? 0.095 : 0.46) +
+        (this.randomSpawn.next() * 2 - 1) * cfg.angleJitter;
+      const radius = this.rules.spawnRadius + this.randomSpawn.next() * cfg.radiusSpread;
       const id = this.nextTargetId++,
-        particle = particleKind(kind, id, this.stage),
+        particle = particleKind(kind, this.randomSpawn.next(), this.stage),
         heavy = particle === 'neutron';
       const hp = Math.round(data.hp[this.stage] * (heavy ? 1.2 : 1));
       const target: Target = {
         id,
-        ...orbit(theta, this.rules.spawnRadius),
+        ...orbit(theta, radius),
         angle: theta,
-        radius: this.rules.spawnRadius,
+        radius,
         kind,
         particle,
         born: this.time,
@@ -516,7 +542,10 @@ export class Game {
         xp: heavy ? 6 : data.xp,
         mass: heavy ? 6 : data.mass,
         size: data.size,
-        speed: data.speed * (heavy ? 0.85 : 1),
+        speed:
+          data.speed *
+          (heavy ? 0.85 : 1) *
+          (1 + (this.randomSpawn.next() * 2 - 1) * cfg.speedFraction),
         turn: data.turn * direction,
       };
       this.targets.push(target);

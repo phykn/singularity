@@ -36,9 +36,9 @@ test('best records preserve settings and handle malformed or unavailable storage
     getItem: (key: string) => map.get(key) ?? null,
     setItem: (key: string, value: string) => map.set(key, value),
   } as Storage;
-  map.set(settingsKey, JSON.stringify({ sound: true, reduced: true }));
+  map.set(settingsKey, JSON.stringify({ sound: true }));
   assert.equal(readRecord(storage), null);
-  assert.deepEqual(readSettings(storage), { sound: true, reduced: true });
+  assert.deepEqual(readSettings(storage), { sound: true });
   assert.ok(save(storage, recordKey, success));
   assert.deepEqual(readRecord(storage), success);
   map.set(recordKey, JSON.stringify({ ...success, xp: -1 }));
@@ -55,7 +55,7 @@ test('best records preserve settings and handle malformed or unavailable storage
   } as unknown as Storage;
   assert.equal(save(blocked, recordKey, success), false);
   assert.equal(readRecord(blocked), null);
-  assert.deepEqual(readSettings(blocked, true), { sound: false, reduced: true });
+  assert.deepEqual(readSettings(blocked), { sound: false });
 });
 
 test('language preferences persist, invalid or unavailable storage falls back to Korean', () => {
@@ -159,19 +159,23 @@ test('save survives backgrounding and a reload, preserves manual pause, and quit
 });
 
 test('saves and records accept a run past ten minutes and a manual choice beyond number 25', (t) => {
-  // Raise only this fixture's XP goal so a strong build keeps playing past ten minutes.
-  const goal = rules.energyGoal;
+  // Isolate long-save behavior from the current difficulty: extend the goal and
+  // reduce gravity so this fixture can reliably reach choice 26 and ten minutes.
+  const goal = rules.energyGoal,
+    gravity = rules.gravityPerMass;
   t.after(() => {
     rules.energyGoal = goal;
+    rules.gravityPerMass = gravity;
   });
   rules.energyGoal = 100000;
+  rules.gravityPerMass = 0.01;
   const map = new Map<string, string>();
   const storage = {
     getItem: (key: string) => map.get(key) ?? null,
     setItem: (key: string, value: string) => map.set(key, value),
     removeItem: (key: string) => map.delete(key),
   } as Storage;
-  const g = new Game(96057);
+  const g = new Game(92043);
   g.start();
   while (g.time < 1200 && !g.result && (!g.choice || g.choice.number <= 25)) g.advance(250);
   assert.equal(g.choice?.number, 26);

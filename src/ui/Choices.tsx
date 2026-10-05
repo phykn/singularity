@@ -2,8 +2,10 @@ import { ArrowRight } from 'pixelarticons/react';
 import { useEffect, useRef, useState } from 'react';
 import type { Choice } from '../game/types.ts';
 import type { Rarity, UpgradeId } from '../game/rules.ts';
+import { isSkill } from '../game/rules.ts';
 import { skillChange } from './skillText.ts';
-import { SkillPreview } from './SkillPreview.tsx';
+import { SkillIcon } from './icons.tsx';
+import { Rank } from './controls.tsx';
 import type { Game } from '../game/model.ts';
 import { copy } from './i18n.ts';
 import type { Language } from './i18n.ts';
@@ -22,11 +24,11 @@ export function Choices({
     choice = game.choice;
   const change = (id: UpgradeId, rarity: Rarity) =>
     skillChange(id, game.rank(id), rarity, game.rarities[id], language, rules, game.mass);
-  const previous = useRef<{ choice: Choice; ranks: number[]; values: string[] } | null>(null);
+  const previous = useRef<{ choice: Choice; values: string[]; stages: number[] } | null>(null);
   const [receipt, setReceipt] = useState<{
     choice: Choice;
-    ranks: number[];
     values: string[];
+    stages: number[];
     selected: UpgradeId;
   } | null>(null);
   const selection = game.selections.at(-1);
@@ -43,8 +45,8 @@ export function Choices({
     previous.current = choice
       ? {
           choice,
-          ranks: choice.cards.map((card) => game.rank(card.id) + 1),
           values: choice.cards.map((card) => change(card.id, card.rarity)),
+          stages: choice.cards.map((card) => game.rank(card.id)),
         }
       : null;
   }, [choice?.number, game, game.selections.length]);
@@ -67,10 +69,10 @@ export function Choices({
             </span>
           </div>
           <div className="cards">
-            {choice.cards.map(({ id, rarity }, i) => (
+            {choice.cards.map(({ id, rarity }) => (
               <button
                 key={`${choice.number}-${id}`}
-                className={`card ${i === 0 ? 'auto' : ''}`}
+                className={`card ${id === game.automaticCard?.id ? 'auto' : ''}`}
                 data-rarity={rarity}
                 aria-label={
                   c.rarities[rarity] +
@@ -79,12 +81,12 @@ export function Choices({
                   ', ' +
                   (id === 'recover'
                     ? c.instant
-                    : game.rank(id)
+                    : game.rank(id) || !isSkill(id)
                       ? c.rankUp(game.rank(id), game.rank(id) + 1)
                       : c.newSkill) +
                   ', ' +
                   change(id, rarity) +
-                  (i === 0 ? ', ' + c.auto : '')
+                  (id === game.automaticCard?.id ? ', ' + c.auto : '')
                 }
                 onClick={() => {
                   onSelect(id, choice.number);
@@ -93,19 +95,16 @@ export function Choices({
               >
                 <span className="card-label">
                   <b>{c.rarities[rarity]}</b>
-                  {i === 0 && <ArrowRight width={12} height={12} aria-hidden="true" />}
-                </span>
-                <SkillPreview cfg={rules} id={id} rank={game.rank(id) + 1} rarity={rarity} />
-                <strong>{c.upgrades[id].short}</strong>
-                <span className="card-value">
-                  {change(id, rarity)}
-                  {id === 'recover' && (
-                    <>
-                      <br />
-                      {c.instant}
-                    </>
+                  {id === game.automaticCard?.id && (
+                    <ArrowRight width={12} height={12} aria-hidden="true" />
                   )}
                 </span>
+                <span className="card-icon">
+                  <SkillIcon id={id} size={32} />
+                </span>
+                <strong>{c.upgrades[id].short}</strong>
+                <CardStage id={id} rank={game.rank(id)} max={rules.maxRank} />
+                <span className="card-value">{change(id, rarity)}</span>
               </button>
             ))}
           </div>
@@ -130,17 +129,12 @@ export function Choices({
                 <span className="card-label">
                   <b>{c.rarities[rarity]}</b>
                 </span>
-                <SkillPreview cfg={rules} id={id} rank={receipt.ranks[i]} rarity={rarity} />
-                <strong>{c.upgrades[id].short}</strong>
-                <span className="card-value">
-                  {receipt.values[i]}
-                  {id === 'recover' && (
-                    <>
-                      <br />
-                      {c.instant}
-                    </>
-                  )}
+                <span className="card-icon">
+                  <SkillIcon id={id} size={32} />
                 </span>
+                <strong>{c.upgrades[id].short}</strong>
+                <CardStage id={id} rank={receipt.stages[i]} max={rules.maxRank} />
+                <span className="card-value">{receipt.values[i]}</span>
               </div>
             ))}
           </div>
@@ -148,5 +142,17 @@ export function Choices({
         </section>
       )}
     </>
+  );
+}
+
+function CardStage({ id, rank, max }: { id: UpgradeId; rank: number; max: number }) {
+  return (
+    <span className="card-stage" aria-hidden="true">
+      {isSkill(id) ? (
+        <Rank value={rank} max={max} next={rank + 1} />
+      ) : id !== 'recover' ? (
+        `${rank}→${rank + 1}`
+      ) : null}
+    </span>
   );
 }

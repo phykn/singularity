@@ -13,11 +13,12 @@
   "choiceSeconds": 8,
   "choiceCount": 3,
   "skillSlots": 4,
-  "baseHitDamage": 4,
-  "damagePerRank": 6,
+  "baseHitDamage": 5,
+  "damagePerRank": 8,
   "attackBaseSeconds": 0.47,
   "ratePerRank": 0.35,
   "baseSpeed": 150,
+  "speedPerRank": 0.1,
   "rangeBonus": 0.8,
   "rangeFalloff": 5,
   "recovery": {
@@ -37,6 +38,15 @@
   "spawnRadius": 170,
   "introBatches": 3,
   "introBatchSize": 8,
+  "spawnVariation": {
+    "batchFraction": 0.15,
+    "intervalFraction": 0.12,
+    "angleJitter": 0.045,
+    "radiusSpread": 8,
+    "speedFraction": 0.05,
+    "introAngleMin": 0.1,
+    "introAngleMax": 0.6
+  },
   "stageStarts": [0, 90, 210, 330, 450],
   "smallBatchProbabilityByStage": [0.9, 0.6, 0.6, 0.2, 0.4],
   "waves": [90, 210, 330, 450, 540],
@@ -97,7 +107,7 @@
     },
     "repel": {
       "counts": [0, 2, 3, 4, 5, 6],
-      "push": [0, 13, 16, 19, 22, 25],
+      "push": [0, 17, 20, 23, 26, 29],
       "range": 165,
       "damage": 0.75,
       "periodSeconds": 2.8,
@@ -113,15 +123,15 @@
     },
     "orb": {
       "radii": [0, 42, 48, 54, 60, 66],
-      "duration": [0, 1.2, 1.4, 1.6, 1.8, 2],
-      "damage": 0.65,
+      "duration": [0, 1.6, 1.8, 2, 2.2, 2.4],
+      "damage": 0.75,
       "speed": 85,
       "tickSeconds": 0.25,
       "periodSeconds": 2.8,
       "maxActive": 24
     },
     "charge": {
-      "threshold": [0, 4.5, 4.2, 3.9, 3.6, 3.3],
+      "threshold": [0, 3.5, 3.2, 2.9, 2.6, 2.3],
       "damage": [0, 2.5, 3.1, 3.7, 4.3, 4.9]
     },
     "bridge": {
@@ -135,9 +145,9 @@
     "gather": {
       "radii": [0, 48, 54, 60, 66, 72],
       "count": [0, 3, 4, 5, 6, 7],
-      "pull": [0, 15, 19, 23, 27, 31],
-      "damage": 0.4,
-      "periodSeconds": 2.6,
+      "pull": [0, 20, 24, 28, 32, 36],
+      "damage": 0.65,
+      "periodSeconds": 2.2,
       "immunitySeconds": 1.2
     },
     "stun": {
@@ -145,21 +155,21 @@
       "immunitySeconds": 2.1
     },
     "chase": {
-      "threshold": [0, 0.28, 0.32, 0.36, 0.4, 0.44],
+      "threshold": [0, 0.45, 0.49, 0.53, 0.57, 0.61],
       "count": [0, 1, 2, 2, 3, 3],
       "damage": [0, 2, 2.5, 3, 3.5, 4],
       "periodSeconds": 1.5
     },
     "surge": {
-      "kills": [0, 8, 8, 7, 7, 6],
-      "duration": [0, 0.7, 0.85, 1, 1.15, 1.3],
+      "kills": [0, 6, 6, 5, 5, 4],
+      "duration": [0, 1.1, 1.25, 1.4, 1.55, 1.7],
       "damage": 0.65,
       "tickSeconds": 0.18,
       "windowSeconds": 3
     },
     "return": {
-      "damage": [0, 0.5, 0.6, 0.7, 0.8, 0.9],
-      "width": 12,
+      "damage": [0, 0.7, 0.8, 0.9, 1, 1.1],
+      "width": 16,
       "delaySeconds": 0.28
     }
   },

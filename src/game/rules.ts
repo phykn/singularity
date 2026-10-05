@@ -3,7 +3,7 @@ import values from '../../design/rules.json' with { type: 'json' };
 export const rules = values;
 export type RuleSet = typeof rules;
 export type SkillId = keyof typeof rules.skills;
-export type StatId = 'power' | 'rate' | 'range';
+export type StatId = 'power' | 'rate' | 'range' | 'speed';
 export type UpgradeId = SkillId | StatId | 'recover';
 export type Rarity = keyof typeof rules.rarity;
 export type Rarities = Record<UpgradeId, Rarity>;
@@ -11,7 +11,7 @@ export type Card = { id: UpgradeId; rarity: Rarity };
 export type Ranks = Record<SkillId, number>;
 export type Boosts = Record<StatId, number>;
 export const skillIds = Object.keys(values.skills) as SkillId[];
-export const statIds: StatId[] = ['power', 'rate', 'range'];
+export const statIds: StatId[] = ['power', 'rate', 'range', 'speed'];
 export const upgradeIds: UpgradeId[] = [...skillIds, ...statIds, 'recover'];
 export const rarityIds: Rarity[] = ['common', 'rare', 'epic', 'legendary'];
 export const blankRarities = (): Rarities =>
@@ -29,7 +29,7 @@ export function rollRarity(roll: number, cfg: RuleSet = rules): Rarity {
 }
 export const maxDamageNumbers = 64;
 export const blankRanks = (): Ranks => Object.fromEntries(skillIds.map((id) => [id, 0])) as Ranks;
-export const blankBoosts = (): Boosts => ({ power: 0, rate: 0, range: 0 });
+export const blankBoosts = (): Boosts => ({ power: 0, rate: 0, range: 0, speed: 0 });
 export const isSkill = (id: UpgradeId): id is SkillId => skillIds.includes(id as SkillId);
 
 export function rangeScale(rank: number, rarity: Rarity, cfg: RuleSet = rules): number {

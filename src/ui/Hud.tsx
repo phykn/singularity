@@ -10,7 +10,7 @@ import type { Language } from './i18n.ts';
 
 const statNumber = new Intl.NumberFormat('en', {
   notation: 'compact',
-  maximumSignificantDigits: 3,
+  maximumSignificantDigits: 2,
 });
 export function Hud({
   game,
@@ -47,12 +47,18 @@ export function Hud({
               data-acquired={game.notice === id && game.time < game.noticeUntil}
               key={id}
               aria-label={c.upgrades[id].short + ', ' + value(id)}
-              title={value(id)}
+              title={c.upgrades[id].short + ', ' + value(id)}
             >
               <SkillIcon id={id} size={14} />
               <b>
                 {statNumber.format(
-                  id === 'power' ? game.damage : id === 'rate' ? game.rate : game.range,
+                  id === 'power'
+                    ? game.damage
+                    : id === 'rate'
+                      ? game.rate
+                      : id === 'range'
+                        ? game.range
+                        : game.speed,
                 )}
                 {id === 'rate' && '×'}
               </b>

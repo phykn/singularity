@@ -21,11 +21,12 @@ export const skillColors: Record<UpgradeId, number> = {
   gather: 0xb9a2e5,
   stun: 0xc8dd96,
   chase: 0xffad86,
-  surge: 0x78dfcc,
+  surge: 0xffdf78,
   return: 0x94bfff,
   power: 0xffad86,
   rate: 0xc7ed83,
   range: BLUE,
+  speed: 0xffdf78,
   recover: 0x79ecaa,
 };
 

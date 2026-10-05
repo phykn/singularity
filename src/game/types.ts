@@ -31,7 +31,6 @@ export type Effect = {
     | 'bolt'
     | 'pierce'
     | 'strike'
-    | 'orb'
     | 'bridge'
     | 'charge'
     | 'stun'

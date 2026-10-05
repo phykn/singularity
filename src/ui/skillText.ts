@@ -69,6 +69,8 @@ export function skillValue(
       return `${m.rate} +${Math.round(cfg.ratePerRank * rank * scale * 100)}%`;
     case 'range':
       return `${m.range} +${n((rangeScale(rank, rarity, cfg) - 1) * 100)}%`;
+    case 'speed':
+      return `${m.speed} +${n(cfg.speedPerRank * rank * scale * 100)}%`;
     case 'recover':
       return `${c.mass} -${recoveryMass(rarity, cfg)}`;
   }
@@ -103,6 +105,8 @@ export function skillChange(
       return text.rate;
     case 'range':
       return `${c.metric.range} +${numberText((rangeScale(current + 1, rarity, cfg) / rangeScale(current, previous, cfg) - 1) * 100)}%`;
+    case 'speed':
+      return `${numberText(cfg.baseSpeed * (1 + current * cfg.speedPerRank * rarityScale(previous, cfg)))}→${numberText(cfg.baseSpeed * (1 + (current + 1) * cfg.speedPerRank * rarityScale(rarity, cfg)))}`;
     case 'recover':
       return `${c.mass} -${numberText(Math.min(mass, recoveryMass(rarity, cfg)))}`;
     case 'repeat':

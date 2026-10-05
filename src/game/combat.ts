@@ -38,15 +38,14 @@ type Focus = {
   target?: Target;
   held: number;
   group: number;
+  started: boolean;
 };
 type Orb = {
-  id: number;
   attack: Attack;
   point: Point;
   velocity: Point;
   until: number;
   next: number;
-  drawn: number;
 };
 type Bridge = {
   id: number;
@@ -62,6 +61,7 @@ export class Combat {
   private readonly game: Game;
   activations: Partial<Record<SkillId, number>> = {};
   private firedAt: Partial<Record<SkillId, number>> = {};
+  private nextLinked: Partial<Record<SkillId, number>> = {};
   private nextAttack: number;
   private nextId = 0;
   private order = 0;
@@ -90,6 +90,10 @@ export class Combat {
     this.nextAttack = game.rules.attackBaseSeconds * game.rules.tickRate;
   }
 
+  get orbPoints(): readonly Point[] {
+    return this.orbs.map((orb) => orb.point);
+  }
+
   update(): void {
     const g = this.game;
     const due = this.pulses
@@ -111,16 +115,21 @@ export class Combat {
       }
     }
     if (g.combatEnabled && g.tick + 1e-8 >= this.nextAttack) {
-      this.fireBasic();
-      this.nextAttack += g.attackInterval * g.rules.tickRate;
+      if (this.fireBasic()) {
+        // Preserve fractional cadence during regular fire; an idle-ready attack
+        // starts a new interval rather than accumulating overdue shots.
+        const at = g.tick - this.nextAttack < 1 + 1e-8 ? this.nextAttack : g.tick;
+        this.nextAttack = at + g.attackInterval * g.rules.tickRate;
+      }
     }
     for (const id of timedSkills) {
       if (this.nextSkill[id] > g.tick + 1e-8) continue;
       if (id === 'focus' && this.focus.length) continue;
       if (id === 'orb' && this.orbs.length + g.forms.multi.count > g.rules.skills.orb.maxActive)
         continue;
-      this.fireSkill(id);
-      this.nextSkill[id] = g.tick + (g.rules.skills[id].periodSeconds / g.rate) * g.rules.tickRate;
+      if (this.fireSkill(id) && id !== 'focus')
+        this.nextSkill[id] =
+          g.tick + (g.rules.skills[id].periodSeconds / g.rate) * g.rules.tickRate;
     }
     this.updateFocus();
     this.updateOrbs();
@@ -168,7 +177,7 @@ export class Combat {
       ? this.nextSkill[skill]
       : id === 'bridge'
         ? this.nextBridge
-        : this.nextAttack;
+        : (this.nextLinked[id] ?? g.tick);
     const active =
       g.phase === 'running' &&
       (id === 'focus'
@@ -197,6 +206,8 @@ export class Combat {
     this.nextAttack = tick + Math.max(0, this.nextAttack - tick) * ratio;
     this.nextBridge = tick + Math.max(0, this.nextBridge - tick) * ratio;
     this.nextSurge = tick + Math.max(0, this.nextSurge - tick) * ratio;
+    for (const id of Object.keys(this.nextLinked) as SkillId[])
+      this.nextLinked[id] = tick + Math.max(0, this.nextLinked[id]! - tick) * ratio;
     for (const id of timedSkills)
       if (Number.isFinite(this.nextSkill[id]))
         this.nextSkill[id] = tick + Math.max(0, this.nextSkill[id] - tick) * ratio;
@@ -244,19 +255,18 @@ export class Combat {
     );
   }
 
-  fireBasic(origin: Point = this.game.position): void {
+  fireBasic(origin: Point = this.game.position): boolean {
+    const range = this.game.range;
+    if (!this.game.targets.some((t) => t.hp > 0 && distance(t, origin) <= range)) return false;
     const attack = this.begin();
-    this.volley(
-      attack,
-      origin,
-      closest(this.game.targets, origin, attack.forms.multi.count, attack.range),
-      true,
-    );
+    const selected = closest(this.game.targets, origin, attack.forms.multi.count, attack.range);
+    this.volley(attack, origin, selected, true);
+    return selected.length > 0;
   }
 
-  fireSkill(id: TimedSkill, origin: Point = this.game.position): void {
+  fireSkill(id: TimedSkill, origin: Point = this.game.position): boolean {
     const g = this.game;
-    if (!g.ranks[id]) return;
+    if (!g.ranks[id] || !g.targets.length) return false;
     const s = g.forms;
     const multiplier =
       id === 'strike'
@@ -273,7 +283,7 @@ export class Combat {
     const within = (range: number) =>
       g.targets.filter((t) => t.hp > 0 && distance(t, origin) <= range);
     if (id === 'focus') {
-      if (this.focus.length) return;
+      if (this.focus.length || !within(s.focus.range).length) return false;
       for (let i = 0; i < branches; i++)
         this.focus.push({
           attack: i ? { ...attack, damage: attack.damage * s.multi.damage } : attack,
@@ -281,26 +291,25 @@ export class Combat {
           next: g.tick,
           held: 0,
           group: attack.id,
+          started: false,
         });
-      return;
+      return true;
     }
     if (id === 'orb') {
       const selected = closest(g.targets, origin, branches, g.range * 1.5);
       if (!selected.length || this.orbs.length + selected.length > g.rules.skills.orb.maxActive)
-        return;
+        return false;
       for (const [i, target] of selected.entries())
         this.orbs.push({
-          id: this.order++,
           attack: i ? { ...attack, damage: attack.damage * s.multi.damage } : attack,
           point: { ...origin },
           velocity: norm({ x: target.x - origin.x, y: target.y - origin.y }),
           until: g.time + s.orb.duration,
           next: g.tick,
-          drawn: -Infinity,
         });
       this.activate(id);
       if (selected.length > 1) this.activate('multi');
-      return;
+      return true;
     }
     if (id === 'gather') {
       const anchors = closest(
@@ -310,9 +319,10 @@ export class Combat {
         g.range * 1.5,
       );
       const moved = new Set<number>();
+      let fired = 0;
       for (const anchor of anchors) {
         const point = { ...anchor };
-        this.volley(attack, origin, [anchor], true);
+        fired += this.volley(attack, origin, [anchor], true);
         const group = closest(g.targets, point, s.gather.count, s.gather.radius);
         for (const target of group) {
           if (moved.has(target.id) || target === anchor || g.time < (target.gatherReady ?? 0))
@@ -330,8 +340,9 @@ export class Combat {
           this.effect(attack, 'bolt', from, target, 0, 0.22);
         }
       }
+      if (fired > 1) this.activate('multi', attack.ranks.multi);
       if (anchors.length) this.activate(id);
-      return;
+      return anchors.length > 0;
     }
     const targets =
       id === 'strike'
@@ -349,6 +360,7 @@ export class Combat {
     attack.push = id === 'repel';
     this.volley(attack, origin, targets, true);
     if (targets.length) this.activate(id);
+    return targets.length > 0;
   }
 
   private begin(source?: SkillId, multiplier = 1): Attack {
@@ -395,8 +407,8 @@ export class Combat {
     });
   }
 
-  private volley(attack: Attack, origin: Point, selected: Target[], anchored: boolean): void {
-    if (selected.length > 1 && attack.ranks.multi) this.activate('multi');
+  private volley(attack: Attack, origin: Point, selected: Target[], anchored: boolean): number {
+    let fired = 0;
     for (const [i, target] of selected.entries()) {
       if (target.hp <= 0) continue;
       const branch =
@@ -419,7 +431,10 @@ export class Combat {
           anchored,
         });
       this.emit(branch, origin, target, anchored);
+      fired++;
     }
+    if (fired > 1) this.activate('multi', attack.ranks.multi);
+    return fired;
   }
 
   private emit(
@@ -640,6 +655,7 @@ export class Combat {
   private updateFocus(): void {
     const g = this.game;
     this.focus = this.focus.filter((c) => g.time < c.until - 1e-8);
+    const branches = new Map<number, number>();
     for (const cast of this.focus) {
       if (g.tick < cast.next - 1e-8) continue;
       if (
@@ -664,17 +680,30 @@ export class Combat {
         cast.held = 0;
       }
       if (cast.target) {
+        if (!cast.started) {
+          for (const sibling of this.focus)
+            if (sibling.group === cast.group) sibling.started = true;
+          if (Number.isFinite(this.nextSkill.focus))
+            this.nextSkill.focus =
+              g.tick + (g.rules.skills.focus.periodSeconds / g.rate) * g.rules.tickRate;
+        }
         const attack = {
           ...cast.attack,
           damage: cast.attack.damage * (1 + cast.held * g.rules.skills.focus.ramp),
           firstKill: undefined,
         };
-        this.volley(attack, g.position, [cast.target], true);
+        const fired = this.volley(attack, g.position, [cast.target], true);
+        const count = (branches.get(cast.group) ?? 0) + fired;
+        branches.set(cast.group, count);
+        if (count === 2) this.activate('multi', attack.ranks.multi);
         this.activate('focus', attack.ranks.focus);
         cast.held += g.rules.skills.focus.tickSeconds;
       }
       cast.next += g.rules.skills.focus.tickSeconds * g.rules.tickRate;
     }
+    // A later skill may have killed every reserved target in this same tick.
+    // An empty reservation is not a channel and must remain ready to cast.
+    this.focus = this.focus.filter((cast) => cast.started);
   }
 
   private updateOrbs(): void {
@@ -691,10 +720,6 @@ export class Combat {
     for (const orb of this.orbs) {
       orb.point.x += (orb.velocity.x * cfg.speed) / g.rules.tickRate;
       orb.point.y += (orb.velocity.y * cfg.speed) / g.rules.tickRate;
-      if (g.time - orb.drawn >= 0.08) {
-        this.effect(orb.attack, 'orb', orb.point, orb.point, 4, 0.12, false, 'orb', 1, orb.id);
-        orb.drawn = g.time;
-      }
       if (g.tick < orb.next - 1e-8) continue;
       this.volley(
         orb.attack,
@@ -761,6 +786,8 @@ export class Combat {
     if (!rank) return;
     this.activations[id] ??= this.game.time;
     this.firedAt[id] = this.game.time;
+    if (['multi', 'repeat', 'chain', 'pierce', 'return'].includes(id))
+      this.nextLinked[id] = this.game.tick + this.game.attackInterval * this.game.rules.tickRate;
     this.game.log('skill-effect', { id, rank });
   }
 }

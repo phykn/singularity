@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import type Phaser from 'phaser';
 import { art, createPixels, palettes } from '../src/render/pixels.ts';
 import { healthBar } from '../src/render/health.ts';
-import { drawEffect } from '../src/render/lightning.ts';
+import { drawEffect, drawOrb } from '../src/render/lightning.ts';
 import type { Effect } from '../src/game/types.ts';
-import { skillIds } from '../src/game/rules.ts';
-import { target } from './helpers.ts';
+import { skillIds, upgradeIds } from '../src/game/rules.ts';
+import { glyphs, glyphPaths } from '../src/ui/glyphs.ts';
+import { close, target } from './helpers.ts';
 
 test('native sprites paint only palette pixels within their texture bounds', () => {
   const textures: string[] = [];
@@ -46,6 +47,25 @@ test('native sprites paint only palette pixels within their texture bounds', () 
   };
   createPixels(scene as unknown as Phaser.Scene);
   assert.deepEqual(textures, Object.keys(art));
+});
+
+test('upgrade icons keep an unclipped pixel grid and distinct silhouettes at native size', () => {
+  const silhouettes = new Set<string>();
+  assert.deepEqual(Object.keys(glyphs).sort(), [...upgradeIds].sort());
+  for (const id of upgradeIds) {
+    const rows = glyphs[id];
+    assert.equal(rows.length, 16, id);
+    rows.forEach((row) => {
+      assert.equal(row.length, 16, id);
+      assert.match(row, /^[.12]+$/, id);
+      assert.equal(row[0] + row[15], '..', id + ' needs an edge margin');
+    });
+    assert.equal(rows[0] + rows[15], '.'.repeat(32), id + ' needs an edge margin');
+    const silhouette = rows.join('').replaceAll('2', '1');
+    assert.ok(!silhouettes.has(silhouette), id + ' needs its own silhouette');
+    silhouettes.add(silhouette);
+    assert.ok(glyphPaths[id].shape.length > 0 && glyphPaths[id].light.length > 0, id);
+  }
 });
 
 test('health bars show continuous proportional health and hide one-hit particles', () => {
@@ -96,23 +116,43 @@ const effect: Effect = {
 
 test('lightning remains finite at mobile scales and never changes combat data', () => {
   for (const id of skillIds) {
-    const kind = ['multi', 'repeat', 'chain', 'burst', 'repel', 'gather', 'chase'].includes(id)
+    const kind = ['multi', 'repeat', 'chain', 'burst', 'repel', 'gather', 'chase', 'orb'].includes(
+      id,
+    )
       ? 'bolt'
       : id;
     const fx = { ...effect, source: id, kind } as Effect;
     const before = structuredClone(fx);
-    for (const scale of [0.65, 1, 1.75])
-      for (const reduced of [false, true]) {
-        const active = drawing();
-        drawEffect(active.graphics, fx, 1.5, scale, reduced, fx.from, []);
-        assert.ok(active.commands.length > 0, id + ' must have a visible attack');
-        const expired = drawing();
-        drawEffect(expired.graphics, fx, 2, scale, reduced, fx.from, []);
-        assert.equal(expired.commands.length, 0);
-        const coincident = drawing();
-        drawEffect(coincident.graphics, { ...fx, to: fx.from }, 1.5, scale, reduced, fx.from, []);
-      }
+    for (const scale of [0.65, 1, 1.75]) {
+      const active = drawing();
+      drawEffect(active.graphics, fx, 1.5, scale, fx.from, []);
+      assert.ok(active.commands.length > 0, id + ' must have a visible attack');
+      const expired = drawing();
+      drawEffect(expired.graphics, fx, 2, scale, fx.from, []);
+      assert.equal(expired.commands.length, 0);
+      const coincident = drawing();
+      drawEffect(coincident.graphics, { ...fx, to: fx.from }, 1.5, scale, fx.from, []);
+    }
     assert.deepEqual(fx, before);
+  }
+});
+
+test('orb bodies render at their current pixel position without changing that position', () => {
+  for (const scale of [0.65, 1, 1.75]) {
+    const point = { x: 210.4, y: 128.6 },
+      before = { ...point };
+    const { graphics, commands } = drawing();
+    drawOrb(graphics, point, scale);
+    const center = commands.at(-1)!;
+    assert.equal(center.method, 'fillRect');
+    const expected = [
+      (Math.round(point.x * scale) - 1) / scale,
+      (Math.round(point.y * scale) - 1) / scale,
+      2 / scale,
+      2 / scale,
+    ];
+    center.args.forEach((value, i) => close(value, expected[i]));
+    assert.deepEqual(point, before);
   }
 });
 
@@ -121,9 +161,9 @@ test('focused lightning follows the current electron and tracked particle', () =
   const electron = { x: 40, y: 60 };
   const fx = { ...effect, anchor: 'electron' as const, targetId: enemy.id };
   const before = structuredClone({ fx, enemy, electron });
-  for (const reduced of [false, true]) {
+  {
     const { graphics, commands } = drawing();
-    drawEffect(graphics, fx, 1.5, 1, reduced, electron, [enemy]);
+    drawEffect(graphics, fx, 1.5, 1, electron, [enemy]);
     assert.ok(
       commands.some(
         ({ method, args }) =>
@@ -137,4 +177,18 @@ test('focused lightning follows the current electron and tracked particle', () =
     );
   }
   assert.deepEqual({ fx, enemy, electron }, before);
+});
+
+test('lightning stroke widths use whole screen pixels at every viewport scale', () => {
+  for (const scale of [0.65, 1, 1.75]) {
+    for (const kind of ['bolt', 'strike', 'focus', 'pierce', 'return'] as const) {
+      const { graphics, commands } = drawing();
+      drawEffect(graphics, { ...effect, kind }, 1.5, scale, effect.from, []);
+      const widths = commands
+        .filter(({ method }) => method === 'lineStyle')
+        .map(({ args }) => args[0] * scale);
+      assert.ok(widths.length > 0);
+      widths.forEach((width) => assert.ok(Math.abs(width - Math.round(width)) < 1e-8, kind));
+    }
+  }
 });

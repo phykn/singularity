@@ -36,7 +36,6 @@ export function Loadout({ game, language }: { game: Game; language: Language }) 
           <span className="level">
             Lv. <b>{game.level.toString().padStart(2, '0')}</b>
           </span>
-          <span>XP</span>
           <b>{progress.current + ' / ' + progress.required}</b>
         </div>
         <div
@@ -122,9 +121,8 @@ function SkillSlot({
         />
       )}
       <span className="slot-art">
-        <SkillIcon id={id} size={16} />
+        <SkillIcon id={id} size={32} />
       </span>
-      <span className={'slot-mode ' + status.mode} aria-hidden="true" />
       {rank >= max ? (
         <span className="slot-max" aria-hidden="true">
           MAX

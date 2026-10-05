@@ -5,6 +5,40 @@ import { Game } from '../src/game/model.ts';
 import { rules, recoveryMass, rangeScale, skillIds } from '../src/game/rules.ts';
 import { choose, close, fixture, stationarySkill, target } from './helpers.ts';
 
+test('movement speed upgrades increase orbital travel without changing orbit size or attack timing', () => {
+  const normal = fixture(),
+    fast = fixture();
+  const start = fast.angle;
+  choose(fast, 'speed');
+  close(fast.speed, 165);
+  normal.advance(1000);
+  fast.advance(1000);
+  close(fast.angle - start, (normal.angle - start) * 1.1);
+  close(fast.radius, normal.radius);
+  close(fast.damage, normal.damage);
+  close(fast.attackInterval, normal.attackInterval);
+  choose(fast, 'speed', 'legendary');
+  assert.ok(fast.speed > 180);
+  assert.equal(fast.rank('speed'), 2);
+});
+
+test('a manually selected movement upgrade survives replay with identical future positions', () => {
+  const game = new Game(96009);
+  game.start();
+  while (game.phase === 'running' && game.rank('speed') === 0 && game.time < 600) {
+    game.advance(1000 / rules.tickRate);
+    if (game.choice?.cards.some((card) => card.id === 'speed')) game.select('speed');
+  }
+  assert.ok(game.rank('speed') > 0);
+  const restored = restoreCheckpoint(createCheckpoint(game)!)!;
+  assert.ok(restored);
+  assert.equal(restored.speed, game.speed);
+  game.advance(10000);
+  restored.advance(10000);
+  assert.equal(restored.angle, game.angle);
+  assert.deepEqual(restored.events, game.events);
+});
+
 test('field reach acquires distant targets without changing damage, speed or damage geometry', () => {
   const g = fixture({ pierce: 1, burst: 1, repel: 1 }, [target(0, 280, 128)]);
   const before = { forms: g.forms, damage: g.damage, speed: g.speed, radius: g.targetRadius };
@@ -30,7 +64,7 @@ test('range grows at diminishing returns and remains useful above skill rank lim
 
 test('repeat retargets at the cast reach and an upgrade does not rewrite reserved geometry', () => {
   for (const upgradedBeforeCast of [false, true]) {
-    const g = stationarySkill({ repeat: 1 }, [target(0, 190, 128), target(1, 280, 128)]);
+    const g = stationarySkill({ repeat: 1 }, [target(0, 190, 128), target(1, 280, 128, 100)]);
     if (upgradedBeforeCast) choose(g, 'range');
     g.combat.fireBasic();
     if (!upgradedBeforeCast) choose(g, 'range');

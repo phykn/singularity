@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { devices } from 'playwright';
-import { base, capture, launchBrowser } from './browser-support.mjs';
+import { base, capture, launchBrowser, observeScene } from './browser-support.mjs';
 import { copy } from '../src/ui/i18n.ts';
 import { rules, levelForXp } from '../src/game/rules.ts';
 import { runKey } from '../src/app/storage.ts';
@@ -44,12 +44,13 @@ const open = async () => {
   page.on('pageerror', (e) => errors.push(e.message));
   if (base.includes('ngrok'))
     await page.setExtraHTTPHeaders({ 'ngrok-skip-browser-warning': 'true' });
+  await observeScene(page);
   await page.goto(base + '/?seed=10004');
   await page.waitForFunction(() => !!window.__gameDebug);
   return page;
 };
 const verifyRestored = async (page, checkpoint) => {
-  const { actual, expected } = await page.evaluate(
+  const { actual, expected, foregroundTicks } = await page.evaluate(
     async ({ fields, checkpoint }) => {
       const { restoreCheckpoint } = await import('/src/game/replay.ts');
       const game = window.__gameDebug.getModel();
@@ -57,14 +58,19 @@ const verifyRestored = async (page, checkpoint) => {
       if (restored)
         restored.advance(((game.elapsedTicks - checkpoint.ticks) * 1000) / restored.rules.tickRate);
       const state = (g) => Object.fromEntries(fields.map((key) => [key, g[key]]));
-      return { actual: state(game), expected: restored && state(restored) };
+      return {
+        actual: state(game),
+        expected: restored && state(restored),
+        foregroundTicks: Math.ceil((performance.now() * game.rules.tickRate) / 1000),
+      };
     },
     { fields, checkpoint },
   );
   assert.ok(expected);
+  assert.ok(actual.elapsedTicks >= checkpoint.ticks);
   assert.ok(
-    actual.elapsedTicks >= checkpoint.ticks && actual.elapsedTicks - checkpoint.ticks < 120,
-    'Returning must not simulate background time',
+    actual.elapsedTicks - checkpoint.ticks <= foregroundTicks + 2 * rules.tickRate,
+    'Returning may consume foreground time and a periodic-save gap, but no closed-tab time',
   );
   // Replay in the same JS runtime so every coordinate can be compared exactly.
   assert.deepEqual(actual, expected);
@@ -126,16 +132,23 @@ try {
   });
 
   await page.evaluate(() => {
-    window.__gameDebug.restart(96057);
+    window.__gameDebug.restart(96009);
     window.__gameDebug.advance(240000);
   });
   await page.waitForTimeout(1200);
   const periodic = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), runKey);
   assert.ok(periodic.ticks >= 240 * rules.tickRate);
   const cdp = await context.newCDPSession(page);
-  await new Promise((resolve) => {
-    page.once('crash', resolve);
-    void cdp.send('Page.crash').catch(resolve);
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Renderer crash timed out')), 30000);
+    page.once('crash', () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+    void cdp.send('Page.crash').catch((error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
   });
   await page.close();
   page = await open();
@@ -147,7 +160,7 @@ try {
   });
 
   await page.evaluate(() => {
-    window.__gameDebug.restart(96057);
+    window.__gameDebug.restart(96009);
     window.__gameDebug.advance(610000);
   });
   await page.getByRole('heading', { name: c.success, exact: true }).waitFor();
@@ -207,9 +220,20 @@ try {
   assert.equal(damage.length, 2);
   assert.ok(damage.every((n, i) => Math.abs(n.value - expectedDamage[i]) < 1e-8));
   await page.waitForTimeout(150);
+  const labels = await page.evaluate(() =>
+    window.__gameScene.damageText.filter((text) => text.visible).map((text) => text.text),
+  );
+  assert.deepEqual(
+    labels,
+    damage
+      .slice()
+      .reverse()
+      .map((n) => String(Math.round(n.value))),
+  );
   await capture(page, 'artifacts/screens/damage-numbers.png');
-  report('damage numbers render fractional upgraded damage on a mobile screen', {
+  report('integer damage labels preserve fractional upgraded combat damage on a mobile screen', {
     values: damage.map((n) => n.value),
+    labels,
     scaleFactor: devices['Pixel 7'].deviceScaleFactor,
   });
   await page.close();
@@ -259,7 +283,7 @@ try {
       return write.call(this, key, value);
     };
   });
-  await failed.locator('.settings-panel .setting-row').nth(1).click();
+  await failed.locator('.settings-panel .setting-row').first().click();
   await failed.locator('.settings-panel .setting-notice').waitFor();
   await failed.locator('.settings-panel .language-picker button').first().click();
   await failed.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
@@ -268,7 +292,7 @@ try {
     c.storageFailed,
   );
   await failed.evaluate(() => window.restoreWrites());
-  await failed.locator('.settings-panel .setting-row').nth(1).click();
+  await failed.locator('.settings-panel .setting-row').first().click();
   await failed.locator('.settings-panel .setting-notice').waitFor({ state: 'hidden' });
   report('saving another preference or run does not hide an unsaved settings warning', {});
   await failed.close();

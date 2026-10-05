@@ -5,7 +5,7 @@ import { target, fixture, choose, stationarySkill } from './helpers.ts';
 import { Random } from '../src/game/random.ts';
 import { distance } from '../src/game/geometry.ts';
 
-test('reserved repeat visuals retain the cast rank after a skill upgrade', () => {
+test('reserved repeat visuals retain the cast rank while the acquired rarity stays fixed', () => {
   const g = stationarySkill({ repeat: 1 }, [target(0, 210, 128, 100)]);
   g.combat.fireBasic();
   choose(g, 'repeat', 'legendary');
@@ -20,7 +20,7 @@ test('reserved repeat visuals retain the cast rank after a skill upgrade', () =>
   assert.ok(
     g.effects.some(
       (fx) =>
-        fx.kind === 'bolt' && fx.source === 'repeat' && fx.rank === 2 && fx.rarity === 'legendary',
+        fx.kind === 'bolt' && fx.source === 'repeat' && fx.rank === 2 && fx.rarity === 'common',
     ),
   );
 });

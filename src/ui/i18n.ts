@@ -17,11 +17,8 @@ const ko = {
   close: '닫기',
   pause: '일시정지',
   sound: '사운드',
-  effects: '시각 효과',
   on: '켬',
   off: '끔',
-  reduced: '간소화',
-  normal: '기본',
   audioFailed: '사운드 연결 실패 · 다시 켜기',
   storageFailed: '진행 저장 불가',
   growth: '레벨 업',
@@ -70,13 +67,14 @@ const ko = {
   guideEnergy: '적 처치로 XP 획득. 레벨이 오르면 강화 선택.',
   guideGoal: (goal: number) =>
     `${goal} XP를 모으면 특이점 형성. 놓친 입자가 핵에 쌓이면 궤도가 좁아지고, 충돌 시 전자 소멸. 시간 제한 없음.`,
-  guideChoice: '이동·공격은 자동. 세 가지 강화 중 하나를 선택. 8초 뒤 첫 카드 자동 선택.',
+  guideChoice:
+    '이동·공격은 자동. 세 가지 강화 중 하나를 선택. 8초 뒤 최고 등급 카드 자동 선택. 같은 등급이면 앞쪽 카드 선택.',
   guideRarity:
-    '희귀도가 높을수록 범위·타격 수·강화 효과 증가. 영구 강화의 희귀도는 유지. 질량 방출은 매번 별도 추첨.',
+    '스킬 등급은 처음 선택할 때 고정. 배우기 전에는 등장할 때마다 추첨하고, 배운 뒤에는 단계만 상승. 능력치 강화는 더 높은 등급으로 상승 가능. 질량 방출은 매번 별도 추첨.',
   guideCombo:
     '갈래·연속·연쇄·관통은 다른 번개에도 적용. 적중으로 축전·단락·전류 가교가 연결되고, 처치는 방전과 폭주로 이어짐.',
   guideLimits:
-    '스킬 16종 중 네 종류까지 자유롭게 조합. 고압 방전은 피해, 고속 펄스는 공격 빈도, 전기장 확장은 도달 거리 증가. 질량 방출은 핵 질량을 줄여 궤도 회복. 다른 화면에서는 일시정지, 돌아오면 계속.',
+    '스킬 16종 중 네 종류까지 자유롭게 조합. 공격력은 피해, 공격속도는 공격 빈도, 사거리는 도달 거리, 이동속도는 궤도 이동 속도 증가. 질량 방출은 핵 질량을 줄여 궤도 회복. 다른 화면에서는 일시정지, 돌아오면 계속.',
   countdown: (n: number) => `${n}초 뒤 자동 선택`,
   missing: (n: number) => `핵 충돌 · 특이점까지 ${n.toLocaleString('ko-KR')} XP`,
   rankUp: (a: number, b: number) => `${a}→${b}단계`,
@@ -86,17 +84,18 @@ const ko = {
     string
   >,
   upgrades: {
-    power: { name: '고압 방전', short: '고압 방전', description: '모든 번개의 피해량 증가' },
+    power: { name: '공격력', short: '공격력', description: '모든 번개의 피해량 증가' },
     rate: {
-      name: '고속 펄스',
-      short: '고속 펄스',
+      name: '공격속도',
+      short: '공격속도',
       description: '기본 공격·모든 스킬의 쿨타임 단축',
     },
     range: {
-      name: '전기장 확장',
-      short: '전기장 확장',
+      name: '사거리',
+      short: '사거리',
       description: '조준·연쇄 거리와 관통·전류선 길이 증가',
     },
+    speed: { name: '이동속도', short: '이동속도', description: '전자가 궤도를 도는 속도 증가' },
     recover: {
       name: '질량 방출',
       short: '질량 방출',
@@ -180,8 +179,9 @@ const ko = {
     push: '밀어내기',
     radius: '반경',
     damage: '피해량',
-    rate: '공격 속도',
+    rate: '공격속도',
     range: '사거리',
+    speed: '이동속도',
     length: '길이',
     width: '너비',
     hits: (n: string) => `${n}회 타격`,
@@ -216,11 +216,8 @@ const en: Copy = {
   close: 'Close',
   pause: 'Pause',
   sound: 'Sound',
-  effects: 'Effects',
   on: 'On',
   off: 'Off',
-  reduced: 'Reduced',
-  normal: 'Full',
   audioFailed: 'Sound unavailable. Tap to retry.',
   storageFailed: 'Could not save.',
   growth: 'Level up',
@@ -270,13 +267,13 @@ const en: Copy = {
   guideGoal: (goal) =>
     `Reach ${goal} XP to form a black hole. Missed particles gather at the center and pull your orbit inward; hitting the core ends the run. There is no time limit.`,
   guideChoice:
-    'Movement and attacks are automatic. Pick one of three upgrades when you level up. After 8 seconds, the highlighted card is picked for you.',
+    'Movement and attacks are automatic. Pick one of three upgrades when you level up. After 8 seconds, the highest-rarity card is picked for you. Ties go to the first card.',
   guideRarity:
-    'Higher rarities increase range, hit counts and strength. Permanent upgrades keep their rarity. Each Mass Vent rolls its own rarity.',
+    'Skill rarity locks on first pick. Unlearned skills roll a rarity each time they appear; learned skills only gain ranks. Stat upgrades can gain higher rarity. Each Mass Vent rolls its own rarity.',
   guideCombo:
     'Fork, Repeat, Chain and Pierce modify other lightning. Hits feed charge, stun and bridges; kills feed death arcs and surges.',
   guideLimits:
-    'Combine any four of sixteen skills. Voltage boosts damage, Pulse speeds attacks, and Field Reach extends reach. Mass Vent removes core mass to restore the orbit. Switching away pauses; return to resume.',
+    'Combine any four of sixteen skills. Upgrade Attack Power, Attack Speed, Range and Move Speed. Mass Vent removes core mass to restore the orbit. Switching away pauses; return to resume.',
   countdown: (n) => `Auto-pick in ${n}s`,
   missing: (n) => `${n} more XP needed`,
   rankUp: (a, b) => `Rank ${a}→${b}`,
@@ -284,20 +281,21 @@ const en: Copy = {
   rarities: { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' },
   upgrades: {
     power: {
-      name: 'High Voltage',
-      short: 'High Voltage',
+      name: 'Attack Power',
+      short: 'Attack Power',
       description: 'Increase all lightning damage',
     },
     rate: {
-      name: 'Rapid Pulse',
-      short: 'Rapid Pulse',
+      name: 'Attack Speed',
+      short: 'Attack Speed',
       description: 'Shorten basic attack and skill cooldowns',
     },
     range: {
-      name: 'Field Reach',
-      short: 'Field Reach',
+      name: 'Range',
+      short: 'Range',
       description: 'Extend targeting, chain jumps, beams and bridges',
     },
+    speed: { name: 'Move Speed', short: 'Move Speed', description: 'Move faster around the orbit' },
     recover: {
       name: 'Mass Vent',
       short: 'Mass Vent',
@@ -395,6 +393,7 @@ const en: Copy = {
     damage: 'Damage',
     rate: 'Fire rate',
     range: 'Range',
+    speed: 'Move speed',
     length: 'Length',
     width: 'Width',
     hits: (n) => `${n} hits`,
@@ -428,11 +427,8 @@ const zh: Copy = {
   close: '关闭',
   pause: '暂停',
   sound: '声音',
-  effects: '特效',
   on: '开启',
   off: '关闭',
-  reduced: '简化',
-  normal: '完整',
   audioFailed: '无法开启声音，请再次点击。',
   storageFailed: '无法保存。',
   growth: '升级',
@@ -481,22 +477,24 @@ const zh: Copy = {
   guideEnergy: '击败敌人可获得经验。经验条满后升级，并选择一个技能。',
   guideGoal: (goal) =>
     `积累 ${goal} 经验即可形成黑洞。漏掉的粒子会聚集在中心，缩小轨道；撞上核心则对局结束。没有时间限制。`,
-  guideChoice: '移动和攻击自动进行。升级时从三个强化选项中选一个；8秒后会自动选择高亮卡片。',
+  guideChoice:
+    '移动和攻击自动进行。升级时从三个强化选项中选一个；8秒后自动选择最高品质卡片。品质相同时选择靠前的卡片。',
   guideRarity:
-    '稀有度越高，范围、攻击次数和强化效果越强。永久强化的稀有度不会降低。质量释放每次独立抽取稀有度。',
+    '技能稀有度在首次选择时固定。未学习的技能每次出现时重新抽取，学会后只提升等级。属性强化仍可提升稀有度。质量释放每次独立抽取稀有度。',
   guideCombo:
     '分支、连续、连锁和贯穿也会强化其他闪电。命中触发蓄电、短路和电流桥；击杀触发放电和暴走。',
   guideLimits:
-    '从16种技能中自由组合4种。高压放电提升伤害，高速脉冲提升攻击频率，电场扩展延长距离。质量释放减少核心质量，恢复轨道。切换页面暂停，返回后继续。',
+    '从16种技能中自由组合4种。攻击力提升伤害，攻击速度提升攻击频率，射程延长距离，移动速度提高轨道移动速度。质量释放减少核心质量，恢复轨道。切换页面暂停，返回后继续。',
   countdown: (n) => `${n}秒后自动选择`,
   missing: (n) => `还差 ${n} 经验`,
   rankUp: (a, b) => `${a}→${b}级`,
   seconds: '秒',
   rarities: { common: '普通', rare: '稀有', epic: '史诗', legendary: '传说' },
   upgrades: {
-    power: { name: '高压放电', short: '高压放电', description: '提高所有闪电的伤害' },
-    rate: { name: '高速脉冲', short: '高速脉冲', description: '缩短普通攻击与技能冷却' },
-    range: { name: '电场扩展', short: '电场扩展', description: '延长瞄准、连锁、贯穿和电流桥距离' },
+    power: { name: '攻击力', short: '攻击力', description: '提高所有闪电的伤害' },
+    rate: { name: '攻击速度', short: '攻击速度', description: '缩短普通攻击与技能冷却' },
+    range: { name: '射程', short: '射程', description: '延长瞄准、连锁、贯穿和电流桥距离' },
+    speed: { name: '移动速度', short: '移动速度', description: '提高电子绕轨道移动的速度' },
     recover: {
       name: '质量释放',
       short: '质量释放',
@@ -542,6 +540,7 @@ const zh: Copy = {
     damage: '伤害',
     rate: '发射频率',
     range: '射程',
+    speed: '移动速度',
     length: '长度',
     width: '宽度',
     hits: (n) => `${n}次攻击`,
@@ -575,11 +574,8 @@ const ja: Copy = {
   close: '閉じる',
   pause: '一時停止',
   sound: 'サウンド',
-  effects: 'エフェクト',
   on: 'オン',
   off: 'オフ',
-  reduced: '軽減',
-  normal: '通常',
   audioFailed: 'サウンドを有効にできません。再度タップしてください。',
   storageFailed: '保存できません。',
   growth: 'レベルアップ',
@@ -630,30 +626,31 @@ const ja: Copy = {
   guideGoal: (goal) =>
     `経験値を ${goal} 集めるとブラックホールが生まれます。逃した粒子が中心に集まると軌道が狭まり、核にぶつかると消滅します。時間制限はありません。`,
   guideChoice:
-    '移動と攻撃は自動です。レベルアップ時に3つの強化から1つ選びましょう。8秒たつと、ハイライトされたカードが自動で選ばれます。',
+    '移動と攻撃は自動です。レベルアップ時に3つの強化から1つ選びましょう。8秒後に最高レアリティのカードが自動で選ばれます。同じ場合は先のカードを選びます。',
   guideRarity:
-    '高いレア度ほど範囲・攻撃回数・強化効果が増加。永続強化のレア度は維持。質量放出は毎回抽選。',
+    'スキルのレア度は最初に選んだ時点で固定。未習得なら出現ごとに抽選、習得後はランクだけ上昇。能力強化のレア度は上昇可能。質量放出は毎回抽選。',
   guideCombo:
     '分岐・連続・連鎖・貫通はほかの雷にも適用。命中は蓄電・短絡・電流線につながり、撃破は放電や暴走を生む。',
   guideLimits:
-    '16種から自由に4種を組み合わせる。高圧放電は威力、高速パルスは攻撃頻度、電場拡張は距離を強化。質量放出で核の質量を減らし軌道回復。画面を離れると停止し、戻ると再開。',
+    '16種から自由に4種を組み合わせる。攻撃力は威力、攻撃速度は攻撃頻度、射程は距離、移動速度は軌道の移動を強化。質量放出で核の質量を減らし軌道回復。画面を離れると停止し、戻ると再開。',
   countdown: (n) => `${n}秒後に自動選択`,
   missing: (n) => `あと経験値 ${n}`,
   rankUp: (a, b) => `ランク ${a}→${b}`,
   seconds: '秒',
   rarities: { common: 'ノーマル', rare: 'レア', epic: 'エピック', legendary: '伝説' },
   upgrades: {
-    power: { name: '高圧放電', short: '高圧放電', description: 'すべての雷の威力が増加' },
+    power: { name: '攻撃力', short: '攻撃力', description: 'すべての雷の威力が増加' },
     rate: {
-      name: '高速パルス',
-      short: '高速パルス',
+      name: '攻撃速度',
+      short: '攻撃速度',
       description: '通常攻撃とスキルのクールタイムを短縮',
     },
     range: {
-      name: '電場拡張',
-      short: '電場拡張',
+      name: '射程',
+      short: '射程',
       description: '照準・連鎖・貫通・電流線の距離を延長',
     },
+    speed: { name: '移動速度', short: '移動速度', description: '電子が軌道を回る速度が上がる' },
     recover: {
       name: '質量放出',
       short: '質量放出',
@@ -723,6 +720,7 @@ const ja: Copy = {
     damage: 'ダメージ',
     rate: '発射頻度',
     range: '射程',
+    speed: '移動速度',
     length: '長さ',
     width: '幅',
     hits: (n) => `${n}回攻撃`,

@@ -3,15 +3,12 @@ import { createPixels } from './pixels.ts';
 import { healthBar } from './health.ts';
 import { endingFrame } from './ending.ts';
 import { visibleEffects } from './effects.ts';
-import { numberText } from '../format.ts';
 import { maxDamageNumbers } from '../game/rules.ts';
 import { orbit, clamp } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
 import type { Game } from '../game/model.ts';
-
-import { BLUE, WHITE, AMBER, GOLD } from './palette.ts';
-import { drawEffect } from './lightning.ts';
-
+import { BLUE, WHITE, AMBER, GOLD, skillColors } from './palette.ts';
+import { drawEffect, drawOrb, drawSurge } from './lightning.ts';
 export class ElectronScene extends Phaser.Scene {
   private graphics!: Phaser.GameObjects.Graphics;
   private effectGraphics!: Phaser.GameObjects.Graphics;
@@ -26,23 +23,19 @@ export class ElectronScene extends Phaser.Scene {
   private worldScale = 1;
   private damageText: Phaser.GameObjects.Text[] = [];
   private model: () => Game;
-  private reduced: () => boolean;
-  constructor(model: () => Game, reduced: () => boolean) {
+  constructor(model: () => Game) {
     super('electron');
     this.model = model;
-    this.reduced = reduced;
   }
   create(): void {
     this.graphics = this.add.graphics();
     this.effectGraphics = this.add.graphics().setDepth(1);
     createPixels(this);
   }
-
   update(): void {
     const g = this.graphics;
     if (!g) return;
-    const model = this.model(),
-      reduced = this.reduced();
+    const model = this.model();
     const width = this.scale.width,
       height = this.scale.height,
       scale = Math.min(width, height) / 360;
@@ -64,8 +57,8 @@ export class ElectronScene extends Phaser.Scene {
     }
     if (model.phase === 'ready') {
       this.offset = { x: 0, y: 0 };
-      this.drawIntro(width, height, reduced);
-      this.cover(width, height, reduced ? 0 : 1 - clamp((this.time.now - this.returnAt) / 550));
+      this.drawIntro(width, height);
+      this.cover(width, height, 1 - clamp((this.time.now - this.returnAt) / 550));
       return;
     }
     g.setPosition(width / 2 - 180 * scale, this.centerY - 260 * scale);
@@ -73,11 +66,11 @@ export class ElectronScene extends Phaser.Scene {
     this.effectGraphics.setPosition(g.x, g.y).setScale(scale).setDepth(1);
     const ending = endingFrame(model),
       clock = model.seconds;
-    const danger = !model.charged && model.margin < 24;
+    const danger = !model.charged && model.margin < model.rules.dangerMargin;
     const color = model.charged ? GOLD : BLUE;
     const position = model.position,
       damage = model.damage;
-    if (!reduced && !ending && clock - this.impactAt > 0.65) {
+    if (!ending && clock - this.impactAt > 0.65) {
       for (let i = model.effects.length - 1; i >= 0; i--) {
         const fx = model.effects[i];
         if (clock - fx.born >= 0.05) break;
@@ -89,29 +82,17 @@ export class ElectronScene extends Phaser.Scene {
     }
     const impactAge = clock - this.impactAt;
     this.offset =
-      !reduced && !ending && impactAge < 0.06
-        ? { x: impactAge < 0.03 ? 1 : -1, y: 1 }
-        : { x: 0, y: 0 };
+      !ending && impactAge < 0.06 ? { x: impactAge < 0.03 ? 1 : -1, y: 1 } : { x: 0, y: 0 };
     g.setPosition(g.x + this.offset.x, g.y + this.offset.y);
     this.effectGraphics.setPosition(g.x, g.y);
-
     const radius = ending?.electron ? ending.radius : model.radius;
     if (!ending || ending.electron || !ending.success) {
-      const unstable = danger || (ending && !ending.success);
-      const opacity = ending && !ending.electron ? 0.12 : 0.32;
-      this.drawOrbit(
-        radius,
-        unstable ? AMBER : color,
-        opacity,
-        unstable ? (24 - Math.max(0, model.margin)) / 24 : 0,
-        clock,
-        scale,
-        reduced,
-      );
+      const unstable = danger || ending?.success === false;
+      const opacity = ending && !ending.electron ? 0.12 : danger ? 0.8 : 0.32;
+      this.drawOrbit(radius, unstable ? AMBER : color, opacity, unstable, scale);
     }
     if (model.mass > 0 && (!ending || !ending.success || ending.electron))
       this.drawCore(model.core * (ending?.success ? 1 - ending.absorb * 0.7 : 1), scale);
-
     const warning = model.warningWave;
     if (warning) {
       g.lineStyle(1 / scale, AMBER, 0.65);
@@ -134,10 +115,7 @@ export class ElectronScene extends Phaser.Scene {
         : target;
       const point = this.screen(p);
       if (point.x < -20 || point.x > width + 20 || point.y < -20 || point.y > height + 20) continue;
-      const hit =
-        !ending &&
-        target.hitAt !== undefined &&
-        model.time - target.hitAt < (reduced ? 0.035 : 0.06);
+      const hit = !ending && target.hitAt !== undefined && model.time - target.hitAt < 0.06;
       const sprite = this.sprite(point, target.particle, 1, 1 - absorb);
       if (hit) sprite.setTint(WHITE).setTintFill();
       else sprite.clearTint();
@@ -154,22 +132,25 @@ export class ElectronScene extends Phaser.Scene {
       }
     }
     if (!ending) {
-      for (const fx of visibleEffects(model.effects, reduced))
-        drawEffect(this.effectGraphics, fx, model.seconds, scale, reduced, position, model.targets);
-      this.drawTrail(model.angle, model.radius, reduced ? 5 : 10, color, scale);
-      this.drawElectron(position, 1, color);
-      this.drawDamage(model, width, height, scale, reduced);
+      for (const point of model.combat.orbPoints) drawOrb(this.effectGraphics, point, scale);
+      for (const fx of visibleEffects(model.effects))
+        if (fx.kind !== 'surge')
+          drawEffect(this.effectGraphics, fx, model.seconds, scale, position, model.targets);
+      const surging = model.combat.status('surge').active;
+      if (surging) drawSurge(this.effectGraphics, position, model.time, scale);
+      this.drawTrail(
+        model.angle,
+        model.radius,
+        surging ? 18 : 10,
+        surging ? skillColors.surge : color,
+        scale,
+      );
+      this.drawElectron(position, 1, color, surging);
+      this.drawDamage(model, width, height, scale);
       return;
     }
     if (ending.electron) {
-      this.drawTrail(
-        ending.angle,
-        ending.radius,
-        reduced ? 6 : 34,
-        ending.success ? GOLD : AMBER,
-        scale,
-        true,
-      );
+      this.drawTrail(ending.angle, ending.radius, 34, ending.success ? GOLD : AMBER, scale, true);
       this.drawElectron(ending.electron, 1, ending.success ? GOLD : AMBER);
     }
     if (ending.stage === 'silence') {
@@ -184,57 +165,33 @@ export class ElectronScene extends Phaser.Scene {
     }
     if (ending.reveal > 0) {
       g.clear();
-      this.drawIntro(width, height, reduced);
+      this.drawIntro(width, height);
       this.cover(width, height, 1 - ending.reveal);
       return;
     }
     if (ending.stage === 'impact') {
       const t = clamp((model.phaseProgress * model.rules.failureEndingSeconds) / 0.2);
-      g.lineStyle(1 / scale, AMBER, (reduced ? 0.25 : 0.55) * (1 - t));
+      g.lineStyle(1 / scale, AMBER, 0.55 * (1 - t));
       g.strokeCircle(180, 260, Math.round(8 * (1 - t) + 2) / scale);
-      g.fillStyle(WHITE, (reduced ? 0.2 : 0.6) * (1 - t) ** 2);
+      g.fillStyle(WHITE, 0.6 * (1 - t) ** 2);
       g.fillCircle(180, 260, 2 / scale);
     }
-    if (ending.success && ending.flash && !reduced) {
+    if (ending.success && ending.flash) {
       g.fillStyle(WHITE, ending.flash * 0.6);
       g.fillCircle(180, 260, 5 / scale);
     }
   }
-
   private drawOrbit(
     radius: number,
     color: number,
     alpha: number,
-    danger: number,
-    clock: number,
+    danger: boolean,
     scale: number,
-    reduced: boolean,
   ): void {
-    const g = this.graphics,
-      segments = 96;
-    if (danger <= 0.5) {
-      g.lineStyle((danger ? 1.6 : 1) / scale, color, alpha);
-      g.strokeCircle(180, 260, radius);
-      return;
-    }
-    g.lineStyle(1 / scale, color, alpha);
-    for (let i = 0; i < segments; i++) {
-      const broken = danger > 0.5 && (i + Math.floor(reduced ? 0 : clock * 4)) % 19 < 2;
-      if (broken) continue;
-      const a = (i * Math.PI * 2) / segments,
-        b = ((i + 1) * Math.PI * 2) / segments;
-      const jitter = !reduced && danger > 0.75 && i % 7 === 0 ? Math.sin(clock * 9 + i) / scale : 0;
-      const p = orbit(a, radius + jitter),
-        q = orbit(b, radius);
-      g.lineBetween(
-        Math.round(p.x * scale) / scale,
-        Math.round(p.y * scale) / scale,
-        Math.round(q.x * scale) / scale,
-        Math.round(q.y * scale) / scale,
-      );
-    }
+    const g = this.graphics;
+    g.lineStyle((danger ? 2 : 1) / scale, color, alpha);
+    g.strokeCircle(180, 260, radius);
   }
-
   private drawTrail(
     angle: number,
     radius: number,
@@ -252,7 +209,6 @@ export class ElectronScene extends Phaser.Scene {
       g.lineBetween(p.x, p.y, q.x, q.y);
     }
   }
-
   private drawCore(radius: number, scale: number): void {
     const g = this.graphics,
       pixel = 2 / scale;
@@ -314,7 +270,6 @@ export class ElectronScene extends Phaser.Scene {
     g.lineStyle(pixel, 0x62889b, 0.6);
     g.strokePoints([hull[5], hull[6], hull[7]].map(point), false);
   }
-
   private drawSingularity(radius: number, scale: number): void {
     const g = this.graphics;
     const r = Math.round(radius * scale) / scale;
@@ -325,27 +280,19 @@ export class ElectronScene extends Phaser.Scene {
     g.lineStyle(3 / scale, GOLD, 0.08);
     g.strokeCircle(180, 260, r + 3 / scale);
   }
-
   private cover(width: number, height: number, alpha: number): void {
     if (alpha <= 0) return;
     this.effectGraphics.setPosition(0, 0).setScale(1).setDepth(3);
     this.effectGraphics.fillStyle(0x020306, alpha);
     this.effectGraphics.fillRect(0, 0, width, height);
   }
-
-  private drawDamage(
-    model: Game,
-    width: number,
-    height: number,
-    scale: number,
-    reduced: boolean,
-  ): void {
+  private drawDamage(model: Game, width: number, height: number, scale: number): void {
     const numbers = model.damageNumbers.slice(-maxDamageNumbers).reverse();
     const occupied: Phaser.Geom.Rectangle[] = [],
-      limit = reduced ? 12 : 24;
+      limit = 24;
     for (const damage of numbers) {
       const age = model.seconds - damage.born;
-      if ((reduced && age > 0.4) || occupied.length >= limit) continue;
+      if (occupied.length >= limit) continue;
       const index = occupied.length;
       const text = (this.damageText[index] ??= this.add
         .text(0, 0, '', {
@@ -359,8 +306,8 @@ export class ElectronScene extends Phaser.Scene {
         .setDepth(3)
         .setResolution(1));
       const x = width / 2 + (damage.x - 180) * scale;
-      const y = this.centerY + (damage.y - 260) * scale - 4 - (reduced ? 0 : age * 16);
-      text.setText(numberText(damage.value)).setScale(1);
+      const y = this.centerY + (damage.y - 260) * scale - 4 - age * 16;
+      text.setText(String(Math.round(damage.value))).setScale(1);
       let placed = false;
       for (const [dx, dy] of [
         [0, 0],
@@ -388,20 +335,18 @@ export class ElectronScene extends Phaser.Scene {
       if (!placed) continue;
       const color = damage.value >= 5 ? '#ffda96' : damage.value > 2 ? '#f1fcff' : '#b8eefb';
       if (text.style.color !== color) text.setColor(color);
-      text.setAlpha(reduced ? 1 : 1 - clamp((age - 0.35) / 0.37));
+      text.setAlpha(1 - clamp((age - 0.35) / 0.37));
     }
   }
-
-  private drawIntro(width: number, height: number, reduced: boolean): void {
+  private drawIntro(width: number, height: number): void {
     const g = this.graphics,
-      clock = reduced ? 0 : this.time.now / 1000;
+      clock = this.time.now / 1000;
     const x = width / 2,
       y = height * 0.51;
     const radius = Math.min(width * 0.44, height * 0.45, 184),
       core = radius * 0.42;
     g.setPosition(0, 0);
     g.setScale(1);
-
     g.lineStyle(1, 0x7295af, 0.4);
     g.strokeCircle(x, y, radius);
     g.fillStyle(0x04060a, 1);
@@ -426,7 +371,6 @@ export class ElectronScene extends Phaser.Scene {
         );
       }
     }
-
     const angle = -0.65 + clock * 0.24;
     for (let i = 36; i > 0; i--) {
       const a = angle - i * 0.022,
@@ -442,14 +386,12 @@ export class ElectronScene extends Phaser.Scene {
     const electron = { x: x + Math.cos(angle) * radius, y: y + Math.sin(angle) * radius };
     this.sprite(electron, 'electron', 1, 1, 2).clearTint();
   }
-
   private screen(point: Point): Point {
     return {
       x: this.width / 2 + (point.x - 180) * this.worldScale + this.offset.x,
       y: this.centerY + (point.y - 260) * this.worldScale + this.offset.y,
     };
   }
-
   private sprite(
     point: Point,
     key: string,
@@ -468,10 +410,15 @@ export class ElectronScene extends Phaser.Scene {
     if (sprite.depth !== depth) sprite.setDepth(depth);
     return sprite.setActive(true).setVisible(true);
   }
-
-  private drawElectron(point: Point, alpha: number, color = BLUE): void {
-    const sprite = this.sprite(this.screen(point), 'electron', 1, alpha, 2);
-    if (color !== BLUE) sprite.setTint(color);
+  private drawElectron(point: Point, alpha: number, color = BLUE, surging = false): void {
+    const sprite = this.sprite(
+      this.screen(point),
+      surging ? 'electronSurge' : 'electron',
+      1,
+      alpha,
+      2,
+    );
+    if (color !== BLUE && !surging) sprite.setTint(color);
     else sprite.clearTint();
   }
 }

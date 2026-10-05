@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { base, capture, launchBrowser } from './browser-support.mjs';
+import { base, capture, launchBrowser, observeScene, showSuccess } from './browser-support.mjs';
 import { rules, skillIds, upgradeIds, rarityIds } from '../src/game/rules.ts';
 import { copy } from '../src/ui/i18n.ts';
 import { skillColor } from '../src/render/palette.ts';
@@ -62,7 +62,7 @@ const inspect = async (page) => {
 };
 const inspectCards = async (page) => {
   const clipped = await page
-    .locator('.card-value, .card strong, .card-label')
+    .locator('.card-value, .card strong, .card-label, .card-stage')
     .evaluateAll((nodes) =>
       nodes
         .filter((node) => {
@@ -148,6 +148,102 @@ const rarityFlow = async () => {
     rank: selected.ranks.multi,
     rarity: selected.rarities.multi,
     branches: rules.skills.multi.primaries[1] + rules.rarity.legendary.extra,
+  });
+  await page.evaluate(() => {
+    const g = window.__gameDebug.getModel();
+    g.choice = {
+      number: g.selections.length + 1,
+      opened: g.time,
+      deadline: g.time + 8,
+      cards: [{ id: 'multi', rarity: g.rarities.multi }],
+    };
+    window.__gameDebug.advance(0);
+  });
+  assert.equal(await page.locator('.choices p').count(), 0);
+  const icon = page.locator('.card .card-icon .skill-icon');
+  assert.equal(await icon.count(), 1);
+  assert.deepEqual(
+    await icon.locator('path').evaluateAll((nodes) => nodes.map((n) => n.getAttribute('d'))),
+    await page
+      .locator('.slot[data-skill="multi"] .skill-icon path')
+      .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('d'))),
+  );
+  assert.equal(await icon.evaluate((n) => n.getAnimations({ subtree: true }).length), 0);
+  const card = page.locator('.card');
+  assert.ok((await card.locator('.card-value').innerText()).length > 0);
+  await card.click();
+  const upgraded = await snapshot(page);
+  assert.equal(upgraded.ranks.multi, 2);
+  assert.equal(upgraded.rarities.multi, 'legendary');
+  assert.equal(await page.locator('.choice-receipt .card-icon .skill-icon').count(), 1);
+  report('upgrade cards use the loadout icon, retain their text and keep acquired rarity', {});
+
+  await page.evaluate((rarities) => {
+    window.__gameDebug.restart(42, false);
+    const g = window.__gameDebug.getModel();
+    for (const [i, id] of ['repeat', 'chain', 'strike', 'orb'].entries()) {
+      g.choice = {
+        number: g.selections.length + 1,
+        opened: g.time,
+        deadline: g.time + 8,
+        cards: [{ id, rarity: rarities[i] }],
+      };
+      g.select(id);
+    }
+    g.setHidden(true);
+    window.__gameDebug.advance(0);
+  }, rarityIds);
+  const expectedBorders = [
+    'rgb(185, 196, 208)',
+    'rgb(121, 174, 255)',
+    'rgb(200, 153, 255)',
+    'rgb(255, 198, 111)',
+  ];
+  const borders = () =>
+    page.locator('.slot[data-rarity]').evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const css = getComputedStyle(node);
+        return {
+          colors: [
+            css.borderTopColor,
+            css.borderRightColor,
+            css.borderBottomColor,
+            css.borderLeftColor,
+          ],
+          animation: css.animationName,
+          shadow: css.boxShadow,
+          opacity: css.opacity,
+        };
+      }),
+    );
+  for (const [width, height] of [
+    [375, 812],
+    [568, 320],
+  ]) {
+    await page.setViewportSize({ width, height });
+    for (const active of [true, false]) {
+      await page.locator('.slot[data-rarity]').evaluateAll((nodes, active) => {
+        for (const node of nodes)
+          for (const key of ['fired', 'active', 'acquired', 'new'])
+            node.dataset[key] = String(active);
+      }, active);
+      for (let frame = 0; frame < 3; frame++) {
+        await page.waitForTimeout(100);
+        assert.deepEqual(
+          await borders(),
+          expectedBorders.map((color) => ({
+            colors: [color, color, color, color],
+            animation: 'none',
+            shadow: 'none',
+            opacity: '1',
+          })),
+        );
+      }
+    }
+    await screenshot(page, `rarity-borders-${width}x${height}`);
+  }
+  report('all four rarity borders stay constant while firing, charging and acquiring skills', {
+    rarities: rarityIds,
   });
   await page.close();
 };
@@ -285,6 +381,7 @@ const showSkill = async (page, id, rank = 5, rarity = 'common') =>
           .map((f) => ({ rank: f.rank, radius: f.radius, width: f.width })),
         hits: g.events.filter((e) => e.kind === 'hit').length,
         damage: g.damageNumbers.map((d) => d.value),
+        orbs: g.combat.orbPoints.map((p) => ({ ...p })),
       };
     },
     { id, rank, rarity },
@@ -295,7 +392,8 @@ const skillFlow = async () => {
   for (const id of skillIds) {
     const result = await showSkill(page, id, 5, 'epic');
     assert.ok(
-      result.damage.length > 0 && result.effects.length > 0,
+      result.damage.length > 0 &&
+        (id === 'orb' ? result.orbs.length > 0 : result.effects.length > 0),
       'No visible skill impact: ' + id,
     );
     await screenshot(page, 'skill-' + id);
@@ -311,7 +409,7 @@ const visualFlow = async () => {
     for (const rank of [1, 5]) {
       const result = await showSkill(page, id, rank);
       assert.ok(
-        result.effects.length > 0 && result.hits > 0,
+        (id === 'orb' ? result.orbs.length > 0 : result.effects.length > 0) && result.hits > 0,
         id + ' must produce an actual visible attack',
       );
       assert.ok(result.effects.every((fx) => fx.rank === rank));
@@ -347,8 +445,10 @@ const visualFlow = async () => {
       await page.evaluate((id) => {
         window.__gameDebug.restart(17, false);
         const g = window.__gameDebug.getModel();
-        if (id in g.ranks) g.ranks[id] = id === 'chain' ? 4 : 1;
-        else if (id === 'recover') g.mass = 120;
+        if (id in g.ranks) {
+          g.ranks[id] = id === 'chain' ? 4 : 1;
+          g.rarities[id] = 'rare';
+        } else if (id === 'recover') g.mass = 120;
         else g.boosts[id] = 1;
         g.choice = {
           number: 1,
@@ -559,7 +659,7 @@ const interfaceFlow = async () => {
     const g = window.__gameDebug.getModel();
     g.setHidden(false);
     g.ranks = { ...g.ranks, charge: 5, chain: 5, repel: 5, strike: 5 };
-    g.boosts = { power: 6, rate: 6, range: 6 };
+    g.boosts = { power: 6, rate: 6, range: 6, speed: 6 };
     g.selections = Array.from({ length: 20 }, (_, i) => ({
       time: i,
       id: ['charge', 'chain', 'repel', 'strike'][i % 4],
@@ -571,11 +671,10 @@ const interfaceFlow = async () => {
     g.setHidden(true);
   });
   await page.locator('.card').first().waitFor();
-  assert.deepEqual((await snapshot(page)).choice.cards.map((c) => c.id).sort(), [
-    'power',
-    'range',
-    'rate',
-  ]);
+  const statCards = (await snapshot(page)).choice.cards.map((c) => c.id);
+  assert.equal(statCards.length, 3);
+  assert.equal(new Set(statCards).size, 3);
+  assert.ok(statCards.every((id) => ['power', 'rate', 'range', 'speed'].includes(id)));
   assert.equal(await page.locator('.slot-max').count(), 4);
   await inspect(page);
   await inspectCards(page);
@@ -591,8 +690,293 @@ const interfaceFlow = async () => {
   await page.close();
 };
 
+const polishFlow = async () => {
+  const page = await pageFor(375, 812);
+  await page.evaluate(() => {
+    window.__gameDebug.restart(22, false);
+    const g = window.__gameDebug.getModel();
+    g.choice = {
+      number: 1,
+      opened: 0,
+      deadline: 8,
+      cards: [
+        { id: 'power', rarity: 'common' },
+        { id: 'strike', rarity: 'legendary' },
+        { id: 'speed', rarity: 'epic' },
+      ],
+    };
+    g.setHidden(true);
+    window.__gameDebug.advance(0);
+  });
+  await page.locator('.card.auto').waitFor();
+  assert.equal(await page.locator('.card.auto').getAttribute('data-rarity'), 'legendary');
+  assert.equal(await page.locator('.card.auto strong').innerText(), copy.ko.upgrades.strike.short);
+  assert.equal((await page.locator('.xp-status').innerText()).includes('XP'), false);
+  await screenshot(page, 'highest-rarity-auto');
+  await page.evaluate(() => {
+    const g = window.__gameDebug.getModel();
+    g.setHidden(false);
+    window.__gameDebug.advance(12000);
+    g.setHidden(true);
+  });
+  await page.locator('.slot[data-skill="strike"]').waitFor();
+  assert.equal((await snapshot(page)).selections[0].id, 'strike');
+  assert.equal(
+    await page.locator('.slot[data-skill="strike"]').getAttribute('aria-valuenow'),
+    '100',
+  );
+  await screenshot(page, 'cooldown-ready-wait');
+  await page.evaluate(() => {
+    const g = window.__gameDebug.getModel(),
+      p = g.position;
+    const target = {
+      id: 999,
+      ...p,
+      angle: g.angle,
+      radius: g.radius,
+      hp: 10000,
+      maxHp: 10000,
+      kind: 'dense',
+      particle: 'proton',
+      born: g.time,
+      xp: 5,
+      mass: 5,
+      size: 8,
+      speed: 0,
+      turn: 0,
+    };
+    g.targets = [target];
+    g.counts.proton.generated++;
+    g.setHidden(false);
+    window.__gameDebug.advance(1000 / g.rules.tickRate);
+    g.setHidden(true);
+  });
+  await page.waitForTimeout(120);
+  assert.equal(await page.locator('.slot[data-skill="strike"]').getAttribute('aria-valuenow'), '0');
+  assert.equal(await page.locator('.slot[data-skill="strike"]').getAttribute('data-fired'), 'true');
+  await screenshot(page, 'cooldown-target-arrived');
+  await page.evaluate(() => {
+    window.__gameDebug.restart(22, false);
+    const g = window.__gameDebug.getModel();
+    g.choice = { number: 1, opened: 0, deadline: 8, cards: [{ id: 'surge', rarity: 'common' }] };
+    g.select('surge');
+    for (let i = 0; i < g.forms.surge.kills; i++) {
+      const p = g.position;
+      const t = {
+        id: i,
+        ...p,
+        angle: g.angle,
+        radius: g.radius,
+        hp: 1,
+        maxHp: 1,
+        kind: 'small',
+        particle: 'quark',
+        born: 0,
+        xp: 1,
+        mass: 1,
+        size: 5,
+        speed: 0,
+        turn: 0,
+      };
+      g.targets.push(t);
+      g.counts.quark.generated++;
+      g.damageTarget(t, 1);
+    }
+    window.__gameDebug.advance(150);
+    g.setHidden(true);
+  });
+  await page.waitForTimeout(120);
+  assert.equal(await page.locator('.slot[data-skill="surge"]').getAttribute('data-active'), 'true');
+  await screenshot(page, 'surge-active');
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.waitForTimeout(120);
+  await inspect(page);
+  await screenshot(page, 'surge-active-small');
+  await page.evaluate(() => {
+    const g = window.__gameDebug.getModel();
+    g.setHidden(false);
+    window.__gameDebug.advance(2000);
+    g.setHidden(true);
+  });
+  await page.waitForTimeout(120);
+  assert.equal(
+    await page.locator('.slot[data-skill="surge"]').getAttribute('data-active'),
+    'false',
+  );
+  await screenshot(page, 'surge-ended');
+  await page.evaluate(() => window.__gameDebug.restart(22));
+  await page.getByRole('button', { name: '일시정지', exact: true }).click();
+  assert.equal(await page.locator('.settings-controls .setting-row').count(), 1);
+  assert.equal(await page.getByRole('button', { name: /시각 효과/ }).count(), 0);
+  report('highest-rarity auto selection, actual-cast cooldowns, surge state and simpler settings', {
+    viewports: 2,
+  });
+  await page.close();
+};
+
+const qaFlow = async () => {
+  for (const [width, height] of [
+    [320, 568],
+    [568, 320],
+  ]) {
+    const page = await pageFor(width, height);
+    await page.evaluate(() => {
+      window.__gameDebug.restart(25, false);
+      const g = window.__gameDebug.getModel();
+      g.ranks.multi = 2;
+      g.mass = 150;
+      g.radius = g.core + g.rules.electronRadius + g.rules.dangerMargin - 1;
+      g.choice = {
+        number: 1,
+        opened: 0,
+        deadline: 8,
+        cards: [
+          { id: 'bridge', rarity: 'rare' },
+          { id: 'multi', rarity: 'common' },
+          { id: 'recover', rarity: 'common' },
+        ],
+      };
+      g.setHidden(true);
+      window.__gameDebug.advance(0);
+    });
+    await page.locator('.card').first().waitFor();
+    assert.equal(await page.locator('.card-stage').nth(0).locator('.rank i.on').count(), 0);
+    assert.equal(await page.locator('.card-stage').nth(1).locator('.rank i.on').count(), 2);
+    assert.equal(await page.locator('.card-stage .rank i.next').count(), 2);
+    assert.deepEqual(await page.locator('.card-stage').allTextContents(), ['', '', '']);
+    await inspectCards(page);
+    await inspect(page);
+    assert.equal(await page.locator('.danger-status').textContent(), copy.ko.danger);
+    assert.equal(
+      await page.locator('.danger-status').evaluate((n) => n.getBoundingClientRect().width),
+      1,
+    );
+    await screenshot(page, 'qa-choice-' + width + 'x' + height);
+    await page.getByRole('button', { name: copy.ko.pause, exact: true }).click();
+    const paused = await snapshot(page);
+    await page.getByRole('button', { name: copy.ko.guide, exact: true }).click();
+    assert.equal(await page.getByRole('dialog').count(), 1);
+    assert.equal(await page.locator('.skill-guide > div').count(), upgradeIds.length);
+    await advance(page, 10000);
+    assert.deepEqual(await snapshot(page), paused);
+    await page.getByRole('button', { name: copy.ko.close, exact: true }).click();
+    await page.locator('.pause-panel').waitFor();
+    assert.equal(await page.getByRole('dialog').count(), 1);
+    assert.deepEqual(await snapshot(page), paused);
+    await page.getByRole('button', { name: copy.ko.resume, exact: true }).click();
+    await page.evaluate(() => {
+      window.__gameDebug.getModel().setHidden(false);
+      window.__gameDebug.advance(0);
+    });
+    await page.locator('.card').nth(2).click();
+    await page.evaluate(() => {
+      const g = window.__gameDebug.getModel();
+      g.setHidden(false);
+      window.__gameDebug.advance(2000);
+      g.setHidden(true);
+    });
+    assert.equal(await page.locator('.danger-status').count(), 0);
+    assert.ok((await snapshot(page)).mass < paused.mass);
+    await page.evaluate(() => {
+      const g = window.__gameDebug.getModel();
+      g.xp = g.rules.energyGoal;
+      g.radius = g.core + g.rules.electronRadius + 1;
+      window.__gameDebug.advance(0);
+    });
+    assert.equal(await page.locator('.danger-status').count(), 0);
+    await page.close();
+  }
+  report(
+    'QA: visible acquisition stages, paused guide preserves choices, recovery clears warning',
+    {},
+  );
+};
+
+const orbFlow = async () => {
+  const page = await browser.newPage({ viewport: { width: 375, height: 812 } });
+  page.on('pageerror', (error) => errors.push(error.message));
+  await observeScene(page);
+  await page.goto(base);
+  await page.waitForFunction(() => !!window.__gameScene && !!window.__gameDebug);
+  const result = await page.evaluate(() => {
+    const debug = window.__gameDebug;
+    debug.restart(17, false);
+    const g = debug.getModel();
+    g.ranks.orb = 5;
+    const p = g.position;
+    g.targets = [
+      {
+        id: 1,
+        x: p.x + 30,
+        y: p.y,
+        angle: Math.atan2(p.y - 260, p.x + 30 - 180),
+        radius: Math.hypot(p.x + 30 - 180, p.y - 260),
+        hp: 10000,
+        maxHp: 10000,
+        kind: 'dense',
+        particle: 'proton',
+        born: 0,
+        xp: 5,
+        mass: 5,
+        size: 8,
+        speed: 0,
+        turn: 0,
+      },
+    ];
+    g.counts.proton.generated = 1;
+    g.combat.fireSkill('orb');
+    const scene = window.__gameScene,
+      graphics = scene.effectGraphics,
+      fillRect = graphics.fillRect,
+      positions = [],
+      labels = [];
+    let center;
+    graphics.fillRect = function (x, y, width, height) {
+      if (
+        !center &&
+        Math.abs(width - 2 / scene.worldScale) < 1e-8 &&
+        Math.abs(height - 2 / scene.worldScale) < 1e-8
+      )
+        center = [x, y];
+      return fillRect.call(this, x, y, width, height);
+    };
+    try {
+      for (let i = 0; i < g.rules.tickRate; i++) {
+        g.setHidden(false);
+        debug.advance(1000 / g.rules.tickRate);
+        g.setHidden(true);
+        center = null;
+        scene.update();
+        positions.push(JSON.stringify(center));
+        labels.push(...scene.damageText.filter((t) => t.visible).map((t) => t.text));
+      }
+      return { frames: positions.length, positions: new Set(positions).size, labels };
+    } finally {
+      graphics.fillRect = fillRect;
+    }
+  });
+  assert.equal(result.positions, result.frames, 'The visible orb must move on each frame');
+  assert.ok(result.labels.length > 0, 'Hits must retain visible damage numbers');
+  assert.ok(
+    result.labels.every((label) => /^\d+$/.test(label)),
+    'Damage labels must be integers',
+  );
+  await screenshot(page, 'orb-smooth-motion');
+  report('orb body updates on every frame and damage labels stay visible integers', {
+    frames: result.frames,
+    positions: result.positions,
+  });
+  await page.close();
+};
+
 try {
-  if (process.argv.includes('--audio')) {
+  if (process.argv.includes('--orb')) {
+    await orbFlow();
+  } else if (process.argv.includes('--qa')) {
+    await qaFlow();
+  } else if (process.argv.includes('--polish')) {
+    await polishFlow();
+  } else if (process.argv.includes('--audio')) {
     await audioFlow();
   } else if (process.argv.includes('--skills')) {
     await skillFlow();
@@ -623,7 +1007,7 @@ try {
     report('production reload restores the saved run and manual pause', { xp: pausedXp });
     await page.close();
   } else if (process.argv.includes('--realtime')) {
-    const page = await pageFor(375, 812, 96057);
+    const page = await pageFor(375, 812, 96009);
     await page.getByRole('button', { name: 'START' }).click();
     const started = Date.now(),
       samples = [];
@@ -649,7 +1033,7 @@ try {
     // Compare clocks inside Chrome: Node's trigonometric rounding can change a tied target choice.
     const expected = await page.evaluate(async () => {
       const { Game } = await import('/src/game/model.ts');
-      const game = new Game(96057);
+      const game = new Game(96048);
       game.start();
       game.advance(610000);
       return game.result;
@@ -660,7 +1044,7 @@ try {
       JSON.stringify(
         {
           viewport: [375, 812],
-          seed: 96057,
+          seed: 96048,
           elapsedWallSeconds: (Date.now() - started) / 1000,
           samples,
           result: s.result,
@@ -730,14 +1114,13 @@ try {
       assert.equal(reset.seed, 10004);
       assert.equal(reset.xp, 0);
       assert.equal(reset.mass, 0);
-      await page.evaluate(() => window.__gameDebug.restart(96057));
-      await advance(page, 610000);
+      await showSuccess(page, 96048);
       await page.getByRole('heading', { name: copy.ko.success, exact: true }).waitFor();
       await inspect(page);
       await screenshot(page, 'result-' + name);
       assert.equal((await snapshot(page)).result.trigger, 'energy');
       await page.getByRole('button', { name: '다시하기' }).click();
-      assert.equal((await snapshot(page)).seed, 96057);
+      assert.equal((await snapshot(page)).seed, 96048);
       await page.evaluate(() => window.__gameDebug.restart(10004));
       await advance(page, 610000);
       await page.getByRole('button', { name: '새 게임' }).click();
@@ -779,7 +1162,7 @@ try {
             await page.waitForTimeout(100);
             await inspect(page);
             await inspectCards(page);
-            assert.equal(await page.locator('.card .skill-preview').count(), 3);
+            assert.equal(await page.locator('.card .card-icon .skill-icon').count(), 3);
           }
         }
       await screenshot(page, 'stat-cards-' + width + 'x' + height);
@@ -792,6 +1175,8 @@ try {
     await skillFlow();
     await interfaceFlow();
     await visualFlow();
+    await qaFlow();
+    await orbFlow();
 
     const page = await pageFor(375, 812);
     await page.getByRole('button', { name: 'START' }).click();
@@ -865,7 +1250,7 @@ try {
     report('readiness and both endings', { energyBoundary: rules.energyGoal });
 
     await page.evaluate(() => {
-      window.__gameDebug.restart(96057);
+      window.__gameDebug.restart(96031);
       window.__gameDebug.advance(450000);
     });
     const frames = await page.evaluate(
@@ -905,24 +1290,23 @@ try {
     assert.equal(await settings.locator(':focus').textContent(), '日本語');
     await settings.keyboard.press('Tab');
     assert.equal(await settings.locator(':focus').textContent(), '닫기');
-    await settings.getByRole('button', { name: '시각 효과 기본', exact: true }).click();
+    assert.equal(await settings.getByRole('button', { name: /시각 효과/ }).count(), 0);
     await settings.getByRole('button', { name: '사운드 끔', exact: true }).click();
     await settings.getByRole('button', { name: '사운드 켬', exact: true }).waitFor();
     await settings.getByRole('button', { name: '닫기', exact: true }).click();
     await settings.reload();
     await settings.waitForSelector('canvas');
-    assert.ok(await settings.locator('.app.is-reduced').count());
     await settings.getByRole('button', { name: '설정', exact: true }).click();
     await settings.getByRole('button', { name: '사운드 켬', exact: true }).waitFor();
     await settings.getByRole('button', { name: '닫기', exact: true }).click();
     await settings.getByRole('button', { name: 'START' }).click();
     await firstChoice(settings);
     const animations = await settings
-      .locator('.skill-preview *')
+      .locator('.card-icon, .card-icon *')
       .evaluateAll((nodes) => nodes.every((n) => getComputedStyle(n).animationName === 'none'));
     assert.equal(animations, true);
-    await screenshot(settings, 'reduced');
-    report('sound and reduced effects persist', { reducedPreviewAnimations: false });
+    await screenshot(settings, 'settings-play');
+    report('sound persists and card icons stay static', { cardIconAnimations: false });
     await settings.close();
 
     const blocked = await browser.newPage({ viewport: { width: 375, height: 812 } });
@@ -938,7 +1322,7 @@ try {
     await blocked.goto(base);
     await blocked.waitForSelector('canvas');
     await blocked.getByRole('button', { name: '설정', exact: true }).click();
-    await blocked.getByRole('button', { name: '시각 효과 기본', exact: true }).click();
+    await blocked.getByRole('button', { name: '사운드 끔', exact: true }).click();
     await blocked.getByRole('dialog').getByText(copy.ko.storageFailed).waitFor();
     await blocked.getByRole('button', { name: '닫기', exact: true }).click();
     await blocked.getByRole('button', { name: 'START' }).click();
@@ -960,11 +1344,9 @@ try {
     });
     await privatePage.goto(base);
     await privatePage.waitForSelector('canvas');
-    assert.equal(await privatePage.locator('.app.is-reduced').count(), 1);
     await privatePage.getByRole('button', { name: 'START' }).click();
     await firstChoice(privatePage);
-    report('reduced motion survives denied storage access', {
-      reduced: true,
+    report('play survives denied storage access and OS motion preferences', {
       phase: (await snapshot(privatePage)).phase,
     });
     await privatePage.close();
@@ -972,21 +1354,23 @@ try {
   assert.deepEqual(errors, []);
   writeFileSync(
     'artifacts/' +
-      (process.argv.includes('--audio')
-        ? 'audio-browser'
-        : process.argv.includes('--skills')
-          ? 'skills-browser'
-          : process.argv.includes('--visuals')
-            ? 'visuals-browser'
-            : process.argv.includes('--interface')
-              ? 'interface-browser'
-              : process.argv.includes('--rarity')
-                ? 'rarity-browser'
-                : process.argv.includes('--production')
-                  ? 'production'
-                  : process.argv.includes('--realtime')
-                    ? 'realtime-checks'
-                    : 'browser') +
+      (process.argv.includes('--polish')
+        ? 'polish-browser'
+        : process.argv.includes('--audio')
+          ? 'audio-browser'
+          : process.argv.includes('--skills')
+            ? 'skills-browser'
+            : process.argv.includes('--visuals')
+              ? 'visuals-browser'
+              : process.argv.includes('--interface')
+                ? 'interface-browser'
+                : process.argv.includes('--rarity')
+                  ? 'rarity-browser'
+                  : process.argv.includes('--production')
+                    ? 'production'
+                    : process.argv.includes('--realtime')
+                      ? 'realtime-checks'
+                      : 'browser') +
       '.json',
     JSON.stringify({ base, checks, errors }, null, 2),
   );

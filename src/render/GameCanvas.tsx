@@ -5,18 +5,16 @@ import type { Game } from '../game/model.ts';
 
 export function GameCanvas({
   getGame,
-  getReduced,
   onReady,
 }: {
   getGame: () => Game;
-  getReduced: () => boolean;
   onReady: (ready: boolean) => void;
 }) {
   const node = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const canvas = node.current!;
     onReady(false);
-    const scene = new ElectronScene(getGame, getReduced);
+    const scene = new ElectronScene(getGame);
     let engine: Phaser.Game | undefined,
       observer: ResizeObserver | undefined,
       disposed = false;
@@ -67,7 +65,7 @@ export function GameCanvas({
       observer?.disconnect();
       engine?.destroy(true);
     };
-  }, [getGame, getReduced, onReady]);
+  }, [getGame, onReady]);
 
   return <div className="canvas" ref={node} />;
 }

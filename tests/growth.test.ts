@@ -33,7 +33,7 @@ test('every skill and stat upgrade confirms its actual rank and follows the live
         cards: [{ id, rarity: 'rare' }],
       };
       assert.ok(g.select(id));
-      const fx = visibleEffects(g.effects, false).find((fx) => fx.kind === 'upgrade');
+      const fx = visibleEffects(g.effects).find((fx) => fx.kind === 'upgrade');
       assert.ok(fx);
       assert.equal(fx.source, id);
       assert.equal(fx.rank, id === 'recover' ? 0 : rank);
@@ -84,23 +84,23 @@ test('XP thresholds continue beyond level 26 with exact boundaries and carried p
 test('maxed skills leave three repeatable stat choices and upgrades work above rank five', () => {
   const g = fixture({ burst: 5, repeat: 5, chain: 5, pierce: 5 });
   for (const rank of [5, 20, 100]) {
-    g.boosts = { power: rank, rate: rank, range: rank };
+    g.boosts = { power: rank, rate: rank, range: rank, speed: rank };
     for (const danger of [false, true]) {
       const cards = makeCards(
         { ranks: g.ranks, boosts: g.boosts, number: 100, danger, recoverable: danger },
         new Random(42),
       );
       if (danger) assert.equal(cards[0], 'recover');
-      else assert.deepEqual([...cards].sort(), [...statIds].sort());
+      else assert.ok(cards.every((id) => statIds.includes(id as (typeof statIds)[number])));
       assert.equal(cards.length, 3);
     }
-    const before = [g.damage, g.rate, g.range];
+    const before = [g.damage, g.rate, g.range, g.speed];
     statIds.forEach((id) => choose(g, id));
     assert.deepEqual(
       statIds.map((id) => g.boosts[id]),
-      [rank + 1, rank + 1, rank + 1],
+      [rank + 1, rank + 1, rank + 1, rank + 1],
     );
-    [g.damage, g.rate, g.range].forEach((value, i) => assert.ok(value > before[i]));
+    [g.damage, g.rate, g.range, g.speed].forEach((value, i) => assert.ok(value > before[i]));
     assert.deepEqual(g.ranks, { ...blankRanks(), burst: 5, repeat: 5, chain: 5, pierce: 5 });
   }
 });
@@ -178,7 +178,7 @@ test('all skill-rank combinations keep three legal cards even with maxed skills'
       for (let rate = 0; rate < base; rate++)
         for (let range = 0; range < base; range++) {
           const sum = spent + power + rate + range;
-          const boosts: Boosts = { power, rate, range };
+          const boosts: Boosts = { power, rate, range, speed: 0 };
           const danger = sum % 2 === 0;
           const eligible = eligibleUpgrades(ranks, rules, danger);
           const cards = makeCards(
@@ -198,7 +198,7 @@ test('all skill-rank combinations keep three legal cards even with maxed skills'
         }
   }
   assert.ok(states > 250000);
-  assert.equal(minimum, 3);
+  assert.equal(minimum, statIds.length);
 });
 
 test('stale, double and expired card inputs cannot alter the next choice', () => {
@@ -240,13 +240,32 @@ test('every lightning form can be offered from the first choice without a growth
   }
 });
 
-test('opening auto-selection keeps an immediately visible attack even when another card is rarer', () => {
+test('automatic choices pick the highest rarity, including the opening, with stable ties', () => {
   for (const seed of [1710, ...Array.from({ length: 128 }, (_, i) => i)]) {
     const game = new Game(seed, { combat: false });
     game.start();
     game.debugSetXp(rules.levelXp[0]);
-    assert.ok(['pierce', 'chain', 'multi', 'orb'].includes(game.choice!.cards[0].id));
+    const cards = game.choice!.cards;
+    const best = cards.reduce((a, b) =>
+      rarityIds.indexOf(b.rarity) > rarityIds.indexOf(a.rarity) ? b : a,
+    );
+    assert.deepEqual(game.automaticCard, best);
+    game.advance(rules.choiceSeconds * 1000);
+    assert.equal(game.selections[0].id, best.id);
+    assert.equal(game.selections[0].automatic, true);
   }
+  const game = fixture();
+  game.choice = {
+    cards: [
+      { id: 'power', rarity: 'common' },
+      { id: 'speed', rarity: 'legendary' },
+      { id: 'range', rarity: 'legendary' },
+    ],
+    number: 1,
+    opened: 0,
+    deadline: 8,
+  };
+  assert.equal(game.automaticCard?.id, 'speed');
 });
 
 test('rarity roll boundaries and seeded base frequencies match published odds', () => {

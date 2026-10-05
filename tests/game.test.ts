@@ -390,6 +390,39 @@ test('particle species enter gradually and heavy neutrons trade speed for health
   }
 });
 
+test('seeded spawns vary formation, radius, speed and batch size within designer bounds', () => {
+  const a = new Game(894, { combat: false }),
+    b = new Game(894, { combat: false });
+  a.start();
+  b.start();
+  const sizes: number[] = [];
+  for (let i = 0; i < 40; i++) {
+    const before = a.targets.length;
+    a.spawnBatch();
+    b.spawnBatch();
+    sizes.push(a.targets.length - before);
+  }
+  assert.deepEqual(a.targets, b.targets);
+  assert.ok(new Set(a.targets.map((t) => t.radius)).size > 20);
+  assert.ok(new Set(a.targets.map((t) => t.speed)).size > 20);
+  for (const t of a.targets) {
+    assert.ok(
+      t.radius >= rules.spawnRadius &&
+        t.radius <= rules.spawnRadius + rules.spawnVariation.radiusSpread,
+    );
+    const base = rules.targets[t.kind].speed;
+    assert.ok(
+      t.speed >= base * (1 - rules.spawnVariation.speedFraction) &&
+        t.speed <= base * (1 + rules.spawnVariation.speedFraction),
+    );
+  }
+  assert.ok(new Set(sizes.slice(rules.introBatches)).size >= 3);
+  const other = new Game(895, { combat: false });
+  other.start();
+  other.spawnBatch();
+  assert.notDeepEqual(a.targets.slice(0, rules.introBatchSize), other.targets);
+});
+
 test('muons pause before a straight dash and recover the average inward pace over a full cycle', () => {
   const t = target(0, 180, 90, 100);
   t.particle = 'muon';

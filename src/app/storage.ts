@@ -5,7 +5,7 @@ import type { Result } from '../game/types.ts';
 import { rules, upgradeIds } from '../game/rules.ts';
 import type { Language } from '../ui/i18n.ts';
 
-export type Settings = { sound: boolean; reduced: boolean };
+export type Settings = { sound: boolean };
 export type Record = Pick<Result, 'outcome' | 'xp' | 'level' | 'speed' | 'seed' | 'collisionTime'>;
 export const settingsKey = 'singularity.settings';
 export const recordKey = 'singularity.record';
@@ -56,14 +56,14 @@ export function readLanguage(storage: Storage): Language {
   return 'ko';
 }
 
-export function readSettings(storage: Storage, reduced = false): Settings {
+export function readSettings(storage: Storage): Settings {
   try {
     const value = JSON.parse(storage.getItem(settingsKey) ?? 'null');
-    if (typeof value?.sound === 'boolean' && typeof value?.reduced === 'boolean') return value;
+    if (typeof value?.sound === 'boolean') return { sound: value.sound };
   } catch {
     /* Storage can be disabled by the browser. */
   }
-  return { sound: false, reduced };
+  return { sound: false };
 }
 export function readRecord(storage: Storage): Record | null {
   try {

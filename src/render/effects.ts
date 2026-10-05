@@ -1,26 +1,23 @@
 import type { Effect } from '../game/types.ts';
 import type { Point } from '../game/geometry.ts';
-
 export function effectOrigin(effect: Effect, electron: Point): Point {
   if (effect.anchor === 'electron') return electron;
   return effect.from;
 }
-
-export function visibleEffects(effects: Effect[], reduced: boolean): Effect[] {
+export function visibleEffects(effects: Effect[]): Effect[] {
   const limits: Record<string, number> = {
-    primary: reduced ? 6 : 12,
-    chain: reduced ? 10 : 18,
+    primary: 12,
+    chain: 18,
     pierce: 3,
     burst: 6,
-    strike: reduced ? 3 : 8,
-    orb: reduced ? 6 : 12,
-    bridge: reduced ? 3 : 5,
-    charge: reduced ? 4 : 10,
-    stun: reduced ? 4 : 8,
+    strike: 8,
+    bridge: 5,
+    charge: 10,
+    stun: 8,
     surge: 1,
-    return: reduced ? 5 : 10,
-    focus: reduced ? 4 : 8,
-    kill: reduced ? 3 : 8,
+    return: 10,
+    focus: 8,
+    kill: 8,
     level: 2,
     upgrade: 1,
     absorb: 4,
@@ -30,10 +27,7 @@ export function visibleEffects(effects: Effect[], reduced: boolean): Effect[] {
   return [...effects]
     .reverse()
     .filter((effect) => {
-      if (
-        ['focus', 'orb', 'bridge', 'charge'].includes(effect.kind) &&
-        effect.targetId !== undefined
-      ) {
+      if (['focus', 'bridge', 'charge'].includes(effect.kind) && effect.targetId !== undefined) {
         const key = effect.kind + effect.targetId;
         if (beams.has(key)) return false;
         beams.add(key);

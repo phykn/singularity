@@ -38,6 +38,24 @@ test('fork preserves its primary hit while additional branches share power', () 
   assert.ok(ts[1].hp < 100 && ts[1].hp > ts[0].hp);
 });
 
+for (const id of ['focus', 'gather'] as const)
+  test(`${id} updates the linked fork indicator only when multiple branches actually hit`, () => {
+    const ts = [target(0, 190, 128, 10000), target(1, 215, 128, 10000)];
+    const g = stationarySkill({ [id]: 1, multi: 1 }, ts);
+    g.combat.fireSkill(id);
+    if (id === 'focus') g.advance(1000 / rules.tickRate);
+    assert.equal(g.combat.status('multi').fired, true);
+    close(g.combat.status('multi').progress, 0);
+    const expected = g.damage * rules.skills[id].damage;
+    close(10000 - ts[0].hp, expected);
+    close(10000 - ts[1].hp, expected * (id === 'focus' ? g.forms.multi.damage : 1));
+    const h = stationarySkill({ [id]: 1, multi: 1 }, [target(0, 190, 128, 10000)]);
+    h.combat.fireSkill(id);
+    if (id === 'focus') h.advance(1000 / rules.tickRate);
+    assert.equal(h.combat.status('multi').fired, false);
+    assert.equal(h.combat.status('multi').progress, 1);
+  });
+
 test('chain attenuates at each hop, does not revisit enemies and respects gaps', () => {
   const ts = [0, 40, 80, 120, 240].map((x, i) => target(i, 190 + x, 128, 100));
   const g = stationarySkill({ chain: 3 }, ts);
@@ -117,22 +135,53 @@ test('orbs travel and fork; their emitted lightning carries charge and chain mod
   g.combat.fireSkill('orb');
   g.advance(500);
   assert.ok(g.targets.some((t) => (t.charge ?? 0) > 0));
-  assert.ok(g.effects.some((f) => f.kind === 'orb' && f.from.x > g.position.x));
+  assert.ok(g.combat.orbPoints.some((p) => p.x > g.position.x));
   assert.ok(g.combat.activations.multi !== undefined && g.combat.activations.chain !== undefined);
-  const ids = new Set(g.effects.filter((f) => f.kind === 'orb').map((f) => f.targetId));
-  assert.equal(ids.size, 2);
+  assert.equal(g.combat.orbPoints.length, 2);
 });
+
+test('orb bodies follow every simulation tick while discharge timing and damage stay unchanged', () => {
+  const enemy = target(0, 210, 128, 10000);
+  const g = stationarySkill({ orb: 5 }, [enemy]);
+  g.combat.fireSkill('orb');
+  const positions = [];
+  for (let i = 0; i < rules.tickRate; i++) {
+    g.advance(1000 / rules.tickRate);
+    positions.push(g.combat.orbPoints[0].x);
+  }
+  assert.equal(new Set(positions).size, rules.tickRate);
+  assert.equal(g.events.filter((e) => e.kind === 'hit').length, 5);
+  close(10000 - enemy.hp, g.damage * rules.skills.orb.damage * 5);
+  g.advance(1500);
+  assert.equal(g.combat.orbPoints.length, 0);
+  g.combat.fireSkill('orb');
+  assert.ok(g.combat.orbPoints.length > 0);
+  g.combat.clear();
+  assert.equal(g.combat.orbPoints.length, 0);
+});
+
+for (const id of ['focus', 'gather'] as const)
+  test(`${id} does not report a fork when the first branch kills the other reserved target`, () => {
+    const g = stationarySkill({ [id]: 1, multi: 1, chain: 1 }, [
+      target(0, 190, 128, 10000),
+      target(1, 215, 128, 1),
+    ]);
+    g.combat.fireSkill(id);
+    if (id === 'focus') g.advance(1000 / rules.tickRate);
+    assert.equal(g.combat.status('multi').fired, false);
+  });
 
 test('charge only releases after enough weighted hits and cannot charge its own discharge', () => {
   const p = target(0, 200, 128, 10000),
     g = stationarySkill({ charge: 1 }, [p]);
-  for (let i = 0; i < 4; i++) g.combat.fireBasic();
+  const hits = Math.ceil(g.forms.charge.threshold);
+  for (let i = 0; i < hits - 1; i++) g.combat.fireBasic();
   assert.equal(g.combat.activations.charge, undefined);
-  assert.equal(p.charge, 4);
+  assert.equal(p.charge, hits - 1);
   g.combat.fireBasic();
   assert.ok(g.combat.activations.charge !== undefined);
   assert.equal(p.charge, 0);
-  assert.equal(g.events.filter((e) => e.kind === 'hit').length, 6);
+  assert.equal(g.events.filter((e) => e.kind === 'hit').length, hits + 1);
   const h = stationarySkill({ charge: 1, repeat: 1 }, [target(0, 200, 128, 10000)]);
   h.combat.fireBasic();
   h.advance(150);
@@ -285,7 +334,7 @@ test('visual and damage number quotas never reduce damage, kills or XP', () => {
   assert.equal(g.targets.length, 0);
   assert.equal(g.damageNumbers.length, maxDamageNumbers);
   assert.ok(g.effects.length <= 160);
-  assert.ok(visibleEffects(g.effects, false).some((f) => f.anchor === 'electron'));
+  assert.ok(visibleEffects(g.effects).some((f) => f.anchor === 'electron'));
 });
 
 test('all timed skills expose real progress and preserve it through rate and pause changes', () => {
@@ -318,18 +367,98 @@ test('focus cannot overlap itself even when its cooldown is already ready', () =
   assert.ok(g.events.filter((e) => e.kind === 'hit').length <= 3);
 });
 
-test('empty scheduled skills reset readiness without reporting an actual hit', () => {
-  const g = stationarySkill({}, []);
-  choose(g, 'strike');
-  g.advance(1000 / rules.tickRate);
-  assert.deepEqual(g.combat.status('strike'), {
-    mode: 'timed',
-    progress: 0,
-    active: false,
-    fired: false,
+test('ready timed skills wait for an eligible target and spend cooldown only on a cast', () => {
+  for (const id of timedSkills) {
+    const g = stationarySkill({}, []);
+    choose(g, id);
+    g.advance(10000);
+    assert.deepEqual(
+      g.combat.status(id),
+      {
+        mode: 'timed',
+        progress: 1,
+        active: false,
+        fired: false,
+      },
+      id,
+    );
+    const p = target(0, 200, 128, 10000);
+    if (id === 'chase') p.hp = 1000;
+    g.targets.push(p);
+    g.advance(1000 / rules.tickRate);
+    close(g.combat.status(id).progress, 0);
+    assert.equal(g.combat.status(id).fired, true, id);
+    assert.ok(g.combat.activations[id] !== undefined, id);
+    g.targets = [];
+    g.advance(rules.skills[id].periodSeconds * 1000 + 2000);
+    assert.equal(g.combat.status(id).progress, 1, id);
+  }
+});
+
+test('an overdue basic attack fires immediately in range without a catch-up burst', () => {
+  const g = new Game(42, {
+    rules: { ...rules, baseSpeed: 0, spawnSecondsByStage: Array(5).fill(10000) },
   });
-  g.advance(rules.skills.strike.periodSeconds * 500);
-  close(g.combat.status('strike').progress, 0.5);
+  g.start();
+  g.targets = [];
+  g.advance(5000);
+  const p = target(900, g.position.x, g.position.y, 10000);
+  g.targets = [p];
+  g.advance(1000 / rules.tickRate);
+  assert.equal(p.hp, 10000 - g.damage);
+  g.advance(100);
+  assert.equal(p.hp, 10000 - g.damage);
+});
+
+test('regular basic attacks retain fractional cadence at every attack speed', () => {
+  for (const rank of [0, 3, 7]) {
+    const g = new Game(42, {
+      rules: { ...rules, baseSpeed: 0, spawnSecondsByStage: Array(5).fill(10000) },
+    });
+    g.start();
+    g.boosts.rate = rank;
+    g.combat.rescaleCooldowns(1);
+    g.targets = [target(900, g.position.x, g.position.y, 100000)];
+    g.advance(60000);
+    assert.equal(
+      g.events.filter((e) => e.kind === 'hit').length,
+      Math.floor(60 / g.attackInterval),
+      'attack speed rank ' + rank,
+    );
+  }
+});
+
+test('focus stays ready when another scheduled skill removes its targets before the first beam', () => {
+  const g = stationarySkill({}, [target(0, 200, 128, 1000)]);
+  choose(g, 'focus');
+  choose(g, 'gather');
+  g.boosts.power = 1000;
+  g.advance(1000 / rules.tickRate);
+  assert.equal(g.combat.activations.focus, undefined);
+  assert.equal(g.combat.status('focus').progress, 1);
+  assert.equal(g.combat.status('focus').active, false);
+  assert.ok(g.combat.activations.gather !== undefined);
+  g.targets.push(target(1, 200, 128, 100000));
+  g.advance(1000 / rules.tickRate);
+  assert.equal(g.combat.status('focus').progress, 0);
+  assert.equal(g.combat.status('focus').fired, true);
+});
+
+test('linked cooldowns follow their own visible activation and preserve rate progress', () => {
+  const p = target(0, 200, 128, 1000);
+  const g = stationarySkill({ chain: 1, repeat: 1, return: 1 }, [p]);
+  g.combat.fireBasic();
+  assert.equal(g.combat.status('chain').progress, 1);
+  assert.equal(g.combat.status('repeat').progress, 1);
+  assert.equal(g.combat.status('return').progress, 1);
+  g.advance(150);
+  assert.ok(g.combat.status('repeat').progress < 1);
+  assert.equal(g.combat.status('chain').progress, 1);
+  g.advance(150);
+  assert.ok(g.combat.status('return').progress < 1);
+  const before = g.combat.status('repeat').progress;
+  choose(g, 'rate');
+  close(g.combat.status('repeat').progress, before);
 });
 
 test('all ranks and rarities have finite geometry; stronger skills remain within the same slot limit', () => {

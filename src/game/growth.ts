@@ -32,9 +32,9 @@ export function makeCards(state: CardState, random: Random, cfg: RuleSet = rules
     const forms = pool.filter(isSkill),
       cards = forms.slice(0, cfg.choiceCount);
     const broad = (id: SkillId) => ['chain', 'multi', 'pierce', 'orb'].includes(id);
-    const auto = cards.find(broad) ?? forms.find(broad)!;
-    if (!cards.includes(auto)) cards[2] = auto;
-    return [auto, ...cards.filter((id) => id !== auto)];
+    const lead = cards.find(broad) ?? forms.find(broad)!;
+    if (!cards.includes(lead)) cards[2] = lead;
+    return [lead, ...cards.filter((id) => id !== lead)];
   }
   const forms = pool.filter(isSkill),
     owned = skillIds.filter((id) => ranks[id] > 0);
@@ -42,12 +42,12 @@ export function makeCards(state: CardState, random: Random, cfg: RuleSet = rules
   const fresh = forms.find((id) => ranks[id] === 0);
   const form = owned.length < 2 ? (fresh ?? existing[0]) : (existing[0] ?? fresh);
   const stat = statIds.filter((id) => pool.includes(id)).sort((a, b) => boosts[a] - boosts[b])[0];
-  const auto = danger && recoverable ? 'recover' : number % 2 ? (form ?? stat) : (stat ?? form);
-  const cards: UpgradeId[] = [auto];
+  const lead = danger && recoverable ? 'recover' : number % 2 ? (form ?? stat) : (stat ?? form);
+  const cards: UpgradeId[] = [lead];
   const add = (id: UpgradeId | undefined) => {
     if (id && !cards.includes(id) && cards.length < cfg.choiceCount) cards.push(id);
   };
-  add(isSkill(auto) ? pool.find((id) => !isSkill(id)) : (existing[0] ?? fresh));
+  add(isSkill(lead) ? pool.find((id) => !isSkill(id)) : (existing[0] ?? fresh));
   if (!cards.some((id) => isSkill(id) && ranks[id] > 0)) add(existing[0]);
   pool.forEach(add);
   return cards;
