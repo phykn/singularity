@@ -4,6 +4,8 @@
 
 A pixel-art survival game set around a lone orbiting electron. Automatic combat and evolving lightning bring a miniature cosmic battle to your browser.
 
+**[Play now — singularity.phykn-kr.workers.dev](https://singularity.phykn-kr.workers.dev/)**
+
 <p align="center">
   <img src="docs/images/gameplay-1.jpg" width="32%" alt="Incoming particles surrounding the electron's orbit" />
   <img src="docs/images/gameplay-2.jpg" width="32%" alt="Three upgrade choices during combat" />
