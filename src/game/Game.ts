@@ -73,6 +73,8 @@ export class Game {
   waves: { time: number; angle: number }[];
   waveCount = 0;
   result: Result | null = null;
+  clearResult: Result | null = null;
+  continuedAt: number | null = null;
   manualPaused = false;
   hiddenPaused = false;
   counts = Object.fromEntries(
@@ -84,7 +86,7 @@ export class Game {
   readonly combat: Combat;
   combatEnabled: boolean;
   collisionTime = 0;
-  collisionTrigger: 'gravity' | 'energy' = 'gravity';
+  collisionTrigger: Result['trigger'] = 'gravity';
   metrics: Metrics;
   private randomSpawn: Random;
   private randomCards: Random;
@@ -176,7 +178,38 @@ export class Game {
     return this.radius - this.core - this.rules.electronRadius;
   }
   get charged(): boolean {
-    return this.xp >= this.rules.energyGoal;
+    return !this.endless && this.xp >= this.rules.energyGoal;
+  }
+  get endless(): boolean {
+    return this.clearResult !== null;
+  }
+  get endlessSeconds(): number {
+    return this.clearResult
+      ? Math.max(0, this.tick - Math.round(this.clearResult.collisionTime * this.rules.tickRate)) /
+          this.rules.tickRate
+      : 0;
+  }
+  get canContinue(): boolean {
+    return this.phase === 'result' && this.result?.outcome === 'success' && !this.endless;
+  }
+  get enemyStrength(): { hp: number; speed: number } {
+    const minutes = Math.max(
+      0,
+      ((this.clearResult?.collisionTime ?? this.time) - this.rules.stageStarts.at(-1)!) / 60,
+    );
+    const hp = 1 + minutes * this.rules.late.hpPerMinute;
+    const speed = Math.min(
+      this.rules.late.maxSpeedScale,
+      1 + minutes * this.rules.late.speedPerMinute,
+    );
+    if (!this.endless) return { hp, speed };
+    const periods = this.endlessSeconds / this.rules.endless.cycleSeconds;
+    return {
+      hp: Math.min(1e100, hp * this.rules.endless.hpMultiplier ** Math.min(1000, periods)),
+      speed:
+        speed *
+        Math.min(this.rules.endless.maxSpeedScale, 1 + periods * this.rules.endless.speedStep),
+    };
   }
   get paused(): boolean {
     return this.manualPaused || this.hiddenPaused;
@@ -190,9 +223,19 @@ export class Game {
     return orbit(this.angle, this.radius);
   }
   get stage(): number {
+    if (this.endless) return this.rules.stageStarts.length - 1;
     return this.rules.stageStarts.filter((start) => this.time >= start).length - 1;
   }
   get wavePhase(): 'steady' | 'assault' | 'recovery' {
+    if (this.endless) {
+      const cycle =
+        (this.endlessSeconds % this.rules.endless.cycleSeconds) - this.rules.waveWarningSeconds;
+      if (cycle < 0) return 'steady';
+      if (cycle < this.rules.endless.assaultSeconds) return 'assault';
+      if (cycle < this.rules.endless.assaultSeconds + this.rules.endless.recoverySeconds)
+        return 'recovery';
+      return 'steady';
+    }
     const age = this.time - this.rules.stageStarts.at(-1)!;
     if (age < 0) return 'steady';
     const cycle = age % this.rules.waveRepeatSeconds;
@@ -208,6 +251,16 @@ export class Game {
     return { current: this.xp - previous, required: this.nextXp - previous };
   }
   get upcomingWave() {
+    if (this.clearResult)
+      return {
+        time:
+          this.clearResult.collisionTime +
+          this.rules.waveWarningSeconds +
+          this.waveCount * this.rules.endless.cycleSeconds,
+        angle:
+          (this.waves.at(-1)!.angle + this.waveCount * Math.PI * (3 - Math.sqrt(5))) %
+          (Math.PI * 2),
+      };
     if (this.waveCount < this.waves.length) return this.waves[this.waveCount];
     const last = this.waves.at(-1)!,
       repeat = this.waveCount - this.waves.length + 1;
@@ -228,11 +281,13 @@ export class Game {
     return (
       this.phaseTicks /
       (this.rules.tickRate *
-        (this.phase === 'collapse'
-          ? this.rules.collisionSeconds
-          : this.successfulEnding
-            ? this.rules.successEndingSeconds
-            : this.rules.failureEndingSeconds))
+        (this.phase === 'crossing'
+          ? this.rules.endless.entrySeconds
+          : this.phase === 'collapse'
+            ? this.rules.collisionSeconds
+            : this.successfulEnding
+              ? this.rules.successEndingSeconds
+              : this.rules.failureEndingSeconds))
     );
   }
   get successfulEnding(): boolean {
@@ -261,6 +316,50 @@ export class Game {
       this.nextSpawn = this.rules.spawnSecondsByStage[this.stage] * this.rules.tickRate;
     }
   }
+  continueBeyond(): boolean {
+    if (!this.canContinue || this.paused) return false;
+    this.clearResult = this.result;
+    this.continuedAt = this.elapsedTicks;
+    this.result = null;
+    this.phase = 'crossing';
+    this.phaseTicks = 0;
+    this.remainder = 0;
+    this.mass = 0;
+    this.radius = this.rules.orbitRadius;
+    this.choice = null;
+    this.targets = [];
+    this.effects = [];
+    this.damageNumbers = [];
+    this.notice = '';
+    this.kills = [];
+    this.killHead = this.killEnergy = this.rushUntil = 0;
+    this.waveCount = this.rushSpawns = 0;
+    this.batchCount = this.rules.introBatches;
+    this.nextSpawn = this.tick + this.rules.waveWarningSeconds * this.rules.tickRate;
+    this.counts = Object.fromEntries(
+      particleIds.map((id) => [id, { generated: 0, killed: 0, absorbed: 0 }]),
+    ) as Record<ParticleKind, Count>;
+    this.metrics = {
+      minRadius: this.radius,
+      minMargin: this.margin,
+      dangerSeconds: 0,
+      maxTargets: 0,
+      maxEffects: 0,
+    };
+    this.combat.reset();
+    this.log('beyond', { tick: this.elapsedTicks });
+    return true;
+  }
+  retire(): boolean {
+    if (!this.endless || !['running', 'crossing'].includes(this.phase)) return false;
+    this.endingOutcome = 'retired';
+    this.collisionTrigger = 'quit';
+    this.collisionTime = this.time;
+    this.choice = null;
+    this.combat.clear();
+    this.finishResult();
+    return true;
+  }
   setManualPause(paused: boolean): void {
     this.manualPaused = paused;
   }
@@ -271,7 +370,17 @@ export class Game {
   advance(
     milliseconds: number,
     tickLimit = Infinity,
-    { choiceMilliseconds = milliseconds, stopAtChoice = false } = {},
+    {
+      choiceMilliseconds = milliseconds,
+      stopAtChoice = false,
+      autoSelect = true,
+      beforeCombat,
+    }: {
+      choiceMilliseconds?: number;
+      stopAtChoice?: boolean;
+      autoSelect?: boolean;
+      beforeCombat?: () => void;
+    } = {},
   ): void {
     if (this.paused || this.phase === 'ready' || this.phase === 'result') return;
     stopAtChoice = stopAtChoice && !this.charged;
@@ -288,12 +397,15 @@ export class Game {
         break;
       }
       this.elapsedTicks++;
-      if (this.phase === 'running') this.step();
+      if (this.phase === 'running') this.step(autoSelect, beforeCombat);
       else {
         this.phaseTicks++;
         if (this.phaseProgress >= 1) {
           this.phaseTicks = 0;
-          if (this.phase === 'collapse') {
+          if (this.phase === 'crossing') {
+            this.phase = 'running';
+            this.log('beyond-ready', {});
+          } else if (this.phase === 'collapse') {
             this.phase = 'ending';
             this.log('ending', this.endingOutcome);
           } else this.finishResult();
@@ -303,18 +415,19 @@ export class Game {
       this.damageNumbers = this.damageNumbers.filter((damage) => this.seconds < damage.born + 0.72);
     }
     if (stopAtChoice && this.choice) this.remainder = 0;
-    if (this.choice && this.time + 1e-8 >= this.choice.deadline)
+    if (autoSelect && this.choice && this.time + 1e-8 >= this.choice.deadline)
       this.select(this.automaticCard!.id, true);
   }
 
-  private step(): void {
+  private step(autoSelect: boolean, beforeCombat?: () => void): void {
     this.tick++;
     if (this.charged) {
       this.collide('energy');
       return;
     }
-    if (this.choice && this.time + 1e-8 >= this.choice.deadline)
-      this.select(this.automaticCard!.id, true);
+    beforeCombat?.();
+    if (autoSelect && this.choice && this.time + 1e-8 >= this.choice.deadline)
+      this.select(this.automaticCard!.id, true, this.choice.number, true);
     if (this.combatEnabled && this.tick + 1e-8 >= this.nextSpawn) {
       const rushing = this.rushing;
       this.spawnBatch();
@@ -334,7 +447,11 @@ export class Game {
     if (wave && this.time >= wave.time) {
       if (this.combatEnabled) {
         const scale =
-          this.rules.waveScale[Math.min(this.waveCount, this.rules.waveScale.length - 1)];
+          this.rules.waveScale[
+            this.endless
+              ? this.rules.waveScale.length - 1
+              : Math.min(this.waveCount, this.rules.waveScale.length - 1)
+          ];
         this.spawnGroup('small', Math.round((this.rules.waveSmall / 2) * scale), wave.angle, 1);
         this.spawnGroup(
           'small',
@@ -471,7 +588,12 @@ export class Game {
     this.log('cards', { number, cards });
   }
 
-  select(id: UpgradeId, automatic = false, choiceNumber = this.choice?.number): boolean {
+  select(
+    id: UpgradeId,
+    automatic = false,
+    choiceNumber = this.choice?.number,
+    beforeCombat = false,
+  ): boolean {
     if (
       this.paused ||
       this.phase !== 'running' ||
@@ -498,11 +620,13 @@ export class Game {
     else this.boosts[id]++;
     if (id === 'rate') this.combat.rescaleCooldowns(oldRate);
     const selection = {
+      tick: this.elapsedTicks,
       time: this.time,
       id,
       rank: this.rank(id),
       rarity: this.rarities[id],
       automatic,
+      beforeCombat,
     };
     this.selections.push(selection);
     this.log('skill', selection);
@@ -560,7 +684,8 @@ export class Game {
     const data = this.rules.targets[kind];
     const cfg = this.rules.spawnVariation;
     const late = this.rules.late;
-    const minutes = Math.max(0, (this.time - this.rules.stageStarts.at(-1)!) / 60);
+    const strength = this.enemyStrength;
+    if (this.endless) count = Math.min(count, this.rules.endless.maxTargets - this.targets.length);
     const planned = [];
     for (let i = 0; i < count; i++) {
       const theta =
@@ -576,9 +701,7 @@ export class Game {
           this.wavePhase === 'assault' ? late : undefined,
         ),
         heavy = particle === 'neutron';
-      const hp = Math.round(
-        data.hp[this.stage] * (heavy ? 1.2 : 1) * (1 + minutes * late.hpPerMinute),
-      );
+      const hp = Math.round(data.hp[this.stage] * (heavy ? 1.2 : 1) * strength.hp);
       const target: Target = {
         id,
         ...orbit(theta, radius),
@@ -595,7 +718,7 @@ export class Game {
         speed:
           data.speed *
           (heavy ? 0.85 : 1) *
-          Math.min(late.maxSpeedScale, 1 + minutes * late.speedPerMinute) *
+          strength.speed *
           (1 + (this.randomSpawn.next() * 2 - 1) * cfg.speedFraction),
         turn: data.turn * direction,
       };
@@ -690,6 +813,9 @@ export class Game {
   private finishResult(): void {
     this.phase = 'result';
     this.result = {
+      endless: this.clearResult
+        ? { seconds: this.endlessSeconds, xp: this.xp - this.clearResult.xp }
+        : null,
       outcome: this.endingOutcome,
       trigger: this.collisionTrigger,
       xp: this.xp,

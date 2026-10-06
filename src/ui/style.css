@@ -849,6 +849,23 @@ svg {
   color: var(--muted);
   font-size: 12px;
 }
+.beyond-symbol {
+  color: #b0a0ff;
+  font-size: 24px;
+  width: 38px;
+  text-align: center;
+}
+.beyond-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #b0a0ff;
+  white-space: nowrap;
+}
+.is-beyond .hud-top time {
+  color: #c5baff;
+}
 .result-heading h2 {
   margin-top: 8px;
   color: #f2f7fa;

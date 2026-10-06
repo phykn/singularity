@@ -8,8 +8,8 @@ A pixel-art survival game where a lone electron lights up the dark. The combat i
 
 <p align="center">
   <img src="docs/images/gameplay-1.jpg" width="32%" alt="SINGULARITY title screen in English" />
-  <img src="docs/images/gameplay-2.jpg" width="32%" alt="Three upgrade choices during combat" />
-  <img src="docs/images/gameplay-3.jpg" width="32%" alt="A lightning build fighting incoming particles" />
+  <img src="docs/images/gameplay-2.jpg" width="32%" alt="A late-game lightning build facing a dense particle swarm with upgrade choices open" />
+  <img src="docs/images/gameplay-3.jpg" width="32%" alt="Singularity victory screen showing 20,000 XP and the completed skill build" />
 </p>
 
 ## About the game
@@ -17,6 +17,7 @@ A pixel-art survival game where a lone electron lights up the dark. The combat i
 Particles pour in. The core swells. The space around you closes in. Each run turns a quiet orbit into an electrical storm, with a singularity just beyond the chaos.
 
 - **Let the sparks fly** — Sixteen lightning skills, from branching bolts to roaming electric orbs.
+- **Go beyond** — Reach the singularity, then take your build into an ever-growing storm.
 - **Small pixels, big impact** — Bright electrical effects against a dark cosmic backdrop.
 - **Open a tab. Enter orbit.** — A fresh run every time, with preferences and best results saved on your device.
 - **Mobile and desktop** — Available in Korean, English, Chinese, and Japanese.

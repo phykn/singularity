@@ -3,7 +3,7 @@ import type { ParticleKind } from './particles.ts';
 import type { Boosts, Card, Ranks, Rarities, Rarity, UpgradeId } from './rules.ts';
 
 export type TargetKind = 'small' | 'dense';
-export type Phase = 'ready' | 'running' | 'collapse' | 'ending' | 'result';
+export type Phase = 'ready' | 'running' | 'collapse' | 'ending' | 'result' | 'crossing';
 export type Target = Point & {
   id: number;
   kind: TargetKind;
@@ -57,13 +57,15 @@ export type EffectInput = Omit<Effect, 'born' | 'rank' | 'rarity'> &
 export type DamageNumber = Point & { id: number; value: number; born: number; rarity: Rarity };
 export type Choice = { cards: Card[]; number: number; opened: number; deadline: number };
 export type Count = { generated: number; killed: number; absorbed: number };
-export type Outcome = 'success' | 'collapse-failure';
+export type Outcome = 'success' | 'collapse-failure' | 'retired';
 export type Selection = {
+  tick: number;
   time: number;
   id: UpgradeId;
   rank: number;
   rarity: Rarity;
   automatic: boolean;
+  beforeCombat: boolean;
 };
 export type Metrics = {
   minRadius: number;
@@ -73,8 +75,9 @@ export type Metrics = {
   maxEffects: number;
 };
 export type Result = {
+  endless: { seconds: number; xp: number } | null;
   outcome: Outcome;
-  trigger: 'gravity' | 'energy';
+  trigger: 'gravity' | 'energy' | 'quit';
   xp: number;
   mass: number;
   radius: number;

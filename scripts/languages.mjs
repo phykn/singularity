@@ -208,7 +208,7 @@ try {
         'Result details overflow',
       );
       if (width === 375) await screenshot(page, `artifacts/screens/result-${language.id}.png`);
-      await page.getByRole('button', { name: c.retry, exact: true }).click();
+      await page.getByRole('button', { name: c.finish, exact: true }).click();
       await page.evaluate((goal) => {
         window.__gameDebug.restart(1, false);
         window.__gameDebug.xp(goal - 1);

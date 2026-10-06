@@ -1,5 +1,6 @@
 import type { Game } from '../game/Game.ts';
 import { endingFrame } from '../render/ending.ts';
+import { beyondFrame } from '../render/beyond.ts';
 import { KillRhythm, SoundMixer } from './sounds.ts';
 
 export class GameAudio {
@@ -82,6 +83,18 @@ export class GameAudio {
       this.model = game;
     }
     if (game.paused || game.phase === 'ready') return;
+    const crossing = beyondFrame(game);
+    if (crossing) {
+      const stage = 'beyond-' + crossing.stage;
+      if (this.stage !== stage) {
+        this.stage = stage;
+        this.mixer.stop();
+        this.rhythm.reset();
+        if (crossing.stage === 'contract') this.play('beyond-contract');
+        if (crossing.stage === 'open') this.play('beyond-open');
+      }
+      return;
+    }
     const ending = endingFrame(game);
     if (ending) {
       if (this.stage !== ending.stage) {

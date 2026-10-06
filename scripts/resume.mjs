@@ -110,7 +110,10 @@ try {
       g.start();
       window.__gameDebug.advance(1800000);
     });
-    await page.getByRole('button', { name: c.retry, exact: true }).click();
+    const completed = await page.evaluate(
+      () => window.__gameDebug.getModel().result.outcome === 'success',
+    );
+    await page.getByRole('button', { name: completed ? c.finish : c.retry, exact: true }).click();
     seed = await verifyFresh(seed);
   }
   assert.ok(await page.evaluate(() => localStorage.getItem('singularity.record')));
@@ -250,7 +253,7 @@ try {
     ),
   });
 
-  await failed.getByRole('button', { name: c.retry, exact: true }).click();
+  await failed.getByRole('button', { name: c.finish, exact: true }).click();
   await failed.getByRole('button', { name: c.settings, exact: true }).click();
   await failed.evaluate(() => {
     const write = Storage.prototype.setItem;

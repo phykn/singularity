@@ -9,6 +9,8 @@ export type BestRecord = Pick<
 >;
 export const settingsKey = 'singularity.settings';
 export const recordKey = 'singularity.record';
+export const beyondRecordKey = 'singularity.beyond';
+export type BeyondRecord = { seconds: number; xp: number; seed: number };
 export const languageKey = 'singularity.language';
 
 export function readLanguage(storage: Storage): Language {
@@ -60,6 +62,7 @@ export function save(storage: Storage, key: string, value: unknown): boolean {
   }
 }
 export function bestRecord(current: BestRecord | null, result: Result): BestRecord | null {
+  if (result.endless) return current;
   const score = (record: BestRecord) => [
     Number(record.outcome === 'success'),
     record.xp,
@@ -73,4 +76,37 @@ export function bestRecord(current: BestRecord | null, result: Result): BestReco
   }
   const { outcome, xp, level, speed, seed, collisionTime } = result;
   return { outcome, xp, level, speed, seed, collisionTime };
+}
+
+export function readBeyondRecord(storage: Storage): BeyondRecord | null {
+  try {
+    const record = JSON.parse(storage.getItem(beyondRecordKey) ?? 'null');
+    if (
+      record &&
+      Number.isFinite(record.seconds) &&
+      record.seconds >= 0 &&
+      Number.isSafeInteger(record.xp) &&
+      record.xp >= 0 &&
+      Number.isSafeInteger(record.seed) &&
+      record.seed >= 0 &&
+      record.seed <= 0xffffffff
+    )
+      return record;
+  } catch {
+    /* Storage can be disabled by the browser. */
+  }
+  return null;
+}
+
+export function bestBeyondRecord(
+  current: BeyondRecord | null,
+  result: Result,
+): BeyondRecord | null {
+  if (!result.endless) return current;
+  const next = { ...result.endless, seed: result.seed };
+  return !current ||
+    next.seconds > current.seconds ||
+    (next.seconds === current.seconds && next.xp > current.xp)
+    ? next
+    : current;
 }

@@ -3,6 +3,7 @@ import { createParticleTextures } from './particleTextures.ts';
 import { SpritePool } from './SpritePool.ts';
 import { healthBar } from './healthBars.ts';
 import { endingFrame } from './ending.ts';
+import { beyondFrame } from './beyond.ts';
 import { beamFrame, beamPose, effectFrame, visibleEffects } from './effects.ts';
 import type { BeamStamp, EffectStamp } from './effects.ts';
 import effectsUrl from '../art/assets/effects.png';
@@ -27,6 +28,7 @@ export class ElectronScene extends Phaser.Scene {
   private worldScale = 1;
   private damageLabels!: DamageLabels;
   private getGame: () => Game;
+  private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   constructor(getGame: () => Game) {
     super('electron');
     this.getGame = getGame;
@@ -77,6 +79,12 @@ export class ElectronScene extends Phaser.Scene {
     g.setPosition(width / 2 - 180 * scale, this.centerY - 260 * scale);
     g.setScale(scale);
     this.effectGraphics.setPosition(g.x, g.y).setScale(scale).setDepth(1);
+    const crossing = beyondFrame(game, this.reducedMotion.matches);
+    if (crossing) {
+      this.offset = { x: 0, y: 0 };
+      this.drawBeyond(crossing, scale, game.seed);
+      return;
+    }
     const ending = endingFrame(game),
       clock = game.seconds;
     const danger = !game.charged && game.margin < game.rules.dangerMargin;
@@ -106,6 +114,7 @@ export class ElectronScene extends Phaser.Scene {
     }
     if (game.mass > 0 && (!ending || !ending.success || ending.electron))
       this.drawCore(game.core * (ending?.success ? 1 - ending.absorb * 0.7 : 1), scale);
+    if (game.endless && !ending) this.drawPixelRing(game.core + 3, 0xb0a0ff, 0.65, scale);
     const warning = game.warningWave;
     if (warning)
       drawWaveWarning(
@@ -183,7 +192,7 @@ export class ElectronScene extends Phaser.Scene {
     }
     if (ending.reveal > 0) {
       g.clear();
-      this.drawIntro(width, height);
+      this.drawSingularity(24, scale);
       this.cover(width, height, 1 - ending.reveal);
       return;
     }
@@ -197,6 +206,57 @@ export class ElectronScene extends Phaser.Scene {
     if (ending.success && ending.flash) {
       g.fillStyle(WHITE, ending.flash * 0.6);
       g.fillCircle(180, 260, 5 / scale);
+    }
+  }
+  private drawPixelRing(radius: number, ink: number, alpha: number, scale: number): void {
+    const pixel = 2 / scale;
+    const points = Array.from({ length: 65 }, (_, i) => {
+      const a = (i * Math.PI) / 32;
+      return new Phaser.Math.Vector2(
+        180 + Math.round((Math.cos(a) * radius) / pixel) * pixel,
+        260 + Math.round((Math.sin(a) * radius) / pixel) * pixel,
+      );
+    });
+    this.graphics.lineStyle(1 / scale, ink, alpha);
+    this.graphics.strokePoints(points, true);
+  }
+
+  private drawBeyond(
+    frame: NonNullable<ReturnType<typeof beyondFrame>>,
+    scale: number,
+    seed: number,
+  ): void {
+    const g = this.graphics;
+    const violet = 0xb0a0ff;
+    if (frame.stage === 'contract' || frame.stage === 'quiet') {
+      this.drawPixelRing(
+        frame.reducedMotion ? 24 : frame.core,
+        GOLD,
+        frame.stage === 'quiet' ? 0.3 : 0.9,
+        scale,
+      );
+    } else {
+      this.drawPixelRing(
+        frame.ring,
+        frame.stage === 'open' ? BLUE : violet,
+        0.8 * frame.alpha,
+        scale,
+      );
+      this.drawPixelRing(this.getGame().rules.coreRadius + 3, violet, frame.expand * 0.6, scale);
+      for (let i = 0; i < 12; i++) {
+        const angle = (i * Math.PI) / 6 + (seed % 100) / 100;
+        const radius = frame.reducedMotion ? 155 : 22 + frame.expand * (130 + (i % 3) * 7);
+        const p = orbit(angle, radius);
+        g.fillStyle(i % 3 === 0 ? BLUE : violet, (1 - frame.expand) * 0.65 * frame.alpha);
+        g.fillRect(
+          Math.round(p.x * scale) / scale,
+          Math.round(p.y * scale) / scale,
+          2 / scale,
+          2 / scale,
+        );
+      }
+      if (frame.electron > 0)
+        this.drawElectron(orbit(frame.angle, frame.ring), frame.electron * frame.alpha);
     }
   }
   private drawOrbit(

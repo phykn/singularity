@@ -5,6 +5,16 @@
   "successEndingSeconds": 3,
   "failureEndingSeconds": 0.9,
   "energyGoal": 20000,
+  "endless": {
+    "entrySeconds": 2.4,
+    "cycleSeconds": 30,
+    "assaultSeconds": 12,
+    "recoverySeconds": 5,
+    "hpMultiplier": 1.5,
+    "speedStep": 0.06,
+    "maxSpeedScale": 1.35,
+    "maxTargets": 240
+  },
   "levelXpStep": 60,
   "levelXp": [
     14, 85, 210, 380, 600, 880, 1220, 1620, 2080, 2600, 3180, 3820, 4520, 5280, 6100, 6980, 7920,

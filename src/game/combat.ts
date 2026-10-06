@@ -224,6 +224,16 @@ export class Combat {
     }
   }
 
+  reset(): void {
+    this.clear();
+    this.firedAt = {};
+    this.nextLinked = {};
+    this.lastKill = -Infinity;
+    this.nextAttack = this.nextBridge = this.nextSurge = this.game.tick + 1;
+    for (const id of timedSkills)
+      this.nextSkill[id] = this.game.ranks[id] ? this.game.tick + 1 : Infinity;
+  }
+
   movementScale(target: Target): number {
     return this.game.time < (target.stunUntil ?? 0) ? 0 : 1;
   }

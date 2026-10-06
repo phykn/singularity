@@ -21,8 +21,8 @@ export class GameSession {
   private lastWall = 0;
   private lastDraw = 0;
   private lastDrawTick = -1;
-  private lastRecordSave = -Infinity;
-  private processed: Game | null = null;
+  private processed = new WeakSet<Result>();
+  private pending = new Map<Result, number>();
   private audioCursor: number;
 
   constructor(game: Game, audio: GameSession['audio'], effects: SessionEffects) {
@@ -50,14 +50,22 @@ export class GameSession {
   }
 
   replace(game: Game, wall: number): void {
+    this.game.retire();
+    this.saveResults(wall);
     this.game = game;
     this.playbackSpeed = 1;
     this.pauseOnChoice = true;
     this.lastWall = wall;
     this.lastDrawTick = -1;
     this.audioCursor = 0;
-    this.processed = null;
-    this.lastRecordSave = -Infinity;
+    this.effects.redraw();
+  }
+
+  continueBeyond(wall: number): void {
+    if (!this.renderReady) return;
+    this.step(wall);
+    if (!this.game.continueBeyond()) return;
+    this.lastWall = wall;
     this.effects.redraw();
   }
 
@@ -113,10 +121,7 @@ export class GameSession {
     this.lastWall = wall;
     if (this.audio.enabled) this.audio.update(game, this.audioCursor);
     this.audioCursor = game.events.length;
-    if (game.result && this.processed !== game && wall - this.lastRecordSave >= 1000) {
-      if (this.effects.saveResult(game.result)) this.processed = game;
-      this.lastRecordSave = wall;
-    }
+    this.saveResults(wall);
     if (
       wall - this.lastDraw > 80 &&
       (game.elapsedTicks !== this.lastDrawTick || (game.choice && this.renderReady && !game.paused))
@@ -133,9 +138,25 @@ export class GameSession {
     this.effects.redraw();
   }
 
+  private saveResults(wall: number): void {
+    for (const result of [this.game.clearResult, this.game.result]) {
+      if (result && !this.processed.has(result) && !this.pending.has(result))
+        this.pending.set(result, -Infinity);
+    }
+    for (const [result, at] of this.pending) {
+      if (wall - at < 1000) continue;
+      if (this.effects.saveResult(result)) {
+        this.processed.add(result);
+        this.pending.delete(result);
+      } else this.pending.set(result, wall);
+    }
+  }
+
   private advanceTime(ms: number, tickLimit = Infinity): void {
     this.game.advance(
-      this.pauseOnChoice && this.game.choice && !this.game.charged ? 0 : ms * this.playbackSpeed,
+      this.pauseOnChoice && this.game.choice && !this.game.charged
+        ? 0
+        : ms * (this.game.phase === 'crossing' ? 1 : this.playbackSpeed),
       tickLimit,
       {
         choiceMilliseconds: this.pauseOnChoice ? 0 : ms,

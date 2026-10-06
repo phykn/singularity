@@ -27,6 +27,7 @@ export default function App() {
     language,
     settings,
     best,
+    bestBeyond,
     storageOk,
     audioUnavailable,
     renderReady,
@@ -36,6 +37,7 @@ export default function App() {
     toggleChoicePause,
     onRenderReady,
     begin,
+    continueBeyond,
     select,
     changeLanguage,
     toggleSound,
@@ -70,7 +72,7 @@ export default function App() {
 
   return (
     <main
-      className={`app ${game.charged ? 'is-charged' : ''} ${ready ? 'is-ready' : ''} ${ready && homecoming ? 'is-homecoming' : ''} ${game.choice ? 'has-choice' : ''}`}
+      className={`app ${game.charged ? 'is-charged' : ''} ${game.endless ? 'is-beyond' : ''} ${ready ? 'is-ready' : ''} ${ready && homecoming ? 'is-homecoming' : ''} ${game.choice ? 'has-choice' : ''}`}
     >
       <div className="play-layout" inert={modal || (!ready && !renderReady)}>
         {ready ? (
@@ -139,6 +141,11 @@ export default function App() {
                   </span>
                 )}
               <UpgradeFeedback game={game} language={language} />
+              {game.phase === 'crossing' && (
+                <span className="sr-only" role="status">
+                  {c.beyond}
+                </span>
+              )}
               {game.phase === 'collapse' && (
                 <span className="sr-only" role="status">
                   {game.successfulEnding ? c.ready : c.collapse}
@@ -208,7 +215,7 @@ export default function App() {
           <div className="dialog-body">
             <h2 id="pause-title">{exitConfirm ? c.quitTitle : c.pause}</h2>
             {exitConfirm ? (
-              <p>{c.quitNote}</p>
+              <p>{game.endless ? c.quitBeyondNote : c.quitNote}</p>
             ) : (
               <>
                 {settingsControls}
@@ -243,7 +250,15 @@ export default function App() {
           </div>
         </Dialog>
       )}
-      <Result game={game} language={language} best={best} notice={notice} onRetry={replace} />
+      <Result
+        game={game}
+        language={language}
+        best={best}
+        bestBeyond={bestBeyond}
+        notice={notice}
+        onRetry={replace}
+        onBeyond={continueBeyond}
+      />
     </main>
   );
 }

@@ -27,6 +27,13 @@ assert.ok(
 );
 assert.ok(r.late.hpPerMinute > 0 && r.late.speedPerMinute > 0);
 assert.ok(r.late.maxSpeedScale > 1 && r.late.recoverySpawnScale > 1);
+assert.ok(r.endless.entrySeconds > 0);
+assert.ok(r.endless.hpMultiplier > 1 && r.endless.speedStep > 0 && r.endless.maxSpeedScale > 1);
+assert.ok(
+  r.endless.cycleSeconds >
+    r.waveWarningSeconds + r.endless.assaultSeconds + r.endless.recoverySeconds,
+);
+assert.ok(Number.isInteger(r.endless.maxTargets) && r.endless.maxTargets > 0);
 for (const p of [r.late.smallBatchProbability, r.late.muonProbability, r.late.neutronProbability])
   assert.ok(p > 0 && p < 1);
 assert.equal(

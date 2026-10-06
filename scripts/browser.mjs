@@ -1321,7 +1321,7 @@ try {
       await inspect(page);
       await screenshot(page, 'result-' + name);
       assert.equal((await snapshot(page)).result.trigger, 'energy');
-      await page.getByRole('button', { name: '다시하기' }).click();
+      await page.getByRole('button', { name: copy.ko.finish, exact: true }).click();
       assert.notEqual((await snapshot(page)).seed, 96048);
       await page.evaluate(() => window.__gameDebug.restart(10004));
       await advance(page, 610000);

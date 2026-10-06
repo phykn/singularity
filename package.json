@@ -25,7 +25,9 @@
     "build": "tsc --noEmit && vite build",
     "build:art": "node scripts/art.mjs",
     "preview": "vite preview --host 0.0.0.0 --port 8081 --strictPort",
-    "check:balance": "node scripts/balance.ts"
+    "check:balance": "node scripts/balance.ts",
+    "check:beyond": "node scripts/beyond.ts",
+    "check:beyond-browser": "node scripts/beyond-browser.mjs"
   },
   "dependencies": {
     "phaser": "^4.2.1",

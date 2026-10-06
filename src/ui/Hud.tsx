@@ -33,17 +33,23 @@ export function Hud({
   return (
     <section className="hud" aria-label={c.hud}>
       <div className="hud-top">
-        <div
-          className={`charge ${game.charged ? 'charged-label' : ''}`}
-          role="progressbar"
-          aria-label={game.charged ? c.ready : c.charge}
-          aria-valuenow={Math.min(game.xp, rules.energyGoal)}
-          aria-valuemin={0}
-          aria-valuemax={rules.energyGoal}
-        >
-          <ChargeIcon progress={energyPercent / 100} />
-          <b>{energyPercent}%</b>
-        </div>
+        {game.endless ? (
+          <div className="beyond-symbol" aria-label={c.beyond}>
+            ∞
+          </div>
+        ) : (
+          <div
+            className={`charge ${game.charged ? 'charged-label' : ''}`}
+            role="progressbar"
+            aria-label={game.charged ? c.ready : c.charge}
+            aria-valuenow={Math.min(game.xp, rules.energyGoal)}
+            aria-valuemin={0}
+            aria-valuemax={rules.energyGoal}
+          >
+            <ChargeIcon progress={energyPercent / 100} />
+            <b>{energyPercent}%</b>
+          </div>
+        )}
         <div className="boosts" aria-label={c.stats}>
           {statIds.map((id) => (
             <div
@@ -69,7 +75,9 @@ export function Hud({
             </div>
           ))}
         </div>
-        <time>{formatTime(game.seconds)}</time>
+        <time aria-label={game.endless ? c.survived : undefined}>
+          {formatTime(game.endless ? game.endlessSeconds : game.seconds)}
+        </time>
         <button
           className="icon-button speed-button"
           onClick={onSpeed}

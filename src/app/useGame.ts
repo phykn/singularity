@@ -5,6 +5,9 @@ import { GameSession } from './GameSession.ts';
 import { newSeed } from './seed.ts';
 import {
   bestRecord,
+  bestBeyondRecord,
+  readBeyondRecord,
+  beyondRecordKey,
   readLanguage,
   readRecord,
   readSettings,
@@ -13,7 +16,7 @@ import {
   save,
   settingsKey,
 } from './storage.ts';
-import type { BestRecord, Settings } from './storage.ts';
+import type { BestRecord, BeyondRecord, Settings } from './storage.ts';
 import type { UpgradeId } from '../game/rules.ts';
 import { languages } from '../ui/i18n.ts';
 import type { Language } from '../ui/i18n.ts';
@@ -41,6 +44,15 @@ export function useGame() {
     }
   });
   const [storageOk, setStorageOk] = useState(true);
+  const [bestBeyond, setBestBeyond] = useState<BeyondRecord | null>(() => {
+    try {
+      return readBeyondRecord(localStorage);
+    } catch {
+      return null;
+    }
+  });
+  const beyondRef = useRef(bestBeyond);
+  beyondRef.current = bestBeyond;
   const failedSaves = useRef(new Set<string>());
   const [audioUnavailable, setAudioUnavailable] = useState(false);
   const [, redraw] = useState(0);
@@ -55,6 +67,12 @@ export function useGame() {
     return new GameSession(game, audio, {
       sound: () => settingsRef.current.sound,
       saveResult: (result) => {
+        if (result.endless) {
+          const record = bestBeyondRecord(beyondRef.current, result);
+          beyondRef.current = record;
+          setBestBeyond(record);
+          return write(beyondRecordKey, record);
+        }
         const record = bestRecord(bestRef.current, result);
         bestRef.current = record;
         setBest(record);
@@ -189,6 +207,7 @@ export function useGame() {
     language,
     settings,
     best,
+    bestBeyond,
     storageOk,
     audioUnavailable,
     renderReady: session.renderReady,
@@ -198,6 +217,10 @@ export function useGame() {
     cycleSpeed: () => session.cycleSpeed(performance.now()),
     onRenderReady,
     begin,
+    continueBeyond: () => {
+      if (settingsRef.current.sound) void enableAudio();
+      session.continueBeyond(performance.now());
+    },
     pause,
     replace,
     select: (id: UpgradeId, number: number) => session.select(id, number, performance.now()),

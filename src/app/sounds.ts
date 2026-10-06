@@ -10,6 +10,8 @@ const tones: Record<string, [number, number, number]> = {
   charged: [560, 1120, 0.3],
   collision: [110, 40, 0.4],
   ending: [130, 35, 0.6],
+  'beyond-contract': [360, 65, 0.65],
+  'beyond-open': [160, 780, 0.55],
   kill: [640, 300, 0.04],
 };
 
