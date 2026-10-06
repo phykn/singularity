@@ -38,10 +38,12 @@ export type BeamStamp = (
   color: number,
   alpha: number,
   height: number,
+  rank: number,
 ) => void;
 
-export function beamFrame(id: BeamId, progress: number): number {
-  return beamRows[id] * 4 + (Math.floor(Math.max(0, progress) * 12) % 4);
+export function beamFrame(id: BeamId, progress: number, rank = 1): number {
+  const tier = Math.max(0, Math.min(4, Math.floor(rank) - 1));
+  return tier * 32 + beamRows[id] * 4 + (Math.floor(Math.max(0, progress) * 12) % 4);
 }
 
 export function beamPose(from: Point, to: Point) {

@@ -109,8 +109,8 @@ try {
                   (s) =>
                     s.visible &&
                     s.texture.key === 'beams' &&
-                    Number(s.frame.name) >= 28 &&
-                    Number(s.frame.name) < 32,
+                    Number(s.frame.name) % 32 >= 28 &&
+                    Number(s.frame.name) % 32 < 32,
                 );
                 return sprite
                   ? {

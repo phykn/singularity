@@ -173,6 +173,8 @@ export class ElectronScene extends Phaser.Scene {
           game.combat.status('charge'),
           surging,
           this.stamp,
+          game.ranks.charge,
+          game.ranks.surge,
         );
       this.drawTrail(
         game.angle,
@@ -432,7 +434,7 @@ export class ElectronScene extends Phaser.Scene {
       .setTintMode(Phaser.TintModes.MULTIPLY)
       .setTint(color);
   };
-  private beam: BeamStamp = (id, from, to, progress, color, alpha, height) => {
+  private beam: BeamStamp = (id, from, to, progress, color, alpha, height, rank) => {
     const pose = beamPose(this.screen(from), this.screen(to));
     if (pose.length < 1) return;
     this.sprites
@@ -442,7 +444,7 @@ export class ElectronScene extends Phaser.Scene {
         pose.length / 64,
         alpha,
         1,
-        beamFrame(id, progress),
+        beamFrame(id, progress, rank),
         pose.angle,
         height / 16,
       )

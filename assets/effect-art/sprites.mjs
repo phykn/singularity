@@ -70,33 +70,51 @@ export function effectArtwork() {
       dissolve.pixel(16 + dx * distance, 16 + dy * distance, frame < 2 ? 2 : 1);
   }
 
-  const beams = sheet(256, 128, 64, 16);
+  const beams = sheet(256, 640, 64, 16);
+  // Opposing bends balance the silhouette; unequal shoulders avoid mirror symmetry.
   const profiles = [
-    [0, -1, 3, -2, 2, -1, 0],
-    [0, -2, 2, -3, 1, -1, 0],
-    [0, 0, 0, 0, 0, 0, 0],
-    [0, 2, -2, 2, -1, 1, 0],
-    [0, 0, 0, 0, 0, 0, 0],
-    [0, -2, 1, -2, 2, -1, 0],
+    [0, -1, 2, -1, -2, 1, 0],
+    [0, -2, 2, 0, -2, 1, 0],
     [0, 0, 1, 0, -1, 0, 0],
-    [0, 2, -2, 2, -2, 1, 0],
+    [0, 1, -2, 1, 2, -1, 0],
+    [0, 0, 1, 0, -1, 0, 0],
+    [0, -1, 2, 0, -2, 1, 0],
+    [0, 0, 1, 0, -1, 0, 0],
+    [0, 1, -2, 0, 2, -1, 0],
   ];
-  for (let row = 0; row < 8; row++)
-    for (let frame = 0; frame < 4; frame++) {
-      const beam = beams.frame(frame, row),
-        jitter = [0, 1, 0, -1][frame];
-      const points = profiles[row].map((y, i) => [
-        1 + Math.round((i * 61) / 6),
-        8 + y + (i === 2 && row !== 2 && row !== 4 ? jitter : 0),
-      ]);
-      for (let i = 1; i < points.length; i++)
-        beam.line(...points[i - 1], ...points[i], row === 6 ? 2 : 3, row === 3 || row === 5);
-      if (row === 2) beam.line(23, 6, 38, 6, 1);
-      if (row === 3) beam.line(31, 10, 40, 5, 2);
-      if (row === 4) beam.line(14, 6 + (frame % 2), 50, 6 + (frame % 2), 2);
-      if ((row === 0 || row === 1 || row === 7) && frame % 2 === 0)
-        beam.line(points[3][0], points[3][1], points[3][0] + 5, points[3][1] - 3, 2);
-    }
+  for (let tier = 0; tier < 5; tier++)
+    for (let row = 0; row < 8; row++)
+      for (let frame = 0; frame < 4; frame++) {
+        const beam = beams.frame(frame, tier * 8 + row);
+        const drift = [0, 1, 0, -1][frame];
+        const points = profiles[row].map((y, i) => [
+          [1, 11, 22, 32, 43, 53, 62][i],
+          8 + y + (i === 2 ? drift : i === 4 ? -drift : 0),
+        ]);
+        const width = tier + 1;
+        const core = Math.max(1, Math.ceil(width * 0.55));
+        for (let i = 1; i < points.length; i++) {
+          for (let y = -Math.floor(width / 2); y < Math.ceil(width / 2); y++)
+            beam.line(points[i - 1][0], points[i - 1][1] + y, points[i][0], points[i][1] + y, 1);
+          for (let y = -Math.floor(core / 2); y < Math.ceil(core / 2); y++)
+            beam.line(
+              points[i - 1][0],
+              points[i - 1][1] + y,
+              points[i][0],
+              points[i][1] + y,
+              row === 6 ? 2 : 3,
+            );
+        }
+        // Short attached forks, never a second full-length beam or loose noise.
+        if (tier >= 2) {
+          const p = points[2];
+          beam.line(p[0], p[1], p[0] + 5 + tier, p[1] - 3, 2);
+        }
+        if (tier >= 3) {
+          const p = points[4];
+          beam.line(p[0] - 6 - tier, p[1] + 2, p[0], p[1], 2);
+        }
+      }
   return [
     {
       output: 'src/art/assets/effects.png',

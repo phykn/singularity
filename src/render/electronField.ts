@@ -13,10 +13,13 @@ export function drawElectronField(
   charge: SkillStatus,
   surging: boolean,
   stamp: EffectStamp,
+  chargeRank = 1,
+  surgeRank = 1,
 ): void {
   const stored = clamp(charge.progress);
   if (stored > 0) {
-    const size = surging ? 26 : 26 + Math.round(stored * 6);
+    const growth = Math.max(0, Math.min(4, chargeRank - 1));
+    const size = (surging ? 26 : 26 + Math.round(stored * 6)) + growth;
     stamp(
       'charge',
       point,
@@ -28,7 +31,7 @@ export function drawElectronField(
     const count = 1 + Math.floor(stored * 4);
     for (let i = 0; i < count; i++) {
       const phase = (time * (0.9 + stored * 0.5) + i * 0.37) % 1;
-      const angle = i * 2.39996 + Math.floor(time * 2) * 0.21;
+      const angle = (i * Math.PI * 2) / count + [0, 0.12, -0.08, 0.06, -0.1][i] + time * 0.3;
       const radius = (18 - phase * 10) / scale;
       g.fillStyle(
         phase > 0.7 ? WHITE : skillColors.charge,
@@ -42,5 +45,13 @@ export function drawElectronField(
       );
     }
   }
-  if (surging) stamp('surge', point, time * 1.2, skillColors.surge, 0.95);
+  if (surging)
+    stamp(
+      'surge',
+      point,
+      time * 1.2,
+      skillColors.surge,
+      0.95,
+      32 + Math.max(0, Math.min(4, surgeRank - 1)) * 2,
+    );
 }

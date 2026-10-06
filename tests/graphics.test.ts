@@ -20,6 +20,7 @@ import { iconCells } from '../src/art/skills.ts';
 import { close, target } from './helpers.ts';
 import { drawWaveWarning, WARNING_RED } from '../src/render/warning.ts';
 import { drawElectronField } from '../src/render/electronField.ts';
+import { effectArtwork } from '../assets/effect-art/sprites.mjs';
 
 test('native sprites paint only palette pixels within their texture bounds', () => {
   const textures: string[] = [];
@@ -124,8 +125,9 @@ function drawing() {
       color: number,
       alpha: number,
       height: number,
+      rank = 1,
     ) => {
-      const args = [from.x, from.y, to.x, to.y, progress, color, alpha, height];
+      const args = [from.x, from.y, to.x, to.y, progress, color, alpha, height, rank];
       assert.ok(args.every(Number.isFinite), id + ' received invalid beam geometry');
       commands.push({ method: 'beam:' + id, args });
     },
@@ -365,14 +367,16 @@ test('lightning beam heights use whole screen pixels at every viewport scale', (
 test('beam atlas frames freeze with simulation time and geometry connects both endpoints', () => {
   const png = readFileSync(new URL('../src/art/assets/beams.png', import.meta.url));
   assert.equal(png.readUInt32BE(16), 256);
-  assert.equal(png.readUInt32BE(20), 128);
+  assert.equal(png.readUInt32BE(20), 640);
   assert.equal(png[25], 6);
   for (const id of Object.keys(beamRows) as (keyof typeof beamRows)[]) {
-    for (const time of [-1, 0, 0.1, 0.7, 3, 30]) {
-      const frame = beamFrame(id, time);
-      assert.ok(frame >= beamRows[id] * 4 && frame < beamRows[id] * 4 + 4);
-      assert.equal(beamFrame(id, time), frame);
-    }
+    for (let rank = 1; rank <= 5; rank++)
+      for (const time of [-1, 0, 0.1, 0.7, 3, 30]) {
+        const frame = beamFrame(id, time, rank);
+        const row = (rank - 1) * 32 + beamRows[id] * 4;
+        assert.ok(frame >= row && frame < row + 4);
+        assert.equal(beamFrame(id, time, rank), frame);
+      }
   }
   for (const to of [{ x: 90, y: 20 }, { x: 10, y: 200 }, { x: -90, y: -10 }, effect.from]) {
     const pose = beamPose(effect.from, to);
@@ -384,5 +388,61 @@ test('beam atlas frames freeze with simulation time and geometry connects both e
       close(pose.x + (side * Math.cos(pose.angle) * pose.length) / 2, point.x);
       close(pose.y + (side * Math.sin(pose.angle) * pose.length) / 2, point.y);
     }
+  }
+});
+
+test('ranked beam artwork grows in actual ink, stays attached and remains bounded', () => {
+  const sheet = effectArtwork().find((s) => s.output.endsWith('/beams.png'))!;
+  for (let row = 0; row < 8; row++)
+    for (let frame = 0; frame < 4; frame++) {
+      let previous = 0;
+      for (let tier = 0; tier < 5; tier++) {
+        const top = (tier * 8 + row) * 16,
+          left = frame * 64;
+        const pixels = sheet.pixels.filter(
+          ([x, y]) => x >= left && x < left + 64 && y >= top && y < top + 16,
+        );
+        assert.ok(pixels.length > previous, `Beam ${row} must strengthen at level ${tier + 1}`);
+        previous = pixels.length;
+        assert.ok(pixels.length <= 400, 'Even the highest rank must leave negative space');
+        const cells = new Set(pixels.map(([x, y]) => `${x},${y}`));
+        const seen = new Set<string>();
+        const queue = [[left + 1, top + 8]];
+        while (queue.length) {
+          const [x, y] = queue.pop()!;
+          const key = `${x},${y}`;
+          if (seen.has(key) || !cells.has(key)) continue;
+          seen.add(key);
+          for (const dx of [-1, 0, 1])
+            for (const dy of [-1, 0, 1]) if (dx || dy) queue.push([x + dx, y + dy]);
+        }
+        assert.equal(seen.size, cells.size, 'Branches must attach to one coherent trunk');
+        assert.ok(cells.has(`${left + 62},${top + 8}`), 'Keep the endpoint anchored');
+      }
+    }
+});
+
+test('every offensive skill passes its level to the beam without adding render objects', () => {
+  for (const source of skillIds.filter((id) => id !== 'vent')) {
+    const kind = ['strike', 'focus', 'bridge', 'return'].includes(source) ? source : 'bolt';
+    const counts = [];
+    for (let rank = 1; rank <= 5; rank++) {
+      const a = drawing();
+      drawEffect(
+        a.graphics,
+        { ...effect, kind, source, rank } as Effect,
+        1.02,
+        1,
+        effect.from,
+        [],
+        a.stamp,
+        a.beam,
+      );
+      const beams = a.commands.filter((c) => c.method.startsWith('beam:'));
+      assert.equal(beams.length, 1, source);
+      assert.equal(beams[0].args[8], rank, source);
+      counts.push(beams.length);
+    }
+    assert.equal(new Set(counts).size, 1);
   }
 });

@@ -86,23 +86,26 @@ export function drawEffect(
   const alpha = Math.pow(1 - t, 0.7);
   const ink = fx.source ? skillColors[fx.source] : BLUE;
   const strength = clamp(fx.rank / 5) + rarityIds.indexOf(fx.rarity) * 0.06;
+  const rank = Math.max(1, Math.min(5, fx.rank));
+  const light = 0.72 + rank * 0.045;
+  const impactSize = 20 + rank * 4;
   const clock = time + fx.born * 3;
   if (fx.kind === 'bridge') {
-    beam('bridge', from, to, clock, ink, 0.6, 16);
+    beam('bridge', from, to, clock, ink, light * 0.78, 16, rank);
     g.fillStyle(WHITE, 0.65);
     const phase = (time * 1.5) % 1;
     g.fillRect(lerp(from.x, to.x, phase), lerp(from.y, to.y, phase), 2 / scale, 2 / scale);
   } else if (fx.kind === 'vent') {
     // A few outward motes make mass loss visible without a persistent core border.
     for (let i = 0; i < 6; i++) {
-      const angle = (i * Math.PI) / 3 + fx.born;
-      const radius = fx.radius * (0.5 + t);
+      const angle = (i * Math.PI) / 3 + [0, 0.09, -0.06, 0.04, -0.1, 0.08][i] + fx.born;
+      const radius = fx.radius * (0.5 + t) * (i % 2 ? 0.9 : 1);
       g.fillStyle(i % 2 ? WHITE : ink, alpha * 0.85);
       g.fillRect(
         from.x + Math.cos(angle) * radius,
         from.y + Math.sin(angle) * radius,
-        2 / scale,
-        2 / scale,
+        (1 + Math.ceil(rank / 2)) / scale,
+        (1 + Math.floor(rank / 3)) / scale,
       );
     }
   } else if (fx.kind === 'charge') {
@@ -116,14 +119,14 @@ export function drawEffect(
       2 / scale,
     );
   } else if (fx.kind === 'surge') {
-    if (t < 0.15) stamp('reconnect', from, t / 0.15, ink, (1 - t / 0.15) * 0.7, 36);
+    if (t < 0.15) stamp('reconnect', from, t / 0.15, ink, (1 - t / 0.15) * 0.7, 30 + rank * 2);
   } else if (fx.kind === 'return') {
-    beam('return', from, to, clock, ink, alpha * 0.9, 16);
+    beam('return', from, to, clock, ink, alpha * light, 16, rank);
     const travel = clamp(t / 0.7);
     const point = { x: lerp(from.x, to.x, travel), y: lerp(from.y, to.y, travel) };
     g.fillStyle(WHITE, alpha);
     g.fillRect(point.x - 1 / scale, point.y - 1 / scale, 2 / scale, 2 / scale);
-    if (t >= 0.65) stamp('reconnect', to, (t - 0.65) / 0.35, ink, (1 - t) / 0.35, 26);
+    if (t >= 0.65) stamp('reconnect', to, (t - 0.65) / 0.35, ink, (1 - t) / 0.35, 22 + rank * 2);
   } else if (fx.kind === 'bolt' || fx.kind === 'strike' || fx.kind === 'focus') {
     const opacity = fx.kind === 'focus' ? 1 : alpha;
     const id =
@@ -139,8 +142,8 @@ export function drawEffect(
                 ? 'chain'
                 : 'basic';
     const height = id === 'strike' || id === 'charge' ? 20 : 16;
-    beam(id, from, to, clock, ink, 0.9 * opacity, height + Math.floor(strength));
-    if (fx.source === 'charge') stamp('reconnect', from, t, ink, opacity, 34);
+    beam(id, from, to, clock, ink, light * opacity, height, rank);
+    if (fx.source === 'charge') stamp('reconnect', from, t, ink, opacity, 28 + rank * 2);
     if (fx.kind === 'focus') {
       const flow = (time * 3 + (fx.targetId ?? 0) * 0.17) % 1;
       g.fillStyle(WHITE, 0.8);
@@ -148,13 +151,13 @@ export function drawEffect(
     }
     if (fx.source === 'repel') arrow(g, { x: 180, y: 260 }, to, ink, alpha, scale);
     if (fx.kind !== 'focus' && fx.kind !== 'strike') {
-      stamp(fx.source === 'charge' ? 'impact' : 'hit', to, t, ink, opacity);
+      stamp(fx.source === 'charge' ? 'impact' : 'hit', to, t, ink, opacity, impactSize);
     }
     if (fx.kind === 'strike') {
-      stamp('impact', to, t, ink, alpha);
+      stamp('impact', to, t, ink, alpha, impactSize);
     }
   } else if (fx.kind === 'pierce') {
-    beam('pierce', from, to, clock, ink, 0.85 * alpha, 16 + Math.floor(strength * 2));
+    beam('pierce', from, to, clock, ink, light * alpha, 16, rank);
   } else if (fx.kind === 'upgrade') {
     if (fx.source === 'range') {
       ring(g, from, fx.radius, ink, alpha * 0.22, scale, 1);
