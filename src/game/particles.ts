@@ -1,9 +1,14 @@
 export const particleIds = ['quark', 'muon', 'proton', 'neutron'] as const;
 export type ParticleKind = (typeof particleIds)[number];
 
-export function particleKind(family: 'small' | 'dense', roll: number, stage: number): ParticleKind {
-  if (family === 'small') return stage >= 1 && roll < 0.25 ? 'muon' : 'quark';
-  return stage >= 2 && roll < 0.5 ? 'neutron' : 'proton';
+export function particleKind(
+  family: 'small' | 'dense',
+  roll: number,
+  stage: number,
+  mix = { muonProbability: 0.25, neutronProbability: 0.5 },
+): ParticleKind {
+  if (family === 'small') return stage >= 1 && roll < mix.muonProbability ? 'muon' : 'quark';
+  return stage >= 2 && roll < mix.neutronProbability ? 'neutron' : 'proton';
 }
 
 export function particleMotion(kind: ParticleKind, age: number) {

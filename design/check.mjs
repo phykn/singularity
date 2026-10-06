@@ -20,6 +20,15 @@ assert.equal(r.stageStarts[0], 0);
 assert.ok(r.stageStarts.every((n, i, a) => !i || a[i - 1] < n));
 assert.ok(r.waves.every((t, i, a) => t > r.waveWarningSeconds && (!i || t > a[i - 1])));
 assert.ok(r.waveRepeatSeconds > r.waveWarningSeconds);
+assert.equal(r.waves.at(-1), r.stageStarts.at(-1));
+assert.ok(r.late.assaultSeconds > 0 && r.late.recoverySeconds > 0);
+assert.ok(
+  r.late.assaultSeconds + r.late.recoverySeconds < r.waveRepeatSeconds - r.waveWarningSeconds,
+);
+assert.ok(r.late.hpPerMinute > 0 && r.late.speedPerMinute > 0);
+assert.ok(r.late.maxSpeedScale > 1 && r.late.recoverySpawnScale > 1);
+for (const p of [r.late.smallBatchProbability, r.late.muonProbability, r.late.neutronProbability])
+  assert.ok(p > 0 && p < 1);
 assert.equal(
   Object.values(r.rarity).reduce((sum, entry) => sum + entry.chance, 0),
   100,

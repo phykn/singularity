@@ -67,6 +67,14 @@ for (let seed = start; seed < start + count; seed++) {
   const offers = Object.fromEntries(
     rarityIds.map((id) => [id, cards.filter((c) => c.rarity === id).length]),
   );
+  const lateStart = g.rules.stageStarts.at(-1)!;
+  const lateSeconds = Math.max(0, g.collisionTime - lateStart);
+  const lateAbsorbed = g.events.filter((e) => e.kind === 'absorb' && e.time >= lateStart).length;
+  const ranks: Partial<Record<SkillId, number>> = {};
+  const developed = g.selections.find((s) => {
+    if (isSkill(s.id)) ranks[s.id] = s.rank;
+    return Object.values(ranks).filter((rank) => rank >= 3).length === g.rules.skillSlots;
+  });
   rows.push({
     seed,
     outcome: g.result.outcome,
@@ -82,6 +90,10 @@ for (let seed = start; seed < start + count; seed++) {
     boosts: g.boosts,
     offers,
     selections: g.selections,
+    lateSeconds,
+    lateAbsorbed,
+    developedAt: developed?.time ?? null,
+    afterDevelopedSeconds: developed ? g.collisionTime - developed.time : null,
   });
   if ((seed - start + 1) % 50 === 0)
     console.log(
@@ -93,6 +105,8 @@ for (let seed = start; seed < start + count; seed++) {
       }),
     );
 }
+const median = (values: number[]) =>
+  values.length ? values.sort((a, b) => a - b)[Math.floor(values.length / 2)] : null;
 const summarize = (set: typeof rows) => ({
   games: set.length,
   wins: set.filter((r) => r.outcome === 'success').length,
@@ -101,7 +115,16 @@ const summarize = (set: typeof rows) => ({
   afterTenMinutes: set.filter((r) => r.seconds > 600).length,
   maxTargets: Math.max(...set.map((r) => r.maxTargets)),
   maxEffects: Math.max(...set.map((r) => r.maxEffects)),
-  medianRushSpawns: set.map((r) => r.rushSpawns).sort((a, b) => a - b)[Math.floor(set.length / 2)],
+  medianRushSpawns: median(set.map((r) => r.rushSpawns)),
+  medianWinSeconds: median(set.filter((r) => r.outcome === 'success').map((r) => r.seconds)),
+  lateRuns: set.filter((r) => r.lateSeconds > 0).length,
+  lateAbsorbedPerMinute:
+    (set.reduce((sum, r) => sum + r.lateAbsorbed, 0) * 60) /
+    (set.reduce((sum, r) => sum + r.lateSeconds, 0) || 1),
+  developedRuns: set.filter((r) => r.developedAt !== null).length,
+  medianAfterDevelopedSeconds: median(
+    set.flatMap((r) => (r.afterDevelopedSeconds === null ? [] : [r.afterDevelopedSeconds])),
+  ),
 });
 const summary = summarize(rows);
 const z = 1.96,
@@ -124,6 +147,11 @@ writeFileSync(
           ? 'Automatic highest-rarity selection, first card on ties, with uncapped time and stats; human clear rates may differ.'
           : 'Visible-state skill/stat/recovery heuristic selecting one second after opening; this is a bot, not measured human play.',
       validationSeeds: [start, start + count - 1],
+      measurements: {
+        lateStart: rules.stageStarts.at(-1),
+        developed:
+          'All four skill slots at rank 3 or higher; a reproducible proxy, not a judgment of build quality.',
+      },
       summary,
       confidence95: [center - margin, center + margin],
       withLegendary: summarize(legendary),

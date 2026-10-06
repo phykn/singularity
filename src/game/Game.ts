@@ -158,6 +158,7 @@ export class Game {
   get rushing(): boolean {
     return (
       this.phase === 'running' &&
+      this.wavePhase !== 'recovery' &&
       this.tick < this.rushUntil &&
       this.targets.length < this.rules.rush.maxTargetsByStage[this.stage]
     );
@@ -190,6 +191,14 @@ export class Game {
   }
   get stage(): number {
     return this.rules.stageStarts.filter((start) => this.time >= start).length - 1;
+  }
+  get wavePhase(): 'steady' | 'assault' | 'recovery' {
+    const age = this.time - this.rules.stageStarts.at(-1)!;
+    if (age < 0) return 'steady';
+    const cycle = age % this.rules.waveRepeatSeconds;
+    if (cycle < this.rules.late.assaultSeconds) return 'assault';
+    if (cycle < this.rules.late.assaultSeconds + this.rules.late.recoverySeconds) return 'recovery';
+    return 'steady';
   }
   get nextXp(): number {
     return xpForLevel(this.level + 1, this.rules);
@@ -304,7 +313,8 @@ export class Game {
       this.collide('energy');
       return;
     }
-    if (this.choice && this.time >= this.choice.deadline) this.select(this.automaticCard!.id, true);
+    if (this.choice && this.time + 1e-8 >= this.choice.deadline)
+      this.select(this.automaticCard!.id, true);
     if (this.combatEnabled && this.tick + 1e-8 >= this.nextSpawn) {
       const rushing = this.rushing;
       this.spawnBatch();
@@ -317,6 +327,7 @@ export class Game {
           ? this.rules.rush.spawnSecondsByStage[this.stage]
           : this.rules.spawnSecondsByStage[this.stage]) *
         this.rules.tickRate *
+        (this.wavePhase === 'recovery' ? this.rules.late.recoverySpawnScale : 1) *
         (1 + (this.randomSpawn.next() * 2 - 1) * this.rules.spawnVariation.intervalFraction);
     }
     const wave = this.upcomingWave;
@@ -470,7 +481,7 @@ export class Game {
       return false;
     const card = this.choice.cards.find((card) => card.id === id);
     if (!card) return false;
-    if (!automatic && this.time >= this.choice.deadline) return false;
+    if (!automatic && this.time + 1e-8 >= this.choice.deadline) return false;
     if (!eligibleUpgrades(this.ranks, this.rules, this.recoverable).includes(id)) return false;
     const previous = this.rank(id),
       oldRate = this.rate;
@@ -519,8 +530,11 @@ export class Game {
       angle = this.randomSpawn.next() * Math.PI * 2,
       direction = this.randomSpawn.next() < 0.5 ? -1 : 1;
     const intro = this.batchCount < this.rules.introBatches;
-    const kind =
-      intro || roll < this.rules.smallBatchProbabilityByStage[this.stage] ? 'small' : 'dense';
+    const smallProbability =
+      this.wavePhase === 'assault'
+        ? this.rules.late.smallBatchProbability
+        : this.rules.smallBatchProbabilityByStage[this.stage];
+    const kind = intro || roll < smallProbability ? 'small' : 'dense';
     const size = kind === 'small' ? this.rules.smallBatchSize : this.rules.denseBatchSize;
     const count = intro
       ? this.rules.introBatchSize
@@ -545,6 +559,8 @@ export class Game {
   private spawnGroup(kind: TargetKind, count: number, angle: number, direction: number): void {
     const data = this.rules.targets[kind];
     const cfg = this.rules.spawnVariation;
+    const late = this.rules.late;
+    const minutes = Math.max(0, (this.time - this.rules.stageStarts.at(-1)!) / 60);
     const planned = [];
     for (let i = 0; i < count; i++) {
       const theta =
@@ -553,9 +569,16 @@ export class Game {
         (this.randomSpawn.next() * 2 - 1) * cfg.angleJitter;
       const radius = this.rules.spawnRadius + this.randomSpawn.next() * cfg.radiusSpread;
       const id = this.nextTargetId++,
-        particle = particleKind(kind, this.randomSpawn.next(), this.stage),
+        particle = particleKind(
+          kind,
+          this.randomSpawn.next(),
+          this.stage,
+          this.wavePhase === 'assault' ? late : undefined,
+        ),
         heavy = particle === 'neutron';
-      const hp = Math.round(data.hp[this.stage] * (heavy ? 1.2 : 1));
+      const hp = Math.round(
+        data.hp[this.stage] * (heavy ? 1.2 : 1) * (1 + minutes * late.hpPerMinute),
+      );
       const target: Target = {
         id,
         ...orbit(theta, radius),
@@ -572,6 +595,7 @@ export class Game {
         speed:
           data.speed *
           (heavy ? 0.85 : 1) *
+          Math.min(late.maxSpeedScale, 1 + minutes * late.speedPerMinute) *
           (1 + (this.randomSpawn.next() * 2 - 1) * cfg.speedFraction),
         turn: data.turn * direction,
       };

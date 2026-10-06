@@ -149,7 +149,8 @@ test('checkpoints preserve manual pause but omit background pause; ready games h
 
 test('checkpoints and records accept a run past ten minutes and a manual choice beyond number 25', (t) => {
   // Isolate long-save behavior from the current difficulty: extend the goal and
-  // reduce gravity so this fixture can reliably reach choice 26 and ten minutes.
+  // remove gravity so this fixture can reach choice 26 and ten minutes even as
+  // late enemies continue to strengthen.
   const goal = rules.energyGoal,
     gravity = rules.gravityPerMass;
   t.after(() => {
@@ -157,7 +158,7 @@ test('checkpoints and records accept a run past ten minutes and a manual choice 
     rules.gravityPerMass = gravity;
   });
   rules.energyGoal = 100000;
-  rules.gravityPerMass = 0.01;
+  rules.gravityPerMass = 0;
   const map = new Map<string, string>();
   const storage = {
     getItem: (key: string) => map.get(key) ?? null,

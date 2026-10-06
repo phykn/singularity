@@ -234,7 +234,7 @@ try {
       }
       return write.call(this, key, value);
     };
-    window.__gameDebug.xp(24000);
+    window.__gameDebug.xp(window.__gameDebug.getModel().rules.energyGoal);
     window.__gameDebug.advance(10000);
   });
   await failed.locator('.result .setting-notice').waitFor();

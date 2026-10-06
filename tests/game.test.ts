@@ -1,4 +1,4 @@
-import { createCheckpoint } from '../src/game/checkpoint.ts';
+import { createCheckpoint, restoreCheckpoint } from '../src/game/checkpoint.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../src/game/Game.ts';
@@ -27,10 +27,33 @@ test('limited catch-up retains every simulation tick and reaches the same state 
   assert.equal(chunked.elapsedTicks, 60, 'Draining the backlog does not invent ticks');
 });
 
+test('automatic choices use the same deadline boundary inside and between advance calls', () => {
+  const a = fixture(),
+    b = fixture();
+  for (const g of [a, b]) {
+    g.choice = {
+      number: 1,
+      opened: 0,
+      deadline: 1 + 1e-12,
+      cards: [{ id: 'multi', rarity: 'common' }],
+    };
+    g.tick = rules.tickRate - 1;
+  }
+  a.advance(2000 / rules.tickRate);
+  b.advance(1000 / rules.tickRate);
+  b.advance(1000 / rules.tickRate);
+  assert.equal(a.selections[0].time, 1);
+  assert.deepEqual(a.selections, b.selections);
+});
+
 test('rush energy expires at its window boundary and remains correct through long kill histories', () => {
   const g = new Game(1705, {
     combat: false,
-    rules: { ...rules, rush: { ...rules.rush, windowSeconds: 1, energyThreshold: 2 } },
+    rules: {
+      ...rules,
+      late: { ...rules.late, recoverySeconds: 0 },
+      rush: { ...rules.rush, windowSeconds: 1, energyThreshold: 2 },
+    },
   });
   g.start();
   const kill = (id: number) => {
@@ -190,6 +213,7 @@ test('early collision snapshots the energy boundary and cancels combat and cards
 });
 
 test('elapsed time never ends a run and reaching the XP goal starts a successful collapse', () => {
+  assert.equal(rules.energyGoal, 20000);
   const g = fixture();
   g.debugSetXp(rules.energyGoal - 1);
   g.advance(3600000);
@@ -219,20 +243,112 @@ test('elapsed time never ends a run and reaching the XP goal starts a successful
 
 test('late spawns keep their stage and scheduled waves continue beyond ten minutes', () => {
   const g = fixture();
-  g.tick = 659 * rules.tickRate;
+  const next = rules.waves.at(-1)! + rules.waveRepeatSeconds * 2;
+  g.tick = (next - 1) * rules.tickRate;
   g.elapsedTicks = g.tick;
-  g.waveCount = rules.waves.length;
+  g.waveCount = rules.waves.length + 1;
   g.combatEnabled = true;
   const warning = g.warningWave!;
-  assert.equal(warning.time, 660);
+  assert.equal(warning.time, next);
   g.advance(1000);
-  assert.equal(g.waveCount, 6);
-  assert.equal(g.upcomingWave.time, 780);
+  assert.equal(g.waveCount, rules.waves.length + 2);
+  assert.equal(g.upcomingWave.time, next + rules.waveRepeatSeconds);
   assert.equal(g.stage, rules.stageStarts.length - 1);
   assert.ok(g.targets.length >= (rules.waveSmall + rules.waveDense) * rules.waveScale.at(-1)!);
   assert.ok(
     g.targets.every((t) => Number.isFinite(t.hp) && t.maxHp >= rules.targets.small.hp.at(-1)!),
   );
+});
+
+test('late assaults and recovery follow the warned waves and freeze with the game clock', () => {
+  const g = fixture();
+  const start = rules.stageStarts.at(-1)!;
+  for (const offset of [0, rules.waveRepeatSeconds, rules.waveRepeatSeconds * 3]) {
+    const time = start + offset;
+    g.tick = (time - 1 / rules.tickRate) * rules.tickRate;
+    assert.equal(g.wavePhase, 'steady');
+    g.advance(1000 / rules.tickRate);
+    assert.equal(g.wavePhase, 'assault');
+    g.setManualPause(true);
+    const tick = g.tick;
+    g.advance(30000);
+    assert.equal(g.tick, tick);
+    assert.equal(g.wavePhase, 'assault');
+    g.setManualPause(false);
+    g.tick = (time + rules.late.assaultSeconds) * rules.tickRate;
+    assert.equal(g.wavePhase, 'recovery');
+    g.tick = (time + rules.late.assaultSeconds + rules.late.recoverySeconds) * rules.tickRate;
+    assert.equal(g.wavePhase, 'steady');
+  }
+});
+
+test('recovery stops kill-triggered rush even when the build clears a whole group', () => {
+  const g = fixture({ multi: 5, chain: 5 });
+  g.tick = (rules.stageStarts.at(-1)! + rules.late.assaultSeconds) * rules.tickRate;
+  g.spawnBatch();
+  while (g.targets.length) g.combat.fireBasic(g.targets[0]);
+  assert.ok(g.xp >= rules.rush.energyThreshold);
+  assert.equal(g.wavePhase, 'recovery');
+  assert.equal(g.rushing, false);
+});
+
+test('late enemy strength grows at spawn with a speed cap and preserves existing enemies', () => {
+  const start = rules.stageStarts.at(-1)!;
+  const a = fixture(),
+    b = fixture();
+  a.tick = (start + 30) * rules.tickRate;
+  b.tick = (start + 30 + rules.waveRepeatSeconds * 3) * rules.tickRate;
+  a.spawnBatch();
+  b.spawnBatch();
+  assert.equal(a.targets.length, b.targets.length);
+  for (const [i, target] of a.targets.entries()) {
+    assert.equal(target.particle, b.targets[i].particle);
+    assert.ok(b.targets[i].hp > target.hp);
+    assert.ok(b.targets[i].speed > target.speed);
+    const cap =
+      rules.targets[target.kind].speed *
+      (target.particle === 'neutron' ? 0.85 : 1) *
+      rules.late.maxSpeedScale *
+      (1 + rules.spawnVariation.speedFraction);
+    assert.ok(b.targets[i].speed <= cap);
+  }
+  const existing = structuredClone(a.targets);
+  a.tick = b.tick;
+  a.spawnBatch();
+  assert.deepEqual(a.targets.slice(0, existing.length), existing);
+});
+
+test('late assault composition increases durable and dashing enemies without increasing batch count', () => {
+  const a = fixture(),
+    b = fixture();
+  a.tick = rules.stageStarts.at(-1)! * rules.tickRate;
+  b.tick = (rules.stageStarts.at(-1)! + 30) * rules.tickRate;
+  for (let i = 0; i < 60; i++) {
+    a.spawnBatch();
+    b.spawnBatch();
+  }
+  const share = (g: Game, particle: string, kind: string) =>
+    g.targets.filter((t) => t.particle === particle).length /
+    g.targets.filter((t) => t.kind === kind).length;
+  assert.ok(a.targets.length < b.targets.length);
+  assert.ok(share(a, 'muon', 'small') > share(b, 'muon', 'small'));
+  assert.ok(share(a, 'neutron', 'dense') > share(b, 'neutron', 'dense'));
+});
+
+test('checkpoint replay preserves the late assault, spawned strength and recovery schedule', () => {
+  const g = new Game(107005);
+  g.start();
+  g.advance((rules.stageStarts.at(-1)! + 5) * 1000);
+  assert.equal(g.phase, 'running');
+  assert.equal(g.wavePhase, 'assault');
+  const restored = restoreCheckpoint(createCheckpoint(g)!);
+  assert.ok(restored);
+  assert.deepEqual(restored.targets, g.targets);
+  assert.equal(restored.wavePhase, g.wavePhase);
+  g.advance(14000);
+  restored.advance(14000);
+  assert.deepEqual(restored.events, g.events);
+  assert.deepEqual(restored.result, g.result);
 });
 
 test('contact at zero margin ends the run; a timely mass vent recovers a narrow orbit', () => {

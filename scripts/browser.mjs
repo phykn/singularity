@@ -1124,8 +1124,45 @@ const waveWarningFlow = async () => {
     });
     assert.deepEqual(await sample(), []);
     assert.equal(await page.evaluate(() => window.__gameDebug.getModel().waveCount), 1);
+    await page.evaluate(() => {
+      const debug = window.__gameDebug;
+      debug.restart(10004, false);
+      const g = debug.getModel();
+      g.waveCount = g.rules.waves.length;
+      g.tick = g.elapsedTicks =
+        (g.upcomingWave.time - g.rules.waveWarningSeconds) * g.rules.tickRate;
+      g.combatEnabled = true;
+      g.nextSpawn = Infinity;
+      g.setHidden(true);
+      debug.advance(0);
+    });
+    assert.equal((await sample()).length, 2, 'Repeated late assaults retain directional warnings');
+    await screenshot(page, 'late-wave-warning-' + width + 'x' + height);
+    const assault = await page.evaluate(() => {
+      const debug = window.__gameDebug,
+        g = debug.getModel();
+      const angle = g.warningWave.angle;
+      g.setHidden(false);
+      debug.advance(g.rules.waveWarningSeconds * 1000);
+      g.setHidden(true);
+      const wave = g.events.findLast((e) => e.kind === 'wave');
+      return {
+        phase: g.wavePhase,
+        expectedAngle: angle,
+        actualAngle: wave.data.angle,
+        count: g.targets.length,
+      };
+    });
+    assert.equal(assault.phase, 'assault');
+    assert.equal(assault.actualAngle, assault.expectedAngle);
+    assert.ok(assault.count > 0);
+    assert.deepEqual(await sample(), []);
     await inspect(page);
-    report('red wave warnings pulse, pause and expire ' + width + 'x' + height, { peak, dim });
+    report('red wave warnings pulse, pause and lead into late assaults ' + width + 'x' + height, {
+      peak,
+      dim,
+      assault,
+    });
     await page.close();
   }
 };
