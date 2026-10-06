@@ -333,7 +333,17 @@ svg {
   padding: 0 var(--gutter);
 }
 .preparation {
-  padding: 0 0 20px;
+  padding: 0 0 28px;
+}
+.title-version {
+  position: absolute;
+  right: var(--gutter);
+  bottom: 8px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 12px;
+  text-align: right;
+  pointer-events: none;
 }
 .language-picker {
   display: grid;
@@ -1017,7 +1027,7 @@ svg {
     bottom: 24px;
   }
   .preparation {
-    padding-bottom: 12px;
+    padding-bottom: 24px;
   }
 }
 @media (orientation: landscape) and (max-height: 600px) {

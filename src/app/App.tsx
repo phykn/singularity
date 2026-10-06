@@ -18,6 +18,7 @@ import { Dialog } from '../ui/Dialog.tsx';
 import { LanguagePicker } from '../ui/controls.tsx';
 import { copy } from '../ui/i18n.ts';
 import { useGame } from './useGame.ts';
+import { version } from '../../package.json';
 
 export default function App() {
   const {
@@ -159,6 +160,7 @@ export default function App() {
                 <ArrowRight aria-hidden="true" />
               </button>
               <LanguagePicker value={language} onChange={changeLanguage} />
+              <small className="title-version">v{version}</small>
               {notice}
             </div>
           ) : (
