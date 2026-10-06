@@ -20,6 +20,7 @@ export class ElectronScene extends Phaser.Scene {
   private graphics!: Phaser.GameObjects.Graphics;
   private effectGraphics!: Phaser.GameObjects.Graphics;
   private sprites!: SpritePool;
+  private contacts = new Map<string, Phaser.GameObjects.Image>();
   private impactAt = -Infinity;
   private lastModel: Game | null = null;
   private returnAt = -Infinity;
@@ -47,6 +48,7 @@ export class ElectronScene extends Phaser.Scene {
   }
   update(): void {
     if (!this.graphics) return;
+    this.contacts.clear();
     this.sprites.begin();
     this.drawFrame();
     this.sprites.end();
@@ -434,10 +436,24 @@ export class ElectronScene extends Phaser.Scene {
     };
   }
   private stamp: EffectStamp = (id, point, progress, color, alpha, size = 32) => {
-    this.sprites
-      .draw(this.screen(point), 'effects', size / 32, alpha, 1.5, effectFrame(id, progress))
+    const screen = this.screen(point);
+    const key = `${Math.round(screen.x)},${Math.round(screen.y)}`;
+    const contact = id === 'reconnect' ? this.contacts.get(key) : undefined;
+    // Simultaneous returns share one contact flash per emitter, keeping every beam visible.
+    if (contact) {
+      if (alpha > contact.alpha)
+        contact
+          .setFrame(effectFrame(id, progress))
+          .setScale(size / 32)
+          .setAlpha(alpha)
+          .setTint(color);
+      return;
+    }
+    const sprite = this.sprites
+      .draw(screen, 'effects', size / 32, alpha, 1.5, effectFrame(id, progress))
       .setTintMode(Phaser.TintModes.MULTIPLY)
       .setTint(color);
+    if (id === 'reconnect') this.contacts.set(key, sprite);
   };
   private beam: BeamStamp = (id, from, to, progress, color, alpha, height, rank) => {
     const pose = beamPose(this.screen(from), this.screen(to));

@@ -152,6 +152,14 @@ try {
           { kind, pose },
         );
         if (!baseline) {
+          const contacts = state.sprites.filter(
+            (s) => s.key === 'effects' && s.frame >= 20 && s.frame < 24,
+          );
+          assert.equal(
+            new Set(contacts.map((s) => `${s.x},${s.y}`)).size,
+            contacts.length,
+            'Simultaneous returns must share one contact flash per emitter',
+          );
           if (kind === 'satellite-return') {
             assert.ok(state.satelliteReturns.length >= 3);
             for (const end of state.satelliteReturns)

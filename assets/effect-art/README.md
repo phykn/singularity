@@ -6,4 +6,6 @@ Run `npm run build:art` to paint the transparent runtime atlases from `sprites.m
 
 `beams.png` contains five rank tiers, each with eight rows of four 64×16 frames: Basic, Chain, Pierce, Strike, Focus, Charge, Orbit Barrier and Return. Higher ranks add native line weight and restrained attached branches. No loose flecks or broad glow are required. Satellite echoes follow their emitting satellite; return currents reconnect to that same live emitter. Orbit Barrier follows the current orbit radius.
 
+Simultaneous return, discharge and surge contacts share one flash at each emitter's screen position. The highest-opacity contact supplies its color, frame and size. Every attack strand remains visible within the existing effect budgets; separate satellite contacts remain independent. This avoids stacked halos without changing hits, timing or damage labels.
+
 `npm run check:effects` checks atlas transparency, beam endpoints and sprite reuse. `npm run check:electric` captures persistent fields, satellite combinations, Return and a 240-particle crowd in portrait and landscape. `npm run check:barrier` checks bounded orbital arcs. These checks supplement the combat and rendering tests; they are not a human usability study.
