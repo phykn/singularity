@@ -14,14 +14,14 @@ export function beyondFrame(game: Game, reducedMotion = false) {
     );
   return {
     stage: t < 0.75 ? 'contract' : t < 0.9 ? 'quiet' : t < 1.45 ? 'open' : 'orbit',
-    ring: reducedMotion ? game.rules.orbitRadius : 3 + (game.rules.orbitRadius - 3) * ease,
-    core: 24 - 22 * clamp(t / 0.75),
+    ring: reducedMotion ? game.rules.orbitRadius : game.rules.orbitRadius * ease,
+    core: reducedMotion ? 0 : 24 * (1 - clamp(t / 0.75)) ** 2,
     alpha: reducedMotion ? clamp((t - 0.9) / 0.6) : 1,
     electron: clamp((t - 1.05) / 0.4),
     angle: game.angle - (reducedMotion ? 0 : (1 - ease) * Math.PI),
     color: (channel(16) << 16) | (channel(8) << 8) | channel(0),
     opacity: 0.8 - 0.48 * clamp((t - 1.45) / 0.95),
-    spark: clamp((t - 0.45) / 0.3) * (1 - clamp((t - 0.9) / 0.25)),
+    point: clamp(t / 0.75) * (1 - clamp((t - 0.9) / 0.35)),
     expand,
     reducedMotion,
   };

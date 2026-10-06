@@ -244,12 +244,21 @@ export class ElectronScene extends Phaser.Scene {
   ): void {
     const g = this.graphics;
     if (frame.stage === 'contract' || frame.stage === 'quiet') {
-      this.drawPixelRing(
-        frame.reducedMotion ? 24 : frame.core,
-        GOLD,
-        frame.stage === 'quiet' ? 0.3 : 0.9,
-        scale,
-      );
+      if (frame.core > 0) {
+        const r = Math.round(frame.core * scale) / scale;
+        g.fillStyle(0x020306, 1);
+        g.fillCircle(180, 260, r);
+        const pixel = 2 / scale;
+        const edge = Array.from({ length: 9 }, (_, i) => {
+          const p = orbit(Math.PI * (1.08 + i * 0.05), r);
+          return new Phaser.Math.Vector2(
+            180 + Math.round((p.x - 180) / pixel) * pixel,
+            260 + Math.round((p.y - 260) / pixel) * pixel,
+          );
+        });
+        g.lineStyle(1 / scale, WHITE, 0.25);
+        g.strokePoints(edge, false);
+      }
     } else {
       this.drawOrbit(frame.ring, frame.color, frame.opacity * frame.alpha, false, scale);
       for (let i = 0; i < 12; i++) {
@@ -267,11 +276,9 @@ export class ElectronScene extends Phaser.Scene {
       if (frame.electron > 0)
         this.drawElectron(orbit(frame.angle, frame.ring), frame.electron * frame.alpha);
     }
-    if (frame.spark > 0) {
-      g.fillStyle(WHITE, frame.spark * 0.85);
+    if (frame.point > 0) {
+      g.fillStyle(WHITE, frame.point * 0.85);
       g.fillRect(180 - 1.5 / scale, 260 - 1.5 / scale, 3 / scale, 3 / scale);
-      g.lineStyle(1 / scale, GOLD, frame.spark * 0.25);
-      g.strokeCircle(180, 260, 5 / scale);
     }
   }
   private drawOrbit(

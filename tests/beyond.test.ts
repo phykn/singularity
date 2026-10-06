@@ -207,7 +207,7 @@ test('entry key poses settle on the real electron position without screen flashe
   assert.equal(beyondFrame(g)?.color, BLUE);
   g.advance(800);
   assert.equal(beyondFrame(g)?.stage, 'quiet');
-  assert.equal(beyondFrame(g)?.spark, 1);
+  assert.equal(beyondFrame(g)?.point, 1);
   g.advance(200);
   assert.equal(beyondFrame(g)?.stage, 'open');
   g.advance(1350);
@@ -216,13 +216,38 @@ test('entry key poses settle on the real electron position without screen flashe
   assert.ok(Math.abs(frame.ring - g.radius) < 0.1);
   assert.ok(Math.abs(frame.angle - g.angle) < 0.01);
   assert.equal(frame.color, VIOLET);
-  assert.equal(frame.spark, 0);
+  assert.equal(frame.point, 0);
   assert.equal(beyondFrame(g, true)?.ring, g.radius);
   assert.equal(beyondFrame(g, true)?.angle, g.angle);
   g.phaseTicks = g.rules.tickRate * g.rules.endless.entrySeconds;
   assert.ok(Math.abs(beyondFrame(g)!.opacity - 0.32) < 1e-8);
   assert.equal(beyondFrame(g)!.ring, g.radius);
   assert.equal(beyondFrame(g)!.angle, g.angle);
+});
+
+test('the singularity contracts completely to a point before the orbit grows from its center', () => {
+  const g = cleared();
+  g.continueBeyond();
+  let core = 24;
+  for (let tick = 0; tick <= g.rules.tickRate * 0.9; tick++) {
+    g.phaseTicks = tick;
+    const frame = beyondFrame(g)!;
+    assert.ok(frame.core >= 0 && frame.core <= core);
+    assert.equal(frame.ring, 0, 'No replacement ring during contraction');
+    if (tick >= g.rules.tickRate * 0.75) {
+      assert.equal(frame.core, 0);
+      assert.equal(frame.point, 1);
+    }
+    core = frame.core;
+  }
+  for (let tick = g.rules.tickRate * 0.9 + 1; tick < g.rules.tickRate * 2.4; tick++) {
+    g.phaseTicks = tick;
+    const frame = beyondFrame(g)!;
+    assert.equal(frame.core, 0, 'The collapsed singularity cannot reappear');
+    assert.ok(frame.ring > 0);
+    assert.ok(frame.point >= 0 && frame.point <= 1);
+  }
+  assert.equal(beyondFrame(g, true)!.core, 0);
 });
 
 test('entry hue and brightness change continuously and settle at the combat appearance', () => {

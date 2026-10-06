@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { base, launchBrowser, observeScene, capture } from './browser-support.mjs';
 import { copy } from '../src/ui/i18n.ts';
+import { GOLD, WHITE } from '../src/art/palette.ts';
 import { languageKey, recordKey, beyondRecordKey } from '../src/app/storage.ts';
 
 const browser = await launchBrowser();
@@ -68,6 +69,75 @@ try {
           targets: g.targets.length,
         };
       }, seconds);
+    const contraction = [];
+    for (const seconds of [0.05, 0.25, 0.55, 0.75, 0.8, 0.9]) {
+      await pose(seconds);
+      const drawing = await page.evaluate(
+        ({ gold, white }) => {
+          const scene = window.__gameScene,
+            graphics = scene.graphics;
+          const originals = Object.fromEntries(
+            ['fillStyle', 'lineStyle', 'fillCircle', 'strokeCircle', 'fillRect'].map((key) => [
+              key,
+              graphics[key],
+            ]),
+          );
+          const colors = [],
+            disks = [],
+            rings = [],
+            points = [];
+          let ink;
+          graphics.fillStyle = function (color, ...args) {
+            ink = color;
+            colors.push(color);
+            return originals.fillStyle.call(this, color, ...args);
+          };
+          graphics.lineStyle = function (width, color, ...args) {
+            colors.push(color);
+            return originals.lineStyle.call(this, width, color, ...args);
+          };
+          graphics.fillCircle = function (x, y, r, ...args) {
+            disks.push(r);
+            return originals.fillCircle.call(this, x, y, r, ...args);
+          };
+          graphics.strokeCircle = function (x, y, r, ...args) {
+            rings.push(r);
+            return originals.strokeCircle.call(this, x, y, r, ...args);
+          };
+          graphics.fillRect = function (x, y, width, height, ...args) {
+            if (ink === white)
+              points.push({
+                x,
+                y,
+                width: width * scene.worldScale,
+                height: height * scene.worldScale,
+              });
+            return originals.fillRect.call(this, x, y, width, height, ...args);
+          };
+          try {
+            scene.update();
+          } finally {
+            for (const [key, method] of Object.entries(originals)) graphics[key] = method;
+          }
+          return { gold: colors.includes(gold), disks, rings, points };
+        },
+        { gold: GOLD, white: WHITE },
+      );
+      assert.equal(
+        drawing.gold,
+        false,
+        'No yellow circle between the singularity and the new orbit',
+      );
+      assert.deepEqual(drawing.rings, []);
+      if (seconds >= 0.75 || motion === 'reduce') assert.deepEqual(drawing.disks, []);
+      if (seconds >= 0.75) {
+        assert.equal(drawing.points.length, 1);
+        assert.ok(Math.abs(drawing.points[0].width - 3) < 1e-8);
+        assert.ok(Math.abs(drawing.points[0].height - 3) < 1e-8);
+      }
+      contraction.push({ seconds, ...drawing });
+      if (language === 'ko') await capture(page, `artifacts/beyond/entry-contract-${seconds}.png`);
+    }
     const quiet = await pose(0.8);
     assert.equal(quiet.targets, 0);
     assert.equal(quiet.seconds, 0);
@@ -215,7 +285,7 @@ try {
       await page.getByRole('button', { name: 'START', exact: true }).waitFor();
       assert.equal(await page.evaluate(() => window.__gameDebug.getModel().endless), false);
     }
-    rows.push({ width, height, language, motion, record });
+    rows.push({ width, height, language, motion, record, contraction });
     console.log(JSON.stringify(rows.at(-1)));
     await page.close();
   }
