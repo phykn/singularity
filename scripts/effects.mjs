@@ -103,11 +103,11 @@ try {
       const beamTexture = scene.textures.get('beams');
       if (beamTexture.key !== 'beams') throw new Error('Pixel beams did not load');
       canvas.width = 256;
-      canvas.height = 640;
+      canvas.height = 384;
       ctx.drawImage(beamTexture.source[0].image, 0, 0);
-      const beamPixels = ctx.getImageData(0, 0, 256, 640).data;
+      const beamPixels = ctx.getImageData(0, 0, 256, 384).data;
       const beamAlpha = (x, y) => beamPixels[(y * 256 + x) * 4 + 3];
-      for (let row = 0; row < 40; row++)
+      for (let row = 0; row < 24; row++)
         for (let col = 0; col < 4; col++) {
           let painted = 0;
           for (let y = 0; y < 16; y++)
@@ -189,22 +189,28 @@ try {
         throw new Error('Reused beam geometry leaked into native particles');
       Object.assign(tracked, { x: combat.position.x + 50, y: combat.position.y + 20 });
       scene.update();
-      const rankedFrames = [];
-      const poolBeforeRanks = scene.sprites.images.length;
-      for (let rank = 1; rank <= 5; rank++) {
-        combat.effects.forEach((fx) => (fx.rank = rank));
+      const powerFrames = [];
+      const poolBeforePowers = scene.sprites.images.length;
+      for (const [idx, damage] of [5, 13, 60].entries()) {
+        combat.effects.forEach((fx) => (fx.damage = damage));
         scene.update();
         const beam = scene.sprites.images.find((s) => s.visible && s.texture.key === 'beams');
-        if (!beam || Math.floor(Number(beam.frame.name) / 32) !== rank - 1)
-          throw Error(`Focus does not render its level ${rank} artwork`);
-        rankedFrames.push(Number(beam.frame.name));
+        if (!beam || Math.floor(Number(beam.frame.name) / 32) !== idx)
+          throw Error(`Focus does not render its actual ${damage} damage`);
+        powerFrames.push(Number(beam.frame.name));
+        for (let rank = 1; rank <= 5; rank++) {
+          combat.effects.forEach((fx) => (fx.rank = rank));
+          scene.update();
+          if (Number(beam.frame.name) !== powerFrames.at(-1))
+            throw Error('Unchanged damage must not thicken with skill level');
+        }
       }
-      if (scene.sprites.images.length !== poolBeforeRanks)
-        throw Error('Higher skill levels allocate extra beam sprites');
+      if (scene.sprites.images.length !== poolBeforePowers)
+        throw Error('Higher damage allocates extra beam sprites');
       return {
         frames: frames.length,
-        beamFrames: 160,
-        rankedFrames,
+        beamFrames: 96,
+        powerFrames,
         trackedBeam: true,
         hits: casts,
         pool,
@@ -215,7 +221,7 @@ try {
       };
     });
     assert.equal(result.frames, 12);
-    assert.equal(result.beamFrames, 160);
+    assert.equal(result.beamFrames, 96);
     await capture(page, `artifacts/screens/effects-tracked-${width}x${height}.png`);
     checks.push({ viewport: [width, height], ...result });
     console.log('PASS pixel effects', JSON.stringify(checks.at(-1)));

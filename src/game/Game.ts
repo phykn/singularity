@@ -856,6 +856,7 @@ export class Game {
       to: { x: to.x, y: to.y },
       radius,
       width,
+      damage: input.damage ?? 0,
       born: this.seconds,
       life,
       source,

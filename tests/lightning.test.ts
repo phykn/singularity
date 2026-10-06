@@ -486,3 +486,54 @@ test('combat lightning retains live electron anchors while derived arcs retain w
   assert.deepEqual(effectOrigin(basic, g.position), g.position);
   assert.deepEqual(effectOrigin(chain, g.position), chain.from);
 });
+
+test('beam damage follows primary, spread and delayed repeat hits rather than modifier level', () => {
+  const g = stationarySkill({ multi: 2, repeat: 2 }, [
+    target(1, 195, 128, 1000),
+    target(2, 210, 128, 1000),
+    target(3, 225, 128, 1000),
+  ]);
+  g.boosts.power = 1;
+  g.combat.fireBasic();
+  const primary = g.effects.filter((fx) => fx.kind === 'bolt');
+  const hits = g.events
+    .filter((e) => e.kind === 'hit')
+    .map((e) => (e.data as { damage: number }).damage);
+  assert.equal(primary.length, hits.length);
+  primary.forEach((fx, i) => close(fx.damage, hits[i]));
+  close(primary[0].damage, g.damage);
+  close(primary[1].damage, g.damage * g.forms.multi.damage);
+  g.advance(150);
+  const echoes = g.effects.filter((fx) => fx.source === 'repeat');
+  assert.ok(echoes.length > 0);
+  echoes.forEach((fx) => {
+    const main = primary.find((p) => p.targetId === fx.targetId)!;
+    close(fx.damage, main.damage * g.forms.repeat.damage);
+  });
+});
+
+test('chain falloff, pierced hits and returning paths publish their actual damage', () => {
+  const g = stationarySkill({ chain: 3, pierce: 3, return: 3 }, [
+    target(1, 195, 128, 1000),
+    target(2, 210, 128, 1000),
+    target(3, 225, 128, 1000),
+  ]);
+  g.boosts.power = 1;
+  g.combat.fireBasic();
+  const shaft = g.effects.find((fx) => fx.kind === 'pierce')!;
+  close(shaft.damage, g.damage * rules.skills.pierce.damage);
+  // Use a separate chain fixture so all next recipients remain available after the sweep.
+  const chain = stationarySkill({ chain: 3 }, [
+    target(1, 195, 128, 1000),
+    target(2, 210, 128, 1000),
+    target(3, 225, 128, 1000),
+  ]);
+  chain.boosts.power = 1;
+  chain.combat.fireBasic();
+  const arcs = chain.effects.filter((fx) => fx.source === 'chain');
+  assert.equal(arcs.length, 2);
+  arcs.forEach((fx, i) => close(fx.damage, chain.damage * rules.skills.chain.falloff ** (i + 1)));
+  g.advance(300);
+  const returned = g.effects.find((fx) => fx.kind === 'return')!;
+  close(returned.damage, g.damage * g.forms.return.damage);
+});

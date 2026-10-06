@@ -37,13 +37,17 @@ export type EffectPainter = {
     color: number,
     alpha: number,
     height: number,
-    rank: number,
+    strength: number,
   ): void;
   contact(point: Point, color: number, alpha: number, radius: number): void;
 };
 
-export function beamFrame(id: BeamId, progress: number, rank = 1): number {
-  const tier = Math.max(0, Math.min(4, Math.floor(rank) - 1));
+export function beamStrength(damage: number): number {
+  return damage < 10 ? 1 : damage < 40 ? 2 : 3;
+}
+
+export function beamFrame(id: BeamId, progress: number, strength = 1): number {
+  const tier = Math.max(0, Math.min(2, Math.floor(strength) - 1));
   return tier * 32 + beamRows[id] * 4 + (Math.floor(Math.max(0, progress) * 12) % 4);
 }
 

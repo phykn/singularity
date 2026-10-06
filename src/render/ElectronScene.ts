@@ -447,7 +447,7 @@ export class ElectronScene extends Phaser.Scene {
         .setTintMode(Phaser.TintModes.MULTIPLY)
         .setTint(color);
     },
-    beam: (id, from, to, progress, color, alpha, height, rank) => {
+    beam: (id, from, to, progress, color, alpha, height, strength) => {
       const pose = beamPose(this.screen(from), this.screen(to));
       if (pose.length < 1) return;
       this.sprites
@@ -457,7 +457,7 @@ export class ElectronScene extends Phaser.Scene {
           pose.length / 64,
           alpha,
           1,
-          beamFrame(id, progress, rank),
+          beamFrame(id, progress, strength),
           pose.angle,
           height / 16,
         )

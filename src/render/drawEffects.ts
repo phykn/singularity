@@ -1,6 +1,6 @@
 import type Phaser from 'phaser';
 import { BLUE, WHITE, AMBER, skillColors } from '../art/palette.ts';
-import { effectOrigin } from './effects.ts';
+import { beamStrength, effectOrigin } from './effects.ts';
 import type { EffectPainter } from './effects.ts';
 import { rarityIds } from '../game/rules.ts';
 import { lerp, clamp, orbit } from '../game/geometry.ts';
@@ -90,8 +90,9 @@ export function drawEffect(
   const ink = fx.source ? skillColors[fx.source] : BLUE;
   const strength = clamp(fx.rank / 5) + rarityIds.indexOf(fx.rarity) * 0.06;
   const rank = Math.max(1, Math.min(5, fx.rank));
-  const light = 0.72 + rank * 0.045;
-  const impactSize = 20 + rank * 4;
+  const power = beamStrength(fx.damage);
+  const light = 0.7 + 0.22 * (fx.damage / (fx.damage + 10));
+  const impactSize = 20 + power * 4;
   const clock = time + fx.born * 3;
   if (fx.kind === 'bridge') {
     if (!fx.arc || fx.arc.sweep <= 0) return;
@@ -107,7 +108,7 @@ export function drawEffect(
         ink,
         light,
         16,
-        rank,
+        power,
       );
     }
     for (const edge of [fx.arc.start, fx.arc.start + fx.arc.sweep]) {
@@ -141,12 +142,12 @@ export function drawEffect(
   } else if (fx.kind === 'surge') {
     if (t < 0.15) paint.contact(from, ink, (1 - t / 0.15) * 0.7, 9.6);
   } else if (fx.kind === 'return') {
-    paint.beam('return', from, to, clock, ink, alpha * light, 16, rank);
+    paint.beam('return', from, to, clock, ink, alpha * light, 16, power);
     const travel = clamp(t / 0.7);
     const point = { x: lerp(from.x, to.x, travel), y: lerp(from.y, to.y, travel) };
     g.fillStyle(WHITE, alpha);
     g.fillRect(point.x - 1 / scale, point.y - 1 / scale, 2 / scale, 2 / scale);
-    if (t >= 0.65) paint.contact(to, ink, (1 - t) / 0.35, (22 + rank * 2) / 2.5);
+    if (t >= 0.65) paint.contact(to, ink, (1 - t) / 0.35, (22 + power * 2) / 2.5);
   } else if (fx.kind === 'bolt' || fx.kind === 'strike' || fx.kind === 'focus') {
     const opacity = fx.kind === 'focus' ? 1 : alpha;
     const id =
@@ -161,8 +162,7 @@ export function drawEffect(
               : ['chain', 'burst', 'gather'].includes(fx.source ?? '')
                 ? 'chain'
                 : 'basic';
-    const height = id === 'strike' || id === 'charge' ? 20 : 16;
-    paint.beam(id, from, to, clock, ink, light * opacity, height, rank);
+    paint.beam(id, from, to, clock, ink, light * opacity, 16, power);
     if (fx.source === 'charge') paint.contact(from, ink, opacity, 9.6);
     if (fx.kind === 'focus') {
       const flow = (time * 3 + (fx.targetId ?? 0) * 0.17) % 1;
@@ -177,7 +177,7 @@ export function drawEffect(
       paint.sprite('impact', to, t, ink, alpha, impactSize);
     }
   } else if (fx.kind === 'pierce') {
-    paint.beam('pierce', from, to, clock, ink, light * alpha, 16, rank);
+    paint.beam('pierce', from, to, clock, ink, light * alpha, 16, power);
   } else if (fx.kind === 'upgrade') {
     if (fx.source === 'range') {
       ring(g, from, fx.radius, ink, alpha * 0.22, scale, 1);

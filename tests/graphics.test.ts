@@ -4,6 +4,7 @@ import type Phaser from 'phaser';
 import { readFileSync } from 'node:fs';
 import {
   beamFrame,
+  beamStrength,
   beamPose,
   beamRows,
   effectFrame,
@@ -190,6 +191,7 @@ const effect: Effect = {
   to: { x: 90, y: 100 },
   radius: 50,
   width: 1.5,
+  damage: 5,
   born: 1,
   life: 1,
   rank: 5,
@@ -420,10 +422,10 @@ test('lightning beam heights use whole screen pixels at every viewport scale', (
 test('beam atlas frames freeze with simulation time and geometry connects both endpoints', () => {
   const png = readFileSync(new URL('../src/art/assets/beams.png', import.meta.url));
   assert.equal(png.readUInt32BE(16), 256);
-  assert.equal(png.readUInt32BE(20), 640);
+  assert.equal(png.readUInt32BE(20), 384);
   assert.equal(png[25], 6);
   for (const id of Object.keys(beamRows) as (keyof typeof beamRows)[]) {
-    for (let rank = 1; rank <= 5; rank++)
+    for (let rank = 1; rank <= 3; rank++)
       for (const time of [-1, 0, 0.1, 0.7, 3, 30]) {
         const frame = beamFrame(id, time, rank);
         const row = (rank - 1) * 32 + beamRows[id] * 4;
@@ -444,12 +446,12 @@ test('beam atlas frames freeze with simulation time and geometry connects both e
   }
 });
 
-test('ranked beam artwork grows in actual ink, stays attached and remains bounded', () => {
+test('damage-tier beam artwork grows in actual ink, stays attached and remains bounded', () => {
   const sheet = effectArtwork().find((s) => s.output.endsWith('/beams.png'))!;
   for (let row = 0; row < 8; row++)
     for (let frame = 0; frame < 4; frame++) {
       let previous = 0;
-      for (let tier = 0; tier < 5; tier++) {
+      for (let tier = 0; tier < 3; tier++) {
         const top = (tier * 8 + row) * 16,
           left = frame * 64;
         const pixels = sheet.pixels.filter(
@@ -457,7 +459,7 @@ test('ranked beam artwork grows in actual ink, stays attached and remains bounde
         );
         assert.ok(pixels.length > previous, `Beam ${row} must strengthen at level ${tier + 1}`);
         previous = pixels.length;
-        assert.ok(pixels.length <= 400, 'Even the highest rank must leave negative space');
+        assert.ok(pixels.length <= 400, 'Even the strongest hit must leave negative space');
         const cells = new Set(pixels.map(([x, y]) => `${x},${y}`));
         const seen = new Set<string>();
         const queue = [[left + 1, top + 8]];
@@ -475,15 +477,15 @@ test('ranked beam artwork grows in actual ink, stays attached and remains bounde
     }
 });
 
-test('every offensive skill passes its level to the beam without adding render objects', () => {
+test('equal single-hit damage keeps beam thickness and brightness across all skill levels', () => {
   for (const source of skillIds.filter((id) => id !== 'vent')) {
     const kind = ['strike', 'focus', 'bridge', 'return'].includes(source) ? source : 'bolt';
-    const counts = [];
+    const commands = [];
     for (let rank = 1; rank <= 5; rank++) {
       const a = drawing();
       drawEffect(
         a.graphics,
-        { ...effect, kind, source, rank, arc: { start: 0, sweep: 0.6 } } as Effect,
+        { ...effect, kind, source, rank, damage: 13 } as Effect,
         1.02,
         1,
         effect.from,
@@ -491,10 +493,30 @@ test('every offensive skill passes its level to the beam without adding render o
         a.paint,
       );
       const beams = a.commands.filter((c) => c.method.startsWith('beam:'));
-      assert.equal(beams.length, source === 'bridge' ? 4 : 1, source);
-      assert.equal(beams[0].args[8], rank, source);
-      counts.push(beams.length);
+      assert.equal(beams.length, source === 'bridge' ? 4 : 1);
+      commands.push(beams);
     }
-    assert.equal(new Set(counts).size, 1);
+    for (const beams of commands) assert.deepEqual(beams, commands[0], source);
   }
+});
+
+test('stronger single hits brighten and thicken the beam within a three-pixel cap', () => {
+  for (const damage of [0, 5, 9.99, 10, 39.99, 40, 100, 1e100]) {
+    const a = drawing();
+    drawEffect(a.graphics, { ...effect, kind: 'bolt', damage }, 1.02, 1, effect.from, [], a.paint);
+    const beam = a.commands.find((c) => c.method.startsWith('beam:'))!;
+    assert.equal(beam.args[8], beamStrength(damage));
+    assert.ok(beam.args[8] >= 1 && beam.args[8] <= 3);
+    assert.equal(beam.args[7], 16);
+  }
+  const beams = [5, 13, 60].map((damage) => {
+    const a = drawing();
+    drawEffect(a.graphics, { ...effect, kind: 'bolt', damage }, 1.02, 1, effect.from, [], a.paint);
+    return a.commands.find((c) => c.method.startsWith('beam:'))!.args;
+  });
+  assert.deepEqual(
+    beams.map((b) => b[8]),
+    [1, 2, 3],
+  );
+  assert.ok(beams[0][6] < beams[1][6] && beams[1][6] < beams[2][6]);
 });

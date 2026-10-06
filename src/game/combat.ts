@@ -509,6 +509,7 @@ export class Combat {
       to,
       radius,
       width,
+      damage: ['bolt', 'strike', 'focus', 'pierce', 'return'].includes(kind) ? attack.damage : 0,
       life,
       source,
       rarity: source ? attack.rarities[source] : attack.rarities.power,
@@ -618,12 +619,23 @@ export class Combat {
         x: origin.x + direction.x * s.pierce.length,
         y: origin.y + direction.y * s.pierce.length,
       };
-      this.effect(attack, 'pierce', origin, to, 0, 0.14, anchored, 'pierce', s.pierce.width);
+      const damage = attack.damage * this.game.rules.skills.pierce.damage;
+      this.effect(
+        { ...attack, damage },
+        'pierce',
+        origin,
+        to,
+        0,
+        0.14,
+        anchored,
+        'pierce',
+        s.pierce.width,
+      );
       this.activate('pierce', attack.ranks.pierce);
       for (const target of onSegment(this.game.targets, origin, to, s.pierce.width)) {
         if (visited.has(target.id)) continue;
         visited.add(target.id);
-        this.deal(attack, target, attack.damage * this.game.rules.skills.pierce.damage);
+        this.deal(attack, target, damage);
       }
     }
     let previous: Point = contact;
@@ -631,10 +643,11 @@ export class Combat {
       const next = closest(this.game.targets, previous, 1, s.chain.range, visited)[0];
       if (!next) break;
       visited.add(next.id);
-      this.effect(attack, 'bolt', previous, next, 0, 0.14, false, 'chain', 1.3);
+      const damage = attack.damage * this.game.rules.skills.chain.falloff ** (hop + 1);
+      this.effect({ ...attack, damage }, 'bolt', previous, next, 0, 0.14, false, 'chain', 1.3);
       this.activate('chain', attack.ranks.chain);
       previous = { x: next.x, y: next.y };
-      this.deal(attack, next, attack.damage * this.game.rules.skills.chain.falloff ** (hop + 1));
+      this.deal(attack, next, damage);
     }
     this.discharge(attack);
   }
@@ -737,10 +750,11 @@ export class Combat {
       const next = closest(this.game.targets, previous, 1, attack.forms.chain.range, visited)[0];
       if (!next) break;
       visited.add(next.id);
-      this.effect(attack, 'bolt', previous, next, 0, 0.14, false, 'chain', 1.3);
+      const damage = attack.damage * this.game.rules.skills.chain.falloff ** (hop + 1);
+      this.effect({ ...attack, damage }, 'bolt', previous, next, 0, 0.14, false, 'chain', 1.3);
       this.activate('chain', attack.ranks.chain);
       previous = { x: next.x, y: next.y };
-      this.deal(attack, next, attack.damage * this.game.rules.skills.chain.falloff ** (hop + 1));
+      this.deal(attack, next, damage);
     }
     this.discharge(attack);
   }
@@ -818,6 +832,7 @@ export class Combat {
           to: orbit(barrier.start + barrier.sweep, g.radius),
           radius: g.radius,
           width: forms.width,
+          damage: barrier.attack.damage,
           life: Math.min(0.15, barrier.until - g.time),
           rank: barrier.attack.ranks.bridge,
           rarity: barrier.attack.rarities.bridge,

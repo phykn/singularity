@@ -45,6 +45,7 @@ export type Effect = {
   to: Point;
   radius: number;
   width: number;
+  damage: number;
   born: number;
   life: number;
   source?: UpgradeId;
@@ -55,8 +56,8 @@ export type Effect = {
   endAnchor?: 'electron' | number;
   arc?: { start: number; sweep: number };
 };
-export type EffectInput = Omit<Effect, 'born' | 'rank' | 'rarity'> &
-  Partial<Pick<Effect, 'rank' | 'rarity'>>;
+export type EffectInput = Omit<Effect, 'born' | 'rank' | 'rarity' | 'damage'> &
+  Partial<Pick<Effect, 'rank' | 'rarity' | 'damage'>>;
 export type DamageNumber = Point & { id: number; value: number; born: number; rarity: Rarity };
 export type Choice = { cards: Card[]; number: number; opened: number; deadline: number };
 export type Count = { generated: number; killed: number; absorbed: number };

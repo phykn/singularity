@@ -70,7 +70,7 @@ export function effectArtwork() {
       dissolve.pixel(16 + dx * distance, 16 + dy * distance, frame < 2 ? 2 : 1);
   }
 
-  const beams = sheet(256, 640, 64, 16);
+  const beams = sheet(256, 384, 64, 16);
   // Opposing bends balance the silhouette; unequal shoulders avoid mirror symmetry.
   const profiles = [
     [0, -1, 2, -1, -2, 1, 0],
@@ -82,7 +82,7 @@ export function effectArtwork() {
     [0, 0, 1, 0, -1, 0, 0],
     [0, 1, -2, 0, 2, -1, 0],
   ];
-  for (let tier = 0; tier < 5; tier++)
+  for (let tier = 0; tier < 3; tier++)
     for (let row = 0; row < 8; row++)
       for (let frame = 0; frame < 4; frame++) {
         const beam = beams.frame(frame, tier * 8 + row);
@@ -98,15 +98,6 @@ export function effectArtwork() {
             beam.line(points[i - 1][0], points[i - 1][1] + y, points[i][0], points[i][1] + y, 1);
           for (let y = -Math.floor(core / 2); y < Math.ceil(core / 2); y++)
             beam.line(points[i - 1][0], points[i - 1][1] + y, points[i][0], points[i][1] + y, 3);
-        }
-        // Short attached forks, never a second full-length beam or loose noise.
-        if (tier >= 2) {
-          const p = points[2];
-          beam.line(p[0], p[1], p[0] + 5 + tier, p[1] - 3, 2);
-        }
-        if (tier >= 3) {
-          const p = points[4];
-          beam.line(p[0] - 6 - tier, p[1] + 2, p[0], p[1], 2);
         }
       }
   return [
