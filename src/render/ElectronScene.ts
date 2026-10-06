@@ -90,6 +90,7 @@ export class ElectronScene extends Phaser.Scene {
       clock = game.seconds;
     const danger = !game.charged && game.margin < game.rules.dangerMargin;
     const color = game.charged ? GOLD : BLUE;
+    const orbitColor = game.endless ? 0xb0a0ff : color;
     const position = game.position,
       damage = game.damage;
     if (!ending && clock - this.impactAt > 0.65) {
@@ -111,11 +112,10 @@ export class ElectronScene extends Phaser.Scene {
     if (!ending || ending.electron || !ending.success) {
       const unstable = danger || ending?.success === false;
       const opacity = ending && !ending.electron ? 0.12 : danger ? 0.8 : 0.32;
-      this.drawOrbit(radius, unstable ? AMBER : color, opacity, unstable, scale);
+      this.drawOrbit(radius, unstable ? AMBER : orbitColor, opacity, unstable, scale);
     }
     if (game.mass > 0 && (!ending || !ending.success || ending.electron))
       this.drawCore(game.core * (ending?.success ? 1 - ending.absorb * 0.7 : 1), scale);
-    if (game.endless && !ending) this.drawPixelRing(game.core + 3, 0xb0a0ff, 0.65, scale);
     const warning = game.warningWave;
     if (warning)
       drawWaveWarning(
@@ -251,7 +251,6 @@ export class ElectronScene extends Phaser.Scene {
         0.8 * frame.alpha,
         scale,
       );
-      this.drawPixelRing(this.getGame().rules.coreRadius + 3, violet, frame.expand * 0.6, scale);
       for (let i = 0; i < 12; i++) {
         const angle = (i * Math.PI) / 6 + (seed % 100) / 100;
         const radius = frame.reducedMotion ? 155 : 22 + frame.expand * (130 + (i % 3) * 7);
