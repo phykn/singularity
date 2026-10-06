@@ -8,4 +8,6 @@ Run `npm run build:art` to paint the transparent runtime atlases from `sprites.m
 
 Simultaneous return, discharge and surge contacts share one flash at each emitter's screen position. The highest-opacity contact supplies the color and size of a thin, fading circle. Every attack strand remains visible within the existing effect budgets; separate satellite contacts remain independent. This avoids stacked halos without changing hits, timing or damage labels.
 
+Rendering routes live in `src/render/drawEffects.ts`: `EffectPainter.sprite` draws target impacts, `beam` draws attack strands, and `contact` queues emitter circles in `ElectronScene`. Contact radii are screen pixels; positions are world coordinates. Persistent Charge and Surge auras are drawn separately by `electronField.ts`.
+
 `npm run check:effects` checks atlas transparency, beam endpoints and sprite reuse. `npm run check:electric` captures persistent fields, satellite combinations, Return and a 240-particle crowd in portrait and landscape. `npm run check:barrier` checks bounded orbital arcs. These checks supplement the combat and rendering tests; they are not a human usability study.

@@ -1,7 +1,7 @@
 import type Phaser from 'phaser';
 import { BLUE, WHITE, AMBER, skillColors } from '../art/palette.ts';
 import { effectOrigin } from './effects.ts';
-import type { BeamStamp, EffectStamp } from './effects.ts';
+import type { EffectPainter } from './effects.ts';
 import { rarityIds } from '../game/rules.ts';
 import { lerp, clamp, orbit } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
@@ -69,8 +69,7 @@ export function drawEffect(
   scale: number,
   electron: Point,
   targets: Target[],
-  stamp: EffectStamp,
-  beam: BeamStamp,
+  paint: EffectPainter,
   orbitRadius = fx.radius,
   satellites: readonly Point[] = [],
 ): void {
@@ -100,7 +99,7 @@ export function drawEffect(
     for (let i = 0; i < steps; i++) {
       const start = fx.arc.start + (fx.arc.sweep * i) / steps;
       const end = fx.arc.start + (fx.arc.sweep * (i + 1)) / steps;
-      beam(
+      paint.beam(
         'bridge',
         orbit(start, orbitRadius),
         orbit(end, orbitRadius),
@@ -138,16 +137,16 @@ export function drawEffect(
       );
     }
   } else if (fx.kind === 'charge') {
-    stamp('reconnect', from, t, ink, alpha * clamp(fx.width) * 0.3, 25);
+    paint.contact(from, ink, alpha * clamp(fx.width) * 0.3, 10);
   } else if (fx.kind === 'surge') {
-    if (t < 0.15) stamp('reconnect', from, t / 0.15, ink, (1 - t / 0.15) * 0.7, 24);
+    if (t < 0.15) paint.contact(from, ink, (1 - t / 0.15) * 0.7, 9.6);
   } else if (fx.kind === 'return') {
-    beam('return', from, to, clock, ink, alpha * light, 16, rank);
+    paint.beam('return', from, to, clock, ink, alpha * light, 16, rank);
     const travel = clamp(t / 0.7);
     const point = { x: lerp(from.x, to.x, travel), y: lerp(from.y, to.y, travel) };
     g.fillStyle(WHITE, alpha);
     g.fillRect(point.x - 1 / scale, point.y - 1 / scale, 2 / scale, 2 / scale);
-    if (t >= 0.65) stamp('reconnect', to, (t - 0.65) / 0.35, ink, (1 - t) / 0.35, 22 + rank * 2);
+    if (t >= 0.65) paint.contact(to, ink, (1 - t) / 0.35, (22 + rank * 2) / 2.5);
   } else if (fx.kind === 'bolt' || fx.kind === 'strike' || fx.kind === 'focus') {
     const opacity = fx.kind === 'focus' ? 1 : alpha;
     const id =
@@ -163,8 +162,8 @@ export function drawEffect(
                 ? 'chain'
                 : 'basic';
     const height = id === 'strike' || id === 'charge' ? 20 : 16;
-    beam(id, from, to, clock, ink, light * opacity, height, rank);
-    if (fx.source === 'charge') stamp('reconnect', from, t, ink, opacity, 24);
+    paint.beam(id, from, to, clock, ink, light * opacity, height, rank);
+    if (fx.source === 'charge') paint.contact(from, ink, opacity, 9.6);
     if (fx.kind === 'focus') {
       const flow = (time * 3 + (fx.targetId ?? 0) * 0.17) % 1;
       g.fillStyle(WHITE, 0.8);
@@ -172,13 +171,13 @@ export function drawEffect(
     }
     if (fx.source === 'repel') arrow(g, { x: 180, y: 260 }, to, ink, alpha, scale);
     if (fx.kind !== 'focus' && fx.kind !== 'strike') {
-      stamp(fx.source === 'charge' ? 'impact' : 'hit', to, t, ink, opacity, impactSize);
+      paint.sprite(fx.source === 'charge' ? 'impact' : 'hit', to, t, ink, opacity, impactSize);
     }
     if (fx.kind === 'strike') {
-      stamp('impact', to, t, ink, alpha, impactSize);
+      paint.sprite('impact', to, t, ink, alpha, impactSize);
     }
   } else if (fx.kind === 'pierce') {
-    beam('pierce', from, to, clock, ink, light * alpha, 16, rank);
+    paint.beam('pierce', from, to, clock, ink, light * alpha, 16, rank);
   } else if (fx.kind === 'upgrade') {
     if (fx.source === 'range') {
       ring(g, from, fx.radius, ink, alpha * 0.22, scale, 1);
@@ -196,7 +195,7 @@ export function drawEffect(
     g.fillStyle(AMBER, alpha);
     g.fillRect(x - 1 / scale, y - 1 / scale, 2 / scale, 2 / scale);
   } else if (fx.kind === 'kill') {
-    stamp('dissolve', from, t, fx.radius > 8 ? WHITE : BLUE, (1 - t) ** 2);
+    paint.sprite('dissolve', from, t, fx.radius > 8 ? WHITE : BLUE, (1 - t) ** 2);
   } else {
     ring(g, from, fx.radius * (0.25 + 0.75 * t), ink, alpha * 0.6, scale, 1);
   }

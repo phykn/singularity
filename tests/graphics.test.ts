@@ -20,6 +20,7 @@ import { iconCells, controlCells, controlIds } from '../src/art/skills.ts';
 import { close, target } from './helpers.ts';
 import { drawWaveWarning, WARNING_RED } from '../src/render/warning.ts';
 import { drawElectronField } from '../src/render/electronField.ts';
+import type { EffectPainter } from '../src/render/effects.ts';
 import { effectArtwork } from '../assets/effect-art/sprites.mjs';
 
 test('native sprites paint only palette pixels within their texture bounds', () => {
@@ -125,9 +126,7 @@ function drawing() {
         },
     },
   ) as Phaser.GameObjects.Graphics;
-  return {
-    graphics,
-    commands,
+  const paint: EffectPainter = {
     beam: (
       id: string,
       from: { x: number; y: number },
@@ -142,7 +141,7 @@ function drawing() {
       assert.ok(args.every(Number.isFinite), id + ' received invalid beam geometry');
       commands.push({ method: 'beam:' + id, args });
     },
-    stamp: (
+    sprite: (
       id: string,
       point: { x: number; y: number },
       progress: number,
@@ -155,7 +154,11 @@ function drawing() {
         args: [point.x, point.y, progress, color, alpha, size],
       });
     },
+    contact: (point, color, alpha, radius) => {
+      commands.push({ method: 'contact', args: [point.x, point.y, color, alpha, radius] });
+    },
   };
+  return { graphics, commands, paint };
 }
 test('wave warnings mark both incoming directions in red and pulse with simulation time', () => {
   const peak = drawing(),
@@ -218,12 +221,11 @@ test('lightning remains finite at mobile scales and never changes combat data', 
         scale,
         fx.from,
         [],
-        active.stamp,
-        active.beam,
+        active.paint,
       );
       assert.ok(active.commands.length > 0, id + ' must have a visible attack');
       const expired = drawing();
-      drawEffect(expired.graphics, fx, 2, scale, fx.from, [], expired.stamp, expired.beam);
+      drawEffect(expired.graphics, fx, 2, scale, fx.from, [], expired.paint);
       assert.equal(expired.commands.length, 0);
       const coincident = drawing();
       drawEffect(
@@ -233,8 +235,7 @@ test('lightning remains finite at mobile scales and never changes combat data', 
         scale,
         fx.from,
         [],
-        coincident.stamp,
-        coincident.beam,
+        coincident.paint,
       );
     }
     assert.deepEqual(fx, before);
@@ -266,8 +267,8 @@ test('focused lightning follows the current electron and tracked particle', () =
   const fx = { ...effect, anchor: 'electron' as const, targetId: enemy.id };
   const before = structuredClone({ fx, enemy, electron });
   {
-    const { graphics, commands, stamp, beam } = drawing();
-    drawEffect(graphics, fx, 1.5, 1, electron, [enemy], stamp, beam);
+    const { graphics, commands, paint } = drawing();
+    drawEffect(graphics, fx, 1.5, 1, electron, [enemy], paint);
     const focused = commands.find(({ method }) => method === 'beam:focus');
     assert.ok(focused);
     assert.deepEqual(focused.args.slice(0, 4), [electron.x, electron.y, enemy.x, enemy.y]);
@@ -283,11 +284,11 @@ test('returning lightning reconnects to the live electron instead of its old pos
     endAnchor: 'electron' as const,
   };
   const electron = { x: 220, y: 280 };
-  const { graphics, commands, stamp, beam } = drawing();
-  drawEffect(graphics, fx, 1.8, 1, electron, [], stamp, beam);
+  const { graphics, commands, paint } = drawing();
+  drawEffect(graphics, fx, 1.8, 1, electron, [], paint);
   const returned = commands.find(({ method }) => method === 'beam:return')!;
   assert.deepEqual(returned.args.slice(0, 4), [fx.from.x, fx.from.y, electron.x, electron.y]);
-  const contact = commands.find(({ method }) => method === 'stamp:reconnect')!;
+  const contact = commands.find(({ method }) => method === 'contact')!;
   assert.deepEqual(contact.args.slice(0, 2), [electron.x, electron.y]);
   const piercing = drawing();
   drawEffect(
@@ -297,8 +298,7 @@ test('returning lightning reconnects to the live electron instead of its old pos
     1,
     electron,
     [],
-    piercing.stamp,
-    piercing.beam,
+    piercing.paint,
   );
   assert.deepEqual(piercing.commands.find((c) => c.method === 'beam:pierce')!.args.slice(0, 4), [
     fx.from.x,
@@ -324,8 +324,7 @@ test('satellite echoes and returns follow the actual emitting satellite, includi
       1,
       electron,
       [],
-      outbound.stamp,
-      outbound.beam,
+      outbound.paint,
       132,
       satellites,
     );
@@ -336,8 +335,7 @@ test('satellite echoes and returns follow the actual emitting satellite, includi
       1,
       electron,
       [],
-      inbound.stamp,
-      inbound.beam,
+      inbound.paint,
       132,
       satellites,
     );
@@ -408,8 +406,8 @@ test('rapid charging hits display the newest charge level once while their attac
 test('lightning beam heights use whole screen pixels at every viewport scale', () => {
   for (const scale of [0.65, 1, 1.75]) {
     for (const kind of ['bolt', 'strike', 'focus', 'pierce', 'return'] as const) {
-      const { graphics, commands, stamp, beam } = drawing();
-      drawEffect(graphics, { ...effect, kind }, 1.5, scale, effect.from, [], stamp, beam);
+      const { graphics, commands, paint } = drawing();
+      drawEffect(graphics, { ...effect, kind }, 1.5, scale, effect.from, [], paint);
       const widths = commands
         .filter(({ method }) => method.startsWith('beam:'))
         .map(({ args }) => args[7]);
@@ -490,8 +488,7 @@ test('every offensive skill passes its level to the beam without adding render o
         1,
         effect.from,
         [],
-        a.stamp,
-        a.beam,
+        a.paint,
       );
       const beams = a.commands.filter((c) => c.method.startsWith('beam:'));
       assert.equal(beams.length, source === 'bridge' ? 4 : 1, source);

@@ -5,7 +5,7 @@ import { healthBar } from './healthBars.ts';
 import { endingFrame } from './ending.ts';
 import { beyondFrame } from './beyond.ts';
 import { beamFrame, beamPose, effectFrame, visibleEffects } from './effects.ts';
-import type { BeamStamp, EffectStamp } from './effects.ts';
+import type { EffectPainter } from './effects.ts';
 import effectsUrl from '../art/assets/effects.png';
 import beamsUrl from '../art/assets/beams.png';
 import { DamageLabels } from './DamageLabels.ts';
@@ -22,7 +22,7 @@ export class ElectronScene extends Phaser.Scene {
   private sprites!: SpritePool;
   private contacts = new Map<
     string,
-    { point: Point; color: number; alpha: number; size: number }
+    { point: Point; color: number; alpha: number; radius: number }
   >();
   private impactAt = -Infinity;
   private lastModel: Game | null = null;
@@ -168,14 +168,13 @@ export class ElectronScene extends Phaser.Scene {
           scale,
           position,
           game.targets,
-          this.stamp,
-          this.beam,
+          this.paint,
           game.radius,
           satellites,
         );
-      for (const { point, color, alpha, size } of this.contacts.values()) {
+      for (const { point, color, alpha, radius } of this.contacts.values()) {
         this.effectGraphics.lineStyle(1 / scale, color, alpha * 0.65);
-        this.effectGraphics.strokeCircle(point.x, point.y, size / 2.5 / scale);
+        this.effectGraphics.strokeCircle(point.x, point.y, radius / scale);
       }
       const surging = game.combat.status('surge').active;
       if (game.ranks.charge || surging)
@@ -441,35 +440,37 @@ export class ElectronScene extends Phaser.Scene {
       y: this.centerY + (point.y - 260) * this.worldScale + this.offset.y,
     };
   }
-  private stamp: EffectStamp = (id, point, progress, color, alpha, size = 32) => {
-    const screen = this.screen(point);
-    const key = `${Math.round(screen.x)},${Math.round(screen.y)}`;
-    if (id === 'reconnect') {
+  private paint: EffectPainter = {
+    sprite: (id, point, progress, color, alpha, size = 32) => {
+      this.sprites
+        .draw(this.screen(point), 'effects', size / 32, alpha, 1.5, effectFrame(id, progress))
+        .setTintMode(Phaser.TintModes.MULTIPLY)
+        .setTint(color);
+    },
+    beam: (id, from, to, progress, color, alpha, height, rank) => {
+      const pose = beamPose(this.screen(from), this.screen(to));
+      if (pose.length < 1) return;
+      this.sprites
+        .draw(
+          pose,
+          'beams',
+          pose.length / 64,
+          alpha,
+          1,
+          beamFrame(id, progress, rank),
+          pose.angle,
+          height / 16,
+        )
+        .setTintMode(Phaser.TintModes.MULTIPLY)
+        .setTint(color);
+    },
+    contact: (point, color, alpha, radius) => {
+      const screen = this.screen(point);
+      const key = `${Math.round(screen.x)},${Math.round(screen.y)}`;
       const contact = this.contacts.get(key);
-      if (!contact || alpha > contact.alpha) this.contacts.set(key, { point, color, alpha, size });
-      return;
-    }
-    this.sprites
-      .draw(screen, 'effects', size / 32, alpha, 1.5, effectFrame(id, progress))
-      .setTintMode(Phaser.TintModes.MULTIPLY)
-      .setTint(color);
-  };
-  private beam: BeamStamp = (id, from, to, progress, color, alpha, height, rank) => {
-    const pose = beamPose(this.screen(from), this.screen(to));
-    if (pose.length < 1) return;
-    this.sprites
-      .draw(
-        pose,
-        'beams',
-        pose.length / 64,
-        alpha,
-        1,
-        beamFrame(id, progress, rank),
-        pose.angle,
-        height / 16,
-      )
-      .setTintMode(Phaser.TintModes.MULTIPLY)
-      .setTint(color);
+      if (!contact || alpha > contact.alpha)
+        this.contacts.set(key, { point, color, alpha, radius });
+    },
   };
   private drawElectron(point: Point, alpha: number, color = BLUE, surging = false): void {
     const sprite = this.sprites.draw(

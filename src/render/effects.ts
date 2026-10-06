@@ -7,14 +7,6 @@ export const effectRows = {
   dissolve: 2,
 } as const;
 export type EffectSprite = keyof typeof effectRows;
-export type EffectStamp = (
-  id: EffectSprite | 'reconnect',
-  point: Point,
-  progress: number,
-  color: number,
-  alpha: number,
-  size?: number,
-) => void;
 
 export const beamRows = {
   basic: 0,
@@ -27,16 +19,28 @@ export const beamRows = {
   return: 7,
 } as const;
 export type BeamId = keyof typeof beamRows;
-export type BeamStamp = (
-  id: BeamId,
-  from: Point,
-  to: Point,
-  progress: number,
-  color: number,
-  alpha: number,
-  height: number,
-  rank: number,
-) => void;
+// Points use world coordinates; sprite sizes, beam heights and contact radii use screen pixels.
+export type EffectPainter = {
+  sprite(
+    id: EffectSprite,
+    point: Point,
+    progress: number,
+    color: number,
+    alpha: number,
+    size?: number,
+  ): void;
+  beam(
+    id: BeamId,
+    from: Point,
+    to: Point,
+    progress: number,
+    color: number,
+    alpha: number,
+    height: number,
+    rank: number,
+  ): void;
+  contact(point: Point, color: number, alpha: number, radius: number): void;
+};
 
 export function beamFrame(id: BeamId, progress: number, rank = 1): number {
   const tier = Math.max(0, Math.min(4, Math.floor(rank) - 1));
