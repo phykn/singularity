@@ -65,42 +65,55 @@ test('loading gates input, frames retain catch-up ticks, and renderer recovery e
   assert.equal(run.game.elapsedTicks, 61);
 });
 
-test('title launch runs once for 400ms before combat and freezes with hidden or unavailable rendering', () => {
+test('START preserves the live title orbit and begins combat once without a transition', () => {
+  for (const wait of [0, 250, 1800, 7500]) {
+    const { run } = session();
+    const initial = run.game.angle;
+    run.step(5000);
+    assert.equal(run.game.angle, initial);
+    run.setRenderReady(true, 5000);
+    run.step(5000 + wait);
+    const angle = run.game.angle;
+    assert.ok(
+      Math.abs(angle - initial - ((run.game.speed / run.game.radius) * wait) / 1000) < 1e-8,
+    );
+    assert.equal(run.game.elapsedTicks, 0);
+    assert.equal(run.game.targets.length, 0);
+    assert.equal(run.game.events.length, 0);
+    const position = run.game.position;
+    run.begin(5000 + wait);
+    assert.equal(run.game.phase, 'running');
+    assert.equal(run.game.angle, angle);
+    assert.deepEqual(run.game.position, position);
+    assert.ok(run.game.targets.length > 0);
+    run.begin(5000 + wait + 500);
+    assert.equal(run.game.events.filter((event) => event.kind === 'start').length, 1);
+    run.step(5000 + wait + 1000 / 60);
+    assert.equal(run.game.elapsedTicks, 1);
+    assert.ok(Math.abs(run.game.angle - angle - run.game.speed / run.game.radius / 60) < 1e-8);
+  }
+});
+
+test('the title orbit freezes while hidden or unavailable and resets with a new run', () => {
   const { run } = session();
-  run.launch(0);
-  assert.equal(run.launchProgress, null);
   run.setRenderReady(true, 0);
-  run.launch(0);
   run.step(100);
-  assert.equal(run.launchProgress, 0.25);
-  run.launch(100);
+  const angle = run.game.angle;
   run.setHidden(true, 100);
   run.step(5000);
-  assert.equal(run.launchProgress, 0.25);
+  run.begin(5000);
+  assert.equal(run.game.phase, 'ready');
+  assert.equal(run.game.angle, angle);
   run.setHidden(false, 5000);
   run.setRenderReady(false, 5000);
   run.step(10000);
-  assert.equal(run.game.phase, 'ready');
-  assert.equal(run.game.elapsedTicks, 0);
+  assert.equal(run.game.angle, angle);
   run.setRenderReady(true, 10000);
-  run.step(10299);
-  assert.equal(run.game.phase, 'ready');
-  run.step(10300);
-  assert.equal(run.launchProgress, null);
-  assert.equal(run.game.phase, 'running');
+  run.step(10100);
+  assert.ok(Math.abs(run.game.angle - angle - run.game.speed / run.game.radius / 10) < 1e-8);
+  run.replace(new Game(25), 10100);
+  assert.equal(run.game.angle, -Math.PI / 2);
   assert.equal(run.game.elapsedTicks, 0);
-  assert.equal(run.game.events.filter((event) => event.kind === 'start').length, 1);
-  run.step(10300 + 1000 / 60);
-  assert.equal(run.game.elapsedTicks, 1);
-  run.launch(10350);
-  assert.equal(run.launchProgress, null);
-  run.replace(new Game(24), 11000);
-  run.launch(11000);
-  run.step(11100);
-  run.replace(new Game(25), 11100);
-  assert.equal(run.launchProgress, null);
-  run.step(12000);
-  assert.equal(run.game.phase, 'ready');
 });
 
 test('visibility and freeze preserve the live run without consuming hidden time or undoing manual pause', () => {

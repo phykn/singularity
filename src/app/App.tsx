@@ -21,7 +21,6 @@ export default function App() {
   const {
     game,
     getGame,
-    getLaunch,
     language,
     settings,
     best,
@@ -29,7 +28,6 @@ export default function App() {
     storageOk,
     audioUnavailable,
     renderReady,
-    launching,
     playbackSpeed,
     cycleSpeed,
     pauseOnChoice,
@@ -89,9 +87,9 @@ export default function App() {
   return (
     <main
       style={{ '--scene-hud': hud } as CSSProperties}
-      className={`app ${game.charged ? 'is-charged' : ''} ${game.endless ? 'is-beyond' : ''} ${ready ? 'is-ready' : ''} ${launching ? 'is-launching' : ''} ${ready && homecoming ? 'is-homecoming' : ''} ${game.choice ? 'has-choice' : ''}`}
+      className={`app ${game.charged ? 'is-charged' : ''} ${game.endless ? 'is-beyond' : ''} ${ready ? 'is-ready' : ''} ${ready && homecoming ? 'is-homecoming' : ''} ${game.choice ? 'has-choice' : ''}`}
     >
-      <div className="play-layout" inert={modal || launching || (!ready && !renderReady)}>
+      <div className="play-layout" inert={modal || (!ready && !renderReady)}>
         {ready ? (
           <header className="topbar">
             <a
@@ -133,7 +131,7 @@ export default function App() {
           />
         )}
         <section className="arena" aria-label={c.arena}>
-          <GameCanvas getGame={getGame} getLaunch={getLaunch} onReady={onRenderReady} />
+          <GameCanvas getGame={getGame} onReady={onRenderReady} />
           {!ready && !renderReady && (
             <p className="render-status" role="status">
               {c.loading}
@@ -179,19 +177,11 @@ export default function App() {
         <section className="footer" aria-label={ready ? 'START' : c.loadout}>
           {ready ? (
             <div className="preparation">
-              <button
-                className="primary start"
-                onClick={begin}
-                disabled={!renderReady || launching}
-              >
+              <button className="primary start" onClick={begin} disabled={!renderReady}>
                 <span>{renderReady ? 'START' : c.loading}</span>
                 <ControlIcon id="next" />
               </button>
               <LanguagePicker value={language} onChange={changeLanguage} />
-              <small className="title-meta">
-                <span>© 2026 phykn</span>
-                <span>v{version}</span>
-              </small>
               {notice}
             </div>
           ) : (
@@ -208,6 +198,13 @@ export default function App() {
           />
         )}
       </div>
+
+      {ready && (
+        <small className="title-meta">
+          <span>© 2026 phykn</span>
+          <span>v{version}</span>
+        </small>
+      )}
 
       {panel === 'guide' && (
         <Guide rules={game.rules} language={language} onClose={() => setPanel(null)} />

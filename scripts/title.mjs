@@ -20,176 +20,103 @@ try {
     page.on('pageerror', (error) => errors.push(error.message));
     await observeScene(page);
     await page.goto(base);
-    await page.getByRole('button', { name: 'START', exact: true }).waitFor();
     await page.waitForFunction(
-      () => window.__gameScene && window.__gameDebug && !document.querySelector('.start').disabled,
+      () => window.__gameScene && window.__gameDebug && !document.querySelector('.start')?.disabled,
     );
     await page.evaluate(() => document.fonts.ready);
     const layout = await page.evaluate(() => {
       const title = document.querySelector('.arena-caption h1').getBoundingClientRect();
       const start = document.querySelector('.start').getBoundingClientRect();
-      const scene = window.__gameScene;
-      window.introOriginal = scene.drawIntro.bind(scene);
-      window.introClock = 2200;
-      scene.drawIntro = (width, height) => {
-        const time = scene.time.now;
-        scene.time.now = window.introClock;
-        try {
-          window.introOriginal(width, height);
-        } finally {
-          scene.time.now = time;
-        }
-      };
+      const meta = document.querySelector('.title-meta').getBoundingClientRect();
       return {
         title: { left: title.left, right: title.right, bottom: title.bottom },
-        start: { top: start.top, left: start.left },
+        start: { top: start.top },
         height: document.documentElement.scrollHeight,
+        meta: { left: meta.left, right: meta.right, top: meta.top },
       };
     });
     assert.ok(layout.title.left >= 0 && layout.title.right <= width);
-    if (height > width) assert.ok(layout.title.bottom < layout.start.top);
+    if (height > width) assert.ok(layout.title.bottom <= layout.start.top);
     assert.equal(layout.height, height);
+    assert.ok(layout.title.bottom <= layout.meta.top || layout.title.right <= layout.meta.left);
+    const idle = await page.evaluate(() => ({
+      angle: window.__gameDebug.getModel().angle,
+      tick: window.__gameDebug.getModel().elapsedTicks,
+      targets: window.__gameDebug.getModel().targets.length,
+    }));
+    await page.waitForTimeout(150);
+    const later = await page.evaluate(() => ({
+      angle: window.__gameDebug.getModel().angle,
+      tick: window.__gameDebug.getModel().elapsedTicks,
+      targets: window.__gameDebug.getModel().targets.length,
+    }));
+    assert.ok(later.angle > idle.angle);
+    assert.equal(later.tick, 0);
+    assert.equal(later.targets, 0);
     await capture(page, `artifacts/title-polish/title-${width}.png`);
-    await page.evaluate(() => {
-      window.introClock = 3920;
-    });
-    await page.waitForFunction(() =>
-      window.__gameScene.sprites.images.some(
-        (image) => image.visible && image.texture.key === 'beams',
-      ),
-    );
-    const pulse = await page.evaluate(() => {
-      const images = window.__gameScene.sprites.images.filter((image) => image.visible);
-      return {
-        bolts: images.filter((image) => image.texture.key === 'beams').length,
-        body: images.find((image) => image.texture.key === 'electron').displayWidth,
-      };
-    });
-    assert.equal(pulse.bolts, 1);
-    assert.equal(pulse.body, 16);
-    await capture(page, `artifacts/title-polish/pulse-${width}.png`);
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.waitForFunction(
-      () =>
-        !window.__gameScene.sprites.images.some(
-          (image) => image.visible && image.texture.key === 'beams',
-        ),
-    );
-    const electron = () =>
-      page.evaluate(() => {
-        const image = window.__gameScene.sprites.images.find(
-          (image) => image.visible && image.texture.key === 'electron',
-        );
-        return { x: image.x, y: image.y };
-      });
-    const stopped = await electron();
-    await page.evaluate(() => {
-      window.introClock = 14000;
-    });
-    await page.waitForTimeout(100);
-    assert.deepEqual(await electron(), stopped);
-    await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await page.evaluate(() => {
-      window.__gameScene.drawIntro = window.introOriginal;
-    });
-    const seam = await page.evaluate(async () => {
-      const scene = window.__gameScene,
-        game = window.__gameDebug.getModel();
-      const original = scene.getLaunch;
-      const electron = () => {
-        const sprite = scene.sprites.images.find(
-          (image) => image.visible && image.texture.key === 'electron',
-        );
-        const rect = scene.game.canvas.getBoundingClientRect();
-        return {
-          x: rect.left + sprite.x,
-          y: rect.top + sprite.y,
-          alpha: sprite.alpha,
-          size: sprite.displayWidth,
-        };
-      };
-      scene.update();
-      const before = electron(),
-        origin = scene.intro.radius;
-      let progress = 0;
-      scene.getLaunch = () => progress;
-      document.querySelector('.app').classList.add('is-launching');
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      const poses = [];
-      for (const p of [0, 0.25, 0.5, 0.75, 1]) {
-        progress = p;
-        const circles = [],
-          stroke = scene.graphics.strokeCircle;
-        scene.graphics.strokeCircle = function (x, y, radius) {
-          circles.push(radius);
-          return stroke.call(this, x, y, radius);
-        };
-        try {
+    for (const [i, wait] of [0, 300, 900].entries()) {
+      if (i > 0) await page.evaluate(() => window.__gameDebug.prepare(10004));
+      await page.getByRole('button', { name: 'START', exact: true }).waitFor();
+      await page.waitForTimeout(wait);
+      await page.emulateMedia({ reducedMotion: i === 2 ? 'reduce' : 'no-preference' });
+      const seam = await page.evaluate(async () => {
+        const scene = window.__gameScene,
+          game = window.__gameDebug.getModel();
+        const pose = () => {
           scene.update();
-        } finally {
-          scene.graphics.strokeCircle = stroke;
-        }
-        poses.push({ p, ...electron(), radius: circles[0] });
+          const image = scene.sprites.images.find(
+            (image) => image.visible && image.texture.key === 'electron',
+          );
+          const r = scene.game.canvas.getBoundingClientRect();
+          return {
+            x: r.left + image.x,
+            y: r.top + image.y,
+            alpha: image.alpha,
+            size: image.displayWidth,
+            angle: game.angle,
+            radius: game.radius * scene.worldScale,
+            rect: [r.left, r.top, r.width, r.height],
+          };
+        };
+        const before = pose(),
+          start = document.querySelector('.start');
+        start.click();
+        start.click();
+        game.setHidden(true);
+        const immediate = pose();
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const after = pose();
+        return {
+          before,
+          immediate,
+          after,
+          phase: game.phase,
+          tick: game.elapsedTicks,
+          targets: game.targets.length,
+          starts: game.events.filter((event) => event.kind === 'start').length,
+        };
+      });
+      assert.equal(seam.phase, 'running');
+      assert.equal(seam.tick, 0);
+      assert.ok(seam.targets > 0);
+      assert.equal(seam.starts, 1);
+      for (const pose of [seam.immediate, seam.after]) {
+        assert.equal(pose.angle, seam.before.angle);
+        assert.equal(pose.radius, seam.before.radius);
+        assert.deepEqual(pose.rect, seam.before.rect);
+        assert.ok(Math.hypot(pose.x - seam.before.x, pose.y - seam.before.y) <= 1);
+        assert.equal(pose.alpha, 1);
+        assert.equal(pose.size, 16);
       }
-      const final = poses.at(-1);
-      game.start();
-      game.setHidden(true);
-      scene.update();
-      const running = electron();
-      scene.getLaunch = original;
-      window.__gameDebug.prepare(10004);
-      return { before, origin, target: game.radius * scene.worldScale, poses, final, running };
-    });
-    assert.ok(Math.hypot(seam.before.x - seam.poses[0].x, seam.before.y - seam.poses[0].y) <= 1);
-    assert.ok(Math.hypot(seam.final.x - seam.running.x, seam.final.y - seam.running.y) <= 1);
-    for (const pose of seam.poses) {
-      assert.equal(pose.alpha, 1);
-      assert.equal(pose.size, 16);
-      assert.ok(
-        pose.radius >= Math.min(seam.origin, seam.target) - 1e-8,
-        'The orbit never collapses toward the core',
-      );
-      assert.ok(pose.radius <= Math.max(seam.origin, seam.target) + 1e-8);
+      checks.push({ viewport: [width, height], wait, reducedMotion: i === 2, layout, seam });
     }
-    await page.getByRole('button', { name: 'START', exact: true }).waitFor();
-    await page.waitForFunction(() => !document.querySelector('.start').disabled);
-    const started = Date.now();
-    const initial = await page.evaluate(() => {
-      document.querySelector('.start').click();
-      document.querySelector('.start').click();
-      const game = window.__gameDebug.getModel();
-      return {
-        phase: game.phase,
-        tick: game.elapsedTicks,
-        progress: window.__gameScene.getLaunch(),
-      };
-    });
-    assert.equal(initial.phase, 'ready');
-    assert.equal(initial.tick, 0);
-    assert.equal(initial.progress, 0);
-    await page.waitForFunction(() => window.__gameDebug.getModel().phase === 'running');
-    assert.ok(Date.now() - started >= 350);
-    assert.equal(
-      await page.evaluate(
-        () => window.__gameDebug.getModel().events.filter((event) => event.kind === 'start').length,
-      ),
-      1,
-    );
     await page.locator('.hud').waitFor();
     await capture(page, `artifacts/title-polish/started-${width}.png`);
-    checks.push({
-      viewport: [width, height],
-      pulse,
-      reducedMotion: true,
-      launchOnce: true,
-      seam,
-      layout,
-    });
     await page.close();
   }
   assert.deepEqual(errors, []);
   writeFileSync('artifacts/title-polish.json', JSON.stringify({ checks, errors }, null, 2));
-  console.log(JSON.stringify({ viewports: checks.length, errors }));
+  console.log(JSON.stringify({ viewports: 4, starts: checks.length, errors }));
 } finally {
   await browser.close();
 }

@@ -115,9 +115,6 @@ svg {
 .is-ready {
   --gutter: 24px;
 }
-.is-ready .play-layout {
-  grid-template-rows: 72px minmax(0, 1fr) auto;
-}
 .topbar {
   display: flex;
   justify-content: flex-end;
@@ -301,31 +298,13 @@ svg {
   height: 100%;
   image-rendering: pixelated;
 }
-.is-ready .canvas {
-  bottom: 92px;
-}
 .arena-caption {
   pointer-events: none;
   position: absolute;
-  bottom: 56px;
+  bottom: 48px;
   left: var(--gutter);
   right: var(--gutter);
   text-align: center;
-}
-.arena-caption,
-.preparation {
-  transition: opacity 0.18s;
-}
-.is-ready.is-launching .arena-caption,
-.is-ready.is-launching .preparation {
-  animation: none;
-  opacity: 0;
-}
-.is-ready.is-launching .play-layout {
-  grid-template-rows: 48px minmax(0, 1fr) 88px;
-}
-.is-ready.is-launching .canvas {
-  bottom: 0;
 }
 .arena-caption h1 {
   font-size: 36px;
@@ -348,8 +327,14 @@ svg {
 .footer {
   padding: 0 var(--gutter);
 }
+.is-ready .footer {
+  position: absolute;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+}
 .preparation {
-  padding: 0 0 28px;
+  padding: 0;
 }
 .title-meta {
   position: absolute;
@@ -1091,18 +1076,6 @@ svg {
   .github-link {
     top: 6px;
   }
-  .is-ready .play-layout {
-    grid-template-rows: 56px minmax(0, 1fr) auto;
-  }
-  .is-ready .canvas {
-    bottom: 72px;
-  }
-  .arena-caption {
-    bottom: 24px;
-  }
-  .preparation {
-    padding-bottom: 24px;
-  }
 }
 @media (orientation: landscape) and (max-height: 600px) {
   .github-link {
@@ -1179,10 +1152,6 @@ svg {
   .loadout {
     gap: 4px;
   }
-  .is-ready .play-layout {
-    grid-template-columns: minmax(0, 1fr) 288px;
-    grid-template-rows: 56px minmax(0, 1fr);
-  }
   .is-ready .topbar {
     grid-column: 2;
     grid-row: 1;
@@ -1191,33 +1160,24 @@ svg {
     grid-column: 1;
     grid-row: 1 / -1;
   }
-  .is-ready .canvas {
-    bottom: 72px;
-  }
   .is-ready .footer {
+    position: relative;
+    bottom: auto;
     grid-column: 2;
     grid-row: 2;
     align-self: center;
   }
-  .is-ready.is-launching .play-layout {
-    grid-template-columns: minmax(0, 1fr) 320px;
-    grid-template-rows: 48px minmax(0, 1fr) 88px;
-  }
-  .is-ready.is-launching .footer {
-    grid-row: 3;
-    align-self: stretch;
-  }
   .is-ready {
     --gutter: 20px;
   }
-  .preparation {
-    padding-block: 0 16px;
+  .title-meta {
+    left: calc(100% - 300px);
   }
   .start {
     min-height: 48px;
   }
   .arena-caption {
-    bottom: 24px;
+    bottom: 12px;
     left: 12px;
     right: 12px;
   }

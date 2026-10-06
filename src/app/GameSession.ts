@@ -2,7 +2,6 @@ import type { Game } from '../game/Game.ts';
 import type { UpgradeId } from '../game/rules.ts';
 import type { Result } from '../game/types.ts';
 import type { GameAudio } from './GameAudio.ts';
-import { launchMilliseconds } from '../render/intro.ts';
 
 type SessionEffects = {
   sound: () => boolean;
@@ -17,7 +16,6 @@ export class GameSession {
   renderReady = false;
   playbackSpeed: 1 | 1.5 | 2 = 1;
   pauseOnChoice = true;
-  launchProgress: number | null = null;
   private audio: Pick<GameAudio, 'enabled' | 'update' | 'unlock' | 'suspend' | 'destroy'>;
   private effects: SessionEffects;
   private lastWall = 0;
@@ -45,23 +43,9 @@ export class GameSession {
   }
 
   begin(wall: number): void {
-    if (!this.renderReady) return;
-    this.launchProgress = null;
+    if (!this.renderReady || this.game.paused || this.game.phase !== 'ready') return;
     this.lastWall = wall;
     this.game.start();
-    this.effects.redraw();
-  }
-
-  launch(wall: number): void {
-    if (
-      !this.renderReady ||
-      this.game.paused ||
-      this.game.phase !== 'ready' ||
-      this.launchProgress !== null
-    )
-      return;
-    this.launchProgress = 0;
-    this.lastWall = wall;
     this.effects.redraw();
   }
 
@@ -71,7 +55,6 @@ export class GameSession {
     this.game = game;
     this.playbackSpeed = 1;
     this.pauseOnChoice = true;
-    this.launchProgress = null;
     this.lastWall = wall;
     this.lastDrawTick = -1;
     this.audioCursor = 0;
@@ -135,15 +118,10 @@ export class GameSession {
   step(wall: number): void {
     const game = this.game;
     if (this.renderReady) {
-      if (this.launchProgress !== null) {
-        if (!game.paused) {
-          this.launchProgress = Math.min(
-            1,
-            this.launchProgress + Math.max(0, wall - this.lastWall) / launchMilliseconds,
-          );
-          if (this.launchProgress >= 1 - 1e-8) this.begin(wall);
-        }
-      } else this.advanceTime(Math.max(0, wall - this.lastWall), frameTickLimit);
+      const ms = Math.max(0, wall - this.lastWall);
+      if (game.phase === 'ready') {
+        if (!game.paused) game.angle += (game.speed / game.radius) * (ms / 1000);
+      } else this.advanceTime(ms, frameTickLimit);
     }
     this.lastWall = wall;
     if (this.audio.enabled) this.audio.update(game, this.audioCursor);

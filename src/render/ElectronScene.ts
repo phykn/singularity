@@ -4,7 +4,6 @@ import { SpritePool } from './SpritePool.ts';
 import { healthBar } from './healthBars.ts';
 import { endingFrame } from './ending.ts';
 import { drawCollapse } from './collapse.ts';
-import { introFrame } from './intro.ts';
 import { beyondFrame } from './beyond.ts';
 import { beamFrame, beamPose, effectFrame, visibleEffects } from './effects.ts';
 import type { EffectPainter } from './effects.ts';
@@ -29,20 +28,16 @@ export class ElectronScene extends Phaser.Scene {
   private impactAt = -Infinity;
   private lastModel: Game | null = null;
   private returnAt = -Infinity;
-  private intro: { x: number; y: number; radius: number; core: number; angle: number } | null =
-    null;
   private offset = { x: 0, y: 0 };
   private width = 0;
   private centerY = 0;
   private worldScale = 1;
   private damageLabels!: DamageLabels;
   private getGame: () => Game;
-  private getLaunch: () => number | null;
   private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  constructor(getGame: () => Game, getLaunch: () => number | null) {
+  constructor(getGame: () => Game) {
     super('electron');
     this.getGame = getGame;
-    this.getLaunch = getLaunch;
   }
   preload(): void {
     this.load.spritesheet('effects', effectsUrl, { frameWidth: 32, frameHeight: 32 });
@@ -81,17 +76,18 @@ export class ElectronScene extends Phaser.Scene {
           : -Infinity;
       this.lastModel = game;
       this.impactAt = -Infinity;
-      this.intro = null;
-    }
-    if (game.phase === 'ready') {
-      this.offset = { x: 0, y: 0 };
-      this.drawIntro(width, height);
-      this.cover(width, height, 1 - clamp((this.time.now - this.returnAt) / 550));
-      return;
     }
     g.setPosition(width / 2 - 180 * scale, this.centerY - 260 * scale);
     g.setScale(scale);
     this.effectGraphics.setPosition(g.x, g.y).setScale(scale).setDepth(1);
+    if (game.phase === 'ready') {
+      this.offset = { x: 0, y: 0 };
+      this.drawOrbit(game.radius, BLUE, 0.32, false, scale);
+      this.drawTrail(game.angle, game.radius, 8, BLUE, scale);
+      this.drawElectron(game.position, 1, BLUE);
+      this.cover(width, height, 1 - clamp((this.time.now - this.returnAt) / 550));
+      return;
+    }
     const crossing = beyondFrame(game, this.reducedMotion.matches);
     if (crossing) {
       this.offset = { x: 0, y: 0 };
@@ -390,95 +386,6 @@ export class ElectronScene extends Phaser.Scene {
     this.effectGraphics.setPosition(0, 0).setScale(1).setDepth(3);
     this.effectGraphics.fillStyle(0x020306, alpha);
     this.effectGraphics.fillRect(0, 0, width, height);
-  }
-  private drawIntro(width: number, height: number): void {
-    const g = this.graphics,
-      clock = this.time.now / 1000;
-    const progress = this.getLaunch();
-    const frame = introFrame(clock, progress, this.reducedMotion.matches);
-    const rect = this.game.canvas.getBoundingClientRect();
-    const size = Math.min(width * 0.44, height * 0.45, 184);
-    if (progress === null || !this.intro)
-      this.intro = {
-        x: rect.left + width / 2,
-        y: rect.top + height * 0.51,
-        radius: size,
-        core: size * 0.42,
-        angle: frame.angle,
-      };
-    const origin = this.intro;
-    const settle = progress === null ? 0 : frame.settle;
-    const game = this.getGame();
-    const x = origin.x - rect.left + (width / 2 - (origin.x - rect.left)) * settle;
-    const y = origin.y - rect.top + (this.centerY - (origin.y - rect.top)) * settle;
-    const radius = origin.radius + (game.radius * this.worldScale - origin.radius) * settle;
-    const core = origin.core * frame.core;
-    let angle = progress === null ? frame.angle : origin.angle;
-    angle += Math.atan2(Math.sin(game.angle - angle), Math.cos(game.angle - angle)) * settle;
-    g.setPosition(0, 0);
-    g.setScale(1);
-    g.lineStyle(1, progress === null ? 0x7295af : BLUE, 0.4 - 0.08 * settle);
-    g.strokeCircle(x, y, radius);
-    g.fillStyle(0x0b1219, 1 - settle);
-    g.fillCircle(x, y, core);
-    g.lineStyle(1, 0xa7c4d9, 0.3 * (1 - settle));
-    g.strokeCircle(x, y, core);
-    for (let i = 0; i < 96; i++) {
-      const a = (i / 96) * Math.PI * 2,
-        next = ((i + 1) / 96) * Math.PI * 2;
-      const light =
-        (0.5 + 0.5 * Math.cos(a + 2.2 + (this.reducedMotion.matches ? 0 : clock * 0.07))) ** 5;
-      for (const [stroke, alpha, ink] of [
-        [3, 0.18, BLUE],
-        [1, 1, WHITE],
-      ]) {
-        g.lineStyle(stroke, ink, alpha * light * (1 - settle));
-        g.lineBetween(
-          x + Math.cos(a) * core,
-          y + Math.sin(a) * core,
-          x + Math.cos(next) * core,
-          y + Math.sin(next) * core,
-        );
-      }
-    }
-    const length = Math.round(36 - 28 * settle),
-      step = 0.022 + 0.013 * settle;
-    for (let i = length; i > 0; i--) {
-      const a = angle - i * step,
-        next = angle - (i - 1) * step;
-      g.lineStyle(
-        1 + 2 * settle * (1 - i / length),
-        BLUE,
-        (1 - i / length) * (0.7 - 0.05 * settle),
-      );
-      g.lineBetween(
-        x + Math.cos(a) * radius,
-        y + Math.sin(a) * radius,
-        x + Math.cos(next) * radius,
-        y + Math.sin(next) * radius,
-      );
-    }
-    const electron = { x: x + Math.cos(angle) * radius, y: y + Math.sin(angle) * radius };
-    if (frame.pulse > 0.02) {
-      const contact = { x: x + Math.cos(angle) * core, y: y + Math.sin(angle) * core };
-      const pose = beamPose(electron, contact);
-      if (pose.length >= 1)
-        this.sprites
-          .draw(
-            pose,
-            'beams',
-            pose.length / 64,
-            frame.pulse * 0.75,
-            1.5,
-            beamFrame('basic', clock, 2),
-            pose.angle,
-          )
-          .setTintMode(Phaser.TintModes.MULTIPLY)
-          .setTint(BLUE);
-      g.fillStyle(WHITE, frame.pulse);
-      g.fillRect(Math.round(contact.x) - 1, Math.round(contact.y) - 1, 2, 2);
-    }
-    this.sprites.draw(electron, 'electron', 1, 1, 2).clearTint();
   }
   private screen(point: Point): Point {
     return {

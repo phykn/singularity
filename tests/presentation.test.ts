@@ -4,29 +4,7 @@ import { Game } from '../src/game/Game.ts';
 import { endingFrame } from '../src/render/ending.ts';
 import { drawCollapse } from '../src/render/collapse.ts';
 import type Phaser from 'phaser';
-import { introFrame } from '../src/render/intro.ts';
 import { KillRhythm, SoundMixer } from '../src/app/sounds.ts';
-
-test('title keeps its orbit visible and settles into combat without contraction or a blackout', () => {
-  assert.equal(introFrame(3.5, null).pulse, 0);
-  assert.ok(introFrame(3.92, null).pulse > 0.99);
-  assert.equal(introFrame(4.2, null).pulse, 0);
-  let settle = 0;
-  for (let i = 0; i <= 30; i++) {
-    const frame = introFrame(3.92, i / 30);
-    assert.ok(Object.values(frame).every(Number.isFinite));
-    assert.equal(frame.core, 1);
-    assert.equal(frame.pulse, 0);
-    assert.ok(frame.settle >= settle && frame.settle <= 1);
-    settle = frame.settle;
-    const reduced = introFrame(i, i / 30, true);
-    assert.equal(reduced.core, 1);
-    assert.equal(reduced.pulse, 0);
-    assert.equal(reduced.angle, -0.65);
-  }
-  assert.equal(settle, 1);
-  assert.deepEqual(introFrame(0, null, true), introFrame(100, null, true));
-});
 
 test('kill rhythm increases with kills, caps its rate and never drains a backlog', () => {
   const run = (killsPerSecond: number) => {
