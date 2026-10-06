@@ -2,13 +2,15 @@ import Phaser from 'phaser';
 import { createPixels } from './pixels.ts';
 import { healthBar } from './health.ts';
 import { endingFrame } from './ending.ts';
-import { visibleEffects } from './effects.ts';
+import { effectFrame, visibleEffects } from './effects.ts';
+import type { EffectStamp } from './effects.ts';
+import effectsUrl from './assets/effects.png';
 import { maxDamageNumbers } from '../game/rules.ts';
 import { orbit, clamp } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
 import type { Game } from '../game/model.ts';
 import { BLUE, WHITE, AMBER, GOLD, skillColors } from './palette.ts';
-import { drawEffect, drawOrb, drawSurge } from './lightning.ts';
+import { drawEffect } from './lightning.ts';
 import { drawWaveWarning } from './warning.ts';
 export class ElectronScene extends Phaser.Scene {
   private graphics!: Phaser.GameObjects.Graphics;
@@ -27,6 +29,9 @@ export class ElectronScene extends Phaser.Scene {
   constructor(model: () => Game) {
     super('electron');
     this.model = model;
+  }
+  preload(): void {
+    this.load.spritesheet('effects', effectsUrl, { frameWidth: 32, frameHeight: 32 });
   }
   create(): void {
     this.graphics = this.add.graphics();
@@ -113,7 +118,7 @@ export class ElectronScene extends Phaser.Scene {
       if (point.x < -20 || point.x > width + 20 || point.y < -20 || point.y > height + 20) continue;
       const hit = !ending && target.hitAt !== undefined && model.time - target.hitAt < 0.06;
       const sprite = this.sprite(point, target.particle, 1, 1 - absorb);
-      if (hit) sprite.setTint(WHITE).setTintFill();
+      if (hit) sprite.setTint(WHITE).setTintMode(Phaser.TintModes.FILL);
       else sprite.clearTint();
       const bar = !ending && healthBar(target, damage);
       if (bar) {
@@ -128,12 +133,13 @@ export class ElectronScene extends Phaser.Scene {
       }
     }
     if (!ending) {
-      for (const point of model.combat.orbPoints) drawOrb(this.effectGraphics, point, scale);
+      for (const point of model.combat.orbPoints)
+        this.stamp('orb', point, clock, skillColors.orb, 1);
       for (const fx of visibleEffects(model.effects))
         if (fx.kind !== 'surge')
-          drawEffect(this.effectGraphics, fx, model.seconds, scale, position, model.targets);
+          drawEffect(this.effectGraphics, fx, clock, scale, position, model.targets, this.stamp);
       const surging = model.combat.status('surge').active;
-      if (surging) drawSurge(this.effectGraphics, position, model.time, scale);
+      if (surging) this.stamp('surge', position, clock, skillColors.surge, 0.9);
       this.drawTrail(
         model.angle,
         model.radius,
@@ -394,10 +400,12 @@ export class ElectronScene extends Phaser.Scene {
     scale: number,
     alpha = 1,
     depth = 0.5,
+    frame?: number,
   ): Phaser.GameObjects.Image {
     const index = this.spriteCount++;
     const sprite = (this.sprites[index] ??= this.add.image(point.x, point.y, key));
-    if (sprite.texture.key !== key) sprite.setTexture(key);
+    if (sprite.texture.key !== key || (frame !== undefined && Number(sprite.frame.name) !== frame))
+      sprite.setTexture(key, frame);
     const x = Math.round(point.x),
       y = Math.round(point.y);
     if (sprite.x !== x || sprite.y !== y) sprite.setPosition(x, y);
@@ -406,6 +414,11 @@ export class ElectronScene extends Phaser.Scene {
     if (sprite.depth !== depth) sprite.setDepth(depth);
     return sprite.setActive(true).setVisible(true);
   }
+  private stamp: EffectStamp = (id, point, progress, color, alpha) => {
+    this.sprite(this.screen(point), 'effects', 1, alpha, 1.5, effectFrame(id, progress))
+      .setTintMode(Phaser.TintModes.MULTIPLY)
+      .setTint(color);
+  };
   private drawElectron(point: Point, alpha: number, color = BLUE, surging = false): void {
     const sprite = this.sprite(
       this.screen(point),

@@ -1,5 +1,24 @@
 import type { Effect } from '../game/types.ts';
 import type { Point } from '../game/geometry.ts';
+
+export const effectRows = { hit: 0, impact: 1, orb: 2, charge: 3, surge: 4, dissolve: 5 } as const;
+export type EffectSprite = keyof typeof effectRows;
+export type EffectStamp = (
+  id: EffectSprite,
+  point: Point,
+  progress: number,
+  color: number,
+  alpha: number,
+) => void;
+
+export function effectFrame(id: EffectSprite, progress: number): number {
+  const loop = id === 'orb' || id === 'charge' || id === 'surge';
+  const frame = loop
+    ? Math.floor(Math.max(0, progress) * (id === 'charge' ? 8 : 10)) % 4
+    : Math.min(3, Math.floor(Math.max(0, progress) * 4));
+  return effectRows[id] * 4 + frame;
+}
+
 export function effectOrigin(effect: Effect, electron: Point): Point {
   if (effect.anchor === 'electron') return electron;
   return effect.from;

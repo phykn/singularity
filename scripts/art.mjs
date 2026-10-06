@@ -6,12 +6,13 @@ import { launchBrowser } from './browser-support.mjs';
 const browser = await launchBrowser();
 try {
   const page = await browser.newPage();
-  for (const [sourcePath, output, cols, rows] of [
-    ['assets/icon-art/pixel-art.png', 'src/ui/assets/skills.png', 7, 3],
+  for (const [sourcePath, output, cols, rows, trim] of [
+    ['assets/icon-art/pixel-art.png', 'src/ui/assets/skills.png', 7, 3, true],
+    ['assets/effect-art/pixel-art.png', 'src/render/assets/effects.png', 4, 6, false],
   ]) {
     const source = readFileSync(sourcePath).toString('base64');
     const png = await page.evaluate(
-      async ({ source, cols, rows }) => {
+      async ({ source, cols, rows, trim }) => {
         const image = new Image();
         image.src = 'data:image/png;base64,' + source;
         await image.decode();
@@ -20,6 +21,11 @@ try {
         canvas.height = rows * 32;
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
+        // Animated frames retain their shared cell center, including transparent margins.
+        if (!trim) {
+          ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+          return canvas.toDataURL('image/png').split(',')[1];
+        }
         const width = image.naturalWidth / cols,
           height = image.naturalHeight / rows;
         const raw = document.createElement('canvas');
@@ -62,7 +68,7 @@ try {
           }
         return canvas.toDataURL('image/png').split(',')[1];
       },
-      { source, cols, rows },
+      { source, cols, rows, trim },
     );
     const buffer = Buffer.from(png, 'base64');
     assert.equal(buffer.readUInt32BE(16), cols * 32);

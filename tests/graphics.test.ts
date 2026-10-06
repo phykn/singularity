@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type Phaser from 'phaser';
 import { readFileSync } from 'node:fs';
+import { effectFrame, effectRows } from '../src/render/effects.ts';
 import { art, createPixels, palettes } from '../src/render/pixels.ts';
 import { healthBar } from '../src/render/health.ts';
-import { drawEffect, drawOrb } from '../src/render/lightning.ts';
+import { drawEffect } from '../src/render/lightning.ts';
 import type { Effect } from '../src/game/types.ts';
 import { skillIds, upgradeIds } from '../src/game/rules.ts';
 import { iconCells } from '../src/ui/iconAtlas.ts';
@@ -101,7 +102,19 @@ function drawing() {
         },
     },
   ) as Phaser.GameObjects.Graphics;
-  return { graphics, commands };
+  return {
+    graphics,
+    commands,
+    stamp: (
+      id: string,
+      point: { x: number; y: number },
+      progress: number,
+      color: number,
+      alpha: number,
+    ) => {
+      commands.push({ method: 'stamp:' + id, args: [point.x, point.y, progress, color, alpha] });
+    },
+  };
 }
 test('wave warnings mark both incoming directions in red and pulse with simulation time', () => {
   const peak = drawing(),
@@ -149,35 +162,49 @@ test('lightning remains finite at mobile scales and never changes combat data', 
     const before = structuredClone(fx);
     for (const scale of [0.65, 1, 1.75]) {
       const active = drawing();
-      drawEffect(active.graphics, fx, 1.5, scale, fx.from, []);
+      drawEffect(active.graphics, fx, 1.5, scale, fx.from, [], active.stamp);
       assert.ok(active.commands.length > 0, id + ' must have a visible attack');
       const expired = drawing();
-      drawEffect(expired.graphics, fx, 2, scale, fx.from, []);
+      drawEffect(expired.graphics, fx, 2, scale, fx.from, [], expired.stamp);
       assert.equal(expired.commands.length, 0);
       const coincident = drawing();
-      drawEffect(coincident.graphics, { ...fx, to: fx.from }, 1.5, scale, fx.from, []);
+      drawEffect(
+        coincident.graphics,
+        { ...fx, to: fx.from },
+        1.5,
+        scale,
+        fx.from,
+        [],
+        coincident.stamp,
+      );
     }
     assert.deepEqual(fx, before);
   }
 });
 
-test('orb bodies render at their current pixel position without changing that position', () => {
-  for (const scale of [0.65, 1, 1.75]) {
-    const point = { x: 210.4, y: 128.6 },
-      before = { ...point };
-    const { graphics, commands } = drawing();
-    drawOrb(graphics, point, scale);
-    const center = commands.at(-1)!;
-    assert.equal(center.method, 'fillRect');
-    const expected = [
-      (Math.round(point.x * scale) - 1) / scale,
-      (Math.round(point.y * scale) - 1) / scale,
-      2 / scale,
-      2 / scale,
-    ];
-    center.args.forEach((value, i) => close(value, expected[i]));
-    assert.deepEqual(point, before);
+test('generated effect frames stay inside their row, loop only sustained effects and freeze with combat time', () => {
+  const png = readFileSync(new URL('../src/render/assets/effects.png', import.meta.url));
+  assert.equal(png.readUInt32BE(16), 128);
+  assert.equal(png.readUInt32BE(20), 192);
+  assert.equal(png[25], 6);
+  for (const id of Object.keys(effectRows) as (keyof typeof effectRows)[]) {
+    const row = effectRows[id] * 4;
+    for (const progress of [-1, 0, 0.1, 0.3, 0.6, 1, 3, 30]) {
+      const frame = effectFrame(id, progress);
+      assert.ok(frame >= row && frame < row + 4);
+      assert.equal(effectFrame(id, progress), frame);
+    }
   }
+  for (const id of ['hit', 'impact', 'dissolve'] as const) {
+    assert.equal(effectFrame(id, 0), effectRows[id] * 4);
+    assert.equal(effectFrame(id, 1), effectRows[id] * 4 + 3);
+  }
+  for (const [id, period] of [
+    ['orb', 0.4],
+    ['charge', 0.5],
+    ['surge', 0.4],
+  ] as const)
+    assert.equal(effectFrame(id, period), effectFrame(id, 0));
 });
 
 test('focused lightning follows the current electron and tracked particle', () => {
@@ -186,8 +213,8 @@ test('focused lightning follows the current electron and tracked particle', () =
   const fx = { ...effect, anchor: 'electron' as const, targetId: enemy.id };
   const before = structuredClone({ fx, enemy, electron });
   {
-    const { graphics, commands } = drawing();
-    drawEffect(graphics, fx, 1.5, 1, electron, [enemy]);
+    const { graphics, commands, stamp } = drawing();
+    drawEffect(graphics, fx, 1.5, 1, electron, [enemy], stamp);
     assert.ok(
       commands.some(
         ({ method, args }) =>
@@ -206,8 +233,8 @@ test('focused lightning follows the current electron and tracked particle', () =
 test('lightning stroke widths use whole screen pixels at every viewport scale', () => {
   for (const scale of [0.65, 1, 1.75]) {
     for (const kind of ['bolt', 'strike', 'focus', 'pierce', 'return'] as const) {
-      const { graphics, commands } = drawing();
-      drawEffect(graphics, { ...effect, kind }, 1.5, scale, effect.from, []);
+      const { graphics, commands, stamp } = drawing();
+      drawEffect(graphics, { ...effect, kind }, 1.5, scale, effect.from, [], stamp);
       const widths = commands
         .filter(({ method }) => method === 'lineStyle')
         .map(({ args }) => args[0] * scale);

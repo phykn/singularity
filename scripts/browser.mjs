@@ -957,34 +957,25 @@ const orbFlow = async () => {
     g.counts.proton.generated = 1;
     g.combat.fireSkill('orb');
     const scene = window.__gameScene,
-      graphics = scene.effectGraphics,
-      fillRect = graphics.fillRect,
       positions = [],
       labels = [];
-    let center;
-    graphics.fillRect = function (x, y, width, height) {
-      if (
-        !center &&
-        Math.abs(width - 2 / scene.worldScale) < 1e-8 &&
-        Math.abs(height - 2 / scene.worldScale) < 1e-8
-      )
-        center = [x, y];
-      return fillRect.call(this, x, y, width, height);
-    };
-    try {
-      for (let i = 0; i < g.rules.tickRate; i++) {
-        g.setHidden(false);
-        debug.advance(1000 / g.rules.tickRate);
-        g.setHidden(true);
-        center = null;
-        scene.update();
-        positions.push(JSON.stringify(center));
-        labels.push(...scene.damageText.filter((t) => t.visible).map((t) => t.text));
-      }
-      return { frames: positions.length, positions: new Set(positions).size, labels };
-    } finally {
-      graphics.fillRect = fillRect;
+    for (let i = 0; i < g.rules.tickRate; i++) {
+      g.setHidden(false);
+      debug.advance(1000 / g.rules.tickRate);
+      g.setHidden(true);
+      scene.update();
+      const orb = scene.sprites.find(
+        (s) =>
+          s.visible &&
+          s.texture.key === 'effects' &&
+          Number(s.frame.name) >= 8 &&
+          Number(s.frame.name) < 12,
+      );
+      if (!orb) throw new Error('Missing generated orb sprite');
+      positions.push(JSON.stringify([orb.x, orb.y]));
+      labels.push(...scene.damageText.filter((t) => t.visible).map((t) => t.text));
     }
+    return { frames: positions.length, positions: new Set(positions).size, labels };
   });
   assert.equal(result.positions, result.frames, 'The visible orb must move on each frame');
   assert.ok(result.labels.length > 0, 'Hits must retain visible damage numbers');
