@@ -879,11 +879,40 @@ svg {
   margin-top: 8px;
   color: #f2f7fa;
   font-size: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
 }
-.result-heading p {
-  color: #aeb8c4;
+.collapse-symbol {
+  color: #ffd08a;
+  flex-shrink: 0;
+}
+.result-goal {
+  width: min(100%, 208px);
+  margin: 12px auto 0;
+  color: #8fa0af;
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.result-goal b {
+  color: #f1fcff;
+  font-weight: 400;
+}
+.result-goal-track {
+  height: 6px;
   margin-top: 8px;
+  padding: 1px;
+  border: 1px solid #4d5358;
+  background: #0c1218;
+}
+.result-goal-track i {
+  display: block;
+  height: 100%;
+  background: #ffd08a;
+}
+.result-numbers.result-pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .result .dialog-body {
   padding-top: 8px;

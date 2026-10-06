@@ -81,7 +81,6 @@ const ko = {
   guideLimits:
     '스킬은 네 종류까지. 능력치는 계속 강화할 수 있습니다. 다른 화면으로 이동하면 정지, 돌아오면 계속.',
   countdown: (n: number) => `${n}초 뒤 자동 선택`,
-  missing: (n: number) => `특이점까지 ${n.toLocaleString('ko-KR')} XP`,
   rankUp: (a: number, b: number) => `${a}→${b}단계`,
   seconds: '초',
   rarities: { common: '일반', rare: '희귀', epic: '에픽', legendary: '전설' } as Record<
@@ -285,7 +284,6 @@ const en: Copy = {
   guideLimits:
     'Combine up to four skills. Stats have no upgrade cap. Switching away pauses; return to resume.',
   countdown: (n) => `Auto-pick in ${n}s`,
-  missing: (n) => `${n} more XP needed`,
   rankUp: (a, b) => `Rank ${a}→${b}`,
   seconds: 's',
   rarities: { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' },
@@ -499,7 +497,6 @@ const zh: Copy = {
   guideCombo: '分支、连续、连锁和贯穿也会强化其他闪电。',
   guideLimits: '最多组合4种技能，属性可持续强化。切换页面暂停，返回后继续。',
   countdown: (n) => `${n}秒后自动选择`,
-  missing: (n) => `还差 ${n} 经验`,
   rankUp: (a, b) => `${a}→${b}级`,
   seconds: '秒',
   rarities: { common: '普通', rare: '稀有', epic: '史诗', legendary: '传说' },
@@ -657,7 +654,6 @@ const ja: Copy = {
   guideCombo: '分岐・連続・連鎖・貫通はほかの雷にも適用。',
   guideLimits: 'スキルは4種まで。能力は上限なく強化。画面を離れると停止し、戻ると再開。',
   countdown: (n) => `${n}秒後に自動選択`,
-  missing: (n) => `あと経験値 ${n}`,
   rankUp: (a, b) => `ランク ${a}→${b}`,
   seconds: '秒',
   rarities: { common: 'ノーマル', rare: 'レア', epic: 'エピック', legendary: '伝説' },

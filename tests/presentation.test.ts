@@ -1,8 +1,9 @@
-import { createCheckpoint } from '../src/game/checkpoint.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../src/game/Game.ts';
 import { endingFrame } from '../src/render/ending.ts';
+import { drawCollapse } from '../src/render/collapse.ts';
+import type Phaser from 'phaser';
 import { introFrame } from '../src/render/intro.ts';
 import { KillRhythm, SoundMixer } from '../src/app/sounds.ts';
 
@@ -117,10 +118,13 @@ for (const success of [true, false]) {
     let quietFrames = 0;
     let radius = Infinity;
     for (let i = 0; i < 400 && !game.result; i++) {
-      const before = createCheckpoint(game);
+      const before = JSON.stringify(game, (key, value) => (key === 'combat' ? undefined : value));
       const frame = endingFrame(game)!;
       assert.ok(frame);
-      assert.deepEqual(createCheckpoint(game), before);
+      assert.equal(
+        JSON.stringify(game, (key, value) => (key === 'combat' ? undefined : value)),
+        before,
+      );
       if (stages.at(-1) !== frame.stage) stages.push(frame.stage);
       if (frame.electron) {
         assert.ok(frame.radius <= radius + 1e-8);
@@ -147,3 +151,57 @@ for (const success of [true, false]) {
     assert.ok(game.seconds >= (success ? 4 : 2) && game.seconds <= (success ? 5 : 3));
   });
 }
+
+test('collapse reaches the visible core rim and discharges there briefly at every screen scale', () => {
+  const game = new Game(17, { combat: false });
+  game.start();
+  game.mass = 1000;
+  game.radius = game.core + game.rules.electronRadius;
+  game.advance(1000 / game.rules.tickRate);
+  game.phaseTicks = Math.round(game.rules.collisionSeconds * game.rules.tickRate);
+  const last = endingFrame(game)!;
+  assert.ok(last.electron && last.contact);
+  assert.ok(Math.hypot(last.electron.x - last.contact.x, last.electron.y - last.contact.y) < 2);
+  assert.ok(Math.hypot(last.contact.x - 180, last.contact.y - 260) > game.core * 0.9);
+  game.phaseTicks--;
+  game.advance(1000 / game.rules.tickRate);
+  const impact = endingFrame(game)!;
+  assert.equal(impact.stage, 'impact');
+  assert.equal(impact.electron, null);
+  for (const scale of [0.65, 1, 1.75]) {
+    const commands: { name: string; args: number[] }[] = [];
+    const graphics = new Proxy(
+      {},
+      {
+        get:
+          (_, name) =>
+          (...args: number[]) =>
+            commands.push({ name: String(name), args }),
+      },
+    );
+    drawCollapse(graphics as Phaser.GameObjects.Graphics, impact, scale);
+    assert.ok(commands.every(({ args }) => args.every(Number.isFinite)));
+    const contact = commands.find(({ name }) => name === 'fillRect')!.args;
+    assert.ok(Math.abs(contact[0] + contact[2] / 2 - impact.contact!.x) < 1e-8);
+    assert.ok(Math.abs(contact[1] + contact[3] / 2 - impact.contact!.y) < 1e-8);
+    assert.equal(contact[2] * scale, 2);
+    const orbitCommands: typeof commands = [];
+    const orbitGraphics = new Proxy(
+      {},
+      {
+        get:
+          (_, name) =>
+          (...args: number[]) =>
+            orbitCommands.push({ name: String(name), args }),
+      },
+    );
+    drawCollapse(orbitGraphics as Phaser.GameObjects.Graphics, last, scale);
+    const start = orbitCommands.find(({ name }) => name === 'moveTo')!.args;
+    const end = orbitCommands.filter(({ name }) => name === 'lineTo').at(-1)!.args;
+    assert.ok(Math.hypot(start[0] - end[0], start[1] - end[1]) > game.core);
+  }
+  game.advance(250);
+  const empty = endingFrame(game)!;
+  assert.equal(empty.flash, 0);
+  assert.equal(empty.quiet, true);
+});

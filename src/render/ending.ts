@@ -26,7 +26,10 @@ export function endingFrame(game: Game) {
     hole = 0,
     expansion = 0,
     reveal = 0,
-    flash = 0;
+    flash = 0,
+    fracture = 0;
+  const contactAngle = game.angle + Math.PI * 2.6;
+  const contactRadius = Math.min(game.radius, game.core * 0.92);
   if (success && collapsing) {
     const q = clamp((p - 0.34) / 0.54);
     stage = p < 0.34 ? 'accelerate' : p < 0.88 ? 'compress' : 'silence';
@@ -44,12 +47,16 @@ export function endingFrame(game: Game) {
   } else if (collapsing) {
     const q = clamp((p - 0.25) / 0.75);
     stage = p < 0.25 ? 'unstable' : 'spiral';
-    radius = game.radius * (1 - q) ** 1.5;
-    angle += Math.PI * (p * 1.2 + q * q * 7);
+    radius = game.radius + (contactRadius - game.radius) * q ** 1.5;
+    angle += Math.PI * (p * 1.2 + q * q * 1.4);
+    fracture = clamp((p - 0.15) / 0.25);
+    absorb = clamp((p - 0.5) / 0.5);
   } else {
     const t = p * game.rules.failureEndingSeconds;
     stage = t < 0.2 ? 'impact' : 'empty';
-    flash = t < 0.034 ? 1 : 0;
+    flash = 1 - clamp(t / 0.2);
+    fracture = 1;
+    absorb = 1;
   }
   return {
     stage,
@@ -61,6 +68,10 @@ export function endingFrame(game: Game) {
     expansion,
     reveal,
     flash,
+    fracture,
+    contact: success ? null : orbit(contactAngle, contactRadius),
+    contactFrom: success ? null : orbit(contactAngle, game.radius + game.rules.electronRadius * 2),
+    contactAngle,
     electron: collapsing && stage !== 'silence' ? orbit(angle, radius) : null,
     quiet: stage === 'silence' || stage === 'quiet' || stage === 'empty',
   };

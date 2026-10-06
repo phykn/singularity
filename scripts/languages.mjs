@@ -107,6 +107,7 @@ try {
       await localized(page, language.id, '.guide');
       await page.getByRole('button', { name: c.close, exact: true }).click();
       await page.getByRole('button', { name: 'START', exact: true }).click();
+      await page.locator('.hud').waitFor();
       await page.evaluate(() => {
         const g = window.__gameDebug.getModel();
         g.setHidden(true);

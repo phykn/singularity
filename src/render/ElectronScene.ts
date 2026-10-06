@@ -3,6 +3,7 @@ import { createParticleTextures } from './particleTextures.ts';
 import { SpritePool } from './SpritePool.ts';
 import { healthBar } from './healthBars.ts';
 import { endingFrame } from './ending.ts';
+import { drawCollapse } from './collapse.ts';
 import { introFrame } from './intro.ts';
 import { beyondFrame } from './beyond.ts';
 import { beamFrame, beamPose, effectFrame, visibleEffects } from './effects.ts';
@@ -128,13 +129,14 @@ export class ElectronScene extends Phaser.Scene {
     g.setPosition(g.x + this.offset.x, g.y + this.offset.y);
     this.effectGraphics.setPosition(g.x, g.y);
     const radius = ending?.electron ? ending.radius : game.radius;
-    if (!ending || ending.electron || !ending.success) {
-      const unstable = danger || ending?.success === false;
+    if (!ending || (ending.success && ending.electron)) {
+      const unstable = danger;
       const opacity = ending && !ending.electron ? 0.12 : danger ? 0.8 : 0.32;
       this.drawOrbit(radius, unstable ? AMBER : orbitColor, opacity, unstable, scale);
     }
     if (game.mass > 0 && (!ending || !ending.success || ending.electron))
       this.drawCore(game.core * (ending?.success ? 1 - ending.absorb * 0.7 : 1), scale);
+    if (ending && !ending.success) drawCollapse(g, ending, scale);
     const warning = game.warningWave;
     if (warning)
       drawWaveWarning(
@@ -144,7 +146,7 @@ export class ElectronScene extends Phaser.Scene {
         scale,
       );
     for (const target of game.targets) {
-      if (ending && !ending.success && !ending.electron) continue;
+      if (ending && !ending.success && ending.quiet) continue;
       const absorb = ending?.absorb ?? 0;
       if (absorb >= 0.99) continue;
       const p = ending?.success
@@ -214,7 +216,7 @@ export class ElectronScene extends Phaser.Scene {
     }
     if (ending.electron) {
       this.drawTrail(ending.angle, ending.radius, 34, ending.success ? GOLD : AMBER, scale, true);
-      this.drawElectron(ending.electron, 1, ending.success ? GOLD : AMBER);
+      this.drawElectron(ending.electron, 1, ending.success ? GOLD : BLUE);
     }
     if (ending.stage === 'silence') {
       g.fillStyle(GOLD, 0.7);
@@ -231,13 +233,6 @@ export class ElectronScene extends Phaser.Scene {
       this.drawSingularity(24, scale);
       this.cover(width, height, 1 - ending.reveal);
       return;
-    }
-    if (ending.stage === 'impact') {
-      const t = clamp((game.phaseProgress * game.rules.failureEndingSeconds) / 0.2);
-      g.lineStyle(1 / scale, AMBER, 0.55 * (1 - t));
-      g.strokeCircle(180, 260, Math.round(8 * (1 - t) + 2) / scale);
-      g.fillStyle(WHITE, 0.6 * (1 - t) ** 2);
-      g.fillCircle(180, 260, 2 / scale);
     }
     if (ending.success && ending.flash) {
       g.fillStyle(WHITE, ending.flash * 0.6);

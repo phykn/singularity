@@ -55,6 +55,27 @@ export function ParticleIcon({ id }: { id: ParticleKind }) {
   );
 }
 
+export function CollapseIcon() {
+  return (
+    <svg
+      className="collapse-symbol"
+      width={24}
+      height={24}
+      viewBox="0 0 16 16"
+      shapeRendering="crispEdges"
+      aria-hidden="true"
+    >
+      <path
+        d="M2 8V5H3V3H5V2H9V3H11V4 M14 7V11H13V13H11V14H7V13H5V12"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1}
+      />
+      <rect x={7} y={7} width={2} height={2} fill="currentColor" opacity={0.55} />
+    </svg>
+  );
+}
+
 export function ChargeIcon({ progress }: { progress: number }) {
   const clip = useId();
   const y = 32 - Math.floor(Math.max(0, Math.min(1, progress)) * 16) * 2;

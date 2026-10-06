@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { statIds } from '../game/rules.ts';
 import { particleIds } from '../game/particles.ts';
 import { particleNames, languages } from './i18n.ts';
-import { ParticleIcon, SkillIcon } from './icons.tsx';
+import { CollapseIcon, ParticleIcon, SkillIcon } from './icons.tsx';
 import { Rank } from './controls.tsx';
 import { Dialog } from './Dialog.tsx';
 import { formatTime } from '../format.ts';
@@ -45,11 +45,14 @@ export function Result({
     owned = game.ownedSkills;
   const title = result.endless ? c.beyond : result.outcome === 'success' ? c.success : c.failure;
   const canContinue = !result.endless && result.outcome === 'success';
+  const collapsed = result.outcome === 'collapse-failure';
+  const showGoal = collapsed && !result.endless;
+  const number = new Intl.NumberFormat(languages.find((entry) => entry.id === language)!.html);
   return (
     <div style={{ opacity: 1 - departure }} inert={crossing}>
       <Dialog
         titleId="result-title"
-        className={`result ${result.outcome === 'success' ? 'success' : ''}`}
+        className={`result ${result.outcome === 'success' ? 'success' : ''} ${collapsed ? 'collapse' : ''}`}
         modalClassName="result-modal"
         focusKey={String(armed)}
       >
@@ -58,19 +61,42 @@ export function Result({
             {result.endless ? '∞ ' : ''}
             {formatTime(result.endless?.seconds ?? result.seconds)}
           </span>
-          <h2 id="result-title">{title}</h2>
-          {!result.endless && result.outcome !== 'success' && <p>{c.missing(result.missingXp)}</p>}
+          <h2 id="result-title">
+            {collapsed && <CollapseIcon />}
+            {title}
+          </h2>
+          {showGoal && (
+            <div className="result-goal">
+              <div aria-hidden="true">
+                <b>{number.format(result.xp)}</b>
+                <span> / {number.format(rules.energyGoal)}</span>
+              </div>
+              <div
+                className="result-goal-track"
+                role="progressbar"
+                aria-label={c.energy}
+                aria-valuemin={0}
+                aria-valuemax={rules.energyGoal}
+                aria-valuenow={Math.min(rules.energyGoal, result.xp)}
+                aria-valuetext={`${number.format(result.xp)} / ${number.format(rules.energyGoal)}`}
+              >
+                <i style={{ width: `${Math.min(1, result.xp / rules.energyGoal) * 100}%` }} />
+              </div>
+            </div>
+          )}
         </div>
         <div className="dialog-body">
-          <div className="result-numbers">
+          <div className={`result-numbers ${showGoal ? 'result-pair' : ''}`}>
             <div>
               <span>{c.level}</span>
               <strong>{result.level}</strong>
             </div>
-            <div>
-              <span>{result.endless ? c.beyondXp : c.energy}</span>
-              <strong>{result.endless?.xp ?? result.xp}</strong>
-            </div>
+            {!showGoal && (
+              <div>
+                <span>{result.endless ? c.beyondXp : c.energy}</span>
+                <strong>{result.endless?.xp ?? result.xp}</strong>
+              </div>
+            )}
             <div>
               <span>{c.mass}</span>
               <strong>{result.mass}</strong>
