@@ -1,49 +1,46 @@
 import type { UpgradeId } from '../game/rules.ts';
-import { art, palettes } from '../render/pixels.ts';
-import { skillColor } from '../render/palette.ts';
+import { particleFrames } from '../render/particleAtlas.ts';
+import particleAtlas from '../render/assets/particles.png';
 import type { ParticleKind } from '../game/particles.ts';
-import { glyphPaths } from './glyphs.ts';
+import { iconCells } from './iconAtlas.ts';
+import skillAtlas from './assets/skills.png';
 
 export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
   const pixels = size >= 24 ? 32 : 16;
-  const glyph = glyphPaths[id];
+  const cell = iconCells[id];
   return (
     <svg
       className="skill-icon"
-      style={{ color: skillColor(id) }}
       width={pixels}
       height={pixels}
-      viewBox="0 0 16 16"
-      fill="currentColor"
-      shapeRendering="crispEdges"
+      viewBox="0 0 32 32"
+      overflow="hidden"
       aria-hidden="true"
     >
-      <path d={glyph.shape} fillRule="evenodd" />
-      <path d={glyph.light} fill="#e5f4ff" />
+      <image
+        href={skillAtlas}
+        x={-cell.x}
+        y={-cell.y}
+        width={224}
+        height={96}
+        style={{ imageRendering: 'pixelated' }}
+      />
     </svg>
   );
 }
 
 export function ParticleIcon({ id }: { id: ParticleKind }) {
-  const rows = art[id],
-    palette = palettes[id];
+  const frame = particleFrames[id].index;
   return (
-    <svg width={34} height={34} viewBox="0 0 17 17" shapeRendering="crispEdges" aria-hidden="true">
-      {rows.flatMap((row, y) =>
-        [...row].map(
-          (pixel, x) =>
-            pixel !== '.' && (
-              <rect
-                key={y * 20 + x}
-                x={x + Math.floor((17 - row.length) / 2)}
-                y={y + Math.floor((17 - rows.length) / 2)}
-                width={1}
-                height={1}
-                fill={palette[Number(pixel)]}
-              />
-            ),
-        ),
-      )}
+    <svg width={34} height={34} viewBox="0 0 32 32" overflow="hidden" aria-hidden="true">
+      <image
+        href={particleAtlas}
+        x={-(frame % 3) * 32}
+        y={-Math.floor(frame / 3) * 32}
+        width={96}
+        height={64}
+        style={{ imageRendering: 'pixelated' }}
+      />
     </svg>
   );
 }

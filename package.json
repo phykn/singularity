@@ -19,6 +19,7 @@
     "check:startup": "node scripts/startup.mjs",
     "check:performance": "node scripts/performance.mjs",
     "build": "tsc --noEmit && vite build",
+    "build:art": "node scripts/art.mjs",
     "preview": "vite preview --host 0.0.0.0 --port 8081 --strictPort",
     "check:balance": "node scripts/balance.ts"
   },

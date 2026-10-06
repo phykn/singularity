@@ -37,11 +37,15 @@ export function GameCanvas({
           fps: { target: 60 },
         });
         const rendered = () => {
+          if (disposed) return;
+          if (!scene.sys.isActive()) {
+            waitForRender();
+            return;
+          }
           const renderer = engine!.renderer;
           if (
-            !disposed &&
-            (!(renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer) ||
-              !renderer.gl.isContextLost())
+            !(renderer instanceof Phaser.Renderer.WebGL.WebGLRenderer) ||
+            !renderer.gl.isContextLost()
           )
             onReady(true);
         };

@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { base, capture, launchBrowser, observeScene, showSuccess } from './browser-support.mjs';
 import { rules, skillIds, upgradeIds, rarityIds } from '../src/game/rules.ts';
 import { copy } from '../src/ui/i18n.ts';
-import { skillColor } from '../src/render/palette.ts';
+import { iconCells } from '../src/ui/iconAtlas.ts';
 import { WARNING_RED } from '../src/render/warning.ts';
 
 mkdirSync('artifacts/screens', { recursive: true });
@@ -180,12 +180,16 @@ const rarityFlow = async () => {
   });
   assert.equal(await page.locator('.choices p').count(), 0);
   const icon = page.locator('.card .card-icon .skill-icon');
+  await icon.waitFor();
   assert.equal(await icon.count(), 1);
+  assert.equal(await icon.locator('image').count(), 1);
   assert.deepEqual(
-    await icon.locator('path').evaluateAll((nodes) => nodes.map((n) => n.getAttribute('d'))),
+    await icon
+      .locator('image')
+      .evaluateAll((nodes) => nodes.map((n) => ['href', 'x', 'y'].map((a) => n.getAttribute(a)))),
     await page
-      .locator('.slot[data-skill="multi"] .skill-icon path')
-      .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('d'))),
+      .locator('.slot[data-skill="multi"] .skill-icon image')
+      .evaluateAll((nodes) => nodes.map((n) => ['href', 'x', 'y'].map((a) => n.getAttribute(a)))),
   );
   assert.equal(await icon.evaluate((n) => n.getAnimations({ subtree: true }).length), 0);
   const card = page.locator('.card');
@@ -194,6 +198,7 @@ const rarityFlow = async () => {
   const upgraded = await snapshot(page);
   assert.equal(upgraded.ranks.multi, 2);
   assert.equal(upgraded.rarities.multi, 'legendary');
+  await page.locator('.choice-receipt .card-icon .skill-icon').waitFor();
   assert.equal(await page.locator('.choice-receipt .card-icon .skill-icon').count(), 1);
   report('upgrade cards use the loadout icon, retain their text and keep acquired rarity', {});
 
@@ -432,15 +437,22 @@ const visualFlow = async () => {
         id + ' must produce an actual visible attack',
       );
       assert.ok(result.effects.every((fx) => fx.rank === rank));
-      const iconColor = await page
-        .locator('.slot[data-skill="' + id + '"] svg')
-        .evaluate((svg) => svg.style.color);
-      const expectedColor = await page.evaluate((color) => {
-        const node = document.createElement('span');
-        node.style.color = color;
-        return node.style.color;
-      }, skillColor(id));
-      assert.equal(iconColor, expectedColor);
+      const artwork = await page
+        .locator('.slot[data-skill="' + id + '"] svg image')
+        .evaluate(async (node) => {
+          const image = new Image();
+          image.src = node.getAttribute('href');
+          await image.decode();
+          const x = Math.abs(Number(node.getAttribute('x'))),
+            y = Math.abs(Number(node.getAttribute('y')));
+          const canvas = document.createElement('canvas');
+          canvas.width = canvas.height = 32;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(image, x, y, 32, 32, 0, 0, 32, 32);
+          const data = ctx.getImageData(0, 0, 32, 32).data;
+          return { x, y, visible: data.some((value, i) => i % 4 === 3 && value > 128) };
+        });
+      assert.deepEqual(artwork, { ...iconCells[id], visible: true });
       await screenshot(page, `visual-${id}-rank-${rank}`);
       ranks.push(result);
     }

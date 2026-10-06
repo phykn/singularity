@@ -1,45 +1,56 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type Phaser from 'phaser';
-import { art, createPixels, palettes } from '../src/render/pixels.ts';
+import { readFileSync } from 'node:fs';
+import { createPixels } from '../src/render/pixels.ts';
+import { particleFrames } from '../src/render/particleAtlas.ts';
 import { healthBar } from '../src/render/health.ts';
 import { drawEffect, drawOrb } from '../src/render/lightning.ts';
 import type { Effect } from '../src/game/types.ts';
 import { skillIds, upgradeIds } from '../src/game/rules.ts';
-import { glyphs, glyphPaths } from '../src/ui/glyphs.ts';
+import { iconCells } from '../src/ui/iconAtlas.ts';
 import { close, target } from './helpers.ts';
 import { drawWaveWarning, WARNING_RED } from '../src/render/warning.ts';
 
-test('native sprites paint only palette pixels within their texture bounds', () => {
+test('generated particle frames retain native display sizes and disable smoothing', () => {
   const textures: string[] = [];
+  const source = {};
   const scene = {
     textures: {
-      createCanvas(key: keyof typeof art, width: number, height: number) {
-        const rows = art[key];
-        assert.equal(width, rows[0].length);
-        assert.equal(height, rows.length);
-        const painted = new Set<string>();
+      get(key: string) {
+        assert.equal(key, 'particleAtlas');
+        return { getSourceImage: () => source };
+      },
+      createCanvas(key: keyof typeof particleFrames, width: number, height: number) {
+        const frame = particleFrames[key];
+        assert.equal(width, frame.size);
+        assert.equal(height, frame.size);
+        let draws = 0;
         const ctx = {
-          fillStyle: '',
-          fillRect(x: number, y: number, w: number, h: number) {
-            assert.ok(x >= 0 && x < width && y >= 0 && y < height);
-            assert.equal(w, 1);
-            assert.equal(h, 1);
-            assert.match(rows[y][x], /^[1-4]$/);
-            assert.equal(this.fillStyle, palettes[key][Number(rows[y][x])]);
-            painted.add(`${x},${y}`);
+          imageSmoothingEnabled: true,
+          drawImage(
+            image: unknown,
+            x: number,
+            y: number,
+            w: number,
+            h: number,
+            dx: number,
+            dy: number,
+            dw: number,
+            dh: number,
+          ) {
+            assert.equal(image, source);
+            assert.equal(this.imageSmoothingEnabled, false);
+            assert.deepEqual([w, h, dx, dy, dw, dh], [32, 32, 0, 0, width, height]);
+            assert.ok(x >= 0 && y >= 0 && x + w <= 96 && y + h <= 64);
+            assert.equal(x / 32 + (y / 32) * 3, frame.index);
+            draws++;
           },
         };
         return {
           getContext: () => ctx,
           refresh() {
-            rows.forEach((row, y) => {
-              assert.equal(row.length, width, key + ' has an uneven row');
-              assert.match(row, /^[.1-4]+$/);
-              [...row].forEach((pixel, x) => {
-                assert.equal(painted.has(`${x},${y}`), pixel !== '.');
-              });
-            });
+            assert.equal(draws, 1);
             textures.push(key);
           },
         };
@@ -47,25 +58,28 @@ test('native sprites paint only palette pixels within their texture bounds', () 
     },
   };
   createPixels(scene as unknown as Phaser.Scene);
-  assert.deepEqual(textures, Object.keys(art));
+  assert.deepEqual(textures, Object.keys(particleFrames));
 });
 
-test('upgrade icons keep an unclipped pixel grid and distinct silhouettes at native size', () => {
-  const silhouettes = new Set<string>();
-  assert.deepEqual(Object.keys(glyphs).sort(), [...upgradeIds].sort());
+test('generated icon atlases have transparent-capable PNGs and unique in-bounds cells', () => {
+  assert.deepEqual(Object.keys(iconCells).sort(), [...upgradeIds].sort());
+  const cells = new Set<string>();
   for (const id of upgradeIds) {
-    const rows = glyphs[id];
-    assert.equal(rows.length, 16, id);
-    rows.forEach((row) => {
-      assert.equal(row.length, 16, id);
-      assert.match(row, /^[.12]+$/, id);
-      assert.equal(row[0] + row[15], '..', id + ' needs an edge margin');
-    });
-    assert.equal(rows[0] + rows[15], '.'.repeat(32), id + ' needs an edge margin');
-    const silhouette = rows.join('').replaceAll('2', '1');
-    assert.ok(!silhouettes.has(silhouette), id + ' needs its own silhouette');
-    silhouettes.add(silhouette);
-    assert.ok(glyphPaths[id].shape.length > 0 && glyphPaths[id].light.length > 0, id);
+    const { x, y } = iconCells[id],
+      cell = `${x},${y}`;
+    assert.ok(!cells.has(cell), id);
+    cells.add(cell);
+    assert.ok(x >= 0 && y >= 0 && x + 32 <= 224 && y + 32 <= 96, id);
+    assert.equal((x % 32) + (y % 32), 0, id);
+  }
+  for (const [path, width, height] of [
+    ['../src/ui/assets/skills.png', 224, 96],
+    ['../src/render/assets/particles.png', 96, 64],
+  ] as const) {
+    const png = readFileSync(new URL(path, import.meta.url));
+    assert.equal(png.readUInt32BE(16), width);
+    assert.equal(png.readUInt32BE(20), height);
+    assert.equal(png[25], 6, 'PNG must preserve alpha');
   }
 });
 
