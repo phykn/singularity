@@ -294,6 +294,7 @@ test('return uses the current electron position without teleporting and never re
   assert.ok(g.combat.status('charge').progress > 0 || g.combat.activations.charge !== undefined);
   const returned = g.effects.find((f) => f.kind === 'return')!;
   assert.ok(returned);
+  assert.equal(returned.endAnchor, 'electron');
   close(returned.from.x, 190);
   g.advance(1000);
   assert.equal(
@@ -314,6 +315,7 @@ test('return plus pierce crosses multiple enemies and chain jumps off the return
   g.angle = 0;
   g.advance(300);
   assert.ok(b.hp < before[0] && c.hp < before[1] && d.hp < before[2]);
+  assert.ok(g.effects.some((f) => f.kind === 'pierce' && f.endAnchor === 'electron'));
 });
 
 test('death arcs are bounded per cast, have no invented cooldown and preserve origin', () => {

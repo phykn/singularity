@@ -74,11 +74,13 @@ export function drawEffect(
 ): void {
   const from = effectOrigin(fx, electron);
   const to =
-    fx.kind === 'pierce'
-      ? { x: from.x + fx.to.x - fx.from.x, y: from.y + fx.to.y - fx.from.y }
-      : fx.kind === 'focus'
-        ? (targets.find((target) => target.id === fx.targetId) ?? fx.to)
-        : fx.to;
+    fx.endAnchor === 'electron'
+      ? electron
+      : fx.kind === 'pierce'
+        ? { x: from.x + fx.to.x - fx.from.x, y: from.y + fx.to.y - fx.from.y }
+        : fx.kind === 'focus'
+          ? (targets.find((target) => target.id === fx.targetId) ?? fx.to)
+          : fx.to;
   const t = clamp((time - fx.born) / fx.life);
   if (t >= 1) return;
   const alpha = Math.pow(1 - t, 0.7);
@@ -93,7 +95,16 @@ export function drawEffect(
   } else if (fx.kind === 'charge' || fx.kind === 'stun') {
     const point = targets.find((target) => target.id === fx.targetId) ?? from;
     if (fx.kind === 'charge') {
-      stamp('charge', point, time, ink, alpha * (0.3 + clamp(fx.width) * 0.6));
+      // The persistent halo comes from stored charge; this is only the hit's inward spark.
+      const angle = fx.born * 17;
+      const radius = (13 - t * 6) / scale;
+      g.fillStyle(WHITE, alpha * clamp(fx.width));
+      g.fillRect(
+        point.x + Math.cos(angle) * radius,
+        point.y + Math.sin(angle) * radius,
+        2 / scale,
+        2 / scale,
+      );
     } else {
       g.lineStyle(1 / scale, ink, alpha);
       for (const side of [-1, 1])
@@ -105,12 +116,14 @@ export function drawEffect(
         );
     }
   } else if (fx.kind === 'surge') {
-    stamp('surge', from, time, ink, 0.9);
+    if (t < 0.15) stamp('reconnect', from, t / 0.15, ink, (1 - t / 0.15) * 0.7, 36);
   } else if (fx.kind === 'return') {
     beam('return', from, to, clock, ink, alpha * 0.9, 16);
-    const point = { x: lerp(from.x, to.x, t), y: lerp(from.y, to.y, t) };
+    const travel = clamp(t / 0.7);
+    const point = { x: lerp(from.x, to.x, travel), y: lerp(from.y, to.y, travel) };
     g.fillStyle(WHITE, alpha);
     g.fillRect(point.x - 1 / scale, point.y - 1 / scale, 2 / scale, 2 / scale);
+    if (t >= 0.65) stamp('reconnect', to, (t - 0.65) / 0.35, ink, (1 - t) / 0.35, 26);
   } else if (fx.kind === 'bolt' || fx.kind === 'strike' || fx.kind === 'focus') {
     const opacity = fx.kind === 'focus' ? 1 : alpha;
     const id =
@@ -127,6 +140,12 @@ export function drawEffect(
                 : 'basic';
     const height = id === 'strike' || id === 'charge' ? 20 : 16;
     beam(id, from, to, clock, ink, 0.9 * opacity, height + Math.floor(strength));
+    if (fx.source === 'charge') stamp('reconnect', from, t, ink, opacity, 34);
+    if (fx.kind === 'focus') {
+      const flow = (time * 3 + (fx.targetId ?? 0) * 0.17) % 1;
+      g.fillStyle(WHITE, 0.8);
+      g.fillRect(lerp(from.x, to.x, flow), lerp(from.y, to.y, flow), 2 / scale, 2 / scale);
+    }
     if (fx.source === 'repel') arrow(g, { x: 180, y: 260 }, to, ink, alpha, scale);
     if (fx.kind !== 'focus' && fx.kind !== 'strike') {
       stamp(fx.source === 'charge' ? 'impact' : 'hit', to, t, ink, opacity);

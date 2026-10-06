@@ -419,6 +419,10 @@ export class Combat {
       rarity: source ? attack.rarities[source] : attack.rarities.power,
       rank: source ? attack.ranks[source] : 0,
       anchor: anchored ? 'electron' : undefined,
+      endAnchor:
+        kind === 'return' || (kind === 'pierce' && attack.source === 'return')
+          ? 'electron'
+          : undefined,
       targetId,
     });
   }

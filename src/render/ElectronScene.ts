@@ -15,6 +15,7 @@ import type { Game } from '../game/Game.ts';
 import { BLUE, WHITE, AMBER, GOLD, skillColors } from '../art/palette.ts';
 import { drawEffect } from './drawEffects.ts';
 import { drawWaveWarning } from './warning.ts';
+import { drawElectronField } from './electronField.ts';
 export class ElectronScene extends Phaser.Scene {
   private graphics!: Phaser.GameObjects.Graphics;
   private effectGraphics!: Phaser.GameObjects.Graphics;
@@ -149,22 +150,30 @@ export class ElectronScene extends Phaser.Scene {
       }
     }
     if (!ending) {
-      for (const point of game.combat.orbPoints)
-        this.stamp('orb', point, clock, skillColors.orb, 1);
+      for (const [index, point] of game.combat.orbPoints.entries())
+        this.stamp('orb', point, clock * 1.2 + index * 0.13, skillColors.orb, 1);
       for (const fx of visibleEffects(game.effects))
-        if (fx.kind !== 'surge')
-          drawEffect(
-            this.effectGraphics,
-            fx,
-            clock,
-            scale,
-            position,
-            game.targets,
-            this.stamp,
-            this.beam,
-          );
+        drawEffect(
+          this.effectGraphics,
+          fx,
+          clock,
+          scale,
+          position,
+          game.targets,
+          this.stamp,
+          this.beam,
+        );
       const surging = game.combat.status('surge').active;
-      if (surging) this.stamp('surge', position, clock, skillColors.surge, 0.9);
+      if (game.ranks.charge || surging)
+        drawElectronField(
+          this.effectGraphics,
+          position,
+          clock,
+          scale,
+          game.combat.status('charge'),
+          surging,
+          this.stamp,
+        );
       this.drawTrail(
         game.angle,
         game.radius,
@@ -418,9 +427,9 @@ export class ElectronScene extends Phaser.Scene {
       y: this.centerY + (point.y - 260) * this.worldScale + this.offset.y,
     };
   }
-  private stamp: EffectStamp = (id, point, progress, color, alpha) => {
+  private stamp: EffectStamp = (id, point, progress, color, alpha, size = 32) => {
     this.sprites
-      .draw(this.screen(point), 'effects', 1, alpha, 1.5, effectFrame(id, progress))
+      .draw(this.screen(point), 'effects', size / 32, alpha, 1.5, effectFrame(id, progress))
       .setTintMode(Phaser.TintModes.MULTIPLY)
       .setTint(color);
   };

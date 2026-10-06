@@ -20,6 +20,7 @@
     "check:startup": "node scripts/startup.mjs",
     "check:choice-pause": "node scripts/choice-pause.mjs",
     "check:effects": "node scripts/effects.mjs",
+    "check:electric": "node scripts/electric.mjs",
     "check:performance": "node scripts/performance.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "build": "tsc --noEmit && vite build",

@@ -33,21 +33,13 @@ function sheet(width, height, cellWidth, cellHeight) {
           }
         }
       };
-      const arc = (radius, angle, length, shade = 2) => {
-        for (let a = angle; a <= angle + length; a += 1 / radius)
-          pixel(
-            Math.round(15.5 + Math.cos(a) * radius),
-            Math.round(15.5 + Math.sin(a) * radius),
-            shade,
-          );
-      };
-      return { pixel, line, arc };
+      return { pixel, line };
     },
   };
 }
 
 export function effectArtwork() {
-  const effects = sheet(128, 192, 32, 32);
+  const effects = sheet(128, 224, 32, 32);
   for (let frame = 0; frame < 4; frame++) {
     const hit = effects.frame(frame, 0),
       impact = effects.frame(frame, 1);
@@ -67,27 +59,6 @@ export function effectArtwork() {
           sprite.pixel(16 + dx * (radius - 1), 16 + dy * (radius - 1), 2);
       }
     }
-    const orb = effects.frame(frame, 2);
-    for (let y = 10; y <= 21; y++)
-      for (let x = 10; x <= 21; x++) {
-        const dx = x - 15.5,
-          dy = y - 15.5,
-          distance = Math.hypot(dx, dy);
-        if (distance > 5) continue;
-        const shade = distance > 4 ? 1 : dx + dy > 1 ? 2 : 3;
-        orb.pixel(x, y, shade);
-      }
-    orb.pixel(12, 14 + (frame % 2), 3);
-    const charge = effects.frame(frame, 3);
-    for (const side of [0, Math.PI]) charge.arc(9, side - 0.5 + frame * 0.08, 0.75, 2);
-    const surge = effects.frame(frame, 4);
-    for (let side = 0; side < 4; side++)
-      surge.arc(
-        frame === 1 || frame === 2 ? 11 : 10,
-        (side * Math.PI) / 2 - 0.3,
-        0.6,
-        frame === 1 ? 3 : 2,
-      );
     const dissolve = effects.frame(frame, 5),
       distance = frame + 2;
     for (const [dx, dy] of [
@@ -101,14 +72,14 @@ export function effectArtwork() {
 
   const beams = sheet(256, 128, 64, 16);
   const profiles = [
-    [0, 1, -1, 1, 0, -1, 0],
-    [0, -1, 2, -1, 1, 0, 0],
+    [0, -1, 3, -2, 2, -1, 0],
+    [0, -2, 2, -3, 1, -1, 0],
     [0, 0, 0, 0, 0, 0, 0],
     [0, 2, -2, 2, -1, 1, 0],
     [0, 0, 0, 0, 0, 0, 0],
     [0, -2, 1, -2, 2, -1, 0],
     [0, 0, 1, 0, -1, 0, 0],
-    [0, 0, -1, 1, 0, 0, 0],
+    [0, 2, -2, 2, -2, 1, 0],
   ];
   for (let row = 0; row < 8; row++)
     for (let frame = 0; frame < 4; frame++) {
@@ -123,6 +94,8 @@ export function effectArtwork() {
       if (row === 2) beam.line(23, 6, 38, 6, 1);
       if (row === 3) beam.line(31, 10, 40, 5, 2);
       if (row === 4) beam.line(14, 6 + (frame % 2), 50, 6 + (frame % 2), 2);
+      if ((row === 0 || row === 1 || row === 7) && frame % 2 === 0)
+        beam.line(points[3][0], points[3][1], points[3][0] + 5, points[3][1] - 3, 2);
     }
   return [
     {

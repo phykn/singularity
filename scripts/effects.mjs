@@ -26,13 +26,13 @@ try {
       if (texture.key !== 'effects') throw new Error('Pixel effects did not load');
       const canvas = document.createElement('canvas');
       canvas.width = 128;
-      canvas.height = 192;
+      canvas.height = 224;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(texture.source[0].image, 0, 0);
-      const pixels = ctx.getImageData(0, 0, 128, 192).data;
+      const pixels = ctx.getImageData(0, 0, 128, 224).data;
       const alpha = (x, y) => pixels[(y * 128 + x) * 4 + 3];
       const frames = [];
-      for (let row = 0; row < 6; row++)
+      for (let row = 0; row < 7; row++)
         for (let col = 0; col < 4; col++) {
           let painted = 0;
           for (let y = 0; y < 32; y++)
@@ -201,7 +201,7 @@ try {
         electronPixels,
       };
     });
-    assert.equal(result.frames, 24);
+    assert.equal(result.frames, 28);
     assert.equal(result.beamFrames, 32);
     await capture(page, `artifacts/screens/effects-tracked-${width}x${height}.png`);
     checks.push({ viewport: [width, height], ...result });

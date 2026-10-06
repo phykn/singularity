@@ -19,6 +19,7 @@ import { skillIds, upgradeIds } from '../src/game/rules.ts';
 import { iconCells } from '../src/art/skills.ts';
 import { close, target } from './helpers.ts';
 import { drawWaveWarning, WARNING_RED } from '../src/render/warning.ts';
+import { drawElectronField } from '../src/render/electronField.ts';
 
 test('native sprites paint only palette pixels within their texture bounds', () => {
   const textures: string[] = [];
@@ -134,8 +135,12 @@ function drawing() {
       progress: number,
       color: number,
       alpha: number,
+      size = 32,
     ) => {
-      commands.push({ method: 'stamp:' + id, args: [point.x, point.y, progress, color, alpha] });
+      commands.push({
+        method: 'stamp:' + id,
+        args: [point.x, point.y, progress, color, alpha, size],
+      });
     },
   };
 }
@@ -185,7 +190,16 @@ test('lightning remains finite at mobile scales and never changes combat data', 
     const before = structuredClone(fx);
     for (const scale of [0.65, 1, 1.75]) {
       const active = drawing();
-      drawEffect(active.graphics, fx, 1.5, scale, fx.from, [], active.stamp, active.beam);
+      drawEffect(
+        active.graphics,
+        fx,
+        kind === 'surge' ? 1.05 : 1.5,
+        scale,
+        fx.from,
+        [],
+        active.stamp,
+        active.beam,
+      );
       assert.ok(active.commands.length > 0, id + ' must have a visible attack');
       const expired = drawing();
       drawEffect(expired.graphics, fx, 2, scale, fx.from, [], expired.stamp, expired.beam);
@@ -209,7 +223,7 @@ test('lightning remains finite at mobile scales and never changes combat data', 
 test('effect frames stay inside their row, loop only sustained effects and freeze with combat time', () => {
   const png = readFileSync(new URL('../src/art/assets/effects.png', import.meta.url));
   assert.equal(png.readUInt32BE(16), 128);
-  assert.equal(png.readUInt32BE(20), 192);
+  assert.equal(png.readUInt32BE(20), 224);
   assert.equal(png[25], 6);
   for (const id of Object.keys(effectRows) as (keyof typeof effectRows)[]) {
     const row = effectRows[id] * 4;
@@ -219,7 +233,7 @@ test('effect frames stay inside their row, loop only sustained effects and freez
       assert.equal(effectFrame(id, progress), frame);
     }
   }
-  for (const id of ['hit', 'impact', 'dissolve'] as const) {
+  for (const id of ['hit', 'impact', 'dissolve', 'reconnect'] as const) {
     assert.equal(effectFrame(id, 0), effectRows[id] * 4);
     assert.equal(effectFrame(id, 1), effectRows[id] * 4 + 3);
   }
@@ -244,6 +258,68 @@ test('focused lightning follows the current electron and tracked particle', () =
     assert.deepEqual(focused.args.slice(0, 4), [electron.x, electron.y, enemy.x, enemy.y]);
   }
   assert.deepEqual({ fx, enemy, electron }, before);
+});
+
+test('returning lightning reconnects to the live electron instead of its old position', () => {
+  const fx = {
+    ...effect,
+    kind: 'return' as const,
+    source: 'return' as const,
+    endAnchor: 'electron' as const,
+  };
+  const electron = { x: 220, y: 280 };
+  const { graphics, commands, stamp, beam } = drawing();
+  drawEffect(graphics, fx, 1.8, 1, electron, [], stamp, beam);
+  const returned = commands.find(({ method }) => method === 'beam:return')!;
+  assert.deepEqual(returned.args.slice(0, 4), [fx.from.x, fx.from.y, electron.x, electron.y]);
+  const contact = commands.find(({ method }) => method === 'stamp:reconnect')!;
+  assert.deepEqual(contact.args.slice(0, 2), [electron.x, electron.y]);
+  const piercing = drawing();
+  drawEffect(
+    piercing.graphics,
+    { ...fx, kind: 'pierce', source: 'pierce' },
+    1.8,
+    1,
+    electron,
+    [],
+    piercing.stamp,
+    piercing.beam,
+  );
+  assert.deepEqual(piercing.commands.find((c) => c.method === 'beam:pierce')!.args.slice(0, 4), [
+    fx.from.x,
+    fx.from.y,
+    electron.x,
+    electron.y,
+  ]);
+});
+
+test('stored electricity remains visible without a recent hit and grows with actual charge', () => {
+  const point = { x: 120, y: 200 };
+  const levels = [0, 0.1, 0.8, 1].map((progress) => {
+    const a = drawing(),
+      b = drawing();
+    const state = { mode: 'charging' as const, progress, active: false, fired: false };
+    drawElectronField(a.graphics, point, 12.25, 0.65, state, false, a.stamp);
+    drawElectronField(b.graphics, point, 12.25, 0.65, state, false, b.stamp);
+    assert.deepEqual(a.commands, b.commands, 'Rendering a paused frame must remain stationary');
+    return a.commands.filter((c) => c.method === 'stamp:charge');
+  });
+  assert.equal(levels[0].length, 0);
+  for (const level of levels.slice(1)) assert.equal(level.length, 1);
+  assert.ok(levels[1][0].args[4] < levels[2][0].args[4]);
+  assert.ok(levels[1][0].args[5] < levels[2][0].args[5]);
+  const combined = drawing();
+  drawElectronField(
+    combined.graphics,
+    point,
+    12.25,
+    1,
+    { mode: 'charging', progress: 0.8, active: false, fired: false },
+    true,
+    combined.stamp,
+  );
+  assert.equal(combined.commands.filter((c) => c.method === 'stamp:surge').length, 1);
+  assert.ok(combined.commands.find((c) => c.method === 'stamp:charge')!.args[5] < 32);
 });
 
 test('rapid charging hits display the newest charge level once while their attacks remain visible', () => {

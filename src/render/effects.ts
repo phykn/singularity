@@ -1,7 +1,15 @@
 import type { Effect } from '../game/types.ts';
 import type { Point } from '../game/geometry.ts';
 
-export const effectRows = { hit: 0, impact: 1, orb: 2, charge: 3, surge: 4, dissolve: 5 } as const;
+export const effectRows = {
+  hit: 0,
+  impact: 1,
+  orb: 2,
+  charge: 3,
+  surge: 4,
+  dissolve: 5,
+  reconnect: 6,
+} as const;
 export type EffectSprite = keyof typeof effectRows;
 export type EffectStamp = (
   id: EffectSprite,
@@ -9,6 +17,7 @@ export type EffectStamp = (
   progress: number,
   color: number,
   alpha: number,
+  size?: number,
 ) => void;
 
 export const beamRows = {

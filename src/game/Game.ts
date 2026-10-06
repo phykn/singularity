@@ -846,7 +846,7 @@ export class Game {
   }
 
   addEffect(input: EffectInput): void {
-    const { kind, from, to, radius, width, life, source, anchor, targetId } = input;
+    const { kind, from, to, radius, width, life, source, anchor, endAnchor, targetId } = input;
     const rarity = input.rarity ?? (source ? this.rarities[source] : 'common');
     const rank = input.rank ?? (source ? this.rank(source) : 0);
     const effect = {
@@ -861,6 +861,7 @@ export class Game {
       rank,
       rarity,
       anchor,
+      endAnchor,
       targetId,
     };
     this.effects.push(effect);

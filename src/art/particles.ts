@@ -26,7 +26,7 @@ export const particleArt = {
 
 export const particlePalettes: Record<keyof typeof particleArt, string[]> = {
   electron: ['', '#296175', '#499ab0', '#91dceb', '#e4fcff'],
-  electronSurge: ['', '#735428', '#bd9338', '#efd16f', '#fff0b7'],
+  electronSurge: ['', '#94702e', '#e0b14f', '#ffe49b', '#ffffe4'],
   quark: ['', '#54383f', '#865460', '#bf7f86', '#e5b0ad'],
   muon: ['', '#443853', '#726083', '#ad99bc', '#d7c9df'],
   proton: ['', '#554b32', '#938055', '#c4ae7d', '#e8d9ad'],

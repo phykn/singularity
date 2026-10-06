@@ -51,6 +51,7 @@ export type Effect = {
   rarity: Rarity;
   targetId?: number;
   anchor?: 'electron';
+  endAnchor?: 'electron';
 };
 export type EffectInput = Omit<Effect, 'born' | 'rank' | 'rarity'> &
   Partial<Pick<Effect, 'rank' | 'rarity'>>;
