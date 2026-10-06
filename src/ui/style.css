@@ -306,10 +306,19 @@ svg {
 .arena-caption {
   pointer-events: none;
   position: absolute;
-  bottom: 32px;
+  bottom: 56px;
   left: var(--gutter);
   right: var(--gutter);
   text-align: center;
+}
+.arena-caption,
+.preparation {
+  transition: opacity 0.18s;
+}
+.is-ready.is-launching .arena-caption,
+.is-ready.is-launching .preparation {
+  animation: none;
+  opacity: 0;
 }
 .arena-caption h1 {
   font-size: 36px;

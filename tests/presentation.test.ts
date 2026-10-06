@@ -3,7 +3,29 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../src/game/Game.ts';
 import { endingFrame } from '../src/render/ending.ts';
+import { introFrame } from '../src/render/intro.ts';
 import { KillRhythm, SoundMixer } from '../src/app/sounds.ts';
+
+test('title pulses briefly and contracts smoothly without enlarging the electron or moving in reduced motion', () => {
+  assert.equal(introFrame(3.5, null).pulse, 0);
+  assert.ok(introFrame(3.92, null).pulse > 0.99);
+  assert.equal(introFrame(4.2, null).pulse, 0);
+  let radius = 1;
+  for (let i = 0; i <= 30; i++) {
+    const frame = introFrame(3.92, i / 30);
+    assert.ok(Object.values(frame).every(Number.isFinite));
+    assert.ok(frame.radius <= radius);
+    assert.ok(frame.radius >= 0.099 && frame.core > 0);
+    assert.ok(frame.alpha >= 0 && frame.alpha <= 1);
+    radius = frame.radius;
+    const reduced = introFrame(i, i / 30, true);
+    assert.equal(reduced.radius, 1);
+    assert.equal(reduced.core, 1);
+    assert.equal(reduced.pulse, 0);
+    assert.equal(reduced.angle, -0.65);
+  }
+  assert.deepEqual(introFrame(0, null, true), introFrame(100, null, true));
+});
 
 test('kill rhythm increases with kills, caps its rate and never drains a backlog', () => {
   const run = (killsPerSecond: number) => {

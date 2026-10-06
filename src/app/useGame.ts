@@ -82,6 +82,7 @@ export function useGame() {
     });
   });
   const getGame = useCallback(() => session.game, [session]);
+  const getLaunch = useCallback(() => session.launchProgress, [session]);
   const onRenderReady = useCallback(
     (ready: boolean) => session.setRenderReady(ready, performance.now()),
     [session],
@@ -141,7 +142,7 @@ export function useGame() {
   function begin() {
     if (!session.renderReady) return;
     if (settingsRef.current.sound) void enableAudio();
-    session.begin(performance.now());
+    session.launch(performance.now());
   }
 
   function pause(paused: boolean) {
@@ -204,6 +205,7 @@ export function useGame() {
   return {
     game: session.game,
     getGame,
+    getLaunch,
     language,
     settings,
     best,
@@ -211,6 +213,7 @@ export function useGame() {
     storageOk,
     audioUnavailable,
     renderReady: session.renderReady,
+    launching: session.launchProgress !== null,
     playbackSpeed: session.playbackSpeed,
     pauseOnChoice: session.pauseOnChoice,
     toggleChoicePause: () => session.toggleChoicePause(performance.now()),

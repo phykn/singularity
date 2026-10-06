@@ -54,6 +54,7 @@ try {
   };
   await shoot(1);
   await page.getByRole('button', { name: 'START', exact: true }).click();
+  await page.locator('.hud').waitFor();
   await combat(55);
   await page.evaluate(() => {
     const debug = window.__gameDebug,

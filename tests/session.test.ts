@@ -65,6 +65,44 @@ test('loading gates input, frames retain catch-up ticks, and renderer recovery e
   assert.equal(run.game.elapsedTicks, 61);
 });
 
+test('title launch runs once for 300ms before combat and freezes with hidden or unavailable rendering', () => {
+  const { run } = session();
+  run.launch(0);
+  assert.equal(run.launchProgress, null);
+  run.setRenderReady(true, 0);
+  run.launch(0);
+  run.step(100);
+  assert.ok(Math.abs(run.launchProgress! - 1 / 3) < 1e-8);
+  run.launch(100);
+  run.setHidden(true, 100);
+  run.step(5000);
+  assert.ok(Math.abs(run.launchProgress! - 1 / 3) < 1e-8);
+  run.setHidden(false, 5000);
+  run.setRenderReady(false, 5000);
+  run.step(10000);
+  assert.equal(run.game.phase, 'ready');
+  assert.equal(run.game.elapsedTicks, 0);
+  run.setRenderReady(true, 10000);
+  run.step(10199);
+  assert.equal(run.game.phase, 'ready');
+  run.step(10200);
+  assert.equal(run.launchProgress, null);
+  assert.equal(run.game.phase, 'running');
+  assert.equal(run.game.elapsedTicks, 0);
+  assert.equal(run.game.events.filter((event) => event.kind === 'start').length, 1);
+  run.step(10200 + 1000 / 60);
+  assert.equal(run.game.elapsedTicks, 1);
+  run.launch(10250);
+  assert.equal(run.launchProgress, null);
+  run.replace(new Game(24), 11000);
+  run.launch(11000);
+  run.step(11100);
+  run.replace(new Game(25), 11100);
+  assert.equal(run.launchProgress, null);
+  run.step(12000);
+  assert.equal(run.game.phase, 'ready');
+});
+
 test('visibility and freeze preserve the live run without consuming hidden time or undoing manual pause', () => {
   const { run, counts } = session();
   run.setRenderReady(true, 0);
