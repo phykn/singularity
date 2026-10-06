@@ -68,8 +68,11 @@ export function Choices({
           <div className="choice-header">
             <strong>{c.growth}</strong>
             <div className="choice-actions">
-              <span aria-label={c.countdown(Math.ceil(secondsLeft))}>
-                {c.auto} {Math.ceil(secondsLeft)}
+              <span
+                aria-label={pauseOnChoice ? c.choicePause : c.countdown(Math.ceil(secondsLeft))}
+              >
+                {!pauseOnChoice && c.auto + ' '}
+                {Math.ceil(secondsLeft)}
                 {c.seconds}
               </span>
               <button

@@ -122,17 +122,17 @@ test('XP alone levels up immediately, carries overflow, queues cards, and pauses
   g.advance(10000);
   assert.equal(g.time, 0);
   g.setManualPause(false);
-  g.advance(8000);
+  g.advance(rules.choiceSeconds * 1000);
   assert.equal(g.level, rules.levelXp.length + 1);
   assert.equal(g.selections.length, 1);
   assert.equal(g.choice?.number, 2);
   assert.equal(g.xp, rules.levelXp.at(-1)! + 3);
-  g.advance((rules.levelXp.length - 1) * 8000);
+  g.advance((rules.levelXp.length - 1) * rules.choiceSeconds * 1000);
   assert.equal(g.selections.length, rules.levelXp.length);
   assert.equal(g.choice, null);
   assert.deepEqual(
     g.selections.map((s) => s.time),
-    Array.from({ length: rules.levelXp.length }, (_, i) => (i + 1) * 8),
+    Array.from({ length: rules.levelXp.length }, (_, i) => (i + 1) * rules.choiceSeconds),
   );
   assert.equal(g.xp, rules.levelXp.at(-1)! + 3);
   const empty = fixture();

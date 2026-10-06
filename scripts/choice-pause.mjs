@@ -70,18 +70,33 @@ try {
     assert.equal(stopped.tick, frozen.tick);
     assert.equal(stopped.angle, frozen.angle);
     assert.deepEqual(stopped.targets, frozen.targets);
-    assert.ok(stopped.remaining < frozen.remaining - 0.3);
+    assert.equal(stopped.remaining, frozen.remaining);
     await capture(page, `artifacts/screens/choice-stop-${width}x${height}.png`);
     await toggle.click();
     assert.equal(await toggle.getAttribute('aria-checked'), 'false');
     await page.waitForFunction((tick) => window.__gameDebug.getModel().tick > tick, frozen.tick);
     const running = await snapshot(page);
-    assert.ok(running.remaining < stopped.remaining);
+    assert.ok(running.remaining > 9.5 && running.remaining <= 10);
+    await page.waitForTimeout(450);
+    const elapsed = await snapshot(page);
+    assert.ok(elapsed.remaining < running.remaining - 0.3);
     await toggle.click();
     assert.equal(await toggle.getAttribute('aria-checked'), 'true');
     const pausedAgain = await snapshot(page);
+    assert.ok(
+      pausedAgain.remaining <= elapsed.remaining && pausedAgain.remaining > elapsed.remaining - 0.2,
+    );
     await page.waitForTimeout(150);
-    assert.equal((await snapshot(page)).tick, pausedAgain.tick);
+    assert.deepEqual(await snapshot(page), pausedAgain);
+    for (let i = 0; i < 3; i++) {
+      await toggle.click();
+      await page.waitForTimeout(150);
+      await toggle.click();
+      const stopped = await snapshot(page);
+      await page.waitForTimeout(150);
+      assert.deepEqual(await snapshot(page), stopped);
+      assert.ok(stopped.remaining < pausedAgain.remaining);
+    }
     await capture(page, `artifacts/screens/choice-toggle-${width}x${height}.png`);
     await page.locator('.card').first().click();
     await page.waitForFunction(
@@ -139,13 +154,14 @@ try {
     assert.equal(await toggle.innerText(), '');
     assert.equal(await toggle.getAttribute('aria-checked'), 'true');
     if (language.id === 'en') {
-      const frozen = await snapshot(page);
+      await toggle.click();
+      const started = Date.now();
       await page.waitForFunction(() => window.__gameDebug.getModel().selections.length > 0);
+      assert.ok(Date.now() - started > 9500);
       assert.equal(
         await page.evaluate(() => window.__gameDebug.getModel().selections[0].automatic),
         true,
       );
-      assert.ok((await snapshot(page)).tick < frozen.tick + 15);
     }
     checks.push({ language: language.id, iconOnly: true });
     console.log('PASS localized choice toggle', language.id);

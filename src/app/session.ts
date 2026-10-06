@@ -83,8 +83,10 @@ export class GameSession {
   }
 
   toggleChoicePause(wall: number): void {
+    if (!this.renderReady || this.game.paused) return;
     this.step(wall);
     this.pauseOnChoice = !this.pauseOnChoice;
+    this.step(wall);
     this.effects.redraw();
   }
 
@@ -136,7 +138,7 @@ export class GameSession {
       this.pauseOnChoice && this.game.choice && !this.game.charged ? 0 : ms * this.playbackSpeed,
       tickLimit,
       {
-        choiceMilliseconds: ms,
+        choiceMilliseconds: this.pauseOnChoice ? 0 : ms,
         stopAtChoice: this.pauseOnChoice,
       },
     );
