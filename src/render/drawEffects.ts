@@ -86,10 +86,8 @@ export function drawEffect(
   const strength = clamp(fx.rank / 5) + rarityIds.indexOf(fx.rarity) * 0.06;
   const clock = time + fx.born * 3;
   if (fx.kind === 'bridge') {
-    beam('bridge', from, to, clock, ink, 0.65, 6);
-    g.fillStyle(WHITE, 0.75);
-    for (const point of [from, to])
-      g.fillRect(point.x - 1 / scale, point.y - 1 / scale, 2 / scale, 2 / scale);
+    beam('bridge', from, to, clock, ink, 0.6, 16);
+    g.fillStyle(WHITE, 0.65);
     const phase = (time * 1.5) % 1;
     g.fillRect(lerp(from.x, to.x, phase), lerp(from.y, to.y, phase), 2 / scale, 2 / scale);
   } else if (fx.kind === 'charge' || fx.kind === 'stun') {
@@ -109,7 +107,7 @@ export function drawEffect(
   } else if (fx.kind === 'surge') {
     stamp('surge', from, time, ink, 0.9);
   } else if (fx.kind === 'return') {
-    beam('return', from, to, clock, ink, alpha * 0.9, 6);
+    beam('return', from, to, clock, ink, alpha * 0.9, 16);
     const point = { x: lerp(from.x, to.x, t), y: lerp(from.y, to.y, t) };
     g.fillStyle(WHITE, alpha);
     g.fillRect(point.x - 1 / scale, point.y - 1 / scale, 2 / scale, 2 / scale);
@@ -127,45 +125,17 @@ export function drawEffect(
               : ['chain', 'burst', 'gather'].includes(fx.source ?? '')
                 ? 'chain'
                 : 'basic';
-    const height = id === 'strike' ? 14 : id === 'charge' ? 12 : 8;
+    const height = id === 'strike' || id === 'charge' ? 20 : 16;
     beam(id, from, to, clock, ink, 0.9 * opacity, height + Math.floor(strength));
     if (fx.source === 'repel') arrow(g, { x: 180, y: 260 }, to, ink, alpha, scale);
-    if (fx.source === 'repeat') {
-      const dx = to.x - from.x,
-        dy = to.y - from.y,
-        length = Math.hypot(dx, dy) || 1;
-      const x = ((-dy / length) * 2) / scale,
-        y = ((dx / length) * 2) / scale;
-      beam(
-        'basic',
-        { x: from.x + x, y: from.y + y },
-        { x: to.x + x, y: to.y + y },
-        clock + 0.1,
-        ink,
-        0.5 * opacity,
-        6,
-      );
-    }
     if (fx.kind !== 'focus' && fx.kind !== 'strike') {
       stamp(fx.source === 'charge' ? 'impact' : 'hit', to, t, ink, opacity);
-      if (fx.source === 'chain') {
-        const pulse = { x: lerp(from.x, to.x, t), y: lerp(from.y, to.y, t) };
-        arrow(g, from, pulse, WHITE, opacity, scale);
-        g.fillStyle(ink, opacity);
-        g.fillRect(from.x - 2 / scale, from.y - 2 / scale, 4 / scale, 4 / scale);
-      } else if (fx.source === 'burst') {
-        g.lineStyle(1 / scale, WHITE, opacity);
-        const p = 3 / scale;
-        g.lineBetween(from.x - p, from.y - p, from.x + p, from.y + p);
-        g.lineBetween(from.x - p, from.y + p, from.x + p, from.y - p);
-      }
     }
     if (fx.kind === 'strike') {
       stamp('impact', to, t, ink, alpha);
     }
   } else if (fx.kind === 'pierce') {
-    beam('pierce', from, to, clock, ink, 0.85 * alpha, 10 + Math.floor(strength * 2));
-    arrow(g, from, to, WHITE, alpha, scale);
+    beam('pierce', from, to, clock, ink, 0.85 * alpha, 16 + Math.floor(strength * 2));
   } else if (fx.kind === 'upgrade') {
     if (fx.source === 'range') {
       ring(g, from, fx.radius, ink, alpha * 0.22, scale, 1);
@@ -173,34 +143,15 @@ export function drawEffect(
     }
     if (fx.source === 'recover') {
       ring(g, from, fx.radius * (1 + t * 0.6), ink, alpha * 0.65, scale, 1);
-      for (let i = 0; i < 6; i++) {
-        const angle = (i * Math.PI) / 3 + fx.born;
-        const x = Math.round((from.x + Math.cos(angle) * fx.radius * (0.5 + t)) * scale) / scale;
-        const y = Math.round((from.y + Math.sin(angle) * fx.radius * (0.5 + t)) * scale) / scale;
-        g.fillStyle(ink, alpha * 0.7);
-        g.fillRect(x, y, 2 / scale, 2 / scale);
-      }
       return;
     }
     const radius = (9 + t * (16 + strength * 8)) / scale;
-    ring(g, from, radius, ink, alpha * 0.85, scale, 2);
-    for (let i = 0; i < 4; i++) {
-      const angle = (i * Math.PI) / 2;
-      stamp(
-        'hit',
-        { x: from.x + Math.cos(angle) * radius, y: from.y + Math.sin(angle) * radius },
-        t,
-        ink,
-        alpha,
-      );
-    }
+    ring(g, from, radius, ink, alpha * 0.65, scale, 1);
   } else if (fx.kind === 'absorb') {
     const x = lerp(from.x, 180, Math.min(1, t * 2)),
       y = lerp(from.y, 260, Math.min(1, t * 2));
     g.fillStyle(AMBER, alpha);
-    g.fillRect(x - 2 / scale, y - 2 / scale, 4 / scale, 4 / scale);
-    g.lineStyle(1 / scale, AMBER, alpha * 0.7);
-    g.strokeCircle(180, 260, fx.radius * (1.25 - t * 0.5));
+    g.fillRect(x - 1 / scale, y - 1 / scale, 2 / scale, 2 / scale);
   } else if (fx.kind === 'kill') {
     stamp('dissolve', from, t, fx.radius > 8 ? WHITE : BLUE, (1 - t) ** 2);
   } else {

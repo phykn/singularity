@@ -1,6 +1,6 @@
 # Generated game artwork
 
-The skill artwork was created with the built-in image generation tool: illustrated source images, then detailed pixel-art reinterpretations. Particles use the original hand-authored pixel grids and palettes in `src/art/particles.ts`.
+The skill artwork was created with the built-in image generation tool: illustrated source images, then detailed pixel-art reinterpretations. Particle shapes and palettes live in `src/art/particles.ts`.
 
 | Source        | Pixel artwork   | Runtime atlas               |
 | ------------- | --------------- | --------------------------- |
@@ -10,7 +10,7 @@ Run `npm run build:art` from the repository root to pack the selected pixel artw
 
 The skill atlas has seven columns and three rows. Its order is Attack Power, Attack Speed, Range, Move Speed, Mass Vent, Repeat, Fork; Chain, Pierce, Death Arc, Thunderstrike, Repulsion, Focus, Ball Lightning; Capacitor, Arc Bridge, Gather, Short Circuit, Pursuit Arc, Surge, Return Arc. See `src/art/skills.ts` for runtime coordinates.
 
-Particle textures and guide icons share hand-authored 16×16 grids at native screen scale. Their stepped silhouettes restore the early artwork: a triangular Quark, diamond Muon, faceted Proton and hollow Neutron, beside the small Electron. Transparent padding keeps the smaller particles small; the grid size does not enlarge their visible bodies. Enemy movement, collision and combat rules are unchanged.
+Particle textures and guide icons share 16×16 cells containing solid spheres with four flat tones. Quark, Muon, Proton and Neutron use 8, 10, 12 and 14-pixel diameters, respectively; the Electron uses 12 pixels. Warm rose, lilac, sand and slate blue identify enemies, while the Electron stays bright cyan and turns gold during Surge. A dark rim, one small highlight and a curved shadow keep dense groups legible. Transparent padding preserves each body's native size. Movement, collision and combat rules are unchanged.
 
 ## Generation prompts
 

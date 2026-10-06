@@ -2,7 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type Phaser from 'phaser';
 import { readFileSync } from 'node:fs';
-import { beamFrame, beamPose, beamRows, effectFrame, effectRows } from '../src/render/effects.ts';
+import {
+  beamFrame,
+  beamPose,
+  beamRows,
+  effectFrame,
+  effectRows,
+  visibleEffects,
+} from '../src/render/effects.ts';
 import { particleArt, particlePalettes } from '../src/art/particles.ts';
 import { createParticleTextures } from '../src/render/particleTextures.ts';
 import { healthBar } from '../src/render/healthBars.ts';
@@ -77,9 +84,9 @@ test('generated icon atlases have transparent-capable PNGs and unique in-bounds 
 test('health bars show continuous proportional health and hide one-hit particles', () => {
   const enemy = target(1, 180, 200, 8, 'dense');
   const original = structuredClone(enemy);
-  assert.deepEqual(healthBar(enemy, 2), { width: 16, height: 2, offset: 13, filled: 16 });
+  assert.deepEqual(healthBar(enemy, 2), { width: 12, height: 1, offset: 10, filled: 12 });
   enemy.hp = 4;
-  assert.equal(healthBar(enemy, 2)?.filled, 8);
+  assert.equal(healthBar(enemy, 2)?.filled, 6);
   enemy.hp = 0.1;
   assert.equal(healthBar(enemy, 2)?.filled, 1);
   assert.ok(healthBar(enemy, 2), 'Tough particles retain the bar until defeated');
@@ -199,7 +206,7 @@ test('lightning remains finite at mobile scales and never changes combat data', 
   }
 });
 
-test('generated effect frames stay inside their row, loop only sustained effects and freeze with combat time', () => {
+test('effect frames stay inside their row, loop only sustained effects and freeze with combat time', () => {
   const png = readFileSync(new URL('../src/art/assets/effects.png', import.meta.url));
   assert.equal(png.readUInt32BE(16), 128);
   assert.equal(png.readUInt32BE(20), 192);
@@ -237,6 +244,26 @@ test('focused lightning follows the current electron and tracked particle', () =
     assert.deepEqual(focused.args.slice(0, 4), [electron.x, electron.y, enemy.x, enemy.y]);
   }
   assert.deepEqual({ fx, enemy, electron }, before);
+});
+
+test('rapid charging hits display the newest charge level once while their attacks remain visible', () => {
+  const effects: Effect[] = Array.from({ length: 8 }, (_, i) => ({
+    ...effect,
+    kind: 'charge',
+    source: 'charge',
+    anchor: 'electron',
+    born: i / 10,
+    width: (i + 1) / 8,
+  }));
+  const bolt: Effect = { ...effect, kind: 'bolt', source: 'chain' };
+  const before = structuredClone(effects);
+  const shown = visibleEffects([...effects, bolt]);
+  assert.deepEqual(
+    shown.filter((fx) => fx.kind === 'charge'),
+    [effects.at(-1)],
+  );
+  assert.ok(shown.includes(bolt));
+  assert.deepEqual(effects, before);
 });
 
 test('lightning beam heights use whole screen pixels at every viewport scale', () => {

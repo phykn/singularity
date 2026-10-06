@@ -135,7 +135,7 @@ export class ElectronScene extends Phaser.Scene {
           g.fillStyle(0x492129, 1);
           g.fillRect(left, top, bar.width / scale, bar.height / scale);
         }
-        g.fillStyle(0xe45d68, 1);
+        g.fillStyle(bar.filled < bar.width ? 0xe4938c : 0xa7656b, 0.85);
         g.fillRect(left, top, bar.filled / scale, bar.height / scale);
       }
     }
@@ -159,7 +159,7 @@ export class ElectronScene extends Phaser.Scene {
       this.drawTrail(
         game.angle,
         game.radius,
-        surging ? 18 : 10,
+        surging ? 12 : 8,
         surging ? skillColors.surge : color,
         scale,
       );

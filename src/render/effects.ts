@@ -65,7 +65,7 @@ export function visibleEffects(effects: Effect[]): Effect[] {
     burst: 6,
     strike: 8,
     bridge: 5,
-    charge: 10,
+    charge: 1,
     stun: 8,
     surge: 1,
     return: 10,

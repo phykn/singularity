@@ -23,7 +23,7 @@ try {
     const result = await page.evaluate(() => {
       const scene = window.__gameScene;
       const texture = scene.textures.get('effects');
-      if (texture.key !== 'effects') throw new Error('Generated effects did not load');
+      if (texture.key !== 'effects') throw new Error('Pixel effects did not load');
       const canvas = document.createElement('canvas');
       canvas.width = 128;
       canvas.height = 192;
@@ -38,8 +38,7 @@ try {
           for (let y = 0; y < 32; y++)
             for (let x = 0; x < 32; x++) if (alpha(col * 32 + x, row * 32 + y) > 180) painted++;
           if (!painted) throw new Error(`Empty animation frame ${row}:${col}`);
-          // Generated alpha can retain a one-step rounding residue in empty margins.
-          if (alpha(col * 32, row * 32) > 1) throw new Error('Nontransparent frame margin');
+          if (alpha(col * 32, row * 32) !== 0) throw new Error('Nontransparent frame margin');
           if (row === 3 || row === 4)
             for (let y = 14; y < 18; y++)
               for (let x = 14; x < 18; x++)
@@ -102,7 +101,7 @@ try {
       const auraPixels = aura.displayWidth,
         electronPixels = electron.displayWidth;
       const beamTexture = scene.textures.get('beams');
-      if (beamTexture.key !== 'beams') throw new Error('Generated beams did not load');
+      if (beamTexture.key !== 'beams') throw new Error('Pixel beams did not load');
       canvas.width = 256;
       canvas.height = 128;
       ctx.drawImage(beamTexture.source[0].image, 0, 0);
@@ -162,7 +161,7 @@ try {
           continue;
         }
         if (!beam || Number(beam.frame.name) < 16 || Number(beam.frame.name) >= 20)
-          throw new Error('Real focus cast lacks generated focused lightning');
+          throw new Error('Real focus cast lacks focused lightning');
         const from = scene.screen(combat.position),
           to = scene.screen(tracked);
         for (const [point, side] of [
@@ -206,7 +205,7 @@ try {
     assert.equal(result.beamFrames, 32);
     await capture(page, `artifacts/screens/effects-tracked-${width}x${height}.png`);
     checks.push({ viewport: [width, height], ...result });
-    console.log('PASS generated effects', JSON.stringify(checks.at(-1)));
+    console.log('PASS pixel effects', JSON.stringify(checks.at(-1)));
     await page.close();
   }
   assert.deepEqual(errors, []);

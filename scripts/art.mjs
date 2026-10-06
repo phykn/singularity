@@ -1,19 +1,18 @@
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { launchBrowser } from './browser-support.mjs';
+import { effectArtwork } from '../assets/effect-art/sprites.mjs';
 
 // Pack the generated pixel artwork into native UI cells; artistic conversion is already complete.
 const browser = await launchBrowser();
 try {
   const page = await browser.newPage();
-  for (const [sourcePath, output, cols, rows, trim, cellWidth, cellHeight] of [
-    ['assets/icon-art/pixel-art.png', 'src/art/assets/skills.png', 7, 3, true, 32, 32],
-    ['assets/effect-art/pixel-art.png', 'src/art/assets/effects.png', 4, 6, false, 32, 32],
-    ['assets/effect-art/beams.png', 'src/art/assets/beams.png', 4, 8, false, 64, 16],
+  for (const [sourcePath, output, cols, rows, cellWidth, cellHeight] of [
+    ['assets/icon-art/pixel-art.png', 'src/art/assets/skills.png', 7, 3, 32, 32],
   ]) {
     const source = readFileSync(sourcePath).toString('base64');
     const png = await page.evaluate(
-      async ({ source, cols, rows, trim, cellWidth, cellHeight }) => {
+      async ({ source, cols, rows, cellWidth, cellHeight }) => {
         const image = new Image();
         image.src = 'data:image/png;base64,' + source;
         await image.decode();
@@ -22,11 +21,6 @@ try {
         canvas.height = rows * cellHeight;
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
-        // Animated frames retain their shared cell center, including transparent margins.
-        if (!trim) {
-          ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-          return canvas.toDataURL('image/png').split(',')[1];
-        }
         const width = image.naturalWidth / cols,
           height = image.naturalHeight / rows;
         const raw = document.createElement('canvas');
@@ -69,7 +63,7 @@ try {
           }
         return canvas.toDataURL('image/png').split(',')[1];
       },
-      { source, cols, rows, trim, cellWidth, cellHeight },
+      { source, cols, rows, cellWidth, cellHeight },
     );
     const buffer = Buffer.from(png, 'base64');
     assert.equal(buffer.readUInt32BE(16), cols * cellWidth);
@@ -77,6 +71,24 @@ try {
     writeFileSync(output, buffer);
     console.log(
       `Packed ${cols * rows} generated sprites into ${cols * cellWidth}×${rows * cellHeight} transparent atlas.`,
+    );
+  }
+  for (const sheet of effectArtwork()) {
+    const png = await page.evaluate(({ width, height, pixels }) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      const shades = ['', '#61727d', '#a9bac4', '#f1fcff'];
+      for (const [x, y, shade] of pixels) {
+        ctx.fillStyle = shades[shade];
+        ctx.fillRect(x, y, 1, 1);
+      }
+      return canvas.toDataURL('image/png').split(',')[1];
+    }, sheet);
+    writeFileSync(sheet.output, Buffer.from(png, 'base64'));
+    console.log(
+      `Painted native pixel effects into ${sheet.width}×${sheet.height} transparent atlas.`,
     );
   }
 } finally {
