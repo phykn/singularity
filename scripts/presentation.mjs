@@ -39,12 +39,23 @@ try {
       const visible = scene.damageLabels.texts.filter((text) => text.visible);
       const values = visible.map((text) => text.text);
       const count = scene.damageLabels.texts.length;
+      let visibilityChanges = 0;
+      const originalVisibility = new Map();
+      for (const text of scene.damageLabels.texts) {
+        const original = text.setVisible.bind(text);
+        originalVisibility.set(text, original);
+        text.setVisible = (value) => {
+          if (text.visible !== value) visibilityChanges++;
+          return original(value);
+        };
+      }
       for (let i = 0; i < 120; i++) scene.update();
+      for (const [text, original] of originalVisibility) text.setVisible = original;
       const stablePool = scene.damageLabels.texts.length === count;
       game.damageNumbers = [];
       scene.update();
       const cleared = scene.damageLabels.texts.every((text) => !text.visible);
-      return { before, after, values, stablePool, cleared };
+      return { before, after, values, stablePool, cleared, visibilityChanges };
     });
     assert.deepEqual(
       labels.after,
@@ -60,6 +71,7 @@ try {
       labels.stablePool && labels.cleared,
       'Labels reuse their pool and disappear when expired',
     );
+    assert.equal(labels.visibilityChanges, 0, 'Stable hits must not hide and show every frame');
     for (const reducedMotion of ['no-preference', 'reduce']) {
       await page.emulateMedia({ reducedMotion });
       const offset = await page.evaluate(() => {
@@ -77,6 +89,7 @@ try {
             life: 0.3,
             radius: 10,
             width: 1,
+            damage: game.damage * game.forms.strike.damage,
             rank: 1,
             rarity: 'common',
           },

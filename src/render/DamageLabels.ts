@@ -17,7 +17,7 @@ export class DamageLabels {
   }
 
   hide(): void {
-    for (const text of this.texts) text.setActive(false).setVisible(false);
+    for (const text of this.texts) if (text.visible) text.setActive(false).setVisible(false);
   }
   draw(game: Game, width: number, height: number, centerY: number, scale: number): void {
     const viewport = `${width}:${height}:${centerY}:${scale}`;
@@ -36,6 +36,7 @@ export class DamageLabels {
       this.offsets.delete(id);
       this.free.push(text);
     }
+    const shown = new Set<Phaser.GameObjects.Text>();
     const occupied: Phaser.Geom.Rectangle[] = [],
       limit = 24;
     for (const damage of numbers) {
@@ -90,11 +91,15 @@ export class DamageLabels {
         placed = true;
         break;
       }
-      text.setActive(placed).setVisible(placed);
       if (!placed) continue;
+      shown.add(text);
+      if (!text.active) text.setActive(true);
+      if (!text.visible) text.setVisible(true);
       const color = damage.value >= 5 ? '#ffda96' : damage.value > 2 ? '#f1fcff' : '#b8eefb';
       if (text.style.color !== color) text.setColor(color);
       text.setAlpha(1 - clamp((age - 0.35) / 0.37));
     }
+    for (const text of this.texts)
+      if (text.visible && !shown.has(text)) text.setActive(false).setVisible(false);
   }
 }

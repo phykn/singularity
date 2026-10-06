@@ -62,7 +62,7 @@ export class ElectronScene extends Phaser.Scene {
     const width = this.scale.width,
       height = this.scale.height,
       scale = Math.min(width, height) / 360;
-    this.damageLabels.hide();
+    if (game.phase !== 'running') this.damageLabels.hide();
     this.effectGraphics.clear();
     g.clear();
     this.width = width;

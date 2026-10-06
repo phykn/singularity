@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ControlIcon } from '../ui/icons.tsx';
 import { GameCanvas } from '../render/GameCanvas.tsx';
 import { Hud } from '../ui/Hud.tsx';
@@ -54,6 +54,21 @@ export default function App() {
     actions.pause(paused);
     setExitConfirm(false);
   }
+
+  useEffect(() => {
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.repeat || event.defaultPrevented) return;
+      if (exitConfirm) setExitConfirm(false);
+      else if (panel !== null) setPanel(null);
+      else if (renderReady && game.phase !== 'ready' && game.phase !== 'result') {
+        actions.pause(!game.manualPaused);
+        setExitConfirm(false);
+      } else return;
+      event.preventDefault();
+    };
+    window.addEventListener('keydown', escape);
+    return () => window.removeEventListener('keydown', escape);
+  }, [game, panel, exitConfirm, renderReady, actions.pause]);
 
   const notice = (audioUnavailable || !storageOk) && (
     <p className="setting-notice" role="status">

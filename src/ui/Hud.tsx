@@ -9,7 +9,11 @@ import type { Language } from './i18n.ts';
 
 const statNumber = new Intl.NumberFormat('en', {
   notation: 'compact',
-  maximumSignificantDigits: 2,
+  maximumFractionDigits: 0,
+});
+const rateNumber = new Intl.NumberFormat('en', {
+  notation: 'compact',
+  maximumFractionDigits: 2,
 });
 export function Hud({
   game,
@@ -60,7 +64,7 @@ export function Hud({
             >
               <SkillIcon id={id} size={14} />
               <b>
-                {statNumber.format(
+                {(id === 'rate' ? rateNumber : statNumber).format(
                   id === 'power'
                     ? game.damage
                     : id === 'rate'
