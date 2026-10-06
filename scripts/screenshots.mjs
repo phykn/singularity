@@ -17,7 +17,7 @@ try {
   await page.goto(base);
   await page.getByRole('button', { name: 'ENG', exact: true }).click();
   await page.evaluate(() => window.__gameDebug.prepare(1701));
-  await page.getByRole('button', { name: 'START', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('.start')?.matches(':enabled'));
   const shoot = async (number) => {
     await page.waitForTimeout(300);
     await page.screenshot({
@@ -52,8 +52,9 @@ try {
     }, seconds);
     await page.waitForFunction(() => !document.querySelector('.choices'));
   };
-  await combat(55);
   await shoot(1);
+  await page.getByRole('button', { name: 'START', exact: true }).click();
+  await combat(55);
   await page.evaluate(() => {
     const debug = window.__gameDebug,
       g = debug.getModel();
@@ -69,7 +70,7 @@ try {
   await shoot(3);
   assert.deepEqual(errors, []);
   writeFileSync('artifacts/readme-screenshots.json', JSON.stringify({ shots, errors }, null, 2));
-  console.log('Captured three natural gameplay frames from seed 1701.');
+  console.log('Captured the English title screen and two natural gameplay frames from seed 1701.');
 } finally {
   await browser.close();
 }
