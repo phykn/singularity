@@ -71,9 +71,17 @@ try {
     const quiet = await pose(0.8);
     assert.equal(quiet.targets, 0);
     assert.equal(quiet.seconds, 0);
+    await page.waitForFunction(
+      () => Number(getComputedStyle(document.querySelector('.hud')).opacity) === 0.22,
+    );
+    assert.equal(await page.locator('.result').count(), 0);
     if (language === 'ko') await capture(page, 'artifacts/beyond/entry-quiet.png');
     await pose(1.2);
     await capture(page, `artifacts/beyond/entry-open-${language}.png`);
+    const openingHud = await page
+      .locator('.hud')
+      .evaluate((node) => Number(getComputedStyle(node).opacity));
+    assert.ok(openingHud > 0.3 && openingHud < 0.5, 'HUD returns with the new orbit');
     await page.getByRole('button', { name: c.pause, exact: true }).click();
     const frozen = await page.evaluate(() => window.__gameDebug.getModel().phaseTicks);
     await page.waitForTimeout(100);
@@ -81,9 +89,16 @@ try {
     await page.getByRole('button', { name: c.resume, exact: true }).click();
     await pose(2.3);
     await capture(page, `artifacts/beyond/entry-orbit-${language}.png`);
+    const orbitHud = await page
+      .locator('.hud')
+      .evaluate((node) => Number(getComputedStyle(node).opacity));
+    assert.ok(orbitHud > openingHud && orbitHud < 1);
     const entered = await pose(2.4);
     assert.equal(entered.phase, 'running');
     assert.equal(entered.seconds, 0);
+    await page.waitForFunction(
+      () => Number(getComputedStyle(document.querySelector('.hud')).opacity) === 1,
+    );
     await page.evaluate(() => {
       const debug = window.__gameDebug,
         g = debug.getModel();

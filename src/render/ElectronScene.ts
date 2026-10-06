@@ -130,12 +130,11 @@ export class ElectronScene extends Phaser.Scene {
     this.effectGraphics.setPosition(g.x, g.y);
     const radius = ending?.electron ? ending.radius : game.radius;
     if (!ending || (ending.success && ending.electron)) {
-      const unstable = danger;
-      const opacity = ending && !ending.electron ? 0.12 : danger ? 0.8 : 0.32;
-      this.drawOrbit(radius, unstable ? AMBER : orbitColor, opacity, unstable, scale);
+      const opacity = (danger ? 0.8 : 0.32) * (1 - (ending?.absorb ?? 0));
+      this.drawOrbit(radius, danger ? AMBER : orbitColor, opacity, danger, scale);
     }
     if (game.mass > 0 && (!ending || !ending.success || ending.electron))
-      this.drawCore(game.core * (ending?.success ? 1 - ending.absorb * 0.7 : 1), scale);
+      this.drawCore(game.core * (ending?.core ?? 1), scale);
     if (ending && !ending.success) drawCollapse(g, ending, scale);
     const warning = game.warningWave;
     if (warning)
@@ -152,6 +151,7 @@ export class ElectronScene extends Phaser.Scene {
       const p = ending?.success
         ? orbit(target.angle + absorb * absorb * Math.PI * 2, target.radius * (1 - absorb) ** 1.5)
         : target;
+      if (ending?.hole && Math.hypot(p.x - 180, p.y - 260) <= ending.hole) continue;
       const point = this.screen(p);
       if (point.x < -20 || point.x > width + 20 || point.y < -20 || point.y > height + 20) continue;
       const hit = !ending && target.hitAt !== undefined && game.time - target.hitAt < 0.06;
@@ -215,25 +215,21 @@ export class ElectronScene extends Phaser.Scene {
       return;
     }
     if (ending.electron) {
-      this.drawTrail(ending.angle, ending.radius, 34, ending.success ? GOLD : AMBER, scale, true);
-      this.drawElectron(ending.electron, 1, ending.success ? GOLD : BLUE);
+      this.drawTrail(
+        ending.angle,
+        ending.radius,
+        ending.success ? Math.round(16 - 10 * ending.absorb) : 34,
+        ending.success ? GOLD : AMBER,
+        scale,
+        true,
+      );
+      this.drawElectron(ending.electron, 1, BLUE);
     }
     if (ending.stage === 'silence') {
       g.fillStyle(GOLD, 0.7);
       g.fillRect(180 - 1 / scale, 260 - 1 / scale, 2 / scale, 2 / scale);
     }
-    if (ending.hole) {
-      const cover =
-        Math.hypot(width / 2, Math.max(this.centerY, height - this.centerY)) / scale + 4;
-      const radius = ending.hole + (cover - ending.hole) * ending.expansion;
-      this.drawSingularity(radius, scale);
-    }
-    if (ending.reveal > 0) {
-      g.clear();
-      this.drawSingularity(24, scale);
-      this.cover(width, height, 1 - ending.reveal);
-      return;
-    }
+    if (ending.hole) this.drawSingularity(ending.hole, scale, ending.glow);
     if (ending.success && ending.flash) {
       g.fillStyle(WHITE, ending.flash * 0.6);
       g.fillCircle(180, 260, 5 / scale);
@@ -378,15 +374,23 @@ export class ElectronScene extends Phaser.Scene {
     g.lineStyle(pixel, 0x62889b, 0.6);
     g.strokePoints([hull[5], hull[6], hull[7]].map(point), false);
   }
-  private drawSingularity(radius: number, scale: number): void {
+  private drawSingularity(radius: number, scale: number, glow: number): void {
     const g = this.graphics;
     const r = Math.round(radius * scale) / scale;
     g.fillStyle(0x020306, 1);
     g.fillCircle(180, 260, r);
-    g.lineStyle(1.8 / scale, WHITE, 0.85);
-    g.strokeCircle(180, 260, r);
-    g.lineStyle(3 / scale, GOLD, 0.08);
-    g.strokeCircle(180, 260, r + 3 / scale);
+    this.drawPixelRing(r, GOLD, 0.7 + glow * 0.2, scale);
+    if (glow > 0) this.drawPixelRing(r + 4 / scale, GOLD, glow * 0.18, scale);
+    const pixel = 2 / scale;
+    const edge = Array.from({ length: 9 }, (_, i) => {
+      const p = orbit(Math.PI * (1.08 + i * 0.05), r);
+      return new Phaser.Math.Vector2(
+        180 + Math.round((p.x - 180) / pixel) * pixel,
+        260 + Math.round((p.y - 260) / pixel) * pixel,
+      );
+    });
+    g.lineStyle(1 / scale, WHITE, 0.25 + glow * 0.55);
+    g.strokePoints(edge, false);
   }
   private cover(width: number, height: number, alpha: number): void {
     if (alpha <= 0) return;

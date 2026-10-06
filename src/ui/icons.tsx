@@ -76,6 +76,27 @@ export function CollapseIcon() {
   );
 }
 
+export function SingularityIcon() {
+  return (
+    <svg
+      className="singularity-symbol"
+      width={24}
+      height={24}
+      viewBox="0 0 16 16"
+      shapeRendering="crispEdges"
+      aria-hidden="true"
+    >
+      <path
+        d="M5 2H11V3H13V5H14V11H13V13H11V14H5V13H3V11H2V5H3V3H5Z"
+        fill="#020306"
+        stroke="currentColor"
+        strokeWidth={1}
+      />
+      <path d="M3 7V5H4V4H5V3H8" fill="none" stroke="#fff4d8" strokeWidth={1} />
+    </svg>
+  );
+}
+
 export function ChargeIcon({ progress }: { progress: number }) {
   const clip = useId();
   const y = 32 - Math.floor(Math.max(0, Math.min(1, progress)) * 16) * 2;

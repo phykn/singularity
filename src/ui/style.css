@@ -202,6 +202,7 @@ svg {
   height: 24px;
 }
 .hud {
+  opacity: var(--scene-hud, 1);
   padding: 0 8px;
 }
 .hud-top {
@@ -887,6 +888,16 @@ svg {
 .collapse-symbol {
   color: #ffd08a;
   flex-shrink: 0;
+}
+.singularity-symbol {
+  color: #ffda86;
+  flex-shrink: 0;
+}
+.result.success .result-heading h2 {
+  color: #ffe1a0;
+}
+.play-footer {
+  opacity: var(--scene-hud, 1);
 }
 .result-goal {
   width: min(100%, 208px);

@@ -117,6 +117,8 @@ for (const success of [true, false]) {
     const stages: string[] = [];
     let quietFrames = 0;
     let radius = Infinity;
+    let core = 1;
+    let hud = 1;
     for (let i = 0; i < 400 && !game.result; i++) {
       const before = JSON.stringify(game, (key, value) => (key === 'combat' ? undefined : value));
       const frame = endingFrame(game)!;
@@ -134,9 +136,19 @@ for (const success of [true, false]) {
         assert.equal(frame.electron, null);
         quietFrames++;
       }
-      assert.ok(frame.expansion >= 0 && frame.expansion <= 1);
-      if (frame.reveal > 0)
-        assert.equal(frame.expansion, 1, 'The title returns only after full coverage');
+      assert.ok(frame.hole >= 0 && frame.hole <= 24, 'The singularity stays at the center');
+      assert.ok(frame.glow >= 0 && frame.glow <= 1);
+      assert.ok(frame.hud >= 0.219 && frame.hud <= hud + 1e-8);
+      hud = frame.hud;
+      if (success && game.phase === 'collapse') {
+        assert.ok(frame.core <= core && frame.core >= 0);
+        core = frame.core;
+      }
+      if (frame.stage === 'quiet') {
+        assert.equal(frame.hole, 24);
+        assert.equal(frame.glow, 0);
+        assert.equal(frame.flash, 0);
+      }
       game.advance(1000 / game.rules.tickRate);
     }
     assert.deepEqual(
@@ -147,7 +159,11 @@ for (const success of [true, false]) {
     );
     assert.ok(quietFrames >= 30);
     assert.ok(game.result);
-    if (success) assert.ok(endingFrame(game)!.reveal > 1 - 1e-8);
+    if (success) {
+      assert.equal(endingFrame(game)!.hole, 24);
+      assert.equal(endingFrame(game)!.hud, 0.22);
+      assert.equal(core, 0);
+    }
     assert.ok(game.seconds >= (success ? 4 : 2) && game.seconds <= (success ? 5 : 3));
   });
 }

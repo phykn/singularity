@@ -23,9 +23,10 @@ export function endingFrame(game: Game) {
     radius = 0,
     angle = game.angle,
     absorb = 0,
+    core = 1,
     hole = 0,
-    expansion = 0,
-    reveal = 0,
+    glow = 0,
+    hud = 1,
     flash = 0,
     fracture = 0;
   const contactAngle = game.angle + Math.PI * 2.6;
@@ -34,16 +35,18 @@ export function endingFrame(game: Game) {
     const q = clamp((p - 0.34) / 0.54);
     stage = p < 0.34 ? 'accelerate' : p < 0.88 ? 'compress' : 'silence';
     radius = game.radius * (1 - 0.06 * clamp(p / 0.34)) * (1 - q) ** 2;
+    core = (1 - q) ** 2;
     angle += Math.PI * (p < 0.34 ? 0.8 * (p / 0.34) ** 2 : 0.8 + q * 5.5);
     absorb = q * 0.7;
+    hud = 1 - 0.78 * clamp(p / 0.88);
   } else if (success) {
     const t = p * game.rules.successEndingSeconds;
     stage = t < 0.4 ? 'formation' : t < 2.1 ? 'settle' : 'quiet';
     hole = t < 0.4 ? [2, 5, 10, 17, 24][Math.min(4, Math.floor(t / 0.08))] : 24;
-    expansion = clamp((t - 0.4) / 1.6) ** 2;
-    reveal = clamp((t - 2.35) / 0.65);
+    glow = (1 - clamp((t - 0.08) / 0.8)) ** 2;
+    hud = 0.22;
     absorb = 0.7 + 0.3 * clamp(t / 1.8);
-    flash = t < 0.05 ? 1 - t / 0.05 : 0;
+    flash = 1 - clamp(t / 0.12);
   } else if (collapsing) {
     const q = clamp((p - 0.25) / 0.75);
     stage = p < 0.25 ? 'unstable' : 'spiral';
@@ -64,9 +67,10 @@ export function endingFrame(game: Game) {
     radius,
     angle,
     absorb,
+    core,
     hole,
-    expansion,
-    reveal,
+    glow,
+    hud,
     flash,
     fracture,
     contact: success ? null : orbit(contactAngle, contactRadius),

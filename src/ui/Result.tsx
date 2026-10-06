@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { statIds } from '../game/rules.ts';
 import { particleIds } from '../game/particles.ts';
 import { particleNames, languages } from './i18n.ts';
-import { CollapseIcon, ParticleIcon, SkillIcon } from './icons.tsx';
+import { CollapseIcon, SingularityIcon, ParticleIcon, SkillIcon } from './icons.tsx';
 import { Rank } from './controls.tsx';
 import { Dialog } from './Dialog.tsx';
 import { formatTime } from '../format.ts';
@@ -63,6 +63,7 @@ export function Result({
           </span>
           <h2 id="result-title">
             {collapsed && <CollapseIcon />}
+            {canContinue && <SingularityIcon />}
             {title}
           </h2>
           {showGoal && (

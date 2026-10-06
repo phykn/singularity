@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { endingFrame } from '../render/ending.ts';
+import { beyondFrame } from '../render/beyond.ts';
 import { ControlIcon } from '../ui/icons.tsx';
 import { GameCanvas } from '../render/GameCanvas.tsx';
 import { Hud } from '../ui/Hud.tsx';
@@ -44,6 +47,8 @@ export default function App() {
   const [exitConfirm, setExitConfirm] = useState(false);
   const [homecoming, setHomecoming] = useState(false);
   const ready = game.phase === 'ready';
+  const crossing = beyondFrame(game);
+  const hud = crossing ? 0.22 + 0.78 * crossing.expand : (endingFrame(game)?.hud ?? 1);
   const modal = panel !== null || game.manualPaused || game.phase === 'result';
 
   function replace() {
@@ -83,6 +88,7 @@ export default function App() {
 
   return (
     <main
+      style={{ '--scene-hud': hud } as CSSProperties}
       className={`app ${game.charged ? 'is-charged' : ''} ${game.endless ? 'is-beyond' : ''} ${ready ? 'is-ready' : ''} ${launching ? 'is-launching' : ''} ${ready && homecoming ? 'is-homecoming' : ''} ${game.choice ? 'has-choice' : ''}`}
     >
       <div className="play-layout" inert={modal || launching || (!ready && !renderReady)}>
