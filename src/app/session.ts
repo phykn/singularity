@@ -15,6 +15,7 @@ export class GameSession {
   game: Game;
   renderReady = false;
   playbackSpeed: 1 | 1.5 | 2 = 1;
+  pauseOnChoice = true;
   private audio: Pick<GameAudio, 'enabled' | 'update' | 'unlock' | 'suspend' | 'destroy'>;
   private effects: SessionEffects;
   private lastWall = 0;
@@ -51,6 +52,7 @@ export class GameSession {
   replace(game: Game, wall: number): void {
     this.game = game;
     this.playbackSpeed = 1;
+    this.pauseOnChoice = true;
     this.lastWall = wall;
     this.lastDrawTick = -1;
     this.heard = 0;
@@ -60,14 +62,16 @@ export class GameSession {
   }
 
   pause(paused: boolean, wall: number): void {
+    this.step(wall);
     this.game.setManualPause(paused);
     this.lastWall = wall;
     if (paused) this.audio.suspend();
     this.effects.redraw();
   }
 
-  select(id: UpgradeId, number: number): void {
+  select(id: UpgradeId, number: number, wall = this.lastWall): void {
     if (!this.renderReady) return;
+    this.step(wall);
     this.game.select(id, false, number);
     this.effects.redraw();
   }
@@ -78,9 +82,14 @@ export class GameSession {
     this.effects.redraw();
   }
 
+  toggleChoicePause(wall: number): void {
+    this.step(wall);
+    this.pauseOnChoice = !this.pauseOnChoice;
+    this.effects.redraw();
+  }
+
   setHidden(hidden: boolean, wall: number): void {
-    if (this.renderReady && hidden && !this.game.hiddenPaused)
-      this.game.advance(Math.max(0, wall - this.lastWall) * this.playbackSpeed, frameTickLimit);
+    if (this.renderReady && hidden && !this.game.hiddenPaused) this.step(wall);
     this.game.setHidden(hidden);
     this.lastWall = wall;
     if (hidden) {
@@ -98,8 +107,7 @@ export class GameSession {
 
   step(wall: number): void {
     const game = this.game;
-    if (this.renderReady)
-      game.advance(Math.max(0, wall - this.lastWall) * this.playbackSpeed, frameTickLimit);
+    if (this.renderReady) this.advanceTime(Math.max(0, wall - this.lastWall), frameTickLimit);
     this.lastWall = wall;
     if (this.audio.enabled) this.audio.update(game, this.heard);
     this.heard = game.events.length;
@@ -107,7 +115,10 @@ export class GameSession {
       if (this.effects.saveResult(game.result)) this.processed = game;
       this.lastRecordSave = wall;
     }
-    if (wall - this.lastDraw > 80 && game.elapsedTicks !== this.lastDrawTick) {
+    if (
+      wall - this.lastDraw > 80 &&
+      (game.elapsedTicks !== this.lastDrawTick || (game.choice && this.renderReady && !game.paused))
+    ) {
       this.effects.redraw();
       this.lastDraw = wall;
       this.lastDrawTick = game.elapsedTicks;
@@ -118,6 +129,17 @@ export class GameSession {
     this.game.advance(ms);
     this.lastWall = wall;
     this.effects.redraw();
+  }
+
+  private advanceTime(ms: number, tickLimit = Infinity): void {
+    this.game.advance(
+      this.pauseOnChoice && this.game.choice && !this.game.charged ? 0 : ms * this.playbackSpeed,
+      tickLimit,
+      {
+        choiceMilliseconds: ms,
+        stopAtChoice: this.pauseOnChoice,
+      },
+    );
   }
 
   dispose(): void {

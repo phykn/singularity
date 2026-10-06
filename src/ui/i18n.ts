@@ -24,6 +24,7 @@ const ko = {
   storageFailed: '진행 저장 불가',
   growth: '레벨 업',
   auto: '자동',
+  choicePause: '스킬 선택 중 전투 정지',
   resume: '계속하기',
   quit: '그만하기',
   quitTitle: '이번 판 종료',
@@ -69,7 +70,7 @@ const ko = {
   guideGoal: (goal: number) =>
     `${goal} XP를 모으면 특이점 형성. 놓친 입자가 핵에 쌓이면 궤도가 좁아지고, 충돌 시 전자 소멸. 시간 제한 없음.`,
   guideChoice:
-    '이동·공격은 자동. 세 가지 강화 중 하나를 선택. 8초 뒤 최고 등급 카드 자동 선택. 같은 등급이면 앞쪽 카드 선택.',
+    '이동·공격은 자동. 강화 선택 중 전투 정지. 스위치로 전투 진행 가능. 8초 뒤 최고 등급 카드 자동 선택. 같은 등급이면 앞쪽 카드 선택.',
   guideRarity:
     '스킬 등급은 처음 선택할 때 고정. 배우기 전에는 등장할 때마다 추첨하고, 배운 뒤에는 단계만 상승. 능력치 강화는 더 높은 등급으로 상승 가능. 질량 방출은 매번 별도 추첨.',
   guideCombo:
@@ -224,6 +225,7 @@ const en: Copy = {
   storageFailed: 'Could not save.',
   growth: 'Level up',
   auto: 'Auto',
+  choicePause: 'Pause combat during skill selection',
   resume: 'Resume',
   quit: 'End run',
   quitTitle: 'End this run?',
@@ -269,7 +271,7 @@ const en: Copy = {
   guideGoal: (goal) =>
     `Reach ${goal} XP to form a black hole. Missed particles gather at the center and pull your orbit inward; hitting the core ends the run. There is no time limit.`,
   guideChoice:
-    'Movement and attacks are automatic. Pick one of three upgrades when you level up. After 8 seconds, the highest-rarity card is picked for you. Ties go to the first card.',
+    'Movement and attacks are automatic. Combat pauses while choosing an upgrade; the switch keeps it running. After 8 seconds, the highest-rarity card is picked for you. Ties go to the first card.',
   guideRarity:
     'Skill rarity locks on first pick. Unlearned skills roll a rarity each time they appear; learned skills only gain ranks. Stat upgrades can gain higher rarity. Each Mass Vent rolls its own rarity.',
   guideCombo:
@@ -436,6 +438,7 @@ const zh: Copy = {
   storageFailed: '无法保存。',
   growth: '升级',
   auto: '自动',
+  choicePause: '选择技能时暂停战斗',
   resume: '继续',
   quit: '结束',
   quitTitle: '结束本局？',
@@ -481,7 +484,7 @@ const zh: Copy = {
   guideGoal: (goal) =>
     `积累 ${goal} 经验即可形成黑洞。漏掉的粒子会聚集在中心，缩小轨道；撞上核心则对局结束。没有时间限制。`,
   guideChoice:
-    '移动和攻击自动进行。升级时从三个强化选项中选一个；8秒后自动选择最高品质卡片。品质相同时选择靠前的卡片。',
+    '移动和攻击自动进行。选择强化时战斗暂停，可用开关保持战斗进行。8秒后自动选择最高品质卡片。品质相同时选择靠前的卡片。',
   guideRarity:
     '技能稀有度在首次选择时固定。未学习的技能每次出现时重新抽取，学会后只提升等级。属性强化仍可提升稀有度。质量释放每次独立抽取稀有度。',
   guideCombo:
@@ -584,6 +587,7 @@ const ja: Copy = {
   storageFailed: '保存できません。',
   growth: 'レベルアップ',
   auto: '自動',
+  choicePause: 'スキル選択中に戦闘を停止',
   resume: '続ける',
   quit: '終了',
   quitTitle: 'このプレイを終了しますか？',
@@ -630,7 +634,7 @@ const ja: Copy = {
   guideGoal: (goal) =>
     `経験値を ${goal} 集めるとブラックホールが生まれます。逃した粒子が中心に集まると軌道が狭まり、核にぶつかると消滅します。時間制限はありません。`,
   guideChoice:
-    '移動と攻撃は自動です。レベルアップ時に3つの強化から1つ選びましょう。8秒後に最高レアリティのカードが自動で選ばれます。同じ場合は先のカードを選びます。',
+    '移動と攻撃は自動です。強化の選択中は戦闘が停止します。スイッチで戦闘を続行できます。8秒後に最高レアリティのカードが自動で選ばれます。同じ場合は先のカードを選びます。',
   guideRarity:
     'スキルのレア度は最初に選んだ時点で固定。未習得なら出現ごとに抽選、習得後はランクだけ上昇。能力強化のレア度は上昇可能。質量放出は毎回抽選。',
   guideCombo:

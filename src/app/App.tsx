@@ -31,6 +31,8 @@ export default function App() {
     renderReady,
     playbackSpeed,
     cycleSpeed,
+    pauseOnChoice,
+    toggleChoicePause,
     onRenderReady,
     begin,
     select,
@@ -163,7 +165,15 @@ export default function App() {
             <Loadout game={game} language={language} />
           )}
         </section>
-        {!ready && <Choices game={game} language={language} onSelect={select} />}
+        {!ready && (
+          <Choices
+            game={game}
+            language={language}
+            onSelect={select}
+            pauseOnChoice={pauseOnChoice}
+            onTogglePause={toggleChoicePause}
+          />
+        )}
       </div>
 
       {panel === 'guide' && (

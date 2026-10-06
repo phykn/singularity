@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { GameSession } from '../src/app/session.ts';
 import { Game } from '../src/game/model.ts';
 import type { Result } from '../src/game/types.ts';
+import { xpForLevel } from '../src/game/rules.ts';
 
 function session(game = new Game(10004), saveResult = (_result: Result) => true) {
   const heard: number[] = [];
@@ -195,4 +196,99 @@ test('speed changes settle the old interval and preserve pause, visibility and f
   run.cycleSpeed(9050);
   run.replace(new Game(42), 9050);
   assert.equal(run.playbackSpeed, 1);
+});
+
+test('choices freeze the world, remain selectable and auto-pick at eight wall seconds', () => {
+  const { run } = session();
+  run.setRenderReady(true, 0);
+  run.begin(0);
+  run.game.debugSetXp(14);
+  const expected = run.game.automaticCard!.id;
+  const frozen = structuredClone({
+    targets: run.game.targets,
+    angle: run.game.angle,
+    effects: run.game.effects,
+  });
+  run.step(7000);
+  assert.equal(run.game.tick, 0);
+  assert.equal(run.game.elapsedTicks, 0);
+  assert.deepEqual(
+    { targets: run.game.targets, angle: run.game.angle, effects: run.game.effects },
+    frozen,
+  );
+  assert.equal(run.game.choice!.deadline - run.game.time, 1);
+  run.step(8000);
+  assert.equal(run.game.choice, null);
+  assert.equal(run.game.selections[0].id, expected);
+  assert.equal(run.game.selections[0].automatic, true);
+  assert.equal(run.game.tick, 0);
+  run.step(8000 + 1000 / 60);
+  assert.equal(run.game.tick, 1);
+  run.game.debugSetXp(xpForLevel(run.game.level + 1));
+  const next = run.game.choice!;
+  run.select(next.cards[0].id, next.number);
+  assert.equal(run.game.selections.length, 2);
+});
+
+test('choice toggles preserve the countdown, speed does not shorten it, and new runs reset the mode', () => {
+  for (const speed of [1, 1.5, 2]) {
+    const { run } = session(new Game(42, { combat: false }));
+    run.setRenderReady(true, 0);
+    run.begin(0);
+    run.game.debugSetXp(14);
+    while (run.playbackSpeed !== speed) run.cycleSpeed(0);
+    run.step(1000);
+    assert.equal(run.game.tick, 0);
+    run.toggleChoicePause(1000);
+    assert.equal(run.pauseOnChoice, false);
+    for (let i = 1; i <= 60; i++) run.step(1000 + (i * 1000) / 60);
+    assert.equal(run.game.tick, 60 * speed);
+    assert.ok(Math.abs(run.game.choice!.deadline - run.game.time - 6) < 1e-8);
+    run.toggleChoicePause(2000);
+    run.step(7000);
+    assert.ok(Math.abs(run.game.choice!.deadline - run.game.time - 1) < 1e-8);
+    run.step(8000);
+    assert.equal(run.game.choice, null);
+    assert.equal(run.game.tick, 60 * speed);
+    run.toggleChoicePause(8000);
+    run.replace(new Game(24), 8000);
+    assert.equal(run.pauseOnChoice, true);
+  }
+});
+
+test('manual pause, backgrounding and renderer loss freeze the selection timer', () => {
+  const { run } = session();
+  run.setRenderReady(true, 0);
+  run.begin(0);
+  run.game.debugSetXp(14);
+  run.step(1000);
+  run.pause(true, 1000);
+  run.step(9000);
+  run.pause(false, 9000);
+  run.setHidden(true, 9000);
+  run.step(17000);
+  run.setHidden(false, 17000);
+  run.setRenderReady(false, 17000);
+  run.step(25000);
+  run.setRenderReady(true, 25000);
+  assert.equal(run.game.choice!.deadline - run.game.time, 7);
+  run.step(26000);
+  assert.equal(run.game.choice!.deadline - run.game.time, 6);
+});
+
+test('a new choice stops retained frame ticks and a charged run proceeds to its ending', () => {
+  const { run } = session();
+  run.setRenderReady(true, 0);
+  run.begin(0);
+  const g = run.game;
+  for (const target of g.targets) target.xp = 14;
+  for (let frame = 1; frame <= 60 && !g.choice; frame++) run.step((frame * 1000) / 60);
+  assert.ok(g.choice);
+  const tick = g.tick;
+  run.select(g.choice.cards[0].id, g.choice.number);
+  run.step((tick * 1000) / 60);
+  assert.equal(g.tick, tick, 'Paused frames must not catch up after selection');
+  g.debugSetXp(g.rules.energyGoal);
+  run.advance(10000, 11000);
+  assert.equal(g.phase, 'result');
 });

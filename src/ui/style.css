@@ -523,7 +523,7 @@ svg {
   gap: 8px;
   align-items: center;
   margin-bottom: 8px;
-  height: 20px;
+  height: 32px;
 }
 .choice-header strong {
   font-size: 12px;
@@ -534,6 +534,51 @@ svg {
   font-size: 12px;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+.choice-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.choice-pause {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 44px;
+  padding: 0;
+  background: transparent;
+}
+.choice-switch {
+  width: 42px;
+  height: 24px;
+  padding: 2px;
+  background: #27303d;
+  box-shadow: inset 0 0 0 1px #4a5668;
+}
+.choice-switch > span {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: #c6d1df;
+  background: #465466;
+}
+.choice-switch svg {
+  width: 16px;
+  height: 16px;
+}
+.choice-pause[aria-checked='true'] .choice-switch {
+  background: #21404b;
+  box-shadow: inset 0 0 0 1px #548998;
+}
+.choice-pause[aria-checked='true'] .choice-switch > span {
+  transform: translateX(18px);
+  color: var(--blue);
+  background: #375967;
 }
 .cards {
   display: grid;
@@ -1029,8 +1074,8 @@ svg {
     box-shadow: none;
   }
   .choice-header {
-    margin-bottom: 4px;
-    height: 16px;
+    margin-bottom: 8px;
+    height: 32px;
   }
   .choice-header strong {
     font-size: 12px;

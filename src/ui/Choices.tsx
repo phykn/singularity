@@ -1,4 +1,4 @@
-import { ArrowRight } from 'pixelarticons/react';
+import { ArrowRight, Pause, Play } from 'pixelarticons/react';
 import { useEffect, useRef, useState } from 'react';
 import type { Choice } from '../game/types.ts';
 import type { Rarity, UpgradeId } from '../game/rules.ts';
@@ -14,10 +14,14 @@ export function Choices({
   game,
   language,
   onSelect,
+  pauseOnChoice,
+  onTogglePause,
 }: {
   game: Game;
   language: Language;
   onSelect: (id: UpgradeId, number: number) => void;
+  pauseOnChoice: boolean;
+  onTogglePause: () => void;
 }) {
   const c = copy[language],
     rules = game.rules,
@@ -63,10 +67,24 @@ export function Choices({
         <section className="choices" aria-label={c.choices}>
           <div className="choice-header">
             <strong>{c.growth}</strong>
-            <span aria-label={c.countdown(Math.ceil(secondsLeft))}>
-              {c.auto} {Math.ceil(secondsLeft)}
-              {c.seconds}
-            </span>
+            <div className="choice-actions">
+              <span aria-label={c.countdown(Math.ceil(secondsLeft))}>
+                {c.auto} {Math.ceil(secondsLeft)}
+                {c.seconds}
+              </span>
+              <button
+                className="choice-pause"
+                role="switch"
+                aria-checked={pauseOnChoice}
+                aria-label={c.choicePause}
+                onClick={onTogglePause}
+                disabled={game.paused}
+              >
+                <span className="choice-switch" aria-hidden="true">
+                  <span>{pauseOnChoice ? <Pause /> : <Play />}</span>
+                </span>
+              </button>
+            </div>
           </div>
           <div className="cards">
             {choice.cards.map(({ id, rarity }) => (

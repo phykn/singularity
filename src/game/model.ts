@@ -248,12 +248,25 @@ export class Game {
     this.hiddenPaused = paused;
   }
 
-  advance(milliseconds: number, tickLimit = Infinity): void {
+  advance(
+    milliseconds: number,
+    tickLimit = Infinity,
+    { choiceMilliseconds = milliseconds, stopAtChoice = false } = {},
+  ): void {
     if (this.paused || this.phase === 'ready' || this.phase === 'result') return;
+    stopAtChoice = stopAtChoice && !this.charged;
     this.remainder += (milliseconds * this.rules.tickRate) / 1000;
-    const count = Math.min(Math.floor(this.remainder + 1e-8), tickLimit);
+    const count =
+      stopAtChoice && this.choice ? 0 : Math.min(Math.floor(this.remainder + 1e-8), tickLimit);
     this.remainder -= count;
+    // Keep the unscaled choice countdown relative to the combat time actually advanced.
+    if (this.choice)
+      this.choice.deadline += count / this.rules.tickRate - choiceMilliseconds / 1000;
     for (let i = 0; i < count && !this.result; i++) {
+      if (stopAtChoice && this.choice && !this.charged) {
+        this.remainder = 0;
+        break;
+      }
       this.elapsedTicks++;
       if (this.phase === 'running') this.step();
       else {
@@ -269,6 +282,9 @@ export class Game {
       this.effects = this.effects.filter((fx) => this.seconds < fx.born + fx.life);
       this.damageNumbers = this.damageNumbers.filter((damage) => this.seconds < damage.born + 0.72);
     }
+    if (stopAtChoice && this.choice) this.remainder = 0;
+    if (this.choice && this.time + 1e-8 >= this.choice.deadline)
+      this.select(this.automaticCard!.id, true);
   }
 
   private step(): void {
