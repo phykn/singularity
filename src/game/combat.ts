@@ -7,6 +7,9 @@ import type { Ranks, Rarities, SkillId, UpgradeId } from './rules.ts';
 import type { Effect, SkillStatus, Target } from './types.ts';
 import type { Game } from './Game.ts';
 
+type Pursuit = { remaining: number; visited: Set<number>; continued: Set<number> };
+type Anchor = boolean | number;
+
 export type Attack = {
   id: number;
   ranks: Ranks;
@@ -20,6 +23,8 @@ export type Attack = {
   depth: number;
   budget: { burst: boolean };
   push?: boolean;
+  satellite?: number;
+  pursuit?: Pursuit;
 };
 type Pulse = {
   at: number;
@@ -28,8 +33,8 @@ type Pulse = {
   target?: Target;
   from?: Point;
   reverse?: Point;
-  pursuit?: { remaining: number; visited: Set<number> };
-  anchored: boolean;
+  pursuit?: Pursuit;
+  anchored: Anchor;
 };
 type Focus = {
   attack: Attack;
@@ -107,11 +112,18 @@ export class Combat {
         if (target) this.pursue(pulse.attack, pulse.from!, target, pulse.pursuit);
       } else if (pulse.reverse) this.reverse(pulse.attack, pulse.reverse);
       else {
-        const from = pulse.anchored ? g.position : pulse.from!;
+        const from =
+          typeof pulse.anchored === 'number'
+            ? (this.satellitePoints[pulse.anchored] ?? pulse.from!)
+            : pulse.anchored
+              ? g.position
+              : pulse.from!;
         const target =
           pulse.target && pulse.target.hp > 0 && g.targets.includes(pulse.target)
             ? pulse.target
-            : closest(g.targets, from, 1, pulse.attack.range)[0];
+            : pulse.attack.pursuit
+              ? this.wounded(pulse.attack, from, pulse.attack.pursuit.visited)[0]
+              : closest(g.targets, from, 1, pulse.attack.range)[0];
         if (target) {
           this.emit(pulse.attack, from, target, pulse.anchored, true);
           this.activate('repeat');
@@ -313,9 +325,18 @@ export class Combat {
     }
     if (id === 'satellite') {
       let fired = 0;
-      for (const point of this.satellitePoints) {
-        const targets = closest(g.targets, point, branches, s.satellite.range);
-        fired += this.volley(attack, point, targets, false);
+      const reserved = new Set<number>();
+      for (const [index, point] of this.satellitePoints.entries()) {
+        const targets = closest(g.targets, point, g.targets.length, s.satellite.range)
+          .sort((a, b) => Number(reserved.has(a.id)) - Number(reserved.has(b.id)))
+          .slice(0, branches);
+        targets.forEach((target) => reserved.add(target.id));
+        fired += this.volley(
+          { ...attack, satellite: index, range: s.satellite.range },
+          point,
+          targets,
+          index,
+        );
       }
       if (fired) this.activate(id);
       return fired > 0;
@@ -387,7 +408,11 @@ export class Combat {
               .slice(0, s.chase.count + branches - 1);
     attack.push = id === 'repel';
     if (id === 'chase') {
-      const pursuit = { remaining: s.chase.jumps, visited: new Set<number>() };
+      const pursuit = {
+        remaining: s.chase.jumps,
+        visited: new Set<number>(),
+        continued: new Set<number>(),
+      };
       for (const [i, target] of targets.entries())
         this.pursue(
           i ? { ...attack, damage: attack.damage * s.multi.damage } : attack,
@@ -417,24 +442,36 @@ export class Combat {
     attack: Attack,
     origin: Point,
     target: Target,
-    pursuit: { remaining: number; visited: Set<number> },
-    anchored = false,
+    pursuit: Pursuit,
+    anchored: Anchor = false,
   ): void {
     if (target.hp <= 0 || pursuit.visited.has(target.id)) return;
     pursuit.visited.add(target.id);
     this.activate('chase', attack.ranks.chase);
-    this.volley(attack, origin, [target], anchored);
-    if (target.hp <= 0 && pursuit.remaining > 0) {
-      pursuit.remaining--;
-      this.pulses.push({
-        at: this.game.tick + this.game.rules.skills.chase.jumpSeconds * this.game.rules.tickRate,
-        order: this.order++,
-        attack,
-        from: { x: target.x, y: target.y },
-        anchored: false,
-        pursuit,
-      });
-    }
+    this.volley({ ...attack, pursuit }, origin, [target], anchored);
+  }
+
+  private continuePursuit(attack: Attack, target: Target): void {
+    const pursuit = attack.pursuit;
+    if (
+      attack.source !== 'chase' ||
+      !pursuit ||
+      target.hp > 0 ||
+      pursuit.remaining <= 0 ||
+      pursuit.continued.has(target.id)
+    )
+      return;
+    pursuit.continued.add(target.id);
+    pursuit.visited.add(target.id);
+    pursuit.remaining--;
+    this.pulses.push({
+      at: this.game.tick + this.game.rules.skills.chase.jumpSeconds * this.game.rules.tickRate,
+      order: this.order++,
+      attack,
+      from: { x: target.x, y: target.y },
+      anchored: false,
+      pursuit,
+    });
   }
 
   private begin(source?: SkillId, multiplier = 1): Attack {
@@ -461,7 +498,7 @@ export class Combat {
     to: Point,
     radius = 0,
     life = 0.14,
-    anchored = false,
+    anchored: Anchor = false,
     source = attack.source,
     width = 1.8,
     targetId?: number,
@@ -476,13 +513,13 @@ export class Combat {
       source,
       rarity: source ? attack.rarities[source] : attack.rarities.power,
       rank: source ? attack.ranks[source] : 0,
-      anchor: anchored ? 'electron' : undefined,
-      endAnchor: kind === 'return' ? 'electron' : undefined,
+      anchor: typeof anchored === 'number' ? anchored : anchored ? 'electron' : undefined,
+      endAnchor: kind === 'return' ? (attack.satellite ?? 'electron') : undefined,
       targetId,
     });
   }
 
-  private volley(attack: Attack, origin: Point, selected: Target[], anchored: boolean): number {
+  private volley(attack: Attack, origin: Point, selected: Target[], anchored: Anchor): number {
     let fired = 0;
     for (const [i, target] of selected.entries()) {
       if (target.hp <= 0) continue;
@@ -516,7 +553,7 @@ export class Combat {
     attack: Attack,
     origin: Point,
     target: Target,
-    anchored: boolean,
+    anchored: Anchor,
     repeated = false,
   ): void {
     const source = repeated
@@ -535,13 +572,14 @@ export class Combat {
       target,
       0,
       kind === 'focus' ? 0.2 : 0.14,
-      anchored && kind !== 'strike',
+      kind === 'strike' ? false : anchored,
       source,
       kind === 'focus' ? 1.5 + Math.max(0, attack.damage / attack.power - 0.65) : 1.8,
       target.id,
     );
     const point = { x: target.x, y: target.y };
     this.resolve(attack, target, origin, anchored);
+    this.continuePursuit(attack, target);
     if (attack.ranks.return && attack.depth === 0)
       this.pulses.push({
         at: this.game.tick + this.game.rules.skills.return.delaySeconds * this.game.rules.tickRate,
@@ -563,7 +601,7 @@ export class Combat {
     attack: Attack,
     primary: Target,
     origin: Point,
-    anchored = false,
+    anchored: Anchor = false,
     end?: Point,
   ): void {
     if (primary.hp <= 0) return;
@@ -620,6 +658,7 @@ export class Combat {
         const charged = {
           ...attack,
           source: 'charge' as const,
+          pursuit: undefined,
           damage: attack.power * attack.forms.charge.damage,
           firstKill: undefined,
           depth: attack.depth + 1,
@@ -642,15 +681,20 @@ export class Combat {
         );
     }
     if (target.hp <= 0) return;
-    if (attack.push && g.time >= (target.pushReady ?? 0)) {
-      target.pushReady = g.time + g.rules.skills.repel.immunitySeconds;
-      target.controlCount = (target.controlCount ?? 0) + 1;
-      target.radius = Math.min(
-        g.rules.spawnRadius,
-        target.radius + attack.forms.repel.push / (1 + 0.18 * (target.controlCount - 1)),
-      );
-      Object.assign(target, orbit(target.angle, target.radius));
-    }
+    if (attack.push)
+      this.push(target, attack.forms.repel.push, g.rules.skills.repel.immunitySeconds);
+  }
+
+  private push(target: Target, amount: number, immunity: number, radius = target.radius): void {
+    const g = this.game;
+    if (g.time < (target.pushReady ?? 0)) return;
+    target.pushReady = g.time + immunity;
+    target.controlCount = (target.controlCount ?? 0) + 1;
+    target.radius = Math.max(
+      target.radius,
+      Math.min(g.rules.spawnRadius, radius + amount / (1 + 0.18 * (target.controlCount - 1))),
+    );
+    Object.assign(target, orbit(target.angle, target.radius));
   }
 
   private discharge(attack: Attack): void {
@@ -667,6 +711,7 @@ export class Combat {
     const child = {
       ...attack,
       source: 'burst' as const,
+      pursuit: undefined,
       damage: attack.power * attack.forms.burst.damage,
       firstKill: undefined,
       depth: attack.depth + 1,
@@ -677,7 +722,10 @@ export class Combat {
   }
 
   private reverse(attack: Attack, from: Point): void {
-    const to = this.game.position;
+    const to =
+      attack.satellite === undefined
+        ? this.game.position
+        : (this.satellitePoints[attack.satellite] ?? this.game.position);
     const targets = onSegment(this.game.targets, from, to, attack.forms.return.width);
     this.effect(attack, 'return', from, to, 0, 0.2, false, 'return');
     this.activate('return', attack.ranks.return);
@@ -795,14 +843,8 @@ export class Combat {
         target.bridgeUntil = g.time + cfg.slowSeconds;
         const contact = orbit(target.angle, g.radius);
         this.volley(barrier.attack, contact, [target], false);
-        if (target.hp <= 0 || g.time < (target.pushReady ?? 0)) continue;
-        target.pushReady = g.time + cfg.immunitySeconds;
-        target.controlCount = (target.controlCount ?? 0) + 1;
-        target.radius = Math.min(
-          g.rules.spawnRadius,
-          Math.max(g.radius, target.radius) + forms.push / (1 + 0.18 * (target.controlCount - 1)),
-        );
-        Object.assign(target, orbit(target.angle, target.radius));
+        if (target.hp > 0)
+          this.push(target, forms.push, cfg.immunitySeconds, Math.max(g.radius, target.radius));
       }
     }
   }

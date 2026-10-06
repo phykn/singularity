@@ -302,6 +302,75 @@ test('returning lightning reconnects to the live electron instead of its old pos
   ]);
 });
 
+test('satellite echoes and returns follow the actual emitting satellite, including index zero', () => {
+  const electron = { x: 180, y: 128 };
+  const satellites = [
+    { x: 200, y: 120 },
+    { x: 162, y: 139 },
+  ];
+  for (let index = 0; index < satellites.length; index++) {
+    const outbound = drawing(),
+      inbound = drawing();
+    drawEffect(
+      outbound.graphics,
+      { ...effect, kind: 'bolt', source: 'repeat', anchor: index },
+      1.5,
+      1,
+      electron,
+      [],
+      outbound.stamp,
+      outbound.beam,
+      132,
+      satellites,
+    );
+    drawEffect(
+      inbound.graphics,
+      { ...effect, kind: 'return', source: 'return', endAnchor: index },
+      1.8,
+      1,
+      electron,
+      [],
+      inbound.stamp,
+      inbound.beam,
+      132,
+      satellites,
+    );
+    const origin = outbound.commands.find((c) => c.method.startsWith('beam:'))!;
+    const destination = inbound.commands.find((c) => c.method === 'beam:return')!;
+    assert.deepEqual(origin.args.slice(0, 2), [satellites[index].x, satellites[index].y]);
+    assert.deepEqual(destination.args.slice(2, 4), [satellites[index].x, satellites[index].y]);
+  }
+});
+
+test('electron field artwork has two coherent arcs, an open center and no stray flecks', () => {
+  const sheet = effectArtwork().find((s) => s.output.endsWith('/effects.png'))!;
+  for (const row of [2, 3, 5])
+    for (let frame = 0; frame < 4; frame++) {
+      const pixels = sheet.pixels.filter(
+        ([x, y]) => Math.floor(x / 32) === frame && Math.floor(y / 32) === row,
+      );
+      assert.ok(pixels.length >= 15 && pixels.length < 100);
+      assert.ok(pixels.every(([x, y]) => Math.hypot((x % 32) - 16, (y % 32) - 16) >= 7));
+      const remaining = new Set(pixels.map(([x, y]) => `${x},${y}`));
+      const sizes = [];
+      while (remaining.size) {
+        const queue = [remaining.values().next().value!];
+        let size = 0;
+        while (queue.length) {
+          const key = queue.pop()!;
+          if (!remaining.delete(key)) continue;
+          size++;
+          const [x, y] = key.split(',').map(Number);
+          for (const dx of [-1, 0, 1])
+            for (const dy of [-1, 0, 1]) if (dx || dy) queue.push(`${x + dx},${y + dy}`);
+        }
+        sizes.push(size);
+      }
+      assert.equal(sizes.length, 2);
+      assert.ok(sizes.every((size) => size >= 7));
+    }
+});
+
 test('stored electricity remains visible without a recent hit and grows with actual charge', () => {
   const point = { x: 120, y: 200 };
   const levels = [0, 0.1, 0.8, 1].map((progress) => {
@@ -328,7 +397,8 @@ test('stored electricity remains visible without a recent hit and grows with act
     combined.stamp,
   );
   assert.equal(combined.commands.filter((c) => c.method === 'stamp:surge').length, 1);
-  assert.ok(combined.commands.find((c) => c.method === 'stamp:charge')!.args[5] < 32);
+  assert.equal(combined.commands.filter((c) => c.method === 'stamp:charge').length, 0);
+  assert.equal(combined.commands.filter((c) => c.method === 'fillRect').length, 1);
 });
 
 test('rapid charging hits display the newest charge level once while their attacks remain visible', () => {

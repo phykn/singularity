@@ -63,7 +63,12 @@ export function effectFrame(id: EffectSprite, progress: number): number {
   return effectRows[id] * 4 + frame;
 }
 
-export function effectOrigin(effect: Effect, electron: Point): Point {
+export function effectOrigin(
+  effect: Effect,
+  electron: Point,
+  satellites: readonly Point[] = [],
+): Point {
+  if (typeof effect.anchor === 'number') return satellites[effect.anchor] ?? effect.from;
   if (effect.anchor === 'electron') return electron;
   return effect.from;
 }

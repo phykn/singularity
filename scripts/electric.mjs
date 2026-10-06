@@ -19,7 +19,16 @@ try {
     await page.goto(base);
     await page.waitForFunction(() => window.__gameScene && window.__gameDebug);
     await page.evaluate(() => document.fonts.ready);
-    for (const kind of ['satellite', 'charge-low', 'charge-high', 'surge', 'return', 'crowd']) {
+    for (const kind of [
+      'satellite',
+      'satellite-return',
+      'charge-low',
+      'charge-high',
+      'surge',
+      'combined',
+      'return',
+      'crowd',
+    ]) {
       const states = [];
       for (const pose of [0, 1, 2]) {
         const state = await page.evaluate(
@@ -39,22 +48,28 @@ try {
               debug.advance(ms);
               g.setHidden(true);
             };
-            if (kind === 'satellite') {
+            if (kind.startsWith('satellite')) {
               g.ranks.satellite = 3;
+              Object.assign(enemy, target(700, origin.x + 18, origin.y + 4, 100000));
+              if (kind === 'satellite-return') Object.assign(g.ranks, { return: 2, repeat: 2 });
               g.combat.fireSkill('satellite');
-              advance(350 + pose * 100);
+              advance(kind === 'satellite-return' ? 300 + pose * 30 : 350 + pose * 100);
             } else if (kind.startsWith('charge')) {
               g.ranks.charge = 1;
               const hits = kind === 'charge-low' ? 1 : Math.ceil(g.forms.charge.threshold) - 1;
               for (let i = 0; i < hits; i++) g.combat.fireBasic();
               advance(400 + pose * 100);
-            } else if (kind === 'surge' || kind === 'crowd') {
+            } else if (kind === 'surge' || kind === 'crowd' || kind === 'combined') {
               g.ranks.surge = 3;
               for (let i = 0; i < g.forms.surge.kills; i++) {
                 const p = target(i, origin.x, origin.y, 1);
                 g.targets.push(p);
                 g.counts.quark.generated++;
                 g.damageTarget(p, 1);
+              }
+              if (kind === 'combined') {
+                g.ranks.charge = 1;
+                g.combat.fireBasic();
               }
               if (kind === 'crowd') {
                 const { orbit } = await import('/src/game/geometry.ts');
@@ -100,6 +115,15 @@ try {
               throw Error('Paused visual moved');
             if (pool !== scene.sprites.images.length) throw Error('Sprite pool grew while paused');
             return {
+              satellitePoints: g.combat.satellitePoints.map((p) => scene.screen(p)),
+              satelliteReturns: scene.sprites.images
+                .filter(
+                  (s) => s.visible && s.texture.key === 'beams' && Number(s.frame.name) % 32 >= 28,
+                )
+                .map((s) => ({
+                  x: s.x + (Math.cos(s.rotation) * s.displayWidth) / 2,
+                  y: s.y + (Math.sin(s.rotation) * s.displayWidth) / 2,
+                })),
               charge: g.combat.status('charge').progress,
               active: g.combat.status('surge').active,
               point: scene.screen(g.position),
@@ -128,6 +152,22 @@ try {
           { kind, pose },
         );
         if (!baseline) {
+          if (kind === 'satellite-return') {
+            assert.ok(state.satelliteReturns.length >= 3);
+            for (const end of state.satelliteReturns)
+              assert.ok(
+                state.satellitePoints.some((p) => Math.hypot(end.x - p.x, end.y - p.y) < 1.5),
+              );
+          }
+          if (kind === 'combined') {
+            assert.ok(state.charge > 0 && state.active);
+            assert.equal(
+              state.sprites.filter((s) => s.key === 'effects' && s.frame >= 8 && s.frame < 16)
+                .length,
+              1,
+              'Charge and Surge must share one clear field',
+            );
+          }
           if (kind === 'return') {
             assert.ok(state.returnEndpoint);
             assert.ok(

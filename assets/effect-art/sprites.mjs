@@ -59,6 +59,75 @@ export function effectArtwork() {
           sprite.pixel(16 + dx * (radius - 1), 16 + dy * (radius - 1), 2);
       }
     }
+    // Two unequal connected shoulders leave the electron silhouette open.
+    const bend = [0, 1, 0, -1][frame];
+    const arcs = [
+      {
+        row: 2,
+        paths: [
+          [
+            [11, 7],
+            [8, 9],
+            [6, 12],
+            [6, 17],
+            [9, 20],
+          ],
+          [
+            [21, 10],
+            [24, 13 + bend],
+            [24, 18],
+            [21, 22],
+            [18, 23],
+          ],
+        ],
+      },
+      {
+        row: 3,
+        paths: [
+          [
+            [12, 6],
+            [8, 8],
+            [5, 12],
+            [6, 16 + bend],
+            [4, 18],
+            [8, 22],
+          ],
+          [
+            [20, 7],
+            [24, 10],
+            [26, 15],
+            [24, 17],
+            [25, 20],
+            [21, 24],
+            [18, 25],
+          ],
+        ],
+      },
+      {
+        row: 5,
+        paths: [
+          [
+            [9, 11],
+            [7, 14],
+            [9, 17],
+          ],
+          [
+            [23, 13],
+            [25, 17],
+            [22, 20],
+          ],
+        ],
+      },
+    ];
+    for (const { row, paths } of arcs) {
+      const sprite = effects.frame(frame, row);
+      for (const points of paths)
+        for (let i = 1; i < points.length; i++) {
+          const [x, y] = points[i - 1],
+            [toX, toY] = points[i];
+          sprite.line(x, y, toX, toY, i % 2 ? 3 : 2, row === 3);
+        }
+    }
     const dissolve = effects.frame(frame, 4),
       distance = frame + 2;
     for (const [dx, dy] of [

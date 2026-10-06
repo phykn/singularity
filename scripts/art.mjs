@@ -86,10 +86,9 @@ try {
       `Packed ${cols * rows} generated sprites into ${cols * cellWidth}×${rows * cellHeight} transparent atlas.`,
     );
   }
-  const electricSource = readFileSync('assets/effect-art/electron-source.png').toString('base64');
   for (const sheet of effectArtwork()) {
     const png = await page.evaluate(
-      async ({ sheet: { width, height, pixels, output }, electricSource }) => {
+      async ({ sheet: { width, height, pixels } }) => {
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
@@ -99,41 +98,9 @@ try {
           ctx.fillStyle = shades[shade];
           ctx.fillRect(x, y, 1, 1);
         }
-        if (output.endsWith('/effects.png')) {
-          const source = new Image();
-          source.src = 'data:image/png;base64,' + electricSource;
-          await source.decode();
-          ctx.imageSmoothingEnabled = false;
-          const size = source.width / 4;
-          // Register the generated row pivots to the electron without recentering each frame.
-          const rows = [
-            [2, -1],
-            [3, 1],
-            [5, 3],
-          ];
-          for (let row = 0; row < 3; row++)
-            for (let col = 0; col < 4; col++) {
-              ctx.save();
-              ctx.beginPath();
-              ctx.rect(col * 32, rows[row][0] * 32, 32, 32);
-              ctx.clip();
-              ctx.drawImage(
-                source,
-                col * size,
-                (row + 1) * size,
-                size,
-                size,
-                col * 32,
-                rows[row][0] * 32 + rows[row][1],
-                32,
-                32,
-              );
-              ctx.restore();
-            }
-        }
         return canvas.toDataURL('image/png').split(',')[1];
       },
-      { sheet, electricSource },
+      { sheet },
     );
     writeFileSync(sheet.output, Buffer.from(png, 'base64'));
     console.log(

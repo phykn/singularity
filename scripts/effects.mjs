@@ -96,8 +96,9 @@ try {
       if (!aura || !electron) throw new Error('Surge lacks its aura or energized electron');
       if (aura.x !== electron.x || aura.y !== electron.y)
         throw new Error('Aura drifts from the electron');
-      if (aura.displayWidth !== 32 || electron.displayWidth !== 16)
-        throw new Error('Particles must use native 16-pixel texture cells');
+      if (electron.displayWidth !== 16)
+        throw new Error('Electron must retain its native 16-pixel size');
+      if (aura.displayWidth !== 30) throw new Error('Rank-one field must stay compact');
       const auraPixels = aura.displayWidth,
         electronPixels = electron.displayWidth;
       const beamTexture = scene.textures.get('beams');

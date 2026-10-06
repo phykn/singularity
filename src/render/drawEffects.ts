@@ -72,16 +72,19 @@ export function drawEffect(
   stamp: EffectStamp,
   beam: BeamStamp,
   orbitRadius = fx.radius,
+  satellites: readonly Point[] = [],
 ): void {
-  const from = effectOrigin(fx, electron);
+  const from = effectOrigin(fx, electron, satellites);
   const to =
-    fx.endAnchor === 'electron'
-      ? electron
-      : fx.kind === 'pierce'
-        ? { x: from.x + fx.to.x - fx.from.x, y: from.y + fx.to.y - fx.from.y }
-        : fx.kind === 'focus'
-          ? (targets.find((target) => target.id === fx.targetId) ?? fx.to)
-          : fx.to;
+    typeof fx.endAnchor === 'number'
+      ? (satellites[fx.endAnchor] ?? fx.to)
+      : fx.endAnchor === 'electron'
+        ? electron
+        : fx.kind === 'pierce'
+          ? { x: from.x + fx.to.x - fx.from.x, y: from.y + fx.to.y - fx.from.y }
+          : fx.kind === 'focus'
+            ? (targets.find((target) => target.id === fx.targetId) ?? fx.to)
+            : fx.to;
   const t = clamp((time - fx.born) / fx.life);
   if (t >= 1) return;
   const alpha = Math.pow(1 - t, 0.7);
@@ -135,17 +138,11 @@ export function drawEffect(
       );
     }
   } else if (fx.kind === 'charge') {
-    const angle = fx.born * 17;
-    const radius = (13 - t * 6) / scale;
-    g.fillStyle(WHITE, alpha * clamp(fx.width));
-    g.fillRect(
-      from.x + Math.cos(angle) * radius,
-      from.y + Math.sin(angle) * radius,
-      2 / scale,
-      2 / scale,
-    );
+    // A short highlight on the field replaces scattered incoming motes.
+    g.fillStyle(WHITE, alpha * clamp(fx.width) * 0.5);
+    g.fillRect(from.x + 8 / scale, from.y + 7 / scale, 2 / scale, 1 / scale);
   } else if (fx.kind === 'surge') {
-    if (t < 0.15) stamp('reconnect', from, t / 0.15, ink, (1 - t / 0.15) * 0.7, 30 + rank * 2);
+    if (t < 0.15) stamp('reconnect', from, t / 0.15, ink, (1 - t / 0.15) * 0.7, 24);
   } else if (fx.kind === 'return') {
     beam('return', from, to, clock, ink, alpha * light, 16, rank);
     const travel = clamp(t / 0.7);
@@ -169,7 +166,7 @@ export function drawEffect(
                 : 'basic';
     const height = id === 'strike' || id === 'charge' ? 20 : 16;
     beam(id, from, to, clock, ink, light * opacity, height, rank);
-    if (fx.source === 'charge') stamp('reconnect', from, t, ink, opacity, 28 + rank * 2);
+    if (fx.source === 'charge') stamp('reconnect', from, t, ink, opacity, 24);
     if (fx.kind === 'focus') {
       const flow = (time * 3 + (fx.targetId ?? 0) * 0.17) % 1;
       g.fillStyle(WHITE, 0.8);

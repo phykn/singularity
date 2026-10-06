@@ -150,7 +150,8 @@ export class ElectronScene extends Phaser.Scene {
       }
     }
     if (!ending) {
-      for (const point of game.combat.satellitePoints)
+      const satellites = game.combat.satellitePoints;
+      for (const point of satellites)
         this.sprites.draw(this.screen(point), 'electron', 0.5, 1).clearTint();
       for (const fx of visibleEffects(game.effects))
         drawEffect(
@@ -163,6 +164,7 @@ export class ElectronScene extends Phaser.Scene {
           this.stamp,
           this.beam,
           game.radius,
+          satellites,
         );
       const surging = game.combat.status('surge').active;
       if (game.ranks.charge || surging)

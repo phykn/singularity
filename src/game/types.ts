@@ -51,8 +51,8 @@ export type Effect = {
   rank: number;
   rarity: Rarity;
   targetId?: number;
-  anchor?: 'electron';
-  endAnchor?: 'electron';
+  anchor?: 'electron' | number;
+  endAnchor?: 'electron' | number;
   arc?: { start: number; sweep: number };
 };
 export type EffectInput = Omit<Effect, 'born' | 'rank' | 'rarity'> &
