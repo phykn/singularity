@@ -20,7 +20,7 @@ try {
     await observeScene(page);
     await page.goto(base);
     await page.getByRole('button', { name: 'START', exact: true }).click();
-    const result = await page.evaluate(() => {
+    const result = await page.evaluate(async () => {
       const scene = window.__gameScene;
       const texture = scene.textures.get('effects');
       if (texture.key !== 'effects') throw new Error('Pixel effects did not load');
@@ -208,10 +208,79 @@ try {
       }
       if (scene.sprites.images.length !== poolBeforePowers)
         throw Error('Higher damage allocates extra beam sprites');
+      const strikeChecks = [];
+      for (const [rank, rarity, power] of [
+        [1, 'common', 0],
+        [5, 'common', 0],
+        [5, 'legendary', 3],
+      ]) {
+        debug.restart(17, false);
+        const striker = debug.getModel();
+        striker.angle = 0;
+        striker.ranks.strike = rank;
+        striker.rarities.strike = rarity;
+        striker.boosts.power = power;
+        striker.rarities.power = rarity;
+        const { target } = await import('/tests/helpers.ts');
+        striker.targets = [
+          target(900, 210, 210, 100000),
+          target(901, 250, 230, 100000),
+          target(902, 290, 240, 100000),
+        ];
+        striker.counts.quark.generated = 3;
+        if (!striker.combat.fireSkill('strike')) throw Error('Strike fixture must actually cast');
+        striker.setHidden(true);
+        debug.advance(0);
+        scene.update();
+        const strikes = scene.sprites.images.filter(
+          (s) =>
+            s.visible &&
+            s.texture.key === 'beams' &&
+            Number(s.frame.name) % 32 >= 12 &&
+            Number(s.frame.name) % 32 < 16,
+        );
+        if (strikes.length !== Math.min(rank, 3)) throw Error('Strike target count changed');
+        if (strikes.some((s) => s.tintTopLeft !== 0xffffff))
+          throw Error('Strike tint hides its white core');
+        const effects = striker.effects.filter((fx) => fx.kind === 'strike');
+        for (let i = 0; i < effects.length; i++) {
+          const beam = strikes[i],
+            fx = effects[i],
+            from = scene.screen(fx.from),
+            to = scene.screen(fx.to);
+          for (const [point, side] of [
+            [from, -1],
+            [to, 1],
+          ]) {
+            near(beam.x + (side * Math.cos(beam.rotation) * beam.displayWidth) / 2, point.x);
+            near(beam.y + (side * Math.sin(beam.rotation) * beam.displayWidth) / 2, point.y);
+          }
+        }
+        const before = JSON.stringify(striker, (key, value) =>
+          key === 'combat' ? undefined : value,
+        );
+        const frozen = JSON.stringify(visible()),
+          pool = scene.sprites.images.length;
+        for (let i = 0; i < 60; i++) scene.update();
+        if (
+          JSON.stringify(striker, (key, value) => (key === 'combat' ? undefined : value)) !== before
+        )
+          throw Error('Strike rendering changes combat');
+        if (JSON.stringify(visible()) !== frozen || scene.sprites.images.length !== pool)
+          throw Error('Paused strikes move or grow their pool');
+        strikeChecks.push({
+          rank,
+          rarity,
+          power,
+          damage: effects[0].damage,
+          beams: strikes.length,
+        });
+      }
       return {
         frames: frames.length,
         beamFrames: 320,
         powerFrames,
+        strikeChecks,
         trackedBeam: true,
         hits: casts,
         pool,

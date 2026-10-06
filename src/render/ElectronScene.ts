@@ -415,19 +415,18 @@ export class ElectronScene extends Phaser.Scene {
     beam: (id, from, to, progress, color, alpha, height, strength) => {
       const pose = beamPose(this.screen(from), this.screen(to));
       if (pose.length < 1) return;
-      this.sprites
-        .draw(
-          pose,
-          'beams',
-          pose.length / 64,
-          alpha,
-          1,
-          beamFrame(id, progress, strength),
-          pose.angle,
-          height / 16,
-        )
-        .setTintMode(Phaser.TintModes.MULTIPLY)
-        .setTint(color);
+      const beam = this.sprites.draw(
+        pose,
+        'beams',
+        pose.length / 64,
+        alpha,
+        1,
+        beamFrame(id, progress, strength),
+        pose.angle,
+        height / 16,
+      );
+      if (id === 'strike') beam.clearTint();
+      else beam.setTintMode(Phaser.TintModes.MULTIPLY).setTint(color);
     },
     contact: (point, color, alpha, radius) => {
       const screen = this.screen(point);

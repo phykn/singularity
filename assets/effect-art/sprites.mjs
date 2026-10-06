@@ -1,3 +1,5 @@
+export const effectShades = ['', '#61727d', '#a9bac4', '#f1fcff', '#644425', '#d99540', '#f1fcff'];
+
 // Native pixel artwork: solid cells, shared centers, and no blur or stray texture.
 function sheet(width, height, cellWidth, cellHeight) {
   const pixels = new Map();
@@ -76,7 +78,7 @@ export function effectArtwork() {
     [0, -1, 2, -1, -2, 1, 0],
     [0, -2, 2, 0, -2, 1, 0],
     [0, 0, 1, 0, -1, 0, 0],
-    [0, 1, -2, 1, 2, -1, 0],
+    null,
     [0, 0, 1, 0, -1, 0, 0],
     [0, -1, 2, 0, -2, 1, 0],
     [0, 0, 1, 0, -1, 0, 0],
@@ -87,6 +89,33 @@ export function effectArtwork() {
       for (let frame = 0; frame < 4; frame++) {
         const beam = beams.frame(frame, tier * 8 + row);
         const drift = [0, 1, 0, -1][frame];
+        if (row === 3) {
+          const trunk = [
+            [1, 8],
+            [11, 5],
+            [21, 12 + drift],
+            [31, 4],
+            [43, 11 - drift],
+            [53, 6],
+            [62, 8],
+          ];
+          const halo = [[4, 7], ...trunk.slice(1, -1), [60, 8]];
+          for (let i = 1; i < halo.length; i++) {
+            for (const y of [-1, 1])
+              beam.line(halo[i - 1][0], halo[i - 1][1] + y, halo[i][0], halo[i][1] + y, 4);
+          }
+          const forks = [
+            [trunk[2], [23, 14], [26 + tier, 14]],
+            [trunk[3], [28, 2], [25 - Math.floor(tier / 2), 1]],
+          ];
+          for (const fork of forks)
+            for (let i = 1; i < fork.length; i++) beam.line(...fork[i - 1], ...fork[i], 5);
+          for (let i = 1; i < trunk.length; i++) beam.line(...trunk[i - 1], ...trunk[i], 6);
+          if (tier >= 4)
+            for (let i = 1; i < halo.length; i++)
+              beam.line(halo[i - 1][0], halo[i - 1][1] + 1, halo[i][0], halo[i][1] + 1, 6);
+          continue;
+        }
         const points = profiles[row].map((y, i) => [
           [1, 11, 22, 32, 43, 53, 62][i],
           8 + y + (i === 2 ? drift : i === 4 ? -drift : 0),

@@ -461,7 +461,7 @@ test('damage-tier beam artwork grows in actual ink, stays attached and remains b
         previous = pixels.length;
         assert.ok(pixels.length <= 800, 'Even the strongest hit must leave negative space');
         for (const x of [left + 1, left + 62])
-          assert.equal(pixels.filter(([px]) => px === x).length, tier + 1);
+          assert.equal(pixels.filter(([px]) => px === x).length, row === 3 ? 1 : tier + 1);
         const cells = new Set(pixels.map(([x, y]) => `${x},${y}`));
         const seen = new Set<string>();
         const queue = [[left + 1, top + 8]];
@@ -477,6 +477,33 @@ test('damage-tier beam artwork grows in actual ink, stays attached and remains b
         assert.ok(cells.has(`${left + 62},${top + 8}`), 'Keep the endpoint anchored');
       }
     }
+});
+
+test('strike artwork keeps a slender white trunk and stronger golden forks instead of a solid slab', () => {
+  const sheet = effectArtwork().find((s) => s.output.endsWith('/beams.png'))!;
+  for (let tier = 0; tier < 10; tier++) {
+    for (let frame = 0; frame < 4; frame++) {
+      const top = (tier * 8 + 3) * 16,
+        left = frame * 64;
+      const pixels = sheet.pixels.filter(
+        ([x, y]) => x >= left && x < left + 64 && y >= top && y < top + 16,
+      );
+      const core = pixels.filter(([, , shade]) => shade === 6);
+      const fork = pixels.filter(([, , shade]) => shade === 5);
+      assert.ok(core.length >= 60 && fork.length >= 8);
+      assert.ok(pixels.length < 300, 'Even high-damage strikes must leave clear negative space');
+      for (let x = left; x < left + 64; x++) {
+        assert.ok(
+          core.filter(([px]) => px === x).length <= 2,
+          'The bright trunk cannot become a yellow bar',
+        );
+      }
+      assert.ok(
+        Math.max(...core.map(([, y]) => y)) - Math.min(...core.map(([, y]) => y)) >= 7,
+        'Keep sharp lightning bends',
+      );
+    }
+  }
 });
 
 test('equal single-hit damage keeps beam thickness and brightness across all skill levels', () => {
