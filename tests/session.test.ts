@@ -221,7 +221,7 @@ test('choice pause freezes both world and countdown while cards stay selectable'
   assert.equal(run.game.tick, 1);
 });
 
-test('choice toggles preserve remaining time and auto-pick after ten running wall seconds at every speed', () => {
+test('choice toggles preserve remaining time and auto-pick after five running wall seconds at every speed', () => {
   for (const speed of [1, 1.5, 2]) {
     const { run } = session(new Game(42, { combat: false }));
     run.setRenderReady(true, 0);
@@ -230,24 +230,24 @@ test('choice toggles preserve remaining time and auto-pick after ten running wal
     const expected = run.game.automaticCard!.id;
     while (run.playbackSpeed !== speed) run.cycleSpeed(0);
     run.step(1000);
-    assert.equal(run.game.choice!.deadline - run.game.time, 10);
+    assert.equal(run.game.choice!.deadline - run.game.time, 5);
     run.toggleChoicePause(1000);
     for (let i = 1; i <= 120; i++) run.step(1000 + (i * 1000) / 60);
     assert.equal(run.game.tick, 120 * speed);
     const remaining = run.game.choice!.deadline - run.game.time;
-    assert.ok(Math.abs(remaining - 8) < 1e-8);
+    assert.ok(Math.abs(remaining - 3) < 1e-8);
     run.toggleChoicePause(3000);
     run.step(23000);
     assert.equal(run.game.tick, 120 * speed);
     assert.equal(run.game.choice!.deadline - run.game.time, remaining);
     run.toggleChoicePause(23000);
-    for (let i = 1; i <= 479; i++) run.step(23000 + (i * 1000) / 60);
+    for (let i = 1; i <= 179; i++) run.step(23000 + (i * 1000) / 60);
     assert.ok(run.game.choice);
-    run.step(31000);
+    run.step(26000);
     assert.equal(run.game.choice, null);
     assert.equal(run.game.selections[0].automatic, true);
     assert.equal(run.game.selections[0].id, expected);
-    run.replace(new Game(24), 31000);
+    run.replace(new Game(24), 26000);
     assert.equal(run.pauseOnChoice, true);
   }
 });
@@ -260,7 +260,7 @@ test('manual pause, backgrounding and renderer loss preserve the running selecti
   run.toggleChoicePause(0);
   for (let i = 1; i <= 60; i++) run.step((i * 1000) / 60);
   const remaining = run.game.choice!.deadline - run.game.time;
-  assert.ok(Math.abs(remaining - 9) < 1e-8);
+  assert.ok(Math.abs(remaining - 4) < 1e-8);
   run.pause(true, 1000);
   run.step(9000);
   run.pause(false, 9000);
@@ -272,7 +272,7 @@ test('manual pause, backgrounding and renderer loss preserve the running selecti
   run.setRenderReady(true, 25000);
   assert.equal(run.game.choice!.deadline - run.game.time, remaining);
   for (let i = 1; i <= 60; i++) run.step(25000 + (i * 1000) / 60);
-  assert.ok(Math.abs(run.game.choice!.deadline - run.game.time - 8) < 1e-8);
+  assert.ok(Math.abs(run.game.choice!.deadline - run.game.time - 3) < 1e-8);
 });
 
 test('a new choice stops retained frame ticks and a charged run proceeds to its ending', () => {

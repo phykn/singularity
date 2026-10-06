@@ -74,7 +74,7 @@ const ko = {
   guideGoal: (goal: number) =>
     `${goal} XP를 모으면 특이점 형성. 놓친 입자가 핵에 쌓이면 궤도가 좁아지고, 충돌 시 전자 소멸. 시간 제한 없음.`,
   guideChoice:
-    '이동·공격은 자동. 선택 중에는 정지하며, 진행하면 10초 뒤 최고 등급을 자동 선택합니다.',
+    '이동·공격은 자동. 선택 중에는 정지하며, 진행하면 5초 뒤 최고 등급을 자동 선택합니다.',
   guideRarity:
     '스킬 등급은 첫 선택으로 고정. 미습득 스킬은 다시 추첨. 능력치 등급은 상승 가능하며, 질량 방출은 매번 추첨.',
   guideCombo: '갈래·연속·연쇄·관통은 다른 번개에도 적용.',
@@ -278,7 +278,7 @@ const en: Copy = {
   guideGoal: (goal) =>
     `Reach ${goal} XP to form a black hole. Missed particles gather at the center and pull your orbit inward; hitting the core ends the run. There is no time limit.`,
   guideChoice:
-    'Movement and attacks are automatic. Choices pause combat. Switch to play for a highest-rarity auto-pick after 10 seconds.',
+    'Movement and attacks are automatic. Choices pause combat. Switch to play for a highest-rarity auto-pick after 5 seconds.',
   guideRarity:
     'Rarity locks on the first skill pick. Unlearned skills reroll; learned skills gain ranks. Stat rarity can improve. Mass Vent rerolls each time.',
   guideCombo: 'Fork, Repeat, Chain and Pierce also modify other lightning skills.',
@@ -493,7 +493,7 @@ const zh: Copy = {
   guideEnergy: '击败粒子获得经验，升级时选择强化。',
   guideGoal: (goal) =>
     `积累 ${goal} 经验即可形成黑洞。漏掉的粒子会聚集在中心，缩小轨道；撞上核心则对局结束。没有时间限制。`,
-  guideChoice: '移动和攻击自动进行。选择时暂停，开启进行模式后10秒自动选择最高品质。',
+  guideChoice: '移动和攻击自动进行。选择时暂停，开启进行模式后5秒自动选择最高品质。',
   guideRarity:
     '技能品质首次选择时固定，未学习的技能重新抽取，学会后只提升等级。属性品质可提升，质量释放每次抽取。',
   guideCombo: '分支、连续、连锁和贯穿也会强化其他闪电。',
@@ -651,7 +651,7 @@ const ja: Copy = {
   guideEnergy: '敵を倒して経験値を獲得。レベルアップで強化を選択。',
   guideGoal: (goal) =>
     `経験値を ${goal} 集めるとブラックホールが生まれます。逃した粒子が中心に集まると軌道が狭まり、核にぶつかると消滅します。時間制限はありません。`,
-  guideChoice: '移動と攻撃は自動。選択中は停止し、続行すると10秒後に最高レア度を自動選択。',
+  guideChoice: '移動と攻撃は自動。選択中は停止し、続行すると5秒後に最高レア度を自動選択。',
   guideRarity:
     'スキルのレア度は初選択で固定。未習得は再抽選、習得後はランク上昇。能力のレア度は上昇可能。質量放出は毎回抽選。',
   guideCombo: '分岐・連続・連鎖・貫通はほかの雷にも適用。',

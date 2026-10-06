@@ -116,7 +116,7 @@ try {
     assert.equal(await toggle.getAttribute('aria-checked'), 'false');
     await page.waitForFunction((tick) => window.__gameDebug.getModel().tick > tick, frozen.tick);
     const running = await snapshot(page);
-    assert.ok(running.remaining > 9.5 && running.remaining <= 10);
+    assert.ok(running.remaining > 4.5 && running.remaining <= 5);
     await page.waitForTimeout(450);
     const elapsed = await snapshot(page);
     assert.ok(elapsed.remaining < running.remaining - 0.3);
@@ -198,7 +198,8 @@ try {
       await toggle.click();
       const started = Date.now();
       await page.waitForFunction(() => window.__gameDebug.getModel().selections.length > 0);
-      assert.ok(Date.now() - started > 9500);
+      const elapsed = Date.now() - started;
+      assert.ok(elapsed > 4500 && elapsed < 7000);
       assert.equal(
         await page.evaluate(() => window.__gameDebug.getModel().selections[0].automatic),
         true,

@@ -134,6 +134,8 @@ test('current checkpoints replay entry, manual endless choices and voluntary ret
   assert.deepEqual(beyondFrame(restored), beyondFrame(g));
   for (const run of [g, restored]) {
     run.advance(1250);
+    for (let i = 0; i < 60 * 60 && run.phase === 'running' && !run.choice; i++)
+      run.advance(1000 / 60);
     assert.ok(run.choice);
     assert.ok(run.select(run.choice.cards[1].id));
     run.advance(30000);
