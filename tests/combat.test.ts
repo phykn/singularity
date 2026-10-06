@@ -4,6 +4,42 @@ import { rules } from '../src/game/rules.ts';
 import { target, fixture, choose, stationarySkill } from './helpers.ts';
 import { Random } from '../src/game/random.ts';
 import { distance } from '../src/game/geometry.ts';
+import { onSegment } from '../src/game/targeting.ts';
+
+test('segment targeting includes exact endpoints and width edges, ignores dead targets, and orders ties by ID', () => {
+  const from = { x: 30, y: 40 },
+    to = { x: 130, y: 40 };
+  const crowd = [
+    target(2, 130, 36),
+    target(1, 30, 44),
+    target(0, 30, 40),
+    target(3, 50, 44 + 1e-7),
+    target(4, 70, 40, 0),
+    target(5, 30 - 1e-7, 40),
+    target(6, 130 + 1e-7, 40),
+  ];
+  const before = structuredClone(crowd);
+  assert.deepEqual(
+    onSegment(crowd, from, to, 8).map((t) => t.id),
+    [0, 1, 2],
+  );
+  assert.deepEqual(
+    onSegment(crowd, to, from, 8).map((t) => t.id),
+    [2, 0, 1],
+  );
+  assert.deepEqual(onSegment(crowd, from, from, 8), []);
+  assert.deepEqual(crowd, before);
+});
+
+test('owned skills retain acquisition order after later upgrades', () => {
+  const game = fixture();
+  choose(game, 'orb');
+  choose(game, 'chain');
+  choose(game, 'orb');
+  choose(game, 'repeat');
+  assert.deepEqual(game.ownedSkills, ['orb', 'chain', 'repeat']);
+  assert.equal(game.rank('orb'), 2);
+});
 
 test('reserved repeat visuals retain the cast rank while the acquired rarity stays fixed', () => {
   const g = stationarySkill({ repeat: 1 }, [target(0, 210, 128, 100)]);

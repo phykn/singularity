@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { BLUE, WHITE, AMBER, skillColors } from './palette.ts';
+import { BLUE, WHITE, AMBER, skillColors } from '../art/palette.ts';
 import { effectOrigin } from './effects.ts';
 import type { BeamStamp, EffectStamp } from './effects.ts';
 import { rarityIds } from '../game/rules.ts';

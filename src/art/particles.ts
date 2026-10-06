@@ -1,6 +1,4 @@
-import type Phaser from 'phaser';
-
-export const art = {
+export const particleArt = {
   electron: [
     '................',
     '......222.......',
@@ -111,7 +109,7 @@ export const art = {
   ],
 };
 
-export const palettes: Record<keyof typeof art, string[]> = {
+export const particlePalettes: Record<keyof typeof particleArt, string[]> = {
   electron: ['', '#0c2638', '#3f9cbb', '#91eafd', '#d4f7ff'],
   electronSurge: ['', '#473015', '#c99730', '#ffdf78', '#ffeab3'],
   quark: ['', '#271f27', '#865760', '#c9887f', '#f2c9ac'],
@@ -119,20 +117,3 @@ export const palettes: Record<keyof typeof art, string[]> = {
   proton: ['', '#2b261d', '#887044', '#c6ab76', '#e3d4aa'],
   neutron: ['', '#16232e', '#324b60', '#7694aa', '#b0c7d5'],
 };
-
-export function createPixels(scene: Phaser.Scene): void {
-  for (const [key, rows] of Object.entries(art)) {
-    const texture = scene.textures.createCanvas(key, rows[0].length, rows.length)!;
-    const ctx = texture.getContext();
-    const palette = palettes[key as keyof typeof art];
-    rows.forEach((row, y) =>
-      [...row].forEach((char, x) => {
-        if (char !== '.') {
-          ctx.fillStyle = palette[Number(char)];
-          ctx.fillRect(x, y, 1, 1);
-        }
-      }),
-    );
-    texture.refresh();
-  }
-}

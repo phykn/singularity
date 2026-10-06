@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { base, capture, launchBrowser, observeScene, showSuccess } from './browser-support.mjs';
 import { rules, skillIds, upgradeIds, rarityIds } from '../src/game/rules.ts';
 import { copy } from '../src/ui/i18n.ts';
-import { iconCells } from '../src/ui/iconAtlas.ts';
+import { iconCells } from '../src/art/skills.ts';
 import { WARNING_RED } from '../src/render/warning.ts';
 
 mkdirSync('artifacts/screens', { recursive: true });
@@ -964,7 +964,7 @@ const orbFlow = async () => {
       debug.advance(1000 / g.rules.tickRate);
       g.setHidden(true);
       scene.update();
-      const orb = scene.sprites.find(
+      const orb = scene.sprites.images.find(
         (s) =>
           s.visible &&
           s.texture.key === 'effects' &&
@@ -973,7 +973,7 @@ const orbFlow = async () => {
       );
       if (!orb) throw new Error('Missing generated orb sprite');
       positions.push(JSON.stringify([orb.x, orb.y]));
-      labels.push(...scene.damageText.filter((t) => t.visible).map((t) => t.text));
+      labels.push(...scene.damageLabels.texts.filter((t) => t.visible).map((t) => t.text));
     }
     return { frames: positions.length, positions: new Set(positions).size, labels };
   });
@@ -1197,7 +1197,7 @@ try {
     const s = await snapshot(page);
     // Compare clocks inside Chrome: Node's trigonometric rounding can change a tied target choice.
     const expected = await page.evaluate(async () => {
-      const { Game } = await import('/src/game/model.ts');
+      const { Game } = await import('/src/game/Game.ts');
       const game = new Game(96048);
       game.start();
       game.advance(610000);
@@ -1288,7 +1288,7 @@ try {
       assert.notEqual((await snapshot(page)).seed, 96048);
       await page.evaluate(() => window.__gameDebug.restart(10004));
       await advance(page, 610000);
-      await page.getByRole('button', { name: '새 게임' }).click();
+      await page.getByRole('button', { name: copy.ko.retry, exact: true }).click();
       assert.notEqual((await snapshot(page)).seed, 10004);
       report('mobile flow ' + name, { canvas: cards.canvas, firstSkill: chosen });
       await page.close();

@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import type Phaser from 'phaser';
 import { readFileSync } from 'node:fs';
 import { beamFrame, beamPose, beamRows, effectFrame, effectRows } from '../src/render/effects.ts';
-import { art, createPixels, palettes } from '../src/render/pixels.ts';
-import { healthBar } from '../src/render/health.ts';
-import { drawEffect } from '../src/render/lightning.ts';
+import { particleArt, particlePalettes } from '../src/art/particles.ts';
+import { createParticleTextures } from '../src/render/particleTextures.ts';
+import { healthBar } from '../src/render/healthBars.ts';
+import { drawEffect } from '../src/render/drawEffects.ts';
 import type { Effect } from '../src/game/types.ts';
 import { skillIds, upgradeIds } from '../src/game/rules.ts';
-import { iconCells } from '../src/ui/iconAtlas.ts';
+import { iconCells } from '../src/art/skills.ts';
 import { close, target } from './helpers.ts';
 import { drawWaveWarning, WARNING_RED } from '../src/render/warning.ts';
 
@@ -16,8 +17,8 @@ test('native sprites paint only palette pixels within their texture bounds', () 
   const textures: string[] = [];
   const scene = {
     textures: {
-      createCanvas(key: keyof typeof art, width: number, height: number) {
-        const rows = art[key];
+      createCanvas(key: keyof typeof particleArt, width: number, height: number) {
+        const rows = particleArt[key];
         assert.equal(width, 16);
         assert.equal(height, 16);
         assert.equal(width, rows[0].length);
@@ -30,7 +31,7 @@ test('native sprites paint only palette pixels within their texture bounds', () 
             assert.equal(w, 1);
             assert.equal(h, 1);
             assert.match(rows[y][x], /^[1-4]$/);
-            assert.equal(this.fillStyle, palettes[key][Number(rows[y][x])]);
+            assert.equal(this.fillStyle, particlePalettes[key][Number(rows[y][x])]);
             painted.add(`${x},${y}`);
           },
         };
@@ -50,8 +51,8 @@ test('native sprites paint only palette pixels within their texture bounds', () 
       },
     },
   };
-  createPixels(scene as unknown as Phaser.Scene);
-  assert.deepEqual(textures, Object.keys(art));
+  createParticleTextures(scene as unknown as Phaser.Scene);
+  assert.deepEqual(textures, Object.keys(particleArt));
 });
 
 test('generated icon atlases have transparent-capable PNGs and unique in-bounds cells', () => {
@@ -65,7 +66,7 @@ test('generated icon atlases have transparent-capable PNGs and unique in-bounds 
     assert.ok(x >= 0 && y >= 0 && x + 32 <= 224 && y + 32 <= 96, id);
     assert.equal((x % 32) + (y % 32), 0, id);
   }
-  for (const [path, width, height] of [['../src/ui/assets/skills.png', 224, 96]] as const) {
+  for (const [path, width, height] of [['../src/art/assets/skills.png', 224, 96]] as const) {
     const png = readFileSync(new URL(path, import.meta.url));
     assert.equal(png.readUInt32BE(16), width);
     assert.equal(png.readUInt32BE(20), height);
@@ -199,7 +200,7 @@ test('lightning remains finite at mobile scales and never changes combat data', 
 });
 
 test('generated effect frames stay inside their row, loop only sustained effects and freeze with combat time', () => {
-  const png = readFileSync(new URL('../src/render/assets/effects.png', import.meta.url));
+  const png = readFileSync(new URL('../src/art/assets/effects.png', import.meta.url));
   assert.equal(png.readUInt32BE(16), 128);
   assert.equal(png.readUInt32BE(20), 192);
   assert.equal(png[25], 6);
@@ -253,7 +254,7 @@ test('lightning beam heights use whole screen pixels at every viewport scale', (
 });
 
 test('beam atlas frames freeze with simulation time and geometry connects both endpoints', () => {
-  const png = readFileSync(new URL('../src/render/assets/beams.png', import.meta.url));
+  const png = readFileSync(new URL('../src/art/assets/beams.png', import.meta.url));
   assert.equal(png.readUInt32BE(16), 256);
   assert.equal(png.readUInt32BE(20), 128);
   assert.equal(png[25], 6);

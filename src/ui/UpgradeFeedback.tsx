@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
-import type { Game } from '../game/model.ts';
-import { skillColor } from '../render/palette.ts';
+import type { Game } from '../game/Game.ts';
+import { skillColor } from '../art/palette.ts';
 import { SkillIcon } from './icons.tsx';
 import { copy } from './i18n.ts';
 import type { Language } from './i18n.ts';

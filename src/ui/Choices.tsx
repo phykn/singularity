@@ -6,7 +6,7 @@ import { isSkill } from '../game/rules.ts';
 import { skillChange } from './skillText.ts';
 import { SkillIcon } from './icons.tsx';
 import { Rank } from './controls.tsx';
-import type { Game } from '../game/model.ts';
+import type { Game } from '../game/Game.ts';
 import { copy } from './i18n.ts';
 import type { Language } from './i18n.ts';
 
@@ -36,6 +36,14 @@ export function Choices({
     selected: UpgradeId;
   } | null>(null);
   const selection = game.selections.at(-1);
+  const cards = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!choice || game.paused) return;
+    (
+      cards.current?.querySelector<HTMLButtonElement>('button.auto') ??
+      cards.current?.querySelector<HTMLButtonElement>('button')
+    )?.focus({ preventScroll: true });
+  }, [choice?.number, game, game.paused]);
   useEffect(() => {
     const old = previous.current;
     if (
@@ -89,7 +97,31 @@ export function Choices({
               </button>
             </div>
           </div>
-          <div className="cards">
+          <div
+            className="cards"
+            ref={cards}
+            onKeyDown={(event) => {
+              if (event.repeat && (event.key === 'Enter' || event.key === ' ')) {
+                event.preventDefault();
+                return;
+              }
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+              const buttons = [
+                ...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'),
+              ];
+              if (!buttons.length) return;
+              const idx = buttons.indexOf(document.activeElement as HTMLButtonElement);
+              const next =
+                event.key === 'Home'
+                  ? 0
+                  : event.key === 'End'
+                    ? buttons.length - 1
+                    : (idx + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) %
+                      buttons.length;
+              event.preventDefault();
+              buttons[next].focus({ preventScroll: true });
+            }}
+          >
             {choice.cards.map(({ id, rarity }) => (
               <button
                 key={`${choice.number}-${id}`}

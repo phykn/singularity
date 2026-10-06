@@ -76,22 +76,24 @@ try {
       g.setHidden(true);
       scene.update();
       const visible = () =>
-        scene.sprites
+        scene.sprites.images
           .filter((s) => s.visible)
           .map((s) => [s.texture.key, s.frame.name, s.x, s.y, s.alpha, s.tintTopLeft]);
       const frozen = JSON.stringify(visible()),
-        pool = scene.sprites.length;
+        pool = scene.sprites.images.length;
       for (let i = 0; i < 120; i++) scene.update();
       if (JSON.stringify(visible()) !== frozen) throw new Error('Paused effects keep animating');
-      if (scene.sprites.length !== pool) throw new Error('Effect pool grows every render');
-      const aura = scene.sprites.find(
+      if (scene.sprites.images.length !== pool) throw new Error('Effect pool grows every render');
+      const aura = scene.sprites.images.find(
         (s) =>
           s.visible &&
           s.texture.key === 'effects' &&
           Number(s.frame.name) >= 16 &&
           Number(s.frame.name) < 20,
       );
-      const electron = scene.sprites.find((s) => s.visible && s.texture.key === 'electronSurge');
+      const electron = scene.sprites.images.find(
+        (s) => s.visible && s.texture.key === 'electronSurge',
+      );
       if (!aura || !electron) throw new Error('Surge lacks its aura or energized electron');
       if (aura.x !== electron.x || aura.y !== electron.y)
         throw new Error('Aura drifts from the electron');
@@ -154,7 +156,7 @@ try {
         combat.angle = angle;
         Object.assign(tracked, { x: combat.position.x + dx, y: combat.position.y + dy });
         scene.update();
-        const beam = scene.sprites.find((s) => s.visible && s.texture.key === 'beams');
+        const beam = scene.sprites.images.find((s) => s.visible && s.texture.key === 'beams');
         if (!dx && !dy) {
           if (beam) throw new Error('Coincident endpoints must skip the beam');
           continue;
@@ -171,16 +173,17 @@ try {
           near(beam.y + (side * Math.sin(beam.rotation) * beam.displayWidth) / 2, point.y);
         }
         const frozenBeam = JSON.stringify(visible()),
-          beamPool = scene.sprites.length;
+          beamPool = scene.sprites.images.length;
         for (let i = 0; i < 30; i++) scene.update();
         if (JSON.stringify(visible()) !== frozenBeam)
           throw new Error('Paused beam keeps animating');
-        if (scene.sprites.length !== beamPool) throw new Error('Beam pool grows every render');
+        if (scene.sprites.images.length !== beamPool)
+          throw new Error('Beam pool grows every render');
       }
       // Shift pooled beam slots into particle slots; rotation and scale must reset.
       combat.targets.push(...Array.from({ length: 4 }, (_, i) => ({ ...tracked, id: 800 + i })));
       scene.update();
-      const particles = scene.sprites.filter((s) => s.visible && s.texture.key === 'muon');
+      const particles = scene.sprites.images.filter((s) => s.visible && s.texture.key === 'muon');
       if (
         particles.some((s) => s.rotation !== 0 || s.displayWidth !== 16 || s.displayHeight !== 16)
       )

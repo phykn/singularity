@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { Game } from '../src/game/model.ts';
+import { Game } from '../src/game/Game.ts';
 import { particleIds } from '../src/game/particles.ts';
 import type { Target, TargetKind } from '../src/game/types.ts';
 import { rules } from '../src/game/rules.ts';

@@ -1,4 +1,4 @@
-import type { Game } from '../game/model.ts';
+import type { Game } from '../game/Game.ts';
 import { clamp, orbit } from '../game/geometry.ts';
 
 export type EndingStage =

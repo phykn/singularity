@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Game } from '../src/game/model.ts';
-import { createCheckpoint, restoreCheckpoint } from '../src/game/replay.ts';
+import { Game } from '../src/game/Game.ts';
+import { createCheckpoint, restoreCheckpoint } from '../src/game/checkpoint.ts';
 import { isSkill, rarityIds, rules, skillIds, xpForLevel } from '../src/game/rules.ts';
 import { choose } from './helpers.ts';
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
-import { ElectronScene } from './scene.ts';
-import type { Game } from '../game/model.ts';
+import { ElectronScene } from './ElectronScene.ts';
+import type { Game } from '../game/Game.ts';
 
 export function GameCanvas({
   getGame,

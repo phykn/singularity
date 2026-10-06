@@ -1,7 +1,7 @@
-import { createCheckpoint, restoreCheckpoint } from '../src/game/replay.ts';
+import { createCheckpoint, restoreCheckpoint } from '../src/game/checkpoint.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Game } from '../src/game/model.ts';
+import { Game } from '../src/game/Game.ts';
 import { rules, skillIds } from '../src/game/rules.ts';
 import {
   bestRecord,

@@ -4,7 +4,7 @@ import type { UpgradeId } from '../game/rules.ts';
 import { ChargeIcon, SkillIcon } from './icons.tsx';
 import { skillValue } from './skillText.ts';
 import { formatTime } from '../format.ts';
-import type { Game } from '../game/model.ts';
+import type { Game } from '../game/Game.ts';
 import { copy } from './i18n.ts';
 import type { Language } from './i18n.ts';
 

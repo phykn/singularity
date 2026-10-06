@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GameAudio } from '../src/app/audio.ts';
+import { GameAudio } from '../src/app/GameAudio.ts';
 
 test('a pending suspension finishes before the newest audio unlock resumes', async (t) => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext');

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Game } from '../src/game/model.ts';
+import { Game } from '../src/game/Game.ts';
 import { Random } from '../src/game/random.ts';
 import { eligibleUpgrades, makeCards } from '../src/game/growth.ts';
 import {

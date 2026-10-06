@@ -21,7 +21,7 @@ const ko = {
   on: '켬',
   off: '끔',
   audioFailed: '사운드 연결 실패 · 다시 켜기',
-  storageFailed: '진행 저장 불가',
+  storageFailed: '저장 불가',
   growth: '레벨 업',
   auto: '자동',
   choicePause: '스킬 선택 중 전투와 타이머 정지',
@@ -64,21 +64,19 @@ const ko = {
   remaining: '남음',
   best: '최고 기록',
   retry: '다시하기',
-  newRun: '새 게임',
   guideTitle: '플레이 방법',
   guideEnergy: '적 처치로 XP 획득. 레벨이 오르면 강화 선택.',
   guideGoal: (goal: number) =>
     `${goal} XP를 모으면 특이점 형성. 놓친 입자가 핵에 쌓이면 궤도가 좁아지고, 충돌 시 전자 소멸. 시간 제한 없음.`,
   guideChoice:
-    '이동·공격은 자동. 강화 선택 중 전투와 타이머 정지. 스위치로 진행하면 10초 뒤 최고 등급 카드 자동 선택. 다시 정지하면 남은 시간 유지. 같은 등급이면 앞쪽 카드 선택.',
+    '이동·공격은 자동. 선택 중에는 정지하며, 진행하면 10초 뒤 최고 등급을 자동 선택합니다.',
   guideRarity:
-    '스킬 등급은 처음 선택할 때 고정. 배우기 전에는 등장할 때마다 추첨하고, 배운 뒤에는 단계만 상승. 능력치 강화는 더 높은 등급으로 상승 가능. 질량 방출은 매번 별도 추첨.',
-  guideCombo:
-    '갈래·연속·연쇄·관통은 다른 번개에도 적용. 적중으로 축전·단락·전류 가교가 연결되고, 처치는 방전과 폭주로 이어짐.',
+    '스킬 등급은 첫 선택으로 고정. 미습득 스킬은 다시 추첨. 능력치 등급은 상승 가능하며, 질량 방출은 매번 추첨.',
+  guideCombo: '갈래·연속·연쇄·관통은 다른 번개에도 적용.',
   guideLimits:
-    '스킬 16종 중 네 종류까지 자유롭게 조합. 공격력은 피해, 공격속도는 공격 빈도, 사거리는 도달 거리, 이동속도는 궤도 이동 속도 증가. 질량 방출은 핵 질량을 줄여 궤도 회복. 다른 화면에서는 일시정지, 돌아오면 계속.',
+    '스킬은 네 종류까지. 능력치는 계속 강화할 수 있습니다. 다른 화면으로 이동하면 정지, 돌아오면 계속.',
   countdown: (n: number) => `${n}초 뒤 자동 선택`,
-  missing: (n: number) => `핵 충돌 · 특이점까지 ${n.toLocaleString('ko-KR')} XP`,
+  missing: (n: number) => `특이점까지 ${n.toLocaleString('ko-KR')} XP`,
   rankUp: (a: number, b: number) => `${a}→${b}단계`,
   seconds: '초',
   rarities: { common: '일반', rare: '희귀', epic: '에픽', legendary: '전설' } as Record<
@@ -265,19 +263,17 @@ const en: Copy = {
   remaining: 'Left',
   best: 'Best run',
   retry: 'Retry',
-  newRun: 'New run',
   guideTitle: 'Lightning & gravity',
-  guideEnergy: 'Destroy enemies to earn XP. Fill the XP bar to level up and choose a skill.',
+  guideEnergy: 'Defeat particles for XP. Level up to choose an upgrade.',
   guideGoal: (goal) =>
     `Reach ${goal} XP to form a black hole. Missed particles gather at the center and pull your orbit inward; hitting the core ends the run. There is no time limit.`,
   guideChoice:
-    'Movement and attacks are automatic. Combat and the selection timer pause while choosing an upgrade. Switch to play for a 10-second automatic pick of the highest-rarity card. Pausing preserves the remaining time. Ties go to the first card.',
+    'Movement and attacks are automatic. Choices pause combat. Switch to play for a highest-rarity auto-pick after 10 seconds.',
   guideRarity:
-    'Skill rarity locks on first pick. Unlearned skills roll a rarity each time they appear; learned skills only gain ranks. Stat upgrades can gain higher rarity. Each Mass Vent rolls its own rarity.',
-  guideCombo:
-    'Fork, Repeat, Chain and Pierce modify other lightning. Hits feed charge, stun and bridges; kills feed death arcs and surges.',
+    'Rarity locks on the first skill pick. Unlearned skills reroll; learned skills gain ranks. Stat rarity can improve. Mass Vent rerolls each time.',
+  guideCombo: 'Fork, Repeat, Chain and Pierce also modify other lightning skills.',
   guideLimits:
-    'Combine any four of sixteen skills. Upgrade Attack Power, Attack Speed, Range and Move Speed. Mass Vent removes core mass to restore the orbit. Switching away pauses; return to resume.',
+    'Combine up to four skills. Stats have no upgrade cap. Switching away pauses; return to resume.',
   countdown: (n) => `Auto-pick in ${n}s`,
   missing: (n) => `${n} more XP needed`,
   rankUp: (a, b) => `Rank ${a}→${b}`,
@@ -478,19 +474,15 @@ const zh: Copy = {
   remaining: '剩余',
   best: '最佳记录',
   retry: '重试',
-  newRun: '新的一局',
   guideTitle: '闪电与引力',
-  guideEnergy: '击败敌人可获得经验。经验条满后升级，并选择一个技能。',
+  guideEnergy: '击败粒子获得经验，升级时选择强化。',
   guideGoal: (goal) =>
     `积累 ${goal} 经验即可形成黑洞。漏掉的粒子会聚集在中心，缩小轨道；撞上核心则对局结束。没有时间限制。`,
-  guideChoice:
-    '移动和攻击自动进行。选择强化时战斗和计时暂停。开启进行模式后，10秒后自动选择最高品质卡片。再次暂停会保留剩余时间。品质相同时选择靠前的卡片。',
+  guideChoice: '移动和攻击自动进行。选择时暂停，开启进行模式后10秒自动选择最高品质。',
   guideRarity:
-    '技能稀有度在首次选择时固定。未学习的技能每次出现时重新抽取，学会后只提升等级。属性强化仍可提升稀有度。质量释放每次独立抽取稀有度。',
-  guideCombo:
-    '分支、连续、连锁和贯穿也会强化其他闪电。命中触发蓄电、短路和电流桥；击杀触发放电和暴走。',
-  guideLimits:
-    '从16种技能中自由组合4种。攻击力提升伤害，攻击速度提升攻击频率，射程延长距离，移动速度提高轨道移动速度。质量释放减少核心质量，恢复轨道。切换页面暂停，返回后继续。',
+    '技能品质首次选择时固定，未学习的技能重新抽取，学会后只提升等级。属性品质可提升，质量释放每次抽取。',
+  guideCombo: '分支、连续、连锁和贯穿也会强化其他闪电。',
+  guideLimits: '最多组合4种技能，属性可持续强化。切换页面暂停，返回后继续。',
   countdown: (n) => `${n}秒后自动选择`,
   missing: (n) => `还差 ${n} 经验`,
   rankUp: (a, b) => `${a}→${b}级`,
@@ -627,20 +619,15 @@ const ja: Copy = {
   remaining: '残存',
   best: '最高記録',
   retry: '再挑戦',
-  newRun: '新しいプレイ',
   guideTitle: '雷と重力',
-  guideEnergy:
-    '敵を倒すと経験値がたまります。経験値ゲージが満タンになるとレベルが上がり、スキルを選べます。',
+  guideEnergy: '敵を倒して経験値を獲得。レベルアップで強化を選択。',
   guideGoal: (goal) =>
     `経験値を ${goal} 集めるとブラックホールが生まれます。逃した粒子が中心に集まると軌道が狭まり、核にぶつかると消滅します。時間制限はありません。`,
-  guideChoice:
-    '移動と攻撃は自動です。強化の選択中は戦闘とタイマーが停止します。スイッチで続行すると10秒後に最高レアリティのカードが自動で選ばれます。再び停止すると残り時間が保持されます。同じ場合は先のカードを選びます。',
+  guideChoice: '移動と攻撃は自動。選択中は停止し、続行すると10秒後に最高レア度を自動選択。',
   guideRarity:
-    'スキルのレア度は最初に選んだ時点で固定。未習得なら出現ごとに抽選、習得後はランクだけ上昇。能力強化のレア度は上昇可能。質量放出は毎回抽選。',
-  guideCombo:
-    '分岐・連続・連鎖・貫通はほかの雷にも適用。命中は蓄電・短絡・電流線につながり、撃破は放電や暴走を生む。',
-  guideLimits:
-    '16種から自由に4種を組み合わせる。攻撃力は威力、攻撃速度は攻撃頻度、射程は距離、移動速度は軌道の移動を強化。質量放出で核の質量を減らし軌道回復。画面を離れると停止し、戻ると再開。',
+    'スキルのレア度は初選択で固定。未習得は再抽選、習得後はランク上昇。能力のレア度は上昇可能。質量放出は毎回抽選。',
+  guideCombo: '分岐・連続・連鎖・貫通はほかの雷にも適用。',
+  guideLimits: 'スキルは4種まで。能力は上限なく強化。画面を離れると停止し、戻ると再開。',
   countdown: (n) => `${n}秒後に自動選択`,
   missing: (n) => `あと経験値 ${n}`,
   rankUp: (a, b) => `ランク ${a}→${b}`,

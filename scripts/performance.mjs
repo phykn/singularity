@@ -80,8 +80,7 @@ try {
       };
       for (let i = 0; i < 20; i++) scene.update();
       let textUpdates = 0;
-      const textGroup = scene.damageText;
-      const texts = Array.isArray(textGroup) ? textGroup : Array.from(textGroup.children);
+      const texts = scene.damageLabels.texts;
       const originals = texts.map((text) => text.updateText);
       texts.forEach((text) => {
         const update = text.updateText;
@@ -149,6 +148,7 @@ try {
       writeFileSync(`${output}/cpu-${count}.json`, JSON.stringify(profile));
     }
     assert.equal(row.targets, count);
+    assert.equal(row.textUpdatesPerFrame, 0, 'Frozen damage values must retain cached textures');
     const screenshot = await capture(page, `${output}/crowd-${count}.png`);
     rows.push({ ...row, screenshot });
     console.log(JSON.stringify(row));
@@ -161,7 +161,7 @@ try {
     { count: 800, skills: ['gather', 'stun', 'return', 'repel'], name: 'control' },
     { count: 800, skills: ['focus', 'charge', 'repeat', 'chain'], name: 'charge' },
   ];
-  for (const { count, skills, name } of scenarios) {
+  for (const { count, skills, name } of process.argv.includes('--frozen') ? [] : scenarios) {
     await page.evaluate(
       ({ count, skills, name }) => {
         const debug = window.__gameDebug;

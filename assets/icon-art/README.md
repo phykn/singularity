@@ -1,14 +1,14 @@
 # Generated game artwork
 
-The skill artwork was created with the built-in image generation tool: illustrated source images, then detailed pixel-art reinterpretations. Particles use the original hand-authored pixel grids and palettes in `src/render/pixels.ts`.
+The skill artwork was created with the built-in image generation tool: illustrated source images, then detailed pixel-art reinterpretations. Particles use the original hand-authored pixel grids and palettes in `src/art/particles.ts`.
 
-| Source        | Pixel artwork   | Runtime atlas              |
-| ------------- | --------------- | -------------------------- |
-| `concept.png` | `pixel-art.png` | `src/ui/assets/skills.png` |
+| Source        | Pixel artwork   | Runtime atlas               |
+| ------------- | --------------- | --------------------------- |
+| `concept.png` | `pixel-art.png` | `src/art/assets/skills.png` |
 
 Run `npm run build:art` from the repository root to pack the selected pixel artwork. It needs the project's Playwright browser. Packing trims transparent cell margins, preserves aspect ratio and alpha, and uses nearest-neighbor sampling into 32×32 cells with two-pixel padding. It does not perform the artistic pixel conversion. Source illustrations are not shipped in the game bundle.
 
-The skill atlas has seven columns and three rows. Its order is Attack Power, Attack Speed, Range, Move Speed, Mass Vent, Repeat, Fork; Chain, Pierce, Death Arc, Thunderstrike, Repulsion, Focus, Ball Lightning; Capacitor, Arc Bridge, Gather, Short Circuit, Pursuit Arc, Surge, Return Arc. See `src/ui/iconAtlas.ts` for runtime coordinates.
+The skill atlas has seven columns and three rows. Its order is Attack Power, Attack Speed, Range, Move Speed, Mass Vent, Repeat, Fork; Chain, Pierce, Death Arc, Thunderstrike, Repulsion, Focus, Ball Lightning; Capacitor, Arc Bridge, Gather, Short Circuit, Pursuit Arc, Surge, Return Arc. See `src/art/skills.ts` for runtime coordinates.
 
 Particle textures and guide icons share hand-authored 16×16 grids at native screen scale. Their stepped silhouettes restore the early artwork: a triangular Quark, diamond Muon, faceted Proton and hollow Neutron, beside the small Electron. Transparent padding keeps the smaller particles small; the grid size does not enlarge their visible bodies. Enemy movement, collision and combat rules are unchanged.
 

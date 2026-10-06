@@ -104,17 +104,17 @@ try {
   await capture(page, 'artifacts/screens/fresh-after-reload.png');
   report('backgrounding resumes the live run; refreshing discards its build and pause', { seed });
 
-  for (const action of [c.retry, c.newRun]) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     await page.evaluate(() => {
       const g = window.__gameDebug.getModel();
       g.start();
       window.__gameDebug.advance(1800000);
     });
-    await page.getByRole('button', { name: action, exact: true }).click();
+    await page.getByRole('button', { name: c.retry, exact: true }).click();
     seed = await verifyFresh(seed);
   }
   assert.ok(await page.evaluate(() => localStorage.getItem('singularity.record')));
-  report('retry and new game both generate fresh seeds', { seed });
+  report('successive restarts generate fresh seeds', { seed });
 
   await page.getByRole('button', { name: 'START' }).click();
   await page.getByRole('button', { name: c.pause, exact: true }).click();
@@ -201,7 +201,7 @@ try {
   assert.ok(damage.every((n, i) => Math.abs(n.value - expectedDamage[i]) < 1e-8));
   await page.waitForTimeout(150);
   const labels = await page.evaluate(() =>
-    window.__gameScene.damageText.filter((text) => text.visible).map((text) => text.text),
+    window.__gameScene.damageLabels.texts.filter((text) => text.visible).map((text) => text.text),
   );
   assert.deepEqual(
     labels,
@@ -250,7 +250,7 @@ try {
     ),
   });
 
-  await failed.getByRole('button', { name: c.newRun, exact: true }).click();
+  await failed.getByRole('button', { name: c.retry, exact: true }).click();
   await failed.getByRole('button', { name: c.settings, exact: true }).click();
   await failed.evaluate(() => {
     const write = Storage.prototype.setItem;

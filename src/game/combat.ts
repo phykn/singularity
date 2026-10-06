@@ -5,7 +5,7 @@ import type { Point } from './geometry.ts';
 import { closest, onSegment } from './targeting.ts';
 import type { Ranks, Rarities, SkillId, UpgradeId } from './rules.ts';
 import type { Effect, SkillStatus, Target } from './types.ts';
-import type { Game } from './model.ts';
+import type { Game } from './Game.ts';
 
 export type Attack = {
   id: number;
@@ -234,11 +234,12 @@ export class Combat {
     if (g.time - this.lastKill > g.rules.skills.surge.windowSeconds) this.surgeCharge = 0;
     this.lastKill = g.time;
     this.surgeCharge++;
-    if (this.surgeCharge < g.forms.surge.kills) return;
+    const surge = g.forms.surge;
+    if (this.surgeCharge < surge.kills) return;
     this.surgeCharge = 0;
-    this.surgeUntil = g.time + g.forms.surge.duration;
+    this.surgeUntil = g.time + surge.duration;
     this.nextSurge = g.tick + 1;
-    this.surgeAttack = this.begin('surge', g.forms.surge.damage);
+    this.surgeAttack = this.begin('surge', surge.damage);
     this.activate('surge');
     this.effect(
       this.surgeAttack,
@@ -263,7 +264,8 @@ export class Combat {
   fireSkill(id: TimedSkill, origin: Point = this.game.position): boolean {
     const g = this.game;
     if (!g.ranks[id] || !g.targets.length) return false;
-    const s = g.forms;
+    const attack = this.begin(id),
+      s = attack.forms;
     const multiplier =
       id === 'strike'
         ? s.strike.damage
@@ -276,8 +278,8 @@ export class Combat {
               : id === 'gather'
                 ? s.gather.damage
                 : g.rules.skills[id].damage;
-    const attack = this.begin(id, multiplier),
-      branches = s.multi.count;
+    attack.damage *= multiplier;
+    const branches = s.multi.count;
     const within = (range: number) =>
       g.targets.filter((t) => t.hp > 0 && distance(t, origin) <= range);
     if (id === 'focus') {

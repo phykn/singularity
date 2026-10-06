@@ -1,8 +1,8 @@
 import type { UpgradeId } from '../game/rules.ts';
-import { art, palettes } from '../render/pixels.ts';
+import { particleArt, particlePalettes } from '../art/particles.ts';
 import type { ParticleKind } from '../game/particles.ts';
-import { iconCells } from './iconAtlas.ts';
-import skillAtlas from './assets/skills.png';
+import { iconCells } from '../art/skills.ts';
+import skillAtlas from '../art/assets/skills.png';
 
 export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
   const pixels = size >= 24 ? 32 : 16;
@@ -29,8 +29,8 @@ export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
 }
 
 export function ParticleIcon({ id }: { id: ParticleKind }) {
-  const rows = art[id],
-    palette = palettes[id];
+  const rows = particleArt[id],
+    palette = particlePalettes[id];
   return (
     <svg width={32} height={32} viewBox="0 0 16 16" shapeRendering="crispEdges" aria-hidden="true">
       {rows.flatMap((row, y) =>

@@ -243,14 +243,7 @@ export default function App() {
           </div>
         </Dialog>
       )}
-      <Result
-        game={game}
-        language={language}
-        best={best}
-        notice={notice}
-        onRetry={replace}
-        onNewRun={replace}
-      />
+      <Result game={game} language={language} best={best} notice={notice} onRetry={replace} />
     </main>
   );
 }

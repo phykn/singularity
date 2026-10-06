@@ -1,4 +1,4 @@
-import type { Game } from '../game/model.ts';
+import type { Game } from '../game/Game.ts';
 import { endingFrame } from '../render/ending.ts';
 import { KillRhythm, SoundMixer } from './sounds.ts';
 

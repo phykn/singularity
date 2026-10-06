@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { sourceHash } from './engine.ts';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { Game } from '../src/game/model.ts';
+import { Game } from '../src/game/Game.ts';
 import { rarityIds, rarityScale, rules, isSkill } from '../src/game/rules.ts';
 import type { Card, SkillId } from '../src/game/rules.ts';
 

@@ -1,28 +1,18 @@
-import { skillIds } from '../game/rules.ts';
 import type { SkillId, UpgradeId } from '../game/rules.ts';
 import type { SkillStatus } from '../game/types.ts';
 import { SkillIcon } from './icons.tsx';
 import { Rank } from './controls.tsx';
 import { skillValue } from './skillText.ts';
-import type { Game } from '../game/model.ts';
+import type { Game } from '../game/Game.ts';
 import { copy } from './i18n.ts';
 import type { Language } from './i18n.ts';
 import type { CSSProperties } from 'react';
-import { skillColor } from '../render/palette.ts';
-
-export function ownedSkills(game: Game): SkillId[] {
-  return skillIds
-    .filter((id) => game.rank(id))
-    .sort(
-      (a, b) =>
-        game.selections.findIndex((s) => s.id === a) - game.selections.findIndex((s) => s.id === b),
-    );
-}
+import { skillColor } from '../art/palette.ts';
 
 export function Loadout({ game, language }: { game: Game; language: Language }) {
   const c = copy[language],
     rules = game.rules,
-    owned = ownedSkills(game);
+    owned = game.ownedSkills;
   const progress = game.levelProgress;
   const xpPercent = progress.required
     ? Math.min(100, (progress.current / progress.required) * 100)
@@ -50,7 +40,7 @@ export function Loadout({ game, language }: { game: Game; language: Language }) 
         </div>
       </div>
       <div className="loadout" aria-label={c.loadout}>
-        {Array.from({ length: 4 }, (_, i) => {
+        {Array.from({ length: rules.skillSlots }, (_, i) => {
           const id = owned[i];
           const status = id ? game.combat.status(id) : null;
           return (

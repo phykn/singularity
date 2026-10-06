@@ -20,6 +20,46 @@ const snapshot = (page) =>
     };
   });
 try {
+  const keyboard = await browser.newPage({ viewport: { width: 1024, height: 768 } });
+  keyboard.on('pageerror', (e) => errors.push(e.message));
+  await keyboard.goto(base);
+  await keyboard.getByRole('button', { name: 'START', exact: true }).click();
+  await keyboard.evaluate(() => {
+    window.__gameDebug.restart(42, false);
+    window.__gameDebug.xp(100);
+  });
+  await keyboard.waitForFunction(() => document.activeElement?.matches('.card.auto'));
+  const focusedIndex = () =>
+    keyboard.evaluate(() =>
+      [...document.querySelectorAll('.card')].indexOf(document.activeElement),
+    );
+  await keyboard.keyboard.press('Home');
+  assert.equal(await focusedIndex(), 0);
+  await keyboard.keyboard.press('ArrowLeft');
+  assert.equal(await focusedIndex(), 2);
+  await keyboard.keyboard.press('ArrowRight');
+  assert.equal(await focusedIndex(), 0);
+  await keyboard.keyboard.press('End');
+  assert.equal(await focusedIndex(), 2);
+  await keyboard.keyboard.press('ArrowLeft');
+  assert.equal(await focusedIndex(), 1);
+  const selected = await keyboard.locator('.card').nth(1).getAttribute('data-upgrade');
+  await keyboard.keyboard.down('Enter');
+  await keyboard.waitForFunction(() => window.__gameDebug.getModel().selections.length === 1);
+  await keyboard.waitForFunction(() => document.activeElement?.matches('.card.auto'));
+  await keyboard.keyboard.down('Enter');
+  await keyboard.waitForTimeout(150);
+  assert.equal(await keyboard.evaluate(() => window.__gameDebug.getModel().selections.length), 1);
+  assert.equal(
+    await keyboard.evaluate(() => window.__gameDebug.getModel().selections[0].id),
+    selected,
+  );
+  await keyboard.keyboard.up('Enter');
+  await keyboard.keyboard.press('Enter');
+  await keyboard.waitForFunction(() => window.__gameDebug.getModel().selections.length === 2);
+  checks.push({ keyboard: true, arrowNavigation: true, heldEnterSelectsOnce: true });
+  console.log('PASS keyboard choice navigation and held-key protection');
+  await keyboard.close();
   for (const [width, height] of [
     [320, 568],
     [375, 812],

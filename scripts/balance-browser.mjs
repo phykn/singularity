@@ -17,7 +17,7 @@ try {
     rows.push(
       ...(await page.evaluate(
         async ({ start, count }) => {
-          const { Game } = await import('/src/game/model.ts');
+          const { Game } = await import('/src/game/Game.ts');
           const rows = [];
           for (let seed = start; seed < start + count; seed++) {
             const g = new Game(seed);

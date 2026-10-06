@@ -5,10 +5,9 @@ import { particleNames, languages } from './i18n.ts';
 import { ParticleIcon, SkillIcon } from './icons.tsx';
 import { Rank } from './controls.tsx';
 import { Dialog } from './Dialog.tsx';
-import { ownedSkills } from './Loadout.tsx';
 import { formatTime } from '../format.ts';
-import type { Record as Best } from '../app/storage.ts';
-import type { Game } from '../game/model.ts';
+import type { BestRecord } from '../app/storage.ts';
+import type { Game } from '../game/Game.ts';
 import { copy } from './i18n.ts';
 import type { Language } from './i18n.ts';
 
@@ -18,20 +17,18 @@ export function Result({
   best,
   notice,
   onRetry,
-  onNewRun,
 }: {
   game: Game;
   language: Language;
-  best: Best | null;
+  best: BestRecord | null;
   notice: ReactNode;
   onRetry: () => void;
-  onNewRun: () => void;
 }) {
   const result = game.result;
   if (!result) return null;
   const c = copy[language],
     rules = game.rules,
-    owned = ownedSkills(game);
+    owned = game.ownedSkills;
   const title = result.outcome === 'success' ? c.success : c.failure;
   return (
     <Dialog
@@ -126,9 +123,6 @@ export function Result({
       <div className="dialog-actions result-actions">
         <button className="primary" onClick={onRetry}>
           {c.retry}
-        </button>
-        <button className="text-button" onClick={onNewRun}>
-          {c.newRun}
         </button>
       </div>
     </Dialog>

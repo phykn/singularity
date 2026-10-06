@@ -1,7 +1,7 @@
-import { createCheckpoint } from '../src/game/replay.ts';
+import { createCheckpoint } from '../src/game/checkpoint.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Game } from '../src/game/model.ts';
+import { Game } from '../src/game/Game.ts';
 import { orbit } from '../src/game/geometry.ts';
 import { particleIds } from '../src/game/particles.ts';
 import type { Target } from '../src/game/types.ts';

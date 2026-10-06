@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Game } from '../game/model.ts';
-import { GameAudio } from './audio.ts';
-import { GameSession } from './session.ts';
+import { Game } from '../game/Game.ts';
+import { GameAudio } from './GameAudio.ts';
+import { GameSession } from './GameSession.ts';
 import { newSeed } from './seed.ts';
 import {
   bestRecord,
@@ -13,7 +13,7 @@ import {
   save,
   settingsKey,
 } from './storage.ts';
-import type { Record as Best, Settings } from './storage.ts';
+import type { BestRecord, Settings } from './storage.ts';
 import type { UpgradeId } from '../game/rules.ts';
 import { languages } from '../ui/i18n.ts';
 import type { Language } from '../ui/i18n.ts';
@@ -33,7 +33,7 @@ export function useGame() {
       return { sound: false };
     }
   });
-  const [best, setBest] = useState<Best | null>(() => {
+  const [best, setBest] = useState<BestRecord | null>(() => {
     try {
       return readRecord(localStorage);
     } catch {

@@ -1,4 +1,4 @@
-import { Game } from './model.ts';
+import { Game } from './Game.ts';
 import type { Phase } from './types.ts';
 import type { UpgradeId } from './rules.ts';
 

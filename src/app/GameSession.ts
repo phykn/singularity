@@ -1,7 +1,7 @@
-import type { Game } from '../game/model.ts';
+import type { Game } from '../game/Game.ts';
 import type { UpgradeId } from '../game/rules.ts';
 import type { Result } from '../game/types.ts';
-import type { GameAudio } from './audio.ts';
+import type { GameAudio } from './GameAudio.ts';
 
 type SessionEffects = {
   sound: () => boolean;
@@ -23,13 +23,13 @@ export class GameSession {
   private lastDrawTick = -1;
   private lastRecordSave = -Infinity;
   private processed: Game | null = null;
-  private heard: number;
+  private audioCursor: number;
 
   constructor(game: Game, audio: GameSession['audio'], effects: SessionEffects) {
     this.game = game;
     this.audio = audio;
     this.effects = effects;
-    this.heard = game.events.length;
+    this.audioCursor = game.events.length;
   }
 
   setRenderReady(ready: boolean, wall: number): void {
@@ -55,7 +55,7 @@ export class GameSession {
     this.pauseOnChoice = true;
     this.lastWall = wall;
     this.lastDrawTick = -1;
-    this.heard = 0;
+    this.audioCursor = 0;
     this.processed = null;
     this.lastRecordSave = -Infinity;
     this.effects.redraw();
@@ -111,8 +111,8 @@ export class GameSession {
     const game = this.game;
     if (this.renderReady) this.advanceTime(Math.max(0, wall - this.lastWall), frameTickLimit);
     this.lastWall = wall;
-    if (this.audio.enabled) this.audio.update(game, this.heard);
-    this.heard = game.events.length;
+    if (this.audio.enabled) this.audio.update(game, this.audioCursor);
+    this.audioCursor = game.events.length;
     if (game.result && this.processed !== game && wall - this.lastRecordSave >= 1000) {
       if (this.effects.saveResult(game.result)) this.processed = game;
       this.lastRecordSave = wall;

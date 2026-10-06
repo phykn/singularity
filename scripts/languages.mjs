@@ -219,7 +219,7 @@ try {
       }, rules.energyGoal);
       await page.getByRole('heading', { name: c.failure, exact: true }).waitFor();
       await inspect(page);
-      await page.getByRole('button', { name: c.newRun, exact: true }).click();
+      await page.getByRole('button', { name: c.retry, exact: true }).click();
       await page.reload();
       await page.getByRole('button', { name: language.label, exact: true }).waitFor();
       assert.equal(

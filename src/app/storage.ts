@@ -3,7 +3,10 @@ import { rules } from '../game/rules.ts';
 import type { Language } from '../ui/i18n.ts';
 
 export type Settings = { sound: boolean };
-export type Record = Pick<Result, 'outcome' | 'xp' | 'level' | 'speed' | 'seed' | 'collisionTime'>;
+export type BestRecord = Pick<
+  Result,
+  'outcome' | 'xp' | 'level' | 'speed' | 'seed' | 'collisionTime'
+>;
 export const settingsKey = 'singularity.settings';
 export const recordKey = 'singularity.record';
 export const languageKey = 'singularity.language';
@@ -27,7 +30,7 @@ export function readSettings(storage: Storage): Settings {
   }
   return { sound: false };
 }
-export function readRecord(storage: Storage): Record | null {
+export function readRecord(storage: Storage): BestRecord | null {
   try {
     const value = JSON.parse(storage.getItem(recordKey) ?? 'null');
     if (!value || !['success', 'collapse-failure'].includes(value.outcome)) return null;
@@ -56,8 +59,8 @@ export function save(storage: Storage, key: string, value: unknown): boolean {
     return false;
   }
 }
-export function bestRecord(current: Record | null, result: Result): Record | null {
-  const score = (record: Record) => [
+export function bestRecord(current: BestRecord | null, result: Result): BestRecord | null {
+  const score = (record: BestRecord) => [
     Number(record.outcome === 'success'),
     record.xp,
     record.collisionTime,

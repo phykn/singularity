@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { sourceHash } from './engine.ts';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { Game } from '../src/game/model.ts';
+import { Game } from '../src/game/Game.ts';
 import { isSkill, rules, xpForLevel } from '../src/game/rules.ts';
 
 const rows = [];

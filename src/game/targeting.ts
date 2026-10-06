@@ -35,16 +35,15 @@ export function onSegment(targets: Target[], from: Point, to: Point, width: numb
     dy = to.y - from.y,
     length = Math.hypot(dx, dy);
   if (length < 0.001) return [];
-  return targets
-    .flatMap((target) => {
-      if (target.hp <= 0) return [];
-      const x = target.x - from.x,
-        y = target.y - from.y;
-      const along = (x * dx + y * dy) / length;
-      return along >= 0 && along <= length && Math.abs(x * dy - y * dx) / length <= width / 2
-        ? [{ target, along }]
-        : [];
-    })
-    .sort((a, b) => a.along - b.along || a.target.id - b.target.id)
-    .map((entry) => entry.target);
+  const hits: { target: Target; along: number }[] = [];
+  for (const target of targets) {
+    if (target.hp <= 0) continue;
+    const x = target.x - from.x,
+      y = target.y - from.y;
+    const along = (x * dx + y * dy) / length;
+    if (along >= 0 && along <= length && Math.abs(x * dy - y * dx) / length <= width / 2)
+      hits.push({ target, along });
+  }
+  hits.sort((a, b) => a.along - b.along || a.target.id - b.target.id);
+  return hits.map((entry) => entry.target);
 }

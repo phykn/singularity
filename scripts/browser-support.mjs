@@ -33,7 +33,7 @@ export function launchBrowser() {
 
 // Observe the renderer in development checks without shipping another debug hook.
 export async function observeScene(page) {
-  await page.route('**/src/render/scene.ts*', async (route) => {
+  await page.route('**/src/render/ElectronScene.ts*', async (route) => {
     const response = await route.fetch();
     await route.fulfill({
       response,

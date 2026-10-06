@@ -1,6 +1,6 @@
 # Electric effect artwork
 
-Created with the built-in image generation tool. The selected neutral pixel artwork is `pixel-art.png`; `npm run build:art` packs it into `src/render/assets/effects.png`. Illustrated trials are not shipped.
+Created with the built-in image generation tool. The selected neutral pixel artwork is `pixel-art.png`; `npm run build:art` packs it into `src/art/assets/effects.png`. Illustrated trials are not shipped.
 
 The runtime sheet has four columns and six rows of 32×32 cells: Hit, Heavy Impact, Ball Lightning, Charge Halo, Surge Aura, Particle Dissolve. Every row contains four animation frames. Packing uses nearest-neighbor sampling of whole cells, preserving alpha and shared centers. Do not trim individual frames: it changes their registration and causes wobble.
 
@@ -8,7 +8,7 @@ Cells include transparent margins; their visible bodies are smaller than 32 pixe
 
 ## Emitted lightning
 
-`beams.png` was generated with the built-in image generation tool and packed by `npm run build:art` into `src/render/assets/beams.png`. The runtime atlas has four columns and eight rows of 64×16 cells, four frames per style: Basic Arc, Chain Arc, Pierce Rail, Thunderstrike, Focused Current, Capacitor Discharge, Arc Bridge and Return Arc.
+`beams.png` was generated with the built-in image generation tool and packed by `npm run build:art` into `src/art/assets/beams.png`. The runtime atlas has four columns and eight rows of 64×16 cells, four frames per style: Basic Arc, Chain Arc, Pierce Rail, Thunderstrike, Focused Current, Capacitor Discharge, Arc Bridge and Return Arc.
 
 The renderer rotates and stretches each beam between its actual endpoints, keeping screen thickness restrained. Electron-anchored effects follow the live electron; focused beams also track their target. Simulation time drives animation, including pause behavior. Skill tint, direction markers, impact sprites and integer damage numbers remain. Only the generated beam atlas supplies connecting lightning; it does not alter attack timing, hit geometry or balance.
 

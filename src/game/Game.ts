@@ -21,6 +21,7 @@ import {
   recoveryMass,
   rollRarity,
   rules,
+  skillIds,
   xpForLevel,
 } from './rules.ts';
 import type { RuleSet, UpgradeId } from './rules.ts';
@@ -230,6 +231,16 @@ export class Game {
   }
   rank(id: UpgradeId): number {
     return id === 'recover' ? 0 : isSkill(id) ? this.ranks[id] : this.boosts[id];
+  }
+
+  get ownedSkills() {
+    const acquired = new Map<string, number>();
+    this.selections.forEach(({ id }, idx) => {
+      if (!acquired.has(id)) acquired.set(id, idx);
+    });
+    return skillIds
+      .filter((id) => this.ranks[id] > 0)
+      .sort((a, b) => (acquired.get(a) ?? -1) - (acquired.get(b) ?? -1));
   }
 
   start(): void {

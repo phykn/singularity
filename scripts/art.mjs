@@ -7,9 +7,9 @@ const browser = await launchBrowser();
 try {
   const page = await browser.newPage();
   for (const [sourcePath, output, cols, rows, trim, cellWidth, cellHeight] of [
-    ['assets/icon-art/pixel-art.png', 'src/ui/assets/skills.png', 7, 3, true, 32, 32],
-    ['assets/effect-art/pixel-art.png', 'src/render/assets/effects.png', 4, 6, false, 32, 32],
-    ['assets/effect-art/beams.png', 'src/render/assets/beams.png', 4, 8, false, 64, 16],
+    ['assets/icon-art/pixel-art.png', 'src/art/assets/skills.png', 7, 3, true, 32, 32],
+    ['assets/effect-art/pixel-art.png', 'src/art/assets/effects.png', 4, 6, false, 32, 32],
+    ['assets/effect-art/beams.png', 'src/art/assets/beams.png', 4, 8, false, 64, 16],
   ]) {
     const source = readFileSync(sourcePath).toString('base64');
     const png = await page.evaluate(

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GameSession } from '../src/app/session.ts';
-import { Game } from '../src/game/model.ts';
+import { GameSession } from '../src/app/GameSession.ts';
+import { Game } from '../src/game/Game.ts';
 import type { Result } from '../src/game/types.ts';
 
 function session(game = new Game(10004), saveResult = (_result: Result) => true) {
