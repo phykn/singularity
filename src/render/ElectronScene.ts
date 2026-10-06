@@ -243,7 +243,7 @@ export class ElectronScene extends Phaser.Scene {
     seed: number,
   ): void {
     const g = this.graphics;
-    if (frame.stage === 'contract' || frame.stage === 'quiet') {
+    if (frame.stage === 'depart' || frame.stage === 'contract' || frame.stage === 'quiet') {
       if (frame.core > 0) {
         const r = Math.round(frame.core * scale) / scale;
         g.fillStyle(0x020306, 1);
@@ -260,12 +260,13 @@ export class ElectronScene extends Phaser.Scene {
         g.strokePoints(edge, false);
       }
     } else {
-      this.drawOrbit(frame.ring, frame.color, frame.opacity * frame.alpha, false, scale);
-      for (let i = 0; i < 12; i++) {
-        const angle = (i * Math.PI) / 6 + (seed % 100) / 100;
-        const radius = frame.reducedMotion ? 155 : 22 + frame.expand * (130 + (i % 3) * 7);
+      if (frame.ring > 0 && frame.alpha > 0)
+        this.drawOrbit(frame.ring, frame.color, frame.opacity * frame.alpha, false, scale);
+      for (let i = 0; i < 6 && frame.dust > 0; i++) {
+        const angle = (i * Math.PI) / 3 + (seed % 100) / 100;
+        const radius = frame.ring * (1.04 + (i % 3) * 0.04);
         const p = orbit(angle, radius);
-        g.fillStyle(frame.color, (1 - frame.expand) * 0.4 * frame.alpha);
+        g.fillStyle(frame.color, frame.dust * frame.alpha);
         g.fillRect(
           Math.round(p.x * scale) / scale,
           Math.round(p.y * scale) / scale,
@@ -273,8 +274,11 @@ export class ElectronScene extends Phaser.Scene {
           2 / scale,
         );
       }
-      if (frame.electron > 0)
+      if (frame.electron > 0) {
+        if (frame.trail > 0)
+          this.drawTrail(frame.angle, frame.ring, 8, BLUE, scale, false, frame.trail * frame.alpha);
         this.drawElectron(orbit(frame.angle, frame.ring), frame.electron * frame.alpha);
+      }
     }
     if (frame.point > 0) {
       g.fillStyle(WHITE, frame.point * 0.85);
@@ -299,13 +303,14 @@ export class ElectronScene extends Phaser.Scene {
     color: number,
     scale: number,
     spiral = false,
+    alpha = 1,
   ): void {
     const g = this.graphics;
     for (let i = length; i > 0; i--) {
       const r = radius + (spiral ? i * 0.65 : 0);
       const p = orbit(angle - i * 0.035, r),
         q = orbit(angle - (i - 1) * 0.035, r);
-      g.lineStyle((1 + 2 * (1 - i / length)) / scale, color, 0.65 * (1 - i / length));
+      g.lineStyle((1 + 2 * (1 - i / length)) / scale, color, 0.65 * (1 - i / length) * alpha);
       g.lineBetween(p.x, p.y, q.x, q.y);
     }
   }

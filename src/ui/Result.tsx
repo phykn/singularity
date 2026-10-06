@@ -7,6 +7,7 @@ import { CollapseIcon, SingularityIcon, ParticleIcon, SkillIcon } from './icons.
 import { Rank } from './controls.tsx';
 import { Dialog } from './Dialog.tsx';
 import { formatTime } from '../format.ts';
+import { beyondFrame } from '../render/beyond.ts';
 import type { BestRecord, BeyondRecord } from '../app/storage.ts';
 import type { Game } from '../game/Game.ts';
 import { copy } from './i18n.ts';
@@ -38,7 +39,7 @@ export function Result({
     const timer = setTimeout(() => setArmed(true), 400);
     return () => clearTimeout(timer);
   }, [result]);
-  const departure = crossing ? (game.phaseProgress * game.rules.endless.entrySeconds) / 0.35 : 0;
+  const departure = beyondFrame(game)?.departure ?? 0;
   if (!result || departure >= 1 || (crossing && game.manualPaused)) return null;
   const c = copy[language],
     rules = game.rules,

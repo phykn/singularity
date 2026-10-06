@@ -43,6 +43,16 @@ try {
     await page.waitForFunction(() => !document.querySelector('.result button.primary').disabled);
     await capture(page, `artifacts/beyond/result-${language}.png`);
     const button = page.getByRole('button', { name: c.beyond, exact: true });
+    await page.evaluate(() => {
+      window.addEventListener(
+        'click',
+        () => {
+          const game = window.__gameDebug.getModel();
+          if (game.phase === 'crossing') game.setHidden(true);
+        },
+        { once: true },
+      );
+    });
     if (language === 'en') {
       assert.equal(await button.evaluate((node) => node === document.activeElement), true);
       await page.keyboard.press('Enter');
@@ -70,8 +80,21 @@ try {
         };
       }, seconds);
     const contraction = [];
-    for (const seconds of [0.05, 0.25, 0.55, 0.75, 0.8, 0.9]) {
+    for (const seconds of [0.05, 0.2, 0.25, 0.55, 0.75, 0.8, 0.9]) {
       await pose(seconds);
+      if (seconds < 0.2) {
+        await page.waitForFunction((seconds) => {
+          const result = document.querySelector('.result');
+          return (
+            result &&
+            Math.abs(
+              Number(result.parentElement.parentElement.style.opacity) - (1 - seconds / 0.2),
+            ) < 1e-8
+          );
+        }, seconds);
+      } else {
+        await page.locator('.result').waitFor({ state: 'hidden' });
+      }
       const drawing = await page.evaluate(
         ({ gold, white }) => {
           const scene = window.__gameScene,
@@ -135,6 +158,13 @@ try {
         assert.ok(Math.abs(drawing.points[0].width - 3) < 1e-8);
         assert.ok(Math.abs(drawing.points[0].height - 3) < 1e-8);
       }
+      if (seconds <= 0.2 && motion !== 'reduce') {
+        const scale = await page.evaluate(() => window.__gameScene.worldScale);
+        assert.ok(
+          Math.abs(drawing.disks[0] - 24) <= 0.5 / scale,
+          'Hold the singularity until the result is gone',
+        );
+      }
       contraction.push({ seconds, ...drawing });
       if (language === 'ko') await capture(page, `artifacts/beyond/entry-contract-${seconds}.png`);
     }
@@ -147,6 +177,34 @@ try {
     assert.equal(await page.locator('.result').count(), 0);
     if (language === 'ko') await capture(page, 'artifacts/beyond/entry-quiet.png');
     await pose(1.2);
+    const dust = await page.evaluate(() => {
+      const scene = window.__gameScene,
+        graphics = scene.graphics,
+        original = graphics.fillRect;
+      const points = [];
+      graphics.fillRect = function (x, y, width, height, ...args) {
+        if (
+          Math.abs(width * scene.worldScale - 2) < 1e-8 &&
+          Math.abs(height * scene.worldScale - 2) < 1e-8
+        )
+          points.push({ x, y });
+        return original.call(this, x, y, width, height, ...args);
+      };
+      try {
+        scene.update();
+      } finally {
+        graphics.fillRect = original;
+      }
+      return { points, radius: window.__gameDebug.getModel().rules.orbitRadius };
+    });
+    assert.equal(dust.points.length, 6, 'The opening keeps only six small particles');
+    if (motion !== 'reduce') {
+      const radius = dust.radius * (1 - (1 - 0.2) ** 3);
+      for (const point of dust.points)
+        assert.ok(
+          Math.abs(Math.hypot(point.x - 180, point.y - 260) - radius * 1.08) < radius * 0.05 + 2,
+        );
+    }
     await capture(page, `artifacts/beyond/entry-open-${language}.png`);
     const openingHud = await page
       .locator('.hud')
@@ -167,8 +225,10 @@ try {
       page.evaluate(() => {
         const scene = window.__gameScene;
         const stroke = scene.graphics.strokeCircle,
-          line = scene.graphics.lineStyle;
+          line = scene.graphics.lineStyle,
+          segment = scene.graphics.lineBetween;
         let style, ring;
+        const trail = [];
         scene.graphics.lineStyle = function (...args) {
           style = args;
           return line.apply(this, args);
@@ -177,16 +237,21 @@ try {
           if (x === 180 && y === 260 && !ring) ring = { radius, style };
           return stroke.call(this, x, y, radius);
         };
+        scene.graphics.lineBetween = function (...args) {
+          trail.push({ points: args, style });
+          return segment.apply(this, args);
+        };
         try {
           scene.update();
         } finally {
+          scene.graphics.lineBetween = segment;
           scene.graphics.strokeCircle = stroke;
           scene.graphics.lineStyle = line;
         }
         const electron = scene.sprites.images.find(
           (image) => image.visible && image.texture.key === 'electron',
         );
-        return { ring, scale: scene.worldScale, electron: { x: electron.x, y: electron.y } };
+        return { ring, trail, scale: scene.worldScale, electron: { x: electron.x, y: electron.y } };
       });
     await pose(2.4 - 1 / 60);
     const before = await appearance();
@@ -199,6 +264,19 @@ try {
     assert.ok(
       Math.hypot(before.electron.x - after.electron.x, before.electron.y - after.electron.y) <= 1,
     );
+    assert.equal(before.trail.length, 8);
+    assert.equal(after.trail.length, 8);
+    for (let i = 0; i < 8; i++) {
+      assert.deepEqual(
+        before.trail[i].style,
+        after.trail[i].style,
+        'Trail width, color and alpha carry into combat',
+      );
+      for (let j = 0; j < 4; j++)
+        assert.ok(
+          Math.abs(before.trail[i].points[j] - after.trail[i].points[j]) * after.scale < 0.1,
+        );
+    }
     assert.equal(entered.phase, 'running');
     assert.equal(entered.seconds, 0);
     await page.waitForFunction(

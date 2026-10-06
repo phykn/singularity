@@ -203,9 +203,14 @@ test('clear saves retry during and after continuation and beyond records never r
 test('entry key poses settle on the real electron position without screen flashes', () => {
   const g = cleared();
   g.continueBeyond();
+  assert.equal(beyondFrame(g)?.stage, 'depart');
+  assert.equal(beyondFrame(g)?.departure, 0);
+  g.advance(200);
   assert.equal(beyondFrame(g)?.stage, 'contract');
+  assert.equal(beyondFrame(g)?.departure, 1);
+  assert.equal(beyondFrame(g)?.core, 24);
   assert.equal(beyondFrame(g)?.color, BLUE);
-  g.advance(800);
+  g.advance(600);
   assert.equal(beyondFrame(g)?.stage, 'quiet');
   assert.equal(beyondFrame(g)?.point, 1);
   g.advance(200);
@@ -248,6 +253,33 @@ test('the singularity contracts completely to a point before the orbit grows fro
     assert.ok(frame.point >= 0 && frame.point <= 1);
   }
   assert.equal(beyondFrame(g, true)!.core, 0);
+});
+
+test('the result clears before contraction, and trail and dust join the opening smoothly', () => {
+  const g = cleared();
+  g.continueBeyond();
+  let trail = 0;
+  for (let tick = 0; tick <= g.rules.tickRate * g.rules.endless.entrySeconds; tick++) {
+    g.phaseTicks = tick;
+    const before = JSON.stringify(g, (key, value) => (key === 'combat' ? undefined : value));
+    const frame = beyondFrame(g)!;
+    assert.equal(
+      JSON.stringify(g, (key, value) => (key === 'combat' ? undefined : value)),
+      before,
+    );
+    if (frame.departure < 1) {
+      assert.equal(frame.stage, 'depart');
+      assert.equal(frame.core, 24, 'The singularity holds while the result clears');
+      assert.equal(frame.point, 0);
+    }
+    if (frame.core < 24) assert.equal(frame.departure, 1);
+    assert.ok(frame.trail >= trail && frame.trail <= 1);
+    assert.ok(frame.trail - trail < 0.04, 'The trail cannot pop in');
+    trail = frame.trail;
+    assert.ok(frame.dust >= 0 && frame.dust <= 0.35);
+    if (frame.expand === 0 || frame.expand === 1) assert.equal(frame.dust, 0);
+  }
+  assert.equal(trail, 1);
 });
 
 test('entry hue and brightness change continuously and settle at the combat appearance', () => {
