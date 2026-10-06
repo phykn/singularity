@@ -2,8 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type Phaser from 'phaser';
 import { readFileSync } from 'node:fs';
-import { createPixels } from '../src/render/pixels.ts';
-import { particleFrames } from '../src/render/particleAtlas.ts';
+import { art, createPixels, palettes } from '../src/render/pixels.ts';
 import { healthBar } from '../src/render/health.ts';
 import { drawEffect, drawOrb } from '../src/render/lightning.ts';
 import type { Effect } from '../src/game/types.ts';
@@ -12,45 +11,36 @@ import { iconCells } from '../src/ui/iconAtlas.ts';
 import { close, target } from './helpers.ts';
 import { drawWaveWarning, WARNING_RED } from '../src/render/warning.ts';
 
-test('generated particle frames retain native display sizes and disable smoothing', () => {
+test('native sprites paint only palette pixels within their texture bounds', () => {
   const textures: string[] = [];
-  const source = {};
   const scene = {
     textures: {
-      get(key: string) {
-        assert.equal(key, 'particleAtlas');
-        return { getSourceImage: () => source };
-      },
-      createCanvas(key: keyof typeof particleFrames, width: number, height: number) {
-        const frame = particleFrames[key];
-        assert.equal(width, frame.size);
-        assert.equal(height, frame.size);
-        let draws = 0;
+      createCanvas(key: keyof typeof art, width: number, height: number) {
+        const rows = art[key];
+        assert.equal(width, rows[0].length);
+        assert.equal(height, rows.length);
+        const painted = new Set<string>();
         const ctx = {
-          imageSmoothingEnabled: true,
-          drawImage(
-            image: unknown,
-            x: number,
-            y: number,
-            w: number,
-            h: number,
-            dx: number,
-            dy: number,
-            dw: number,
-            dh: number,
-          ) {
-            assert.equal(image, source);
-            assert.equal(this.imageSmoothingEnabled, false);
-            assert.deepEqual([w, h, dx, dy, dw, dh], [32, 32, 0, 0, width, height]);
-            assert.ok(x >= 0 && y >= 0 && x + w <= 96 && y + h <= 64);
-            assert.equal(x / 32 + (y / 32) * 3, frame.index);
-            draws++;
+          fillStyle: '',
+          fillRect(x: number, y: number, w: number, h: number) {
+            assert.ok(x >= 0 && x < width && y >= 0 && y < height);
+            assert.equal(w, 1);
+            assert.equal(h, 1);
+            assert.match(rows[y][x], /^[1-4]$/);
+            assert.equal(this.fillStyle, palettes[key][Number(rows[y][x])]);
+            painted.add(`${x},${y}`);
           },
         };
         return {
           getContext: () => ctx,
           refresh() {
-            assert.equal(draws, 1);
+            rows.forEach((row, y) => {
+              assert.equal(row.length, width, key + ' has an uneven row');
+              assert.match(row, /^[.1-4]+$/);
+              [...row].forEach((pixel, x) => {
+                assert.equal(painted.has(`${x},${y}`), pixel !== '.');
+              });
+            });
             textures.push(key);
           },
         };
@@ -58,7 +48,7 @@ test('generated particle frames retain native display sizes and disable smoothin
     },
   };
   createPixels(scene as unknown as Phaser.Scene);
-  assert.deepEqual(textures, Object.keys(particleFrames));
+  assert.deepEqual(textures, Object.keys(art));
 });
 
 test('generated icon atlases have transparent-capable PNGs and unique in-bounds cells', () => {
@@ -72,10 +62,7 @@ test('generated icon atlases have transparent-capable PNGs and unique in-bounds 
     assert.ok(x >= 0 && y >= 0 && x + 32 <= 224 && y + 32 <= 96, id);
     assert.equal((x % 32) + (y % 32), 0, id);
   }
-  for (const [path, width, height] of [
-    ['../src/ui/assets/skills.png', 224, 96],
-    ['../src/render/assets/particles.png', 96, 64],
-  ] as const) {
+  for (const [path, width, height] of [['../src/ui/assets/skills.png', 224, 96]] as const) {
     const png = readFileSync(new URL(path, import.meta.url));
     assert.equal(png.readUInt32BE(16), width);
     assert.equal(png.readUInt32BE(20), height);

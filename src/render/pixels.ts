@@ -1,22 +1,110 @@
 import type Phaser from 'phaser';
-import { particleFrames } from './particleAtlas.ts';
+
+const electron = [
+  '.....222.....',
+  '...2233322...',
+  '..233333332..',
+  '.23443333332.',
+  '.23444443322.',
+  '2333444443322',
+  '2333444443322',
+  '2333444443322',
+  '.23334443322.',
+  '.23333333322.',
+  '..232333222..',
+  '...2222222...',
+  '.....222.....',
+];
+export const art = {
+  electron,
+  electronSurge: electron,
+  quark: [
+    '...........',
+    '...11111...',
+    '..1443331..',
+    '.144333331.',
+    '.143333331.',
+    '.133333331.',
+    '.133333331.',
+    '.133333321.',
+    '..1333321..',
+    '...11111...',
+    '...........',
+  ],
+  muon: [
+    '.............',
+    '..1111.......',
+    '.124331......',
+    '.1444321.....',
+    '1344333211...',
+    '13333322331..',
+    '.13332244331.',
+    '..12224443321',
+    '...1123433321',
+    '.....1333331.',
+    '......123221.',
+    '.......1111..',
+    '.............',
+  ],
+  proton: [
+    '...............',
+    '....1111111....',
+    '...133333331...',
+    '..13433333331..',
+    '.1334344433321.',
+    '.1333444443331.',
+    '.1334444443331.',
+    '.1334444443331.',
+    '.1333444433331.',
+    '.1333344333321.',
+    '.1333333333321.',
+    '..13333333321..',
+    '...123333221...',
+    '....1111111....',
+    '...............',
+  ],
+  neutron: [
+    '.................',
+    '.....1111111.....',
+    '....134444331....',
+    '...14442223331...',
+    '..1442222222331..',
+    '.134222222222321.',
+    '.144222222222331.',
+    '.142222222222231.',
+    '.142222222222231.',
+    '.142222222222231.',
+    '.133222222222321.',
+    '.133222222222321.',
+    '..1332222222321..',
+    '...13332223321...',
+    '....123333221....',
+    '.....1111111.....',
+    '.................',
+  ],
+};
+
+export const palettes: Record<keyof typeof art, string[]> = {
+  electron: ['', '#0c2638', '#3f9cbb', '#91eafd', '#d4f7ff'],
+  electronSurge: ['', '#473015', '#c99730', '#ffdf78', '#ffeab3'],
+  quark: ['', '#271f27', '#865760', '#c9887f', '#f2c9ac'],
+  muon: ['', '#241e30', '#625070', '#a892bf', '#d3c6e2'],
+  proton: ['', '#2b261d', '#887044', '#c6ab76', '#e3d4aa'],
+  neutron: ['', '#16232e', '#324b60', '#7694aa', '#b0c7d5'],
+};
 
 export function createPixels(scene: Phaser.Scene): void {
-  const image = scene.textures.get('particleAtlas').getSourceImage() as HTMLImageElement;
-  for (const [key, frame] of Object.entries(particleFrames)) {
-    const texture = scene.textures.createCanvas(key, frame.size, frame.size)!;
+  for (const [key, rows] of Object.entries(art)) {
+    const texture = scene.textures.createCanvas(key, rows[0].length, rows.length)!;
     const ctx = texture.getContext();
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(
-      image,
-      (frame.index % 3) * 32,
-      Math.floor(frame.index / 3) * 32,
-      32,
-      32,
-      0,
-      0,
-      frame.size,
-      frame.size,
+    const palette = palettes[key as keyof typeof art];
+    rows.forEach((row, y) =>
+      [...row].forEach((char, x) => {
+        if (char !== '.') {
+          ctx.fillStyle = palette[Number(char)];
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }),
     );
     texture.refresh();
   }

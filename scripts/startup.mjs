@@ -109,33 +109,6 @@ try {
   report('graphics recovery preserves a manual pause', { tick: paused.tick });
   await page.close();
 
-  const images = await browser.newPage({ viewport: { width: 375, height: 812 } });
-  images.on('pageerror', (error) => errors.push(error.message));
-  let releaseImages;
-  const imagesHeld = new Promise((resolve) => (releaseImages = resolve));
-  let requestedImage = false;
-  await images.route('**/*particles*.png*', async (route) => {
-    if (new URL(route.request().url()).searchParams.has('import')) {
-      await route.continue();
-      return;
-    }
-    requestedImage = true;
-    await imagesHeld;
-    await route.continue();
-  });
-  await images.goto(base, { waitUntil: 'domcontentloaded' });
-  await images.waitForFunction(() => !!window.__gameDebug);
-  await images.waitForTimeout(900);
-  assert.equal(requestedImage, true);
-  assert.equal(await images.locator('.start').isDisabled(), true);
-  assert.equal((await state(images)).elapsed, 0);
-  releaseImages();
-  await images.getByRole('button', { name: 'START', exact: true }).click();
-  await images.locator('.hud').waitFor();
-  await images.waitForFunction(() => window.__gameDebug.getModel().tick > 0);
-  report('particle image loading holds START until the scene renders', { elapsedBeforeReady: 0 });
-  await images.close();
-
   const failed = await browser.newPage({ viewport: { width: 375, height: 812 } });
   failed.on('pageerror', (error) => errors.push(error.message));
   await failed.route('**/fonts/latin.woff2', (route) => route.abort());

@@ -8,7 +8,6 @@ try {
   const page = await browser.newPage();
   for (const [sourcePath, output, cols, rows] of [
     ['assets/icon-art/pixel-art.png', 'src/ui/assets/skills.png', 7, 3],
-    ['assets/icon-art/particles-pixel-art.png', 'src/render/assets/particles.png', 3, 2],
   ]) {
     const source = readFileSync(sourcePath).toString('base64');
     const png = await page.evaluate(

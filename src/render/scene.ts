@@ -10,7 +10,6 @@ import type { Game } from '../game/model.ts';
 import { BLUE, WHITE, AMBER, GOLD, skillColors } from './palette.ts';
 import { drawEffect, drawOrb, drawSurge } from './lightning.ts';
 import { drawWaveWarning } from './warning.ts';
-import particleAtlas from './assets/particles.png';
 export class ElectronScene extends Phaser.Scene {
   private graphics!: Phaser.GameObjects.Graphics;
   private effectGraphics!: Phaser.GameObjects.Graphics;
@@ -28,9 +27,6 @@ export class ElectronScene extends Phaser.Scene {
   constructor(model: () => Game) {
     super('electron');
     this.model = model;
-  }
-  preload(): void {
-    this.load.image('particleAtlas', particleAtlas);
   }
   create(): void {
     this.graphics = this.add.graphics();
