@@ -335,14 +335,16 @@ svg {
 .preparation {
   padding: 0 0 28px;
 }
-.title-version {
+.title-meta {
   position: absolute;
+  left: var(--gutter);
   right: var(--gutter);
   bottom: 8px;
+  display: flex;
+  justify-content: space-between;
   color: var(--muted);
   font-size: 10px;
   line-height: 12px;
-  text-align: right;
   pointer-events: none;
 }
 .language-picker {

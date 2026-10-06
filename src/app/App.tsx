@@ -160,7 +160,10 @@ export default function App() {
                 <ArrowRight aria-hidden="true" />
               </button>
               <LanguagePicker value={language} onChange={changeLanguage} />
-              <small className="title-version">v{version}</small>
+              <small className="title-meta">
+                <span>© 2026 phykn</span>
+                <span>v{version}</span>
+              </small>
               {notice}
             </div>
           ) : (
