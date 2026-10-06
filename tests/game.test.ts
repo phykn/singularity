@@ -179,6 +179,81 @@ test('mass vent immediately removes mass and restores the orbit gradually at fix
   }
 });
 
+test('mass release reverses an actively shrinking orbit even while gravity still targets a smaller radius', () => {
+  const g = fixture();
+  g.mass = 150;
+  g.radius = 100;
+  g.advance(1000);
+  close(g.radius, 96);
+  const before = g.radius;
+  choose(g, 'recover');
+  assert.equal(g.mass, 100);
+  assert.ok(g.targetRadius < before, 'Gravity has not yet caught up with the actual orbit');
+  assert.equal(g.radius, before, 'Recovery must not teleport the electron');
+  g.advance(1000);
+  close(g.radius, before + rules.outwardSpeed);
+  g.advance((265 * 1000) / rules.tickRate);
+  close(g.radius, before + rules.recovery.mass * rules.gravityPerMass);
+  const recovered = g.radius;
+  g.advance(1000 / rules.tickRate);
+  close(g.radius, recovered - rules.inwardSpeed / rules.tickRate);
+  assert.equal(g.mass, 100, 'The recovery impulse cannot remove extra mass');
+});
+
+test('repeated mass releases cap the orbit and retain recovery while paused or hidden', () => {
+  const g = fixture();
+  g.mass = 150;
+  g.radius = 120;
+  choose(g, 'recover');
+  choose(g, 'recover');
+  assert.equal(g.mass, 50);
+  g.setManualPause(true);
+  g.advance(10000);
+  assert.equal(g.radius, 120);
+  g.setManualPause(false);
+  g.setHidden(true);
+  g.advance(10000);
+  assert.equal(g.radius, 120);
+  g.setHidden(false);
+  g.advance(2000);
+  close(g.radius, rules.orbitRadius);
+  g.advance(1000);
+  close(g.radius, rules.orbitRadius - rules.inwardSpeed);
+});
+
+test('mass release recovery follows rarity, clamps removed mass and is independent of frame rate', () => {
+  for (const rarity of ['common', 'rare', 'epic', 'legendary'] as const) {
+    const runs = [30, 60].map((fps) => {
+      const g = fixture();
+      g.mass = 150;
+      g.radius = 60;
+      const xp = g.xp;
+      choose(g, 'recover', rarity);
+      const removed = 150 - g.mass;
+      for (let frame = 0; frame < fps; frame++) g.advance(1000 / fps);
+      close(g.radius, 60 + rules.outwardSpeed);
+      const ticks = Math.ceil(
+        (Math.min(rules.orbitRadius - 60, removed * rules.gravityPerMass) / rules.outwardSpeed) *
+          rules.tickRate -
+          1e-8,
+      );
+      g.advance(((ticks - rules.tickRate) * 1000) / rules.tickRate);
+      close(g.radius, Math.min(rules.orbitRadius, 60 + removed * rules.gravityPerMass));
+      assert.equal(g.xp, xp);
+      return g;
+    });
+    close(runs[0].radius, runs[1].radius);
+    assert.deepEqual(runs[0].events, runs[1].events);
+  }
+  const g = fixture();
+  g.mass = rules.recovery.minMass;
+  g.radius = 120;
+  choose(g, 'recover', 'legendary');
+  assert.equal(g.mass, 0);
+  g.advance(10000);
+  close(g.radius, rules.orbitRadius);
+});
+
 test('early collision snapshots the energy boundary and cancels combat and cards', () => {
   for (const xp of [rules.energyGoal - 1, rules.energyGoal]) {
     const g = fixture({ repel: 3, focus: 3 });

@@ -1,6 +1,6 @@
 {
   "name": "web-game",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
@@ -16,6 +16,7 @@
     "benchmark": "node scripts/benchmark.ts",
     "check:browser": "node scripts/browser.mjs",
     "check:languages": "node scripts/languages.mjs",
+    "check:recovery": "node scripts/recovery.mjs",
     "check:resume": "node scripts/resume.mjs",
     "check:startup": "node scripts/startup.mjs",
     "check:title": "node scripts/title.mjs",

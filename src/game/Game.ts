@@ -96,6 +96,7 @@ export class Game {
   private nextTargetId = 0;
   private nextDamageId = 0;
   private remainder = 0;
+  private orbitRecovery = 0;
   private endingOutcome: Outcome = 'collapse-failure';
 
   constructor(seed: number, options: { combat?: boolean; rules?: RuleSet } = {}) {
@@ -326,6 +327,7 @@ export class Game {
     this.remainder = 0;
     this.mass = 0;
     this.radius = this.rules.orbitRadius;
+    this.orbitRecovery = 0;
     this.choice = null;
     this.targets = [];
     this.effects = [];
@@ -533,6 +535,18 @@ export class Game {
   }
 
   updateOrbit(): void {
+    if (this.orbitRecovery > 0) {
+      const change = Math.min(
+        this.orbitRecovery,
+        this.rules.outwardSpeed / this.rules.tickRate,
+        this.rules.orbitRadius - this.radius,
+      );
+      this.radius += change;
+      this.orbitRecovery = Math.max(0, this.orbitRecovery - change);
+      if (this.orbitRecovery < 1e-8 || this.radius >= this.rules.orbitRadius)
+        this.orbitRecovery = 0;
+      return;
+    }
     const change = this.targetRadius - this.radius;
     this.radius +=
       Math.sign(change) *
@@ -616,6 +630,10 @@ export class Game {
     if (id === 'recover') {
       const removed = Math.min(this.mass, recoveryMass(card.rarity, this.rules));
       this.mass -= removed;
+      this.orbitRecovery = Math.min(
+        this.rules.orbitRadius - this.radius,
+        this.orbitRecovery + removed * this.rules.gravityPerMass,
+      );
       this.log('recover', { removed, mass: this.mass });
     } else if (isSkill(id)) this.ranks[id]++;
     else this.boosts[id]++;
