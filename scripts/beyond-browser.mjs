@@ -93,7 +93,42 @@ try {
       .locator('.hud')
       .evaluate((node) => Number(getComputedStyle(node).opacity));
     assert.ok(orbitHud > openingHud && orbitHud < 1);
+    const appearance = () =>
+      page.evaluate(() => {
+        const scene = window.__gameScene;
+        const stroke = scene.graphics.strokeCircle,
+          line = scene.graphics.lineStyle;
+        let style, ring;
+        scene.graphics.lineStyle = function (...args) {
+          style = args;
+          return line.apply(this, args);
+        };
+        scene.graphics.strokeCircle = function (x, y, radius) {
+          if (x === 180 && y === 260 && !ring) ring = { radius, style };
+          return stroke.call(this, x, y, radius);
+        };
+        try {
+          scene.update();
+        } finally {
+          scene.graphics.strokeCircle = stroke;
+          scene.graphics.lineStyle = line;
+        }
+        const electron = scene.sprites.images.find(
+          (image) => image.visible && image.texture.key === 'electron',
+        );
+        return { ring, scale: scene.worldScale, electron: { x: electron.x, y: electron.y } };
+      });
+    await pose(2.4 - 1 / 60);
+    const before = await appearance();
     const entered = await pose(2.4);
+    const after = await appearance();
+    assert.ok(Math.abs(before.ring.radius - after.ring.radius) * after.scale < 0.1);
+    assert.equal(before.ring.style[0], after.ring.style[0]);
+    assert.equal(before.ring.style[1], after.ring.style[1]);
+    assert.ok(Math.abs(before.ring.style[2] - after.ring.style[2]) < 0.01);
+    assert.ok(
+      Math.hypot(before.electron.x - after.electron.x, before.electron.y - after.electron.y) <= 1,
+    );
     assert.equal(entered.phase, 'running');
     assert.equal(entered.seconds, 0);
     await page.waitForFunction(

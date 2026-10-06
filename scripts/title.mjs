@@ -92,6 +92,67 @@ try {
     await page.evaluate(() => {
       window.__gameScene.drawIntro = window.introOriginal;
     });
+    const seam = await page.evaluate(async () => {
+      const scene = window.__gameScene,
+        game = window.__gameDebug.getModel();
+      const original = scene.getLaunch;
+      const electron = () => {
+        const sprite = scene.sprites.images.find(
+          (image) => image.visible && image.texture.key === 'electron',
+        );
+        const rect = scene.game.canvas.getBoundingClientRect();
+        return {
+          x: rect.left + sprite.x,
+          y: rect.top + sprite.y,
+          alpha: sprite.alpha,
+          size: sprite.displayWidth,
+        };
+      };
+      scene.update();
+      const before = electron(),
+        origin = scene.intro.radius;
+      let progress = 0;
+      scene.getLaunch = () => progress;
+      document.querySelector('.app').classList.add('is-launching');
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const poses = [];
+      for (const p of [0, 0.25, 0.5, 0.75, 1]) {
+        progress = p;
+        const circles = [],
+          stroke = scene.graphics.strokeCircle;
+        scene.graphics.strokeCircle = function (x, y, radius) {
+          circles.push(radius);
+          return stroke.call(this, x, y, radius);
+        };
+        try {
+          scene.update();
+        } finally {
+          scene.graphics.strokeCircle = stroke;
+        }
+        poses.push({ p, ...electron(), radius: circles[0] });
+      }
+      const final = poses.at(-1);
+      game.start();
+      game.setHidden(true);
+      scene.update();
+      const running = electron();
+      scene.getLaunch = original;
+      window.__gameDebug.prepare(10004);
+      return { before, origin, target: game.radius * scene.worldScale, poses, final, running };
+    });
+    assert.ok(Math.hypot(seam.before.x - seam.poses[0].x, seam.before.y - seam.poses[0].y) <= 1);
+    assert.ok(Math.hypot(seam.final.x - seam.running.x, seam.final.y - seam.running.y) <= 1);
+    for (const pose of seam.poses) {
+      assert.equal(pose.alpha, 1);
+      assert.equal(pose.size, 16);
+      assert.ok(
+        pose.radius >= Math.min(seam.origin, seam.target) - 1e-8,
+        'The orbit never collapses toward the core',
+      );
+      assert.ok(pose.radius <= Math.max(seam.origin, seam.target) + 1e-8);
+    }
+    await page.getByRole('button', { name: 'START', exact: true }).waitFor();
+    await page.waitForFunction(() => !document.querySelector('.start').disabled);
     const started = Date.now();
     const initial = await page.evaluate(() => {
       document.querySelector('.start').click();
@@ -107,7 +168,7 @@ try {
     assert.equal(initial.tick, 0);
     assert.equal(initial.progress, 0);
     await page.waitForFunction(() => window.__gameDebug.getModel().phase === 'running');
-    assert.ok(Date.now() - started >= 250);
+    assert.ok(Date.now() - started >= 350);
     assert.equal(
       await page.evaluate(
         () => window.__gameDebug.getModel().events.filter((event) => event.kind === 'start').length,
@@ -121,6 +182,7 @@ try {
       pulse,
       reducedMotion: true,
       launchOnce: true,
+      seam,
       layout,
     });
     await page.close();

@@ -3,7 +3,8 @@ import type { UpgradeId } from '../game/rules.ts';
 export const BLUE = 0x8ce8fb,
   WHITE = 0xf1fcff,
   AMBER = 0xffd08a,
-  GOLD = 0xf9d894;
+  GOLD = 0xf9d894,
+  VIOLET = 0xb0a0ff;
 
 // Skill identity stays the same across attacks, cards and icons; rarity uses the frame.
 export const skillColors: Record<UpgradeId, number> = {

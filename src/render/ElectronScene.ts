@@ -14,7 +14,7 @@ import { DamageLabels } from './DamageLabels.ts';
 import { orbit, clamp } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
 import type { Game } from '../game/Game.ts';
-import { BLUE, WHITE, AMBER, GOLD, skillColors } from '../art/palette.ts';
+import { BLUE, WHITE, AMBER, GOLD, VIOLET, skillColors } from '../art/palette.ts';
 import { drawEffect } from './drawEffects.ts';
 import { drawWaveWarning } from './warning.ts';
 import { drawElectronField } from './electronField.ts';
@@ -29,8 +29,8 @@ export class ElectronScene extends Phaser.Scene {
   private impactAt = -Infinity;
   private lastModel: Game | null = null;
   private returnAt = -Infinity;
-  private beganAt = -Infinity;
-  private launchPending = false;
+  private intro: { x: number; y: number; radius: number; core: number; angle: number } | null =
+    null;
   private offset = { x: 0, y: 0 };
   private width = 0;
   private centerY = 0;
@@ -81,19 +81,13 @@ export class ElectronScene extends Phaser.Scene {
           : -Infinity;
       this.lastModel = game;
       this.impactAt = -Infinity;
-      this.beganAt = -Infinity;
-      this.launchPending = false;
+      this.intro = null;
     }
     if (game.phase === 'ready') {
-      this.launchPending = this.getLaunch() !== null;
       this.offset = { x: 0, y: 0 };
       this.drawIntro(width, height);
       this.cover(width, height, 1 - clamp((this.time.now - this.returnAt) / 550));
       return;
-    }
-    if (this.launchPending) {
-      this.beganAt = this.time.now;
-      this.launchPending = false;
     }
     g.setPosition(width / 2 - 180 * scale, this.centerY - 260 * scale);
     g.setScale(scale);
@@ -108,7 +102,7 @@ export class ElectronScene extends Phaser.Scene {
       clock = game.seconds;
     const danger = !game.charged && game.margin < game.rules.dangerMargin;
     const color = game.charged ? GOLD : BLUE;
-    const orbitColor = game.endless ? 0xb0a0ff : color;
+    const orbitColor = game.endless ? VIOLET : color;
     const position = game.position,
       damage = game.damage;
     if (!ending && clock - this.impactAt > 0.65) {
@@ -211,7 +205,6 @@ export class ElectronScene extends Phaser.Scene {
       );
       this.drawElectron(position, 1, color, surging);
       this.damageLabels.draw(game, width, height, this.centerY, scale);
-      this.cover(width, height, 0.5 * (1 - clamp((this.time.now - this.beganAt) / 160)));
       return;
     }
     if (ending.electron) {
@@ -254,7 +247,6 @@ export class ElectronScene extends Phaser.Scene {
     seed: number,
   ): void {
     const g = this.graphics;
-    const violet = 0xb0a0ff;
     if (frame.stage === 'contract' || frame.stage === 'quiet') {
       this.drawPixelRing(
         frame.reducedMotion ? 24 : frame.core,
@@ -263,17 +255,12 @@ export class ElectronScene extends Phaser.Scene {
         scale,
       );
     } else {
-      this.drawPixelRing(
-        frame.ring,
-        frame.stage === 'open' ? BLUE : violet,
-        0.8 * frame.alpha,
-        scale,
-      );
+      this.drawOrbit(frame.ring, frame.color, frame.opacity * frame.alpha, false, scale);
       for (let i = 0; i < 12; i++) {
         const angle = (i * Math.PI) / 6 + (seed % 100) / 100;
         const radius = frame.reducedMotion ? 155 : 22 + frame.expand * (130 + (i % 3) * 7);
         const p = orbit(angle, radius);
-        g.fillStyle(i % 3 === 0 ? BLUE : violet, (1 - frame.expand) * 0.65 * frame.alpha);
+        g.fillStyle(frame.color, (1 - frame.expand) * 0.4 * frame.alpha);
         g.fillRect(
           Math.round(p.x * scale) / scale,
           Math.round(p.y * scale) / scale,
@@ -283,6 +270,12 @@ export class ElectronScene extends Phaser.Scene {
       }
       if (frame.electron > 0)
         this.drawElectron(orbit(frame.angle, frame.ring), frame.electron * frame.alpha);
+    }
+    if (frame.spark > 0) {
+      g.fillStyle(WHITE, frame.spark * 0.85);
+      g.fillRect(180 - 1.5 / scale, 260 - 1.5 / scale, 3 / scale, 3 / scale);
+      g.lineStyle(1 / scale, GOLD, frame.spark * 0.25);
+      g.strokeCircle(180, 260, 5 / scale);
     }
   }
   private drawOrbit(
@@ -401,19 +394,34 @@ export class ElectronScene extends Phaser.Scene {
   private drawIntro(width: number, height: number): void {
     const g = this.graphics,
       clock = this.time.now / 1000;
-    const frame = introFrame(clock, this.getLaunch(), this.reducedMotion.matches);
-    const x = width / 2,
-      y = height * 0.51;
-    const size = Math.min(width * 0.44, height * 0.45, 184),
-      radius = size * frame.radius,
-      core = size * 0.42 * frame.core;
+    const progress = this.getLaunch();
+    const frame = introFrame(clock, progress, this.reducedMotion.matches);
+    const rect = this.game.canvas.getBoundingClientRect();
+    const size = Math.min(width * 0.44, height * 0.45, 184);
+    if (progress === null || !this.intro)
+      this.intro = {
+        x: rect.left + width / 2,
+        y: rect.top + height * 0.51,
+        radius: size,
+        core: size * 0.42,
+        angle: frame.angle,
+      };
+    const origin = this.intro;
+    const settle = progress === null ? 0 : frame.settle;
+    const game = this.getGame();
+    const x = origin.x - rect.left + (width / 2 - (origin.x - rect.left)) * settle;
+    const y = origin.y - rect.top + (this.centerY - (origin.y - rect.top)) * settle;
+    const radius = origin.radius + (game.radius * this.worldScale - origin.radius) * settle;
+    const core = origin.core * frame.core;
+    let angle = progress === null ? frame.angle : origin.angle;
+    angle += Math.atan2(Math.sin(game.angle - angle), Math.cos(game.angle - angle)) * settle;
     g.setPosition(0, 0);
     g.setScale(1);
-    g.lineStyle(1, 0x7295af, 0.4 * frame.alpha);
+    g.lineStyle(1, progress === null ? 0x7295af : BLUE, 0.4 - 0.08 * settle);
     g.strokeCircle(x, y, radius);
-    g.fillStyle(0x0b1219, frame.alpha);
+    g.fillStyle(0x0b1219, 1 - settle);
     g.fillCircle(x, y, core);
-    g.lineStyle(1, 0xa7c4d9, 0.3 * frame.alpha);
+    g.lineStyle(1, 0xa7c4d9, 0.3 * (1 - settle));
     g.strokeCircle(x, y, core);
     for (let i = 0; i < 96; i++) {
       const a = (i / 96) * Math.PI * 2,
@@ -424,7 +432,7 @@ export class ElectronScene extends Phaser.Scene {
         [3, 0.18, BLUE],
         [1, 1, WHITE],
       ]) {
-        g.lineStyle(stroke, ink, alpha * light * frame.alpha);
+        g.lineStyle(stroke, ink, alpha * light * (1 - settle));
         g.lineBetween(
           x + Math.cos(a) * core,
           y + Math.sin(a) * core,
@@ -433,11 +441,16 @@ export class ElectronScene extends Phaser.Scene {
         );
       }
     }
-    const angle = frame.angle;
-    for (let i = 36; i > 0; i--) {
-      const a = angle - i * 0.022,
-        next = angle - (i - 1) * 0.022;
-      g.lineStyle(1, BLUE, (1 - i / 36) * 0.7 * frame.alpha);
+    const length = Math.round(36 - 28 * settle),
+      step = 0.022 + 0.013 * settle;
+    for (let i = length; i > 0; i--) {
+      const a = angle - i * step,
+        next = angle - (i - 1) * step;
+      g.lineStyle(
+        1 + 2 * settle * (1 - i / length),
+        BLUE,
+        (1 - i / length) * (0.7 - 0.05 * settle),
+      );
       g.lineBetween(
         x + Math.cos(a) * radius,
         y + Math.sin(a) * radius,
@@ -455,17 +468,17 @@ export class ElectronScene extends Phaser.Scene {
             pose,
             'beams',
             pose.length / 64,
-            frame.pulse * frame.alpha * 0.75,
+            frame.pulse * 0.75,
             1.5,
             beamFrame('basic', clock, 2),
             pose.angle,
           )
           .setTintMode(Phaser.TintModes.MULTIPLY)
           .setTint(BLUE);
-      g.fillStyle(WHITE, frame.pulse * frame.alpha);
+      g.fillStyle(WHITE, frame.pulse);
       g.fillRect(Math.round(contact.x) - 1, Math.round(contact.y) - 1, 2, 2);
     }
-    this.sprites.draw(electron, 'electron', 1, frame.alpha, 2).clearTint();
+    this.sprites.draw(electron, 'electron', 1, 1, 2).clearTint();
   }
   private screen(point: Point): Point {
     return {

@@ -321,6 +321,12 @@ svg {
   animation: none;
   opacity: 0;
 }
+.is-ready.is-launching .play-layout {
+  grid-template-rows: 48px minmax(0, 1fr) 88px;
+}
+.is-ready.is-launching .canvas {
+  bottom: 0;
+}
 .arena-caption h1 {
   font-size: 36px;
   font-weight: 400;
@@ -1192,6 +1198,14 @@ svg {
     grid-column: 2;
     grid-row: 2;
     align-self: center;
+  }
+  .is-ready.is-launching .play-layout {
+    grid-template-columns: minmax(0, 1fr) 320px;
+    grid-template-rows: 48px minmax(0, 1fr) 88px;
+  }
+  .is-ready.is-launching .footer {
+    grid-row: 3;
+    align-self: stretch;
   }
   .is-ready {
     --gutter: 20px;

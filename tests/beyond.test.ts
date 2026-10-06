@@ -12,6 +12,7 @@ import {
   save,
 } from '../src/app/storage.ts';
 import { beyondFrame } from '../src/render/beyond.ts';
+import { BLUE, VIOLET } from '../src/art/palette.ts';
 import type { Result } from '../src/game/types.ts';
 
 function cleared() {
@@ -203,8 +204,10 @@ test('entry key poses settle on the real electron position without screen flashe
   const g = cleared();
   g.continueBeyond();
   assert.equal(beyondFrame(g)?.stage, 'contract');
+  assert.equal(beyondFrame(g)?.color, BLUE);
   g.advance(800);
   assert.equal(beyondFrame(g)?.stage, 'quiet');
+  assert.equal(beyondFrame(g)?.spark, 1);
   g.advance(200);
   assert.equal(beyondFrame(g)?.stage, 'open');
   g.advance(1350);
@@ -212,8 +215,32 @@ test('entry key poses settle on the real electron position without screen flashe
   assert.equal(frame.stage, 'orbit');
   assert.ok(Math.abs(frame.ring - g.radius) < 0.1);
   assert.ok(Math.abs(frame.angle - g.angle) < 0.01);
+  assert.equal(frame.color, VIOLET);
+  assert.equal(frame.spark, 0);
   assert.equal(beyondFrame(g, true)?.ring, g.radius);
   assert.equal(beyondFrame(g, true)?.angle, g.angle);
+  g.phaseTicks = g.rules.tickRate * g.rules.endless.entrySeconds;
+  assert.ok(Math.abs(beyondFrame(g)!.opacity - 0.32) < 1e-8);
+  assert.equal(beyondFrame(g)!.ring, g.radius);
+  assert.equal(beyondFrame(g)!.angle, g.angle);
+});
+
+test('entry hue and brightness change continuously and settle at the combat appearance', () => {
+  const g = cleared();
+  g.continueBeyond();
+  let previous = beyondFrame(g)!;
+  for (let tick = 1; tick <= g.rules.tickRate * g.rules.endless.entrySeconds; tick++) {
+    g.phaseTicks = tick;
+    const frame = beyondFrame(g)!;
+    for (const shift of [16, 8, 0])
+      assert.ok(Math.abs(((frame.color >> shift) & 255) - ((previous.color >> shift) & 255)) <= 3);
+    assert.ok(frame.opacity <= previous.opacity + 1e-8);
+    assert.ok(previous.opacity - frame.opacity < 0.01);
+    assert.ok(frame.ring >= previous.ring);
+    previous = frame;
+  }
+  assert.equal(previous.color, VIOLET);
+  assert.ok(Math.abs(previous.opacity - 0.32) < 1e-8);
 });
 
 test('checkpoints preserve automatic selection timing at 2x and the remaining choice timer', () => {

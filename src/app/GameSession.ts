@@ -2,6 +2,7 @@ import type { Game } from '../game/Game.ts';
 import type { UpgradeId } from '../game/rules.ts';
 import type { Result } from '../game/types.ts';
 import type { GameAudio } from './GameAudio.ts';
+import { launchMilliseconds } from '../render/intro.ts';
 
 type SessionEffects = {
   sound: () => boolean;
@@ -138,7 +139,7 @@ export class GameSession {
         if (!game.paused) {
           this.launchProgress = Math.min(
             1,
-            this.launchProgress + Math.max(0, wall - this.lastWall) / 300,
+            this.launchProgress + Math.max(0, wall - this.lastWall) / launchMilliseconds,
           );
           if (this.launchProgress >= 1 - 1e-8) this.begin(wall);
         }
