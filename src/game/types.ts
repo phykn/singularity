@@ -20,6 +20,8 @@ export type Target = Point & {
   turn: number;
   hitAt?: number;
   bridgeUntil?: number;
+  bridgeReady?: number;
+  previousRadius?: number;
   pushReady?: number;
   gatherReady?: number;
   controlCount?: number;
@@ -51,6 +53,7 @@ export type Effect = {
   targetId?: number;
   anchor?: 'electron';
   endAnchor?: 'electron';
+  arc?: { start: number; sweep: number };
 };
 export type EffectInput = Omit<Effect, 'born' | 'rank' | 'rarity'> &
   Partial<Pick<Effect, 'rank' | 'rarity'>>;

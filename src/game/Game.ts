@@ -497,6 +497,7 @@ export class Game {
 
   moveTargets(): void {
     for (const target of this.targets) {
+      target.previousRadius = target.radius;
       const motion = particleMotion(target.particle, this.time - target.born);
       target.radius = Math.max(
         0,
@@ -863,6 +864,7 @@ export class Game {
       anchor,
       endAnchor,
       targetId,
+      arc: input.arc ? { ...input.arc } : undefined,
     };
     this.effects.push(effect);
     if (this.effects.length > 160) {

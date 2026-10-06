@@ -52,7 +52,7 @@ export function skillValue(
     case 'charge':
       return `${m.charge} ${n(s.charge.threshold)} · ×${n(s.charge.damage)}`;
     case 'bridge':
-      return `${m.length} ${n(s.bridge.length)} · ${n(s.bridge.duration)}${c.seconds}`;
+      return `${n(s.bridge.angle)}° · ${n(s.bridge.duration)}${c.seconds}`;
     case 'gather':
       return `${m.targets(String(s.gather.count))} · ${m.radius} ${n(s.gather.radius)}`;
     case 'vent':

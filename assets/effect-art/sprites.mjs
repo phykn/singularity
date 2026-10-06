@@ -97,13 +97,7 @@ export function effectArtwork() {
           for (let y = -Math.floor(width / 2); y < Math.ceil(width / 2); y++)
             beam.line(points[i - 1][0], points[i - 1][1] + y, points[i][0], points[i][1] + y, 1);
           for (let y = -Math.floor(core / 2); y < Math.ceil(core / 2); y++)
-            beam.line(
-              points[i - 1][0],
-              points[i - 1][1] + y,
-              points[i][0],
-              points[i][1] + y,
-              row === 6 ? 2 : 3,
-            );
+            beam.line(points[i - 1][0], points[i - 1][1] + y, points[i][0], points[i][1] + y, 3);
         }
         // Short attached forks, never a second full-length beam or loose noise.
         if (tier >= 2) {

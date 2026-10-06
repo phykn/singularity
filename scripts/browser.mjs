@@ -387,6 +387,11 @@ const showSkill = async (page, id, rank = 5, rarity = 'common') =>
           g.combat.fireBasic(t);
         }
       } else if (id === 'bridge') {
+        // Place a crossing on the actual orbital arc, away from the electron.
+        nearest.angle = g.angle + 0.2;
+        nearest.radius = g.radius;
+        nearest.x = 180 + Math.cos(nearest.angle) * nearest.radius;
+        nearest.y = 260 + Math.sin(nearest.angle) * nearest.radius;
         g.combat.fireSkill('bridge');
       } else if (id === 'vent') {
         g.mass = 40;
@@ -398,7 +403,13 @@ const showSkill = async (page, id, rank = 5, rarity = 'common') =>
       else g.combat.fireBasic();
       if (id === 'return') g.angle += 0.65;
       window.__gameDebug.advance(
-        id === 'return' ? 300 : id === 'repeat' ? 150 : id === 'satellite' ? 400 : 50,
+        id === 'return'
+          ? 300
+          : id === 'repeat'
+            ? 150
+            : id === 'satellite' || id === 'bridge'
+              ? 400
+              : 50,
       );
       g.setHidden(true);
       return {

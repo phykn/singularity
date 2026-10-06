@@ -162,6 +162,7 @@ export class ElectronScene extends Phaser.Scene {
           game.targets,
           this.stamp,
           this.beam,
+          game.radius,
         );
       const surging = game.combat.status('surge').active;
       if (game.ranks.charge || surging)

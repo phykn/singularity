@@ -101,20 +101,6 @@ test('vent rarity improves recovery without adding damage, XP or negative mass',
   assert.equal(g.combat.fireSkill('vent'), false);
 });
 
-test('barrier occupancy never stacks slow and immediately releases enemies after leaving', () => {
-  const p = target(0, 180, 140, 10000);
-  const g = stationarySkill({ bridge: 5 }, [p]);
-  for (let i = 0; i < 20; i++) g.combat.fireSkill('bridge');
-  g.advance(20);
-  close(10000 - p.hp, g.damage * g.forms.bridge.damage * g.forms.bridge.count);
-  assert.equal(g.combat.movementScale(p), rules.skills.bridge.movementScale);
-  Object.assign(p, target(0, 300, 260, p.hp));
-  g.advance(100);
-  assert.equal(g.combat.movementScale(p), 1);
-  g.combat.clear();
-  assert.equal(g.combat.status('bridge').active, false);
-});
-
 test('new skills survive a natural checkpoint and reproduce future combat and mass', () => {
   let checked = false;
   for (let seed = 92000; seed < 92050 && !checked; seed++) {

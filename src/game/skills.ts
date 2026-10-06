@@ -62,11 +62,14 @@ export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rul
       damage: s.charge.damage[ranks.charge] * scale('charge'),
     },
     bridge: {
-      length: s.bridge.lengths[ranks.bridge] * scale('bridge') * reach,
+      angle: Math.min(
+        s.bridge.maxAngle,
+        s.bridge.angles[ranks.bridge] * scale('bridge') * (1 + 0.035 * (multi - 1)),
+      ),
       duration: s.bridge.duration[ranks.bridge],
-      count: s.bridge.count[ranks.bridge] + extra('bridge'),
+      push: s.bridge.push[ranks.bridge] * scale('bridge'),
       damage: s.bridge.damage[ranks.bridge] * scale('bridge'),
-      width: s.bridge.width[ranks.bridge] * scale('bridge'),
+      width: s.bridge.width[ranks.bridge],
     },
     gather: {
       radius: s.gather.radii[ranks.gather] * scale('gather') * reach,

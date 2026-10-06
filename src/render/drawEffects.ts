@@ -3,7 +3,7 @@ import { BLUE, WHITE, AMBER, skillColors } from '../art/palette.ts';
 import { effectOrigin } from './effects.ts';
 import type { BeamStamp, EffectStamp } from './effects.ts';
 import { rarityIds } from '../game/rules.ts';
-import { lerp, clamp } from '../game/geometry.ts';
+import { lerp, clamp, orbit } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
 import type { Effect, Target } from '../game/types.ts';
 type Graphics = Phaser.GameObjects.Graphics;
@@ -71,6 +71,7 @@ export function drawEffect(
   targets: Target[],
   stamp: EffectStamp,
   beam: BeamStamp,
+  orbitRadius = fx.radius,
 ): void {
   const from = effectOrigin(fx, electron);
   const to =
@@ -91,10 +92,35 @@ export function drawEffect(
   const impactSize = 20 + rank * 4;
   const clock = time + fx.born * 3;
   if (fx.kind === 'bridge') {
-    beam('bridge', from, to, clock, ink, light * 0.78, 16, rank);
-    g.fillStyle(WHITE, 0.65);
-    const phase = (time * 1.5) % 1;
-    g.fillRect(lerp(from.x, to.x, phase), lerp(from.y, to.y, phase), 2 / scale, 2 / scale);
+    if (!fx.arc || fx.arc.sweep <= 0) return;
+    const steps = Math.max(1, Math.ceil(fx.arc.sweep / 0.15));
+    for (let i = 0; i < steps; i++) {
+      const start = fx.arc.start + (fx.arc.sweep * i) / steps;
+      const end = fx.arc.start + (fx.arc.sweep * (i + 1)) / steps;
+      beam(
+        'bridge',
+        orbit(start, orbitRadius),
+        orbit(end, orbitRadius),
+        clock + i * 0.07,
+        ink,
+        light,
+        16,
+        rank,
+      );
+    }
+    for (const edge of [fx.arc.start, fx.arc.start + fx.arc.sweep]) {
+      stroke(
+        g,
+        [orbit(edge, orbitRadius - 2 / scale), orbit(edge, orbitRadius + 2 / scale)],
+        1,
+        WHITE,
+        0.85,
+        scale,
+      );
+    }
+    const point = orbit(fx.arc.start + fx.arc.sweep * ((time * 1.5) % 1), orbitRadius);
+    g.fillStyle(WHITE, 0.7);
+    g.fillRect(point.x - 1 / scale, point.y - 1 / scale, 2 / scale, 2 / scale);
   } else if (fx.kind === 'vent') {
     // A few outward motes make mass loss visible without a persistent core border.
     for (let i = 0; i < 6; i++) {

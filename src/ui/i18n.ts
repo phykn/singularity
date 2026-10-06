@@ -98,7 +98,7 @@ const ko = {
     range: {
       name: '사거리',
       short: '사거리',
-      description: '조준·연쇄 거리와 관통·전류선 길이 증가',
+      description: '조준·연쇄 거리와 관통 길이 증가',
     },
     speed: { name: '이동속도', short: '이동속도', description: '전자가 궤도를 도는 속도 증가' },
     recover: {
@@ -145,9 +145,9 @@ const ko = {
     },
     charge: { name: '축전', short: '축전', description: '적중으로 전하 축적. 가득 차면 강한 방전' },
     bridge: {
-      name: '전류 가교',
-      short: '전류 가교',
-      description: '진입로에 전류 장벽 생성. 닿은 적을 감속하며 지속 공격',
+      name: '궤도 장벽',
+      short: '궤도 장벽',
+      description: '궤도에 짧은 전기 장벽을 남겨 적을 감속하고 밀어냄',
     },
     gather: {
       name: '자기 응집',
@@ -203,7 +203,7 @@ const ko = {
     focus: ['유지할수록 강화', '연결 시간 ↑'],
     satellite: ['주위를 돌며 방전', '위성 수 ↑'],
     charge: ['충전 후 방전', '충전↓위력↑'],
-    bridge: ['장벽으로 감속·공격', '장벽 강화'],
+    bridge: ['궤도에서 감속·반발', '길이·지속 ↑'],
     gather: ['모으며 방전', '대상·위력 ↑'],
     vent: ['주기적으로 질량 감소', '회복량 ↑'],
     chase: ['처치하면 다음 적 추격', '연속 추격 ↑'],
@@ -303,7 +303,7 @@ const en: Copy = {
     range: {
       name: 'Range',
       short: 'Range',
-      description: 'Extend targeting, chain jumps, beams and bridges',
+      description: 'Extend targeting, chain jumps and piercing beams',
     },
     speed: { name: 'Move Speed', short: 'Move Speed', description: 'Move faster around the orbit' },
     recover: {
@@ -362,9 +362,9 @@ const en: Copy = {
       description: 'Hits store charge; a full charge releases a heavy bolt',
     },
     bridge: {
-      name: 'Current Bridge',
-      short: 'Current Bridge',
-      description: 'Place a barrier across an approach; slow and shock enemies inside',
+      name: 'Orbit Barrier',
+      short: 'Orbit Barrier',
+      description: 'Leave a short arc on your orbit that slows and repels crossing enemies',
     },
     gather: {
       name: 'Magnetic Gather',
@@ -420,7 +420,7 @@ const en: Copy = {
     focus: ['Sustain to grow', 'Longer lock'],
     satellite: ['Orbit & zap', 'More satellites'],
     charge: ['Store & release', 'Charge cost ↓'],
-    bridge: ['Slow & shock', 'Stronger barrier'],
+    bridge: ['Slow & repel', 'Arc · duration ↑'],
     gather: ['Gather & zap', 'Targets · power ↑'],
     vent: ['Shed core mass', 'More mass shed'],
     chase: ['Kills jump onward', 'More pursuit jumps'],
@@ -506,7 +506,7 @@ const zh: Copy = {
   upgrades: {
     power: { name: '攻击力', short: '攻击力', description: '提高所有闪电的伤害' },
     rate: { name: '攻击速度', short: '攻击速度', description: '缩短普通攻击与攻击技能的间隔' },
-    range: { name: '射程', short: '射程', description: '延长瞄准、连锁、贯穿和电流桥距离' },
+    range: { name: '射程', short: '射程', description: '延长瞄准、连锁和贯穿距离' },
     speed: { name: '移动速度', short: '移动速度', description: '提高电子绕轨道移动的速度' },
     recover: {
       name: '质量释放',
@@ -532,9 +532,9 @@ const zh: Copy = {
     },
     charge: { name: '蓄电', short: '蓄电', description: '命中积蓄电荷，充满后强力放电' },
     bridge: {
-      name: '电流桥',
-      short: '电流桥',
-      description: '在敌人来路设置电流屏障，减速并持续攻击',
+      name: '轨道屏障',
+      short: '轨道屏障',
+      description: '在轨道上留下短电弧，减速并击退穿过的敌人',
     },
     gather: { name: '磁力聚集', short: '磁力聚集', description: '将附近敌人聚向外侧目标并放电' },
     vent: {
@@ -578,7 +578,7 @@ const zh: Copy = {
     focus: ['持续增强', '连接时间 ↑'],
     satellite: ['环绕放电', '卫星数量 ↑'],
     charge: ['蓄电放电', '蓄电需求 ↓'],
-    bridge: ['屏障减速攻击', '屏障强化'],
+    bridge: ['轨道减速·击退', '长度·持续时间 ↑'],
     gather: ['聚集放电', '目标·威力 ↑'],
     vent: ['定期减少质量', '恢复量 ↑'],
     chase: ['击杀继续追击', '追击次数 ↑'],
@@ -671,7 +671,7 @@ const ja: Copy = {
     range: {
       name: '射程',
       short: '射程',
-      description: '照準・連鎖・貫通・電流線の距離を延長',
+      description: '照準・連鎖・貫通の距離を延長',
     },
     speed: { name: '移動速度', short: '移動速度', description: '電子が軌道を回る速度が上がる' },
     recover: {
@@ -714,9 +714,9 @@ const ja: Copy = {
     },
     charge: { name: '蓄電', short: '蓄電', description: '命中で蓄電。満タンで強い雷を放つ' },
     bridge: {
-      name: '電流ブリッジ',
-      short: '電流ブリッジ',
-      description: '進路に電流の壁を設置。触れた敵を減速し継続攻撃',
+      name: '軌道障壁',
+      short: '軌道障壁',
+      description: '軌道に短い電気の壁を残し、通過する敵を減速して押し戻す',
     },
     gather: {
       name: '磁気収束',
@@ -772,7 +772,7 @@ const ja: Copy = {
     focus: ['接続で強化', '接続時間 ↑'],
     satellite: ['周回して放電', '衛星数 ↑'],
     charge: ['蓄電して放電', '必要蓄電 ↓'],
-    bridge: ['壁で減速・攻撃', '壁を強化'],
+    bridge: ['軌道で減速・反発', '長さ・持続時間 ↑'],
     gather: ['集めて放電', '対象・威力 ↑'],
     vent: ['定期的に質量減少', '回復量 ↑'],
     chase: ['撃破で次へ追撃', '追撃回数 ↑'],

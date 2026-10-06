@@ -1,5 +1,27 @@
-// Native pixel glyphs for the orbiting companion and outward mass release.
+// Native pixel glyphs with restrained silhouettes at the original 16-pixel scale.
 export const skillGlyphs = [
+  {
+    cell: 15,
+    colors: ['', '#203249', '#4e70a8', '#9bafff', '#eef5ff'],
+    rows: [
+      '................',
+      '......2332......',
+      '....2344432.....',
+      '...23....343....',
+      '..12......343...',
+      '..1........342..',
+      '.1..........32..',
+      '.1.....11...22..',
+      '.1.....12....1..',
+      '.1...........1..',
+      '..1.........1...',
+      '..11........1...',
+      '...11......1....',
+      '.....11..11.....',
+      '.......11.......',
+      '................',
+    ],
+  },
   {
     cell: 13,
     colors: ['', '#173949', '#327d98', '#81dcef', '#edfcff'],

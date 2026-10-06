@@ -65,7 +65,7 @@ test('gather damages gathered survivors without pulling them toward the core', (
   ts.forEach((t, i) => assert.ok(t.radius >= radii[i] - 1e-8));
 });
 
-test('gather growth and rarity increase damage; wires and returns gain useful width', () => {
+test('rank and rarity strengthen gather, orbital coverage, return width and charge', () => {
   const forms = (rank: number, legendary = false) =>
     skillValues(
       { ...blankRanks(), gather: rank, bridge: rank, return: rank, charge: rank },
@@ -82,7 +82,7 @@ test('gather growth and rarity increase damage; wires and returns gain useful wi
     last = forms(5),
     rare = forms(5, true);
   assert.ok(first.gather.damage < last.gather.damage && last.gather.damage < rare.gather.damage);
-  assert.ok(first.bridge.width < last.bridge.width && last.bridge.width < rare.bridge.width);
+  assert.ok(first.bridge.angle < last.bridge.angle && last.bridge.angle < rare.bridge.angle);
   assert.ok(first.return.width < last.return.width && last.return.width < rare.return.width);
   assert.ok(rare.charge.threshold < last.charge.threshold);
 });

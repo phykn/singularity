@@ -1,6 +1,6 @@
 {
   "name": "web-game",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
@@ -21,6 +21,7 @@
     "check:choice-pause": "node scripts/choice-pause.mjs",
     "check:effects": "node scripts/effects.mjs",
     "check:electric": "node scripts/electric.mjs",
+    "check:barrier": "node scripts/orbit-barrier.mjs",
     "check:performance": "node scripts/performance.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "build": "tsc --noEmit && vite build",

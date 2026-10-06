@@ -40,14 +40,13 @@ type Focus = {
   group: number;
   started: boolean;
 };
-type Bridge = {
+type Barrier = {
   id: number;
   attack: Attack;
-  from: Point;
-  to: Point;
+  start: number;
+  sweep: number;
   until: number;
   drawn: number;
-  next: Map<number, number>;
 };
 
 export class Combat {
@@ -70,7 +69,7 @@ export class Combat {
   };
   private pulses: Pulse[] = [];
   private focus: Focus[] = [];
-  private bridges: Bridge[] = [];
+  private barriers: Barrier[] = [];
   private surgeCharge = 0;
   private storedCharge = 0;
   private lastSurgeCharge = -Infinity;
@@ -136,7 +135,7 @@ export class Combat {
           (g.rules.skills[id].periodSeconds / (id === 'vent' ? 1 : g.rate)) * g.rules.tickRate;
     }
     this.updateFocus();
-    this.updateBridges();
+    this.updateBarriers();
     this.updateSurge();
   }
 
@@ -172,7 +171,7 @@ export class Combat {
     const next = timed ? this.nextSkill[skill] : (this.nextLinked[id] ?? g.tick);
     const active =
       g.phase === 'running' &&
-      (id === 'focus' ? this.focus.length > 0 : id === 'bridge' ? this.bridges.length > 0 : false);
+      (id === 'focus' ? this.focus.length > 0 : id === 'bridge' ? this.barriers.length > 0 : false);
     return {
       mode: timed ? 'timed' : 'linked',
       progress: Math.max(0, Math.min(1, 1 - (next - g.tick) / interval)),
@@ -201,13 +200,14 @@ export class Combat {
   clear(): void {
     this.pulses = [];
     this.focus = [];
-    this.bridges = [];
+    this.barriers = [];
     this.surgeCharge = 0;
     this.storedCharge = 0;
     this.surgeUntil = 0;
     this.surgeAttack = undefined;
     for (const target of this.game.targets) {
       target.bridgeUntil = 0;
+      target.bridgeReady = 0;
     }
   }
 
@@ -321,20 +321,15 @@ export class Combat {
       return fired > 0;
     }
     if (id === 'bridge') {
-      const target = within(g.range * 1.5).sort((a, b) => a.radius - b.radius || a.id - b.id)[0];
-      if (!target) return false;
-      const direction = norm({ x: target.x - CENTER.x, y: target.y - CENTER.y });
-      const half = s.bridge.length / 2;
-      this.bridges.push({
+      if (this.barriers.length >= g.rules.skills.bridge.maxArcs) return false;
+      this.barriers.push({
         id: this.order++,
         attack: { ...attack, depth: 1 },
-        from: { x: target.x - direction.y * half, y: target.y + direction.x * half },
-        to: { x: target.x + direction.y * half, y: target.y - direction.x * half },
+        start: g.angle,
+        sweep: 0,
         until: g.time + s.bridge.duration,
         drawn: -Infinity,
-        next: new Map(),
       });
-      if (this.bridges.length > s.bridge.count) this.bridges.shift();
       this.activate(id);
       return true;
     }
@@ -756,35 +751,58 @@ export class Combat {
     this.focus = this.focus.filter((cast) => cast.started);
   }
 
-  private updateBridges(): void {
-    const g = this.game;
-    this.bridges = this.bridges.filter((c) => g.time < c.until - 1e-8);
-    for (const bridge of this.bridges) {
-      if (g.time - bridge.drawn >= 0.1) {
-        this.effect(
-          bridge.attack,
-          'bridge',
-          bridge.from,
-          bridge.to,
-          0,
-          0.15,
-          false,
-          'bridge',
-          1,
-          bridge.id,
-        );
-        bridge.drawn = g.time;
+  private updateBarriers(): void {
+    const g = this.game,
+      cfg = g.rules.skills.bridge;
+    this.barriers = this.barriers.filter((c) => g.time < c.until - 1e-8);
+    const ids = new Set(this.barriers.map((c) => c.id));
+    g.effects = g.effects.filter((fx) => fx.kind !== 'bridge' || ids.has(fx.targetId!));
+    for (const barrier of this.barriers) {
+      const forms = barrier.attack.forms.bridge;
+      barrier.sweep = Math.max(0, Math.min((forms.angle * Math.PI) / 180, g.angle - barrier.start));
+      if (barrier.sweep <= 1e-8) continue;
+      if (g.time - barrier.drawn >= 0.1) {
+        g.addEffect({
+          kind: 'bridge',
+          source: 'bridge',
+          targetId: barrier.id,
+          from: orbit(barrier.start, g.radius),
+          to: orbit(barrier.start + barrier.sweep, g.radius),
+          radius: g.radius,
+          width: forms.width,
+          life: Math.min(0.15, barrier.until - g.time),
+          rank: barrier.attack.ranks.bridge,
+          rarity: barrier.attack.rarities.bridge,
+          arc: { start: barrier.start, sweep: barrier.sweep },
+        });
+        barrier.drawn = g.time;
       }
-      for (const target of onSegment(
-        g.targets,
-        bridge.from,
-        bridge.to,
-        bridge.attack.forms.bridge.width,
-      )) {
-        target.bridgeUntil = g.time + 2 / g.rules.tickRate;
-        if (g.time + 1e-8 < (bridge.next.get(target.id) ?? 0)) continue;
-        bridge.next.set(target.id, g.time + g.rules.skills.bridge.tickSeconds);
-        this.volley(bridge.attack, bridge.from, [target], false);
+      const contacts = g.targets.filter((target) => {
+        const angle =
+          (((target.angle - barrier.start) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+        const margin = forms.width / 2 + target.size / 2;
+        const previous = target.previousRadius ?? target.radius;
+        return (
+          target.hp > 0 &&
+          angle <= barrier.sweep + 1e-8 &&
+          Math.min(previous, target.radius) <= g.radius + margin &&
+          Math.max(previous, target.radius) >= g.radius - margin
+        );
+      });
+      for (const target of contacts) {
+        if (target.hp <= 0 || g.time < (target.bridgeReady ?? 0)) continue;
+        target.bridgeReady = g.time + cfg.immunitySeconds;
+        target.bridgeUntil = g.time + cfg.slowSeconds;
+        const contact = orbit(target.angle, g.radius);
+        this.volley(barrier.attack, contact, [target], false);
+        if (target.hp <= 0 || g.time < (target.pushReady ?? 0)) continue;
+        target.pushReady = g.time + cfg.immunitySeconds;
+        target.controlCount = (target.controlCount ?? 0) + 1;
+        target.radius = Math.min(
+          g.rules.spawnRadius,
+          Math.max(g.radius, target.radius) + forms.push / (1 + 0.18 * (target.controlCount - 1)),
+        );
+        Object.assign(target, orbit(target.angle, target.radius));
       }
     }
   }

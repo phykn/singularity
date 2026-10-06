@@ -197,24 +197,6 @@ test('charge only releases after enough weighted hits and cannot charge its own 
   assert.ok(stored > 1 && stored < 2);
 });
 
-test('bridge is a bounded barrier that slows crossings, pulses damage and expires', () => {
-  const p = target(0, 180, 140, 1000);
-  const g = stationarySkill({ bridge: 1 }, [p]);
-  assert.ok(g.combat.fireSkill('bridge'));
-  g.advance(20);
-  assert.ok(p.hp < 1000);
-  assert.equal(g.combat.movementScale(p), rules.skills.bridge.movementScale);
-  const hp = p.hp;
-  g.advance(100);
-  close(p.hp, hp);
-  g.advance(450);
-  assert.ok(p.hp < hp);
-  assert.ok(g.effects.some((f) => f.kind === 'bridge'));
-  g.advance(2000);
-  assert.equal(g.combat.status('bridge').active, false);
-  assert.equal(g.combat.movementScale(p), 1);
-});
-
 test('mass vent waits for mass, never creates negative mass, and ignores fire-rate upgrades', () => {
   const g = stationarySkill({}, []);
   choose(g, 'vent');

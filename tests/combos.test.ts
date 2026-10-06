@@ -45,7 +45,7 @@ for (let a = 0; a < skillIds.length; a++)
     });
   }
 
-for (const id of timedSkills.filter((id) => id !== 'vent')) {
+for (const id of timedSkills.filter((id) => id !== 'vent' && id !== 'bridge')) {
   test(`Repeat and Fork modify ${id} hits without recursive cast duplication`, () => {
     const run = (modifiers: Partial<Record<SkillId, number>>) => {
       const ts = Array.from({ length: 10 }, (_, i) => {
@@ -62,8 +62,7 @@ for (const id of timedSkills.filter((id) => id !== 'vent')) {
       repeat = run({ repeat: 2 }),
       multi = run({ multi: 2 });
     assert.ok(repeat.damage > base.damage, `${id}: repeated attack did not add damage`);
-    if (id !== 'bridge')
-      assert.ok(multi.damage > base.damage, `${id}: branches did not add coverage`);
+    assert.ok(multi.damage > base.damage, `${id}: branches did not add coverage`);
     assert.ok(repeat.damage < base.damage * 3, `${id}: weaker follow-ups should not triple damage`);
   });
 }

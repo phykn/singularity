@@ -170,6 +170,7 @@ test('wave warnings mark both incoming directions in red and pulse with simulati
 
 const effect: Effect = {
   kind: 'focus',
+  arc: { start: 0, sweep: 0.6 },
   source: 'focus',
   from: { x: 10, y: 20 },
   to: { x: 90, y: 100 },
@@ -430,7 +431,7 @@ test('every offensive skill passes its level to the beam without adding render o
       const a = drawing();
       drawEffect(
         a.graphics,
-        { ...effect, kind, source, rank } as Effect,
+        { ...effect, kind, source, rank, arc: { start: 0, sweep: 0.6 } } as Effect,
         1.02,
         1,
         effect.from,
@@ -439,7 +440,7 @@ test('every offensive skill passes its level to the beam without adding render o
         a.beam,
       );
       const beams = a.commands.filter((c) => c.method.startsWith('beam:'));
-      assert.equal(beams.length, 1, source);
+      assert.equal(beams.length, source === 'bridge' ? 4 : 1, source);
       assert.equal(beams[0].args[8], rank, source);
       counts.push(beams.length);
     }
