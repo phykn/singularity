@@ -103,11 +103,11 @@ try {
       const beamTexture = scene.textures.get('beams');
       if (beamTexture.key !== 'beams') throw new Error('Pixel beams did not load');
       canvas.width = 256;
-      canvas.height = 384;
+      canvas.height = 1280;
       ctx.drawImage(beamTexture.source[0].image, 0, 0);
-      const beamPixels = ctx.getImageData(0, 0, 256, 384).data;
+      const beamPixels = ctx.getImageData(0, 0, 256, 1280).data;
       const beamAlpha = (x, y) => beamPixels[(y * 256 + x) * 4 + 3];
-      for (let row = 0; row < 24; row++)
+      for (let row = 0; row < 80; row++)
         for (let col = 0; col < 4; col++) {
           let painted = 0;
           for (let y = 0; y < 16; y++)
@@ -191,11 +191,12 @@ try {
       scene.update();
       const powerFrames = [];
       const poolBeforePowers = scene.sprites.images.length;
-      for (const [idx, damage] of [5, 13, 60].entries()) {
+      for (const damage of [5, 10, 10.01, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150]) {
         combat.effects.forEach((fx) => (fx.damage = damage));
         scene.update();
         const beam = scene.sprites.images.find((s) => s.visible && s.texture.key === 'beams');
-        if (!beam || Math.floor(Number(beam.frame.name) / 32) !== idx)
+        const tier = Math.max(1, Math.min(10, Math.ceil(damage / 10))) - 1;
+        if (!beam || Math.floor(Number(beam.frame.name) / 32) !== tier)
           throw Error(`Focus does not render its actual ${damage} damage`);
         powerFrames.push(Number(beam.frame.name));
         for (let rank = 1; rank <= 5; rank++) {
@@ -209,7 +210,7 @@ try {
         throw Error('Higher damage allocates extra beam sprites');
       return {
         frames: frames.length,
-        beamFrames: 96,
+        beamFrames: 320,
         powerFrames,
         trackedBeam: true,
         hits: casts,
@@ -221,7 +222,7 @@ try {
       };
     });
     assert.equal(result.frames, 12);
-    assert.equal(result.beamFrames, 96);
+    assert.equal(result.beamFrames, 320);
     await capture(page, `artifacts/screens/effects-tracked-${width}x${height}.png`);
     checks.push({ viewport: [width, height], ...result });
     console.log('PASS pixel effects', JSON.stringify(checks.at(-1)));

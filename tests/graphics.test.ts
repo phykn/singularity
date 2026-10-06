@@ -422,10 +422,10 @@ test('lightning beam heights use whole screen pixels at every viewport scale', (
 test('beam atlas frames freeze with simulation time and geometry connects both endpoints', () => {
   const png = readFileSync(new URL('../src/art/assets/beams.png', import.meta.url));
   assert.equal(png.readUInt32BE(16), 256);
-  assert.equal(png.readUInt32BE(20), 384);
+  assert.equal(png.readUInt32BE(20), 1280);
   assert.equal(png[25], 6);
   for (const id of Object.keys(beamRows) as (keyof typeof beamRows)[]) {
-    for (let rank = 1; rank <= 3; rank++)
+    for (let rank = 1; rank <= 10; rank++)
       for (const time of [-1, 0, 0.1, 0.7, 3, 30]) {
         const frame = beamFrame(id, time, rank);
         const row = (rank - 1) * 32 + beamRows[id] * 4;
@@ -451,7 +451,7 @@ test('damage-tier beam artwork grows in actual ink, stays attached and remains b
   for (let row = 0; row < 8; row++)
     for (let frame = 0; frame < 4; frame++) {
       let previous = 0;
-      for (let tier = 0; tier < 3; tier++) {
+      for (let tier = 0; tier < 10; tier++) {
         const top = (tier * 8 + row) * 16,
           left = frame * 64;
         const pixels = sheet.pixels.filter(
@@ -459,7 +459,9 @@ test('damage-tier beam artwork grows in actual ink, stays attached and remains b
         );
         assert.ok(pixels.length > previous, `Beam ${row} must strengthen at level ${tier + 1}`);
         previous = pixels.length;
-        assert.ok(pixels.length <= 400, 'Even the strongest hit must leave negative space');
+        assert.ok(pixels.length <= 800, 'Even the strongest hit must leave negative space');
+        for (const x of [left + 1, left + 62])
+          assert.equal(pixels.filter(([px]) => px === x).length, tier + 1);
         const cells = new Set(pixels.map(([x, y]) => `${x},${y}`));
         const seen = new Set<string>();
         const queue = [[left + 1, top + 8]];
@@ -500,23 +502,54 @@ test('equal single-hit damage keeps beam thickness and brightness across all ski
   }
 });
 
-test('stronger single hits brighten and thicken the beam within a three-pixel cap', () => {
-  for (const damage of [0, 5, 9.99, 10, 39.99, 40, 100, 1e100]) {
+test('single-hit damage adds ten beam widths up to 100 damage without growing impact flashes', () => {
+  for (const [damage, width] of [
+    [0, 1],
+    [5, 1],
+    [10, 1],
+    [10.01, 2],
+    [20, 2],
+    [20.01, 3],
+    [30, 3],
+    [40, 4],
+    [50, 5],
+    [60, 6],
+    [70, 7],
+    [80, 8],
+    [90, 9],
+    [90.01, 10],
+    [100, 10],
+    [1e100, 10],
+  ]) {
     const a = drawing();
     drawEffect(a.graphics, { ...effect, kind: 'bolt', damage }, 1.02, 1, effect.from, [], a.paint);
     const beam = a.commands.find((c) => c.method.startsWith('beam:'))!;
-    assert.equal(beam.args[8], beamStrength(damage));
-    assert.ok(beam.args[8] >= 1 && beam.args[8] <= 3);
+    assert.equal(beam.args[8], width);
+    assert.equal(beamStrength(damage), width);
     assert.equal(beam.args[7], 16);
+    const impact = a.commands.find((c) => c.method.startsWith('stamp:'))!;
+    assert.ok(impact.args[5] <= 32);
+    const returning = drawing();
+    drawEffect(
+      returning.graphics,
+      { ...effect, kind: 'return', damage },
+      1.7,
+      1,
+      effect.from,
+      [],
+      returning.paint,
+    );
+    const contact = returning.commands.find((c) => c.method === 'contact')!;
+    assert.ok(contact.args[4] <= 11.2);
   }
-  const beams = [5, 13, 60].map((damage) => {
+  const beams = [5, 13, 100].map((damage) => {
     const a = drawing();
     drawEffect(a.graphics, { ...effect, kind: 'bolt', damage }, 1.02, 1, effect.from, [], a.paint);
     return a.commands.find((c) => c.method.startsWith('beam:'))!.args;
   });
   assert.deepEqual(
     beams.map((b) => b[8]),
-    [1, 2, 3],
+    [1, 2, 10],
   );
   assert.ok(beams[0][6] < beams[1][6] && beams[1][6] < beams[2][6]);
 });

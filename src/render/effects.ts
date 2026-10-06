@@ -43,11 +43,11 @@ export type EffectPainter = {
 };
 
 export function beamStrength(damage: number): number {
-  return damage < 10 ? 1 : damage < 40 ? 2 : 3;
+  return Math.max(1, Math.min(10, Math.ceil(damage / 10)));
 }
 
 export function beamFrame(id: BeamId, progress: number, strength = 1): number {
-  const tier = Math.max(0, Math.min(2, Math.floor(strength) - 1));
+  const tier = Math.max(0, Math.min(9, Math.floor(strength) - 1));
   return tier * 32 + beamRows[id] * 4 + (Math.floor(Math.max(0, progress) * 12) % 4);
 }
 

@@ -92,7 +92,8 @@ export function drawEffect(
   const rank = Math.max(1, Math.min(5, fx.rank));
   const power = beamStrength(fx.damage);
   const light = 0.7 + 0.22 * (fx.damage / (fx.damage + 10));
-  const impactSize = 20 + power * 4;
+  const impactPower = Math.min(power, 3);
+  const impactSize = 20 + impactPower * 4;
   const clock = time + fx.born * 3;
   if (fx.kind === 'bridge') {
     if (!fx.arc || fx.arc.sweep <= 0) return;
@@ -147,7 +148,7 @@ export function drawEffect(
     const point = { x: lerp(from.x, to.x, travel), y: lerp(from.y, to.y, travel) };
     g.fillStyle(WHITE, alpha);
     g.fillRect(point.x - 1 / scale, point.y - 1 / scale, 2 / scale, 2 / scale);
-    if (t >= 0.65) paint.contact(to, ink, (1 - t) / 0.35, (22 + power * 2) / 2.5);
+    if (t >= 0.65) paint.contact(to, ink, (1 - t) / 0.35, (22 + impactPower * 2) / 2.5);
   } else if (fx.kind === 'bolt' || fx.kind === 'strike' || fx.kind === 'focus') {
     const opacity = fx.kind === 'focus' ? 1 : alpha;
     const id =

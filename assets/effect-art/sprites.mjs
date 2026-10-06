@@ -70,7 +70,7 @@ export function effectArtwork() {
       dissolve.pixel(16 + dx * distance, 16 + dy * distance, frame < 2 ? 2 : 1);
   }
 
-  const beams = sheet(256, 384, 64, 16);
+  const beams = sheet(256, 1280, 64, 16);
   // Opposing bends balance the silhouette; unequal shoulders avoid mirror symmetry.
   const profiles = [
     [0, -1, 2, -1, -2, 1, 0],
@@ -82,7 +82,7 @@ export function effectArtwork() {
     [0, 0, 1, 0, -1, 0, 0],
     [0, 1, -2, 0, 2, -1, 0],
   ];
-  for (let tier = 0; tier < 3; tier++)
+  for (let tier = 0; tier < 10; tier++)
     for (let row = 0; row < 8; row++)
       for (let frame = 0; frame < 4; frame++) {
         const beam = beams.frame(frame, tier * 8 + row);
