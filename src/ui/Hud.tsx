@@ -1,7 +1,6 @@
-import { Pause } from 'pixelarticons/react';
 import { statIds } from '../game/rules.ts';
 import type { UpgradeId } from '../game/rules.ts';
-import { ChargeIcon, SkillIcon } from './icons.tsx';
+import { ChargeIcon, SkillIcon, ControlIcon } from './icons.tsx';
 import { skillValue } from './skillText.ts';
 import { formatTime } from '../format.ts';
 import type { Game } from '../game/Game.ts';
@@ -93,7 +92,7 @@ export function Hud({
           disabled={game.phase === 'result'}
           aria-label={c.pause}
         >
-          <Pause aria-hidden="true" />
+          <ControlIcon id="pause" />
         </button>
       </div>
     </section>

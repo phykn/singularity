@@ -16,7 +16,7 @@ import { healthBar } from '../src/render/healthBars.ts';
 import { drawEffect } from '../src/render/drawEffects.ts';
 import type { Effect } from '../src/game/types.ts';
 import { skillIds, upgradeIds } from '../src/game/rules.ts';
-import { iconCells } from '../src/art/skills.ts';
+import { iconCells, controlCells, controlIds } from '../src/art/skills.ts';
 import { close, target } from './helpers.ts';
 import { drawWaveWarning, WARNING_RED } from '../src/render/warning.ts';
 import { drawElectronField } from '../src/render/electronField.ts';
@@ -75,7 +75,18 @@ test('generated icon atlases have transparent-capable PNGs and unique in-bounds 
     assert.ok(x >= 0 && y >= 0 && x + 32 <= 224 && y + 32 <= 96, id);
     assert.equal((x % 32) + (y % 32), 0, id);
   }
-  for (const [path, width, height] of [['../src/art/assets/skills.png', 224, 96]] as const) {
+  assert.equal(
+    new Set(Object.values(controlCells).map(({ x, y }) => `${x},${y}`)).size,
+    controlIds.length,
+  );
+  for (const { x, y } of Object.values(controlCells)) {
+    assert.ok(x >= 0 && y >= 0 && x + 32 <= 128 && y + 32 <= 64);
+    assert.equal((x % 32) + (y % 32), 0);
+  }
+  for (const [path, width, height] of [
+    ['../src/art/assets/skills.png', 224, 96],
+    ['../src/art/assets/controls.png', 128, 64],
+  ] as const) {
     const png = readFileSync(new URL(path, import.meta.url));
     assert.equal(png.readUInt32BE(16), width);
     assert.equal(png.readUInt32BE(20), height);

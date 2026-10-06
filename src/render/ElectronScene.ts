@@ -105,7 +105,9 @@ export class ElectronScene extends Phaser.Scene {
     }
     const impactAge = clock - this.impactAt;
     this.offset =
-      !ending && impactAge < 0.06 ? { x: impactAge < 0.03 ? 1 : -1, y: 1 } : { x: 0, y: 0 };
+      !ending && !this.reducedMotion.matches && impactAge < 0.06
+        ? { x: impactAge < 0.03 ? 1 : -1, y: 1 }
+        : { x: 0, y: 0 };
     g.setPosition(g.x + this.offset.x, g.y + this.offset.y);
     this.effectGraphics.setPosition(g.x, g.y);
     const radius = ending?.electron ? ending.radius : game.radius;

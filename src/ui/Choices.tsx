@@ -1,10 +1,9 @@
-import { ArrowRight, Pause, Play } from 'pixelarticons/react';
 import { useEffect, useRef, useState } from 'react';
 import type { Choice } from '../game/types.ts';
 import type { Rarity, UpgradeId } from '../game/rules.ts';
 import { isSkill } from '../game/rules.ts';
 import { skillChange } from './skillText.ts';
-import { SkillIcon } from './icons.tsx';
+import { SkillIcon, ControlIcon } from './icons.tsx';
 import { Rank } from './controls.tsx';
 import type { Game } from '../game/Game.ts';
 import { copy } from './i18n.ts';
@@ -92,7 +91,9 @@ export function Choices({
                 disabled={game.paused}
               >
                 <span className="choice-switch" aria-hidden="true">
-                  <span>{pauseOnChoice ? <Pause /> : <Play />}</span>
+                  <span>
+                    <ControlIcon id={pauseOnChoice ? 'pause' : 'play'} />
+                  </span>
                 </span>
               </button>
             </div>
@@ -149,9 +150,7 @@ export function Choices({
               >
                 <span className="card-label">
                   <b>{c.rarities[rarity]}</b>
-                  {id === game.automaticCard?.id && (
-                    <ArrowRight width={12} height={12} aria-hidden="true" />
-                  )}
+                  {id === game.automaticCard?.id && <ControlIcon id="next" size={12} />}
                 </span>
                 <span className="card-icon">
                   <SkillIcon id={id} size={32} />

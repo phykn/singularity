@@ -1,8 +1,11 @@
+import { useId } from 'react';
 import type { UpgradeId } from '../game/rules.ts';
 import { particleArt, particlePalettes } from '../art/particles.ts';
 import type { ParticleKind } from '../game/particles.ts';
-import { iconCells } from '../art/skills.ts';
+import { iconCells, controlCells } from '../art/skills.ts';
+import type { ControlId } from '../art/skills.ts';
 import skillAtlas from '../art/assets/skills.png';
+import controlAtlas from '../art/assets/controls.png';
 
 export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
   const pixels = size >= 24 ? 32 : 16;
@@ -53,31 +56,66 @@ export function ParticleIcon({ id }: { id: ParticleKind }) {
 }
 
 export function ChargeIcon({ progress }: { progress: number }) {
-  const y = 16 - Math.floor(progress * 8) * 2;
+  const clip = useId();
+  const y = 32 - Math.floor(Math.max(0, Math.min(1, progress)) * 16) * 2;
+  const cell = controlCells.charge;
+  const ring = (
+    <image
+      href={controlAtlas}
+      x={-cell.x}
+      y={-cell.y}
+      width={128}
+      height={64}
+      style={{ imageRendering: 'pixelated' }}
+    />
+  );
   return (
     <svg
       className="charge-icon"
       width={32}
       height={32}
-      viewBox="0 0 16 16"
-      shapeRendering="crispEdges"
+      viewBox="0 0 32 32"
+      overflow="hidden"
       aria-hidden="true"
     >
       <defs>
-        <clipPath id="charge-pixels">
-          <path d="M5 1h6v2h2v2h2v6h-2v2h-2v2H5v-2H3v-2H1V5h2V3h2z" />
+        <clipPath id={clip}>
+          <rect x={0} y={y} width={32} height={32 - y} />
         </clipPath>
       </defs>
-      <path d="M5 1h6v2h2v2h2v6h-2v2h-2v2H5v-2H3v-2H1V5h2V3h2z" fill="currentColor" opacity=".35" />
-      <rect
-        x="0"
-        y={y}
-        width="16"
-        height={16 - y}
-        fill="currentColor"
-        clipPath="url(#charge-pixels)"
+      <g opacity={0.3}>{ring}</g>
+      <g clipPath={`url(#${clip})`}>{ring}</g>
+    </svg>
+  );
+}
+
+export function ControlIcon({
+  id,
+  className,
+  size = 24,
+}: {
+  id: ControlId;
+  className?: string;
+  size?: number;
+}) {
+  const cell = controlCells[id];
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      overflow="hidden"
+      aria-hidden="true"
+    >
+      <image
+        href={controlAtlas}
+        x={-cell.x}
+        y={-cell.y}
+        width={128}
+        height={64}
+        style={{ imageRendering: 'pixelated' }}
       />
-      <path d="M6 4h4v2h2v4h-2v2H6v-2H4V6h2z" fill="#080a0e" />
     </svg>
   );
 }

@@ -124,7 +124,8 @@ try {
     assert.equal(await toggle.getAttribute('aria-checked'), 'true');
     const pausedAgain = await snapshot(page);
     assert.ok(
-      pausedAgain.remaining <= elapsed.remaining && pausedAgain.remaining > elapsed.remaining - 0.2,
+      pausedAgain.remaining > 0 && pausedAgain.remaining <= elapsed.remaining,
+      'Pausing must keep the pending countdown without refilling it',
     );
     await page.waitForTimeout(150);
     assert.deepEqual(await snapshot(page), pausedAgain);

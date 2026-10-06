@@ -1,11 +1,5 @@
 import { useState } from 'react';
-import {
-  ArrowRight,
-  CircleQuestion as CircleHelp,
-  Github,
-  SlidersHorizontal,
-  Star,
-} from 'pixelarticons/react';
+import { ControlIcon } from '../ui/icons.tsx';
 import { GameCanvas } from '../render/GameCanvas.tsx';
 import { Hud } from '../ui/Hud.tsx';
 import { Loadout } from '../ui/Loadout.tsx';
@@ -85,9 +79,9 @@ export default function App() {
               aria-label="GitHub"
               title="GitHub"
             >
-              <Github aria-hidden="true" />
+              <ControlIcon id="github" />
               <span>GitHub</span>
-              <Star className="github-star" aria-hidden="true" />
+              <ControlIcon id="star" className="github-star" />
             </a>
             <div className="header-actions">
               <button
@@ -95,14 +89,14 @@ export default function App() {
                 aria-label={c.guide}
                 onClick={() => setPanel('guide')}
               >
-                <CircleHelp aria-hidden="true" />
+                <ControlIcon id="help" />
               </button>
               <button
                 className="icon-button"
                 aria-label={c.settings}
                 onClick={() => setPanel('settings')}
               >
-                <SlidersHorizontal aria-hidden="true" />
+                <ControlIcon id="settings" />
               </button>
             </div>
           </header>
@@ -164,7 +158,7 @@ export default function App() {
             <div className="preparation">
               <button className="primary start" onClick={begin} disabled={!renderReady}>
                 <span>{renderReady ? 'START' : c.loading}</span>
-                <ArrowRight aria-hidden="true" />
+                <ControlIcon id="next" />
               </button>
               <LanguagePicker value={language} onChange={changeLanguage} />
               <small className="title-meta">

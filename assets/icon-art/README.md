@@ -1,27 +1,37 @@
-# Generated game artwork
+# Game icon artwork
 
-The skill artwork was created with the built-in image generation tool: illustrated source images, then detailed pixel-art reinterpretations. Particle shapes and palettes live in `src/art/particles.ts`.
+The built-in image generation tool created the current skill, stat, and control icons. All use stepped dark contours, compact beveled shading, small upper-left highlights, and clean transparent gaps. Colored gameplay symbols remain distinct from quieter slate-blue controls.
 
-| Source        | Pixel artwork   | Runtime atlas               |
-| ------------- | --------------- | --------------------------- |
-| `concept.png` | `pixel-art.png` | `src/art/assets/skills.png` |
+| Source                 | Contents                                                        | Runtime atlas                                              |
+| ---------------------- | --------------------------------------------------------------- | ---------------------------------------------------------- |
+| `skill-source.png`     | Sixteen skills in a 4×4 grid                                    | `src/art/assets/skills.png`                                |
+| `interface-source.png` | Five upgrades and eight controls in a 7×2 grid; last cell empty | `src/art/assets/skills.png`, `src/art/assets/controls.png` |
 
-Run `npm run build:art` from the repository root to pack the selected pixel artwork. It needs the project's Playwright browser. Packing trims transparent cell margins, preserves aspect ratio and alpha, and uses nearest-neighbor sampling into 32×32 cells with two-pixel padding. It does not perform the artistic pixel conversion. Source illustrations are not shipped in the game bundle.
+Run `npm run build:art` to reproduce the atlases with the project's Playwright browser. The packer trims transparent margins, preserves alpha and aspect ratio, and uses nearest-neighbor sampling into 32×32 cells with two-pixel padding. It only arranges and resamples completed artwork; it does not draw substitute glyphs. Only the packed atlases ship in the game bundle.
 
-The skill atlas has seven columns and three rows. Its order is Attack Power, Attack Speed, Range, Move Speed, Mass Vent, Repeat, Fork; Chain, Pierce, Death Arc, Thunderstrike, Repulsion, Focus, Ball Lightning; Capacitor, Arc Bridge, Gather, Short Circuit, Pursuit Arc, Surge, Return Arc. See `src/art/skills.ts` for runtime coordinates.
+## Selection and final polish
 
-Particle textures and guide icons share 16×16 cells containing solid spheres with four flat tones. Quark, Muon, Proton and Neutron use 8, 10, 12 and 14-pixel diameters, respectively; the Electron uses 12 pixels. Warm rose, lilac, sand and slate blue identify enemies, while the Electron stays bright cyan and turns gold during Surge. A dark rim, one small highlight and a curved shadow keep dense groups legible. Transparent padding preserves each body's native size. Movement, collision and combat rules are unchanged.
+Three complete skill sets and an initial unified set were compared at 32px and 64px. The user selected C for Chain and Death Arc; A for Thunderstrike, Repulsion, and Return; B for Capacitor and Surge; and the unified set for the other nine skills. The final artwork preserves those chosen silhouettes: two linked green nodes, curved blue repulsion waves, a twin-terminal capacitor, curved golden surge arcs, and a horizontal return arrow.
 
-## Generation prompts
+The user's selected set then received one complete image-generation edit to unify outline thickness, shading, highlights, and visual weight. The companion stat and UI atlas served as a style reference for this final pass. Full prompts are in [prompts.md](prompts.md).
 
-### Skill source
+## Runtime order
 
-Create one cohesive illustrated game UI icon atlas for SINGULARITY, a dark space/electricity survival game. Exactly seven columns and three rows, twenty-one isolated symbols on a truly transparent background. Equal square cells, centered symbols, generous empty margins, no backgrounds, frames, labels or text. Precise elegant silhouettes, restrained beveled surfaces, ivory edge highlights, limited tonal shading and electrical sci-fi material detail. Keep the following order and dominant colors:
+`skills.png` contains seven columns and three rows:
 
-1. Orange diagonal sword; green sword with speed trails; cyan targeting reticle; gold futuristic boot with speed trails; green relief plus; two teal lightning bolts; gold three-branch electrical line.
-2. Three green nodes joined in a zigzag; purple arrow piercing two targets; pink spark connecting four surrounding nodes; orange vertical strike with impact sparks; blue arrow pushing a wave; three violet rays converging on one node; cyan electrical sphere.
-3. Gold capacitor with internal lightning; blue terminals joined by a suspended live wire; four violet arrows gathering into a central node; pale-green bolt between brackets; orange guided arrow entering a target reticle; gold electrical starburst, not fire; blue U-turn arrow.
+- Attack Power, Attack Speed, Range, Move Speed, Mass Vent, Repeat, Fork
+- Chain, Pierce, Death Arc, Thunderstrike, Repulsion, Focus, Satellite Electron
+- Capacitor, Orbit Barrier, Gather, Mass Reclaim, Pursuit Arc, Surge, Return Arc
 
-### Skill pixel conversion
+`controls.png` contains four columns and two rows:
 
-Convert the source atlas into polished authentic 32×32 pixel-art game UI sprites. Preserve every identity, color, orientation and the exact seven-column three-row order. Carefully redraw into purposeful pixels, rather than applying blur or a pixelation filter. Preserve readable sword bevels, boot laces and sole, electrical cores, capacitor ribs and terminals. One-pixel stepped contours, clean highlights, material shadows, restrained palette, transparent background, no text or tile frames. Normalize each subject inside its square cell with transparent margins. No soft glow, noisy pixels or anti-aliasing.
+- GitHub, Star, Help, Settings
+- Pause, Play, Next, Energy Meter
+
+Coordinates live in `src/art/skills.ts`. The energy meter retains a dynamic clipped fill over its generated ring. Button names and accessibility semantics remain in their consuming components.
+
+## Particles and combat effects
+
+Particle guide icons use the exact same native 16×16 bodies and four-tone palettes as the playfield, defined in `src/art/particles.ts`. Their deliberately simpler rendering keeps dense crowds readable. Quark, Muon, Proton and Neutron have 8, 10, 12 and 14-pixel diameters; Electron uses 12 pixels and turns gold during Surge. No decorative icon detail is added to combat particles.
+
+Combat effect artwork is maintained separately in `assets/effect-art/`. Damage values remain integer labels.

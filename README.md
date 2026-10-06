@@ -42,6 +42,6 @@ Play at [localhost:8081](http://localhost:8081).
 
 React · Phaser · TypeScript · Vite
 
-Icons: [Pixelarticons](https://github.com/halfmage/pixelarticons) · Typography: [Fusion Pixel Font](https://github.com/TakWolf/fusion-pixel-font)
+Icon artwork: image-generated pixel art · Typography: [Fusion Pixel Font](https://github.com/TakWolf/fusion-pixel-font)
 
 Code is licensed under [PolyForm Noncommercial 1.0.0](LICENSE). Commercial use outside the license's permitted purposes requires separate permission from [the developer](https://github.com/phykn). Third-party libraries and fonts retain their original licenses.

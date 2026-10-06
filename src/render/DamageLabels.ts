@@ -6,6 +6,9 @@ import { clamp } from '../game/geometry.ts';
 export class DamageLabels {
   readonly texts: Phaser.GameObjects.Text[] = [];
   private labels = new Map<number, Phaser.GameObjects.Text>();
+  private offsets = new Map<number, readonly number[]>();
+  private lastGame: Game | null = null;
+  private viewport = '';
   private free: Phaser.GameObjects.Text[] = [];
   private add: Phaser.GameObjects.GameObjectFactory;
 
@@ -17,11 +20,20 @@ export class DamageLabels {
     for (const text of this.texts) text.setActive(false).setVisible(false);
   }
   draw(game: Game, width: number, height: number, centerY: number, scale: number): void {
-    const numbers = game.damageNumbers.slice(-maxDamageNumbers).reverse();
+    const viewport = `${width}:${height}:${centerY}:${scale}`;
+    if (this.lastGame !== game || this.viewport !== viewport) this.offsets.clear();
+    this.lastGame = game;
+    this.viewport = viewport;
+    // Existing hits keep their lanes; fresh hits take the remaining space.
+    const numbers = game.damageNumbers
+      .slice(-maxDamageNumbers)
+      .reverse()
+      .sort((a, b) => Number(this.offsets.has(b.id)) - Number(this.offsets.has(a.id)));
     const ids = new Set(numbers.map((damage) => damage.id));
     for (const [id, text] of this.labels) {
       if (ids.has(id)) continue;
       this.labels.delete(id);
+      this.offsets.delete(id);
       this.free.push(text);
     }
     const occupied: Phaser.Geom.Rectangle[] = [],
@@ -52,14 +64,17 @@ export class DamageLabels {
       const y = centerY + (damage.y - 260) * scale - 4 - age * 16;
       text.setText(String(Math.round(damage.value))).setScale(1);
       let placed = false;
-      for (const [dx, dy] of [
-        [0, 0],
-        [0, -10],
-        [-12, -6],
-        [12, -6],
-        [-16, -16],
-        [16, -16],
-      ]) {
+      const saved = this.offsets.get(damage.id);
+      for (const [dx, dy] of saved
+        ? [saved]
+        : [
+            [0, 0],
+            [0, -10],
+            [-12, -6],
+            [12, -6],
+            [-16, -16],
+            [16, -16],
+          ]) {
         text.setPosition(
           Math.round(Math.max(10, Math.min(width - 10, x + dx))),
           Math.round(Math.max(12, Math.min(height - 2, y + dy))),
@@ -71,6 +86,7 @@ export class DamageLabels {
         )
           continue;
         occupied.push(bounds);
+        this.offsets.set(damage.id, [dx, dy]);
         placed = true;
         break;
       }

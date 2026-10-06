@@ -1,6 +1,6 @@
 {
   "name": "web-game",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
@@ -20,6 +20,7 @@
     "check:startup": "node scripts/startup.mjs",
     "check:choice-pause": "node scripts/choice-pause.mjs",
     "check:effects": "node scripts/effects.mjs",
+    "check:presentation": "node scripts/presentation.mjs",
     "check:electric": "node scripts/electric.mjs",
     "check:barrier": "node scripts/orbit-barrier.mjs",
     "check:performance": "node scripts/performance.mjs",
@@ -33,7 +34,6 @@
   },
   "dependencies": {
     "phaser": "^4.2.1",
-    "pixelarticons": "^2.4.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
