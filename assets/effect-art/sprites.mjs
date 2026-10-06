@@ -1,4 +1,4 @@
-export const effectShades = ['', '#61727d', '#a9bac4', '#f1fcff', '#644425', '#d99540', '#f1fcff'];
+export const effectShades = ['', '#61727d', '#a9bac4', '#f1fcff', '#644425', '#e8c27d', '#f1fcff'];
 
 // Native pixel artwork: solid cells, shared centers, and no blur or stray texture.
 function sheet(width, height, cellWidth, cellHeight) {
@@ -75,12 +75,12 @@ export function effectArtwork() {
   const beams = sheet(256, 1280, 64, 16);
   // Opposing bends balance the silhouette; unequal shoulders avoid mirror symmetry.
   const profiles = [
-    [0, -1, 2, -1, -2, 1, 0],
-    [0, -2, 2, 0, -2, 1, 0],
+    [0, -1, 0, -2, 2, 1, 0],
+    [0, 1, -2, -1, 2, -1, 0],
     [0, 0, 1, 0, -1, 0, 0],
     null,
     [0, 0, 1, 0, -1, 0, 0],
-    [0, -1, 2, 0, -2, 1, 0],
+    [0, -1, -2, 2, 0, 1, 0],
     [0, 0, 1, 0, -1, 0, 0],
     [0, 1, -2, 0, 2, -1, 0],
   ];
@@ -90,13 +90,17 @@ export function effectArtwork() {
         const beam = beams.frame(frame, tier * 8 + row);
         const drift = [0, 1, 0, -1][frame];
         if (row === 3) {
+          const shift = [0, 2, -2, 1][frame];
           const trunk = [
             [1, 8],
-            [11, 5],
-            [21, 12 + drift],
-            [31, 4],
-            [43, 11 - drift],
-            [53, 6],
+            [10, 6],
+            [18 + shift, 7 + drift],
+            [25 + shift, 3],
+            [28 + shift, 9],
+            [36 - shift, 7 - drift],
+            [41 - shift, 12],
+            [46 - shift, 7],
+            [55, 9],
             [62, 8],
           ];
           const halo = [[4, 7], ...trunk.slice(1, -1), [60, 8]];
@@ -104,12 +108,26 @@ export function effectArtwork() {
             for (const y of [-1, 1])
               beam.line(halo[i - 1][0], halo[i - 1][1] + y, halo[i][0], halo[i][1] + y, 4);
           }
+          // Forward forks lose energy toward their tips; neither runs back up the bolt.
           const forks = [
-            [trunk[2], [23, 14], [26 + tier, 14]],
-            [trunk[3], [28, 2], [25 - Math.floor(tier / 2), 1]],
+            [trunk[2], [22 + shift, 11], [25 + shift, 10], [30 + shift, 14], [34 + shift, 15]],
+            [trunk[5], [40 - shift, 3], [43 - shift, 4], [47 - shift, 1], [50 - shift, 0]],
           ];
-          for (const fork of forks)
-            for (let i = 1; i < fork.length; i++) beam.line(...fork[i - 1], ...fork[i], 5);
+          for (const fork of forks) {
+            const cells = new Map();
+            for (let i = 1; i < fork.length; i++) {
+              const [x, y] = fork[i - 1],
+                [toX, toY] = fork[i];
+              for (let px = x; px <= toX; px++)
+                cells.set(px, Math.round(y + ((toY - y) * (px - x)) / (toX - x)));
+            }
+            let step = 0;
+            let previous = fork[0];
+            for (const [x, y] of cells) {
+              beam.line(...previous, x, y, step++ < 4 + tier ? 5 : 4);
+              previous = [x, y];
+            }
+          }
           for (let i = 1; i < trunk.length; i++) beam.line(...trunk[i - 1], ...trunk[i], 6);
           if (tier >= 4)
             for (let i = 1; i < halo.length; i++)
@@ -117,7 +135,7 @@ export function effectArtwork() {
           continue;
         }
         const points = profiles[row].map((y, i) => [
-          [1, 11, 22, 32, 43, 53, 62][i],
+          [1, 13, 20, 29, 37, 52, 62][i],
           8 + y + (i === 2 ? drift : i === 4 ? -drift : 0),
         ]);
         const width = tier + 1;

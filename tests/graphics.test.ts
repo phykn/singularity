@@ -457,7 +457,10 @@ test('damage-tier beam artwork grows in actual ink, stays attached and remains b
         const pixels = sheet.pixels.filter(
           ([x, y]) => x >= left && x < left + 64 && y >= top && y < top + 16,
         );
-        assert.ok(pixels.length > previous, `Beam ${row} must strengthen at level ${tier + 1}`);
+        assert.ok(
+          row === 3 ? pixels.length >= previous : pixels.length > previous,
+          `Beam ${row} must not weaken at level ${tier + 1}`,
+        );
         previous = pixels.length;
         assert.ok(pixels.length <= 800, 'Even the strongest hit must leave negative space');
         for (const x of [left + 1, left + 62])
@@ -481,6 +484,7 @@ test('damage-tier beam artwork grows in actual ink, stays attached and remains b
 
 test('strike artwork keeps a slender white trunk and stronger golden forks instead of a solid slab', () => {
   const sheet = effectArtwork().find((s) => s.output.endsWith('/beams.png'))!;
+  const previous = [0, 0, 0, 0];
   for (let tier = 0; tier < 10; tier++) {
     for (let frame = 0; frame < 4; frame++) {
       const top = (tier * 8 + 3) * 16,
@@ -490,11 +494,18 @@ test('strike artwork keeps a slender white trunk and stronger golden forks inste
       );
       const core = pixels.filter(([, , shade]) => shade === 6);
       const fork = pixels.filter(([, , shade]) => shade === 5);
-      assert.ok(core.length >= 60 && fork.length >= 8);
+      assert.ok(core.length >= 60 && fork.length >= 4);
+      const energy = core.length * 3 + fork.length;
+      assert.ok(energy >= previous[frame], 'Higher damage must retain or brighten the discharge');
+      previous[frame] = energy;
+      for (const y of [top, top + 15]) {
+        const tip = pixels.filter(([, py]) => py === y);
+        assert.ok(tip.length > 0 && tip.every(([, , shade]) => shade === 4), 'Fork tips fade out');
+      }
       assert.ok(pixels.length < 300, 'Even high-damage strikes must leave clear negative space');
       for (let x = left; x < left + 64; x++) {
         assert.ok(
-          core.filter(([px]) => px === x).length <= 2,
+          core.filter(([px]) => px === x).length <= 3,
           'The bright trunk cannot become a yellow bar',
         );
       }

@@ -94,7 +94,7 @@ export function drawEffect(
   const light = 0.7 + 0.22 * (fx.damage / (fx.damage + 10));
   const impactPower = Math.min(power, 3);
   const impactSize = 20 + impactPower * 4;
-  const clock = time + fx.born * 3;
+  const clock = time + fx.born * 3 + (fx.kind === 'strike' ? ((fx.targetId ?? 0) % 4) / 12 : 0);
   if (fx.kind === 'bridge') {
     if (!fx.arc || fx.arc.sweep <= 0) return;
     const steps = Math.max(1, Math.ceil(fx.arc.sweep / 0.15));
@@ -163,7 +163,7 @@ export function drawEffect(
               : ['chain', 'burst', 'gather'].includes(fx.source ?? '')
                 ? 'chain'
                 : 'basic';
-    paint.beam(id, from, to, clock, ink, light * opacity, 16, power);
+    paint.beam(id, from, to, clock, ink, light * opacity, id === 'strike' ? 24 : 16, power);
     if (fx.source === 'charge') paint.contact(from, ink, opacity, 9.6);
     if (fx.kind === 'focus') {
       const flow = (time * 3 + (fx.targetId ?? 0) * 0.17) % 1;

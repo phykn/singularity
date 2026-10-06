@@ -240,6 +240,8 @@ try {
             Number(s.frame.name) % 32 < 16,
         );
         if (strikes.length !== Math.min(rank, 3)) throw Error('Strike target count changed');
+        if (strikes.length > 1 && new Set(strikes.map((s) => s.frame.name)).size < 2)
+          throw Error('Simultaneous strikes repeat the same silhouette');
         if (strikes.some((s) => s.tintTopLeft !== 0xffffff))
           throw Error('Strike tint hides its white core');
         const effects = striker.effects.filter((fx) => fx.kind === 'strike');
