@@ -129,35 +129,43 @@ test('gather brings outer enemies together without moving anyone inward toward t
   ts.forEach((t, i) => assert.ok(t.radius >= radii[i] - 1e-8));
 });
 
-test('orbs travel and fork; their emitted lightning carries charge and chain modifiers', () => {
-  const ts = Array.from({ length: 6 }, (_, i) => target(i, 210 + i * 16, 115 + i * 4, 1000));
-  const g = stationarySkill({ orb: 3, multi: 1, chain: 1, charge: 1 }, ts);
-  g.combat.fireSkill('orb');
-  g.advance(500);
+test('satellites grow one per rank, orbit the live electron, and carry attack modifiers', () => {
+  const ts = Array.from({ length: 6 }, (_, i) => target(i, 205 + i * 8, 128, 1000));
+  const g = stationarySkill({ satellite: 3, multi: 1, chain: 1, charge: 1 }, ts);
+  assert.equal(g.combat.satellitePoints.length, 3);
+  g.combat.fireSkill('satellite');
+  assert.ok(g.combat.activations.chain !== undefined);
+  assert.ok(g.combat.activations.multi !== undefined);
   assert.ok(g.combat.status('charge').progress > 0 || g.combat.activations.charge !== undefined);
-  assert.ok(g.combat.orbPoints.some((p) => p.x > g.position.x));
-  assert.ok(g.combat.activations.multi !== undefined && g.combat.activations.chain !== undefined);
-  assert.equal(g.combat.orbPoints.length, 2);
+  for (let rank = 1; rank <= 5; rank++) {
+    g.ranks.satellite = rank;
+    for (const rarity of rarityIds) {
+      g.rarities.satellite = rarity;
+      assert.equal(g.combat.satellitePoints.length, rank);
+      for (const p of g.combat.satellitePoints)
+        close(distance(p, g.position), rules.skills.satellite.orbitRadius);
+    }
+  }
+  const before = g.combat.satellitePoints;
+  g.angle += 0.5;
+  g.advance(100);
+  assert.notDeepEqual(g.combat.satellitePoints, before);
+  for (const p of g.combat.satellitePoints)
+    close(distance(p, g.position), rules.skills.satellite.orbitRadius);
+  g.setManualPause(true);
+  const paused = g.combat.satellitePoints;
+  g.advance(1000);
+  assert.deepEqual(g.combat.satellitePoints, paused);
 });
 
-test('orb bodies follow every simulation tick while discharge timing and damage stay unchanged', () => {
-  const enemy = target(0, 210, 128, 10000);
-  const g = stationarySkill({ orb: 5 }, [enemy]);
-  g.combat.fireSkill('orb');
-  const positions = [];
-  for (let i = 0; i < rules.tickRate; i++) {
-    g.advance(1000 / rules.tickRate);
-    positions.push(g.combat.orbPoints[0].x);
-  }
-  assert.equal(new Set(positions).size, rules.tickRate);
+test('satellite fire waits for nearby enemies and each body fires once per volley', () => {
+  const g = stationarySkill({ satellite: 5 }, []);
+  assert.equal(g.combat.fireSkill('satellite'), false);
+  const p = target(0, g.position.x, g.position.y, 10000);
+  g.targets = [p];
+  assert.equal(g.combat.fireSkill('satellite'), true);
+  close(10000 - p.hp, g.damage * g.forms.satellite.damage * 5);
   assert.equal(g.events.filter((e) => e.kind === 'hit').length, 5);
-  close(10000 - enemy.hp, g.damage * rules.skills.orb.damage * 5);
-  g.advance(1500);
-  assert.equal(g.combat.orbPoints.length, 0);
-  g.combat.fireSkill('orb');
-  assert.ok(g.combat.orbPoints.length > 0);
-  g.combat.clear();
-  assert.equal(g.combat.orbPoints.length, 0);
 });
 
 for (const id of ['focus', 'gather'] as const)
@@ -189,41 +197,48 @@ test('charge only releases after enough weighted hits and cannot charge its own 
   assert.ok(stored > 1 && stored < 2);
 });
 
-test('bridge persists at impact sites, damages a crossing once and expires', () => {
-  const a = target(0, 190, 128, 1000),
-    b = target(1, 250, 128, 1000),
-    c = target(2, 220, 152, 1000);
-  const g = stationarySkill({ bridge: 1 }, [a, b, c]);
-  g.combat.fireBasic(a);
-  g.combat.fireBasic(b);
-  Object.assign(c, target(2, 220, 128, 1000));
+test('bridge is a bounded barrier that slows crossings, pulses damage and expires', () => {
+  const p = target(0, 180, 140, 1000);
+  const g = stationarySkill({ bridge: 1 }, [p]);
+  assert.ok(g.combat.fireSkill('bridge'));
   g.advance(20);
-  assert.ok(c.hp < 1000);
-  const hp = c.hp;
+  assert.ok(p.hp < 1000);
+  assert.equal(g.combat.movementScale(p), rules.skills.bridge.movementScale);
+  const hp = p.hp;
   g.advance(100);
-  close(c.hp, hp);
+  close(p.hp, hp);
+  g.advance(450);
+  assert.ok(p.hp < hp);
   assert.ok(g.effects.some((f) => f.kind === 'bridge'));
-  g.advance(1500);
+  g.advance(2000);
   assert.equal(g.combat.status('bridge').active, false);
+  assert.equal(g.combat.movementScale(p), 1);
 });
 
-test('stun stops radial and angular motion, then immunity permits movement during repeat hits', () => {
-  const p = target(0, 210, 128, 1000);
-  p.speed = 10;
-  p.turn = 0.2;
-  const g = stationarySkill({ stun: 1, repeat: 5 }, [p]);
-  g.combat.fireBasic();
-  const before = [p.angle, p.radius];
-  g.advance(100);
-  assert.deepEqual([p.angle, p.radius], before);
-  g.advance(550);
-  assert.ok(p.radius < before[1]);
-  assert.equal(g.combat.movementScale(p), 1);
-  assert.equal(
-    g.events.filter((e) => e.kind === 'skill-effect' && (e.data as { id: string }).id === 'stun')
-      .length,
-    1,
-  );
+test('mass vent waits for mass, never creates negative mass, and ignores fire-rate upgrades', () => {
+  const g = stationarySkill({}, []);
+  choose(g, 'vent');
+  g.advance(1000);
+  assert.equal(g.combat.status('vent').progress, 1);
+  g.mass = 20;
+  const xp = g.xp;
+  g.advance(1000 / rules.tickRate);
+  assert.equal(g.mass, 20 - g.forms.vent.mass);
+  assert.equal(g.xp, xp);
+  g.advance(1000);
+  const before = g.combat.status('vent').progress;
+  choose(g, 'rate');
+  close(g.combat.status('vent').progress, before);
+  g.advance(6000);
+  assert.equal(g.mass, 18);
+  g.advance(1100);
+  assert.equal(g.mass, 16);
+  g.mass = 1;
+  g.advance(8000);
+  assert.equal(g.mass, 0);
+  g.advance(9000);
+  assert.equal(g.mass, 0);
+  assert.equal(g.combat.status('vent').progress, 1);
 });
 
 test('chase only seeks wounded enemies and does not execute healthy ones', () => {
@@ -315,7 +330,7 @@ test('return plus pierce crosses multiple enemies and chain jumps off the return
   g.angle = 0;
   g.advance(300);
   assert.ok(b.hp < before[0] && c.hp < before[1] && d.hp < before[2]);
-  assert.ok(g.effects.some((f) => f.kind === 'pierce' && f.endAnchor === 'electron'));
+  assert.ok(g.effects.some((f) => f.kind === 'return' && f.endAnchor === 'electron'));
 });
 
 test('death arcs are bounded per cast, have no invented cooldown and preserve origin', () => {
@@ -385,9 +400,10 @@ test('ready timed skills wait for an eligible target and spend cooldown only on 
       },
       id,
     );
-    const p = target(0, 200, 128, 10000);
+    const p = target(0, 180, 128, 10000);
     if (id === 'chase') p.hp = 1000;
     g.targets.push(p);
+    if (id === 'vent') g.mass = 2;
     g.advance(1000 / rules.tickRate);
     close(g.combat.status(id).progress, 0);
     assert.equal(g.combat.status(id).fired, true, id);

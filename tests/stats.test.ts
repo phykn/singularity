@@ -23,7 +23,7 @@ test('movement speed upgrades increase orbital travel without changing orbit siz
 });
 
 test('a manually selected movement upgrade survives replay with identical future positions', () => {
-  const game = new Game(96009);
+  const game = new Game(96002);
   game.start();
   while (game.phase === 'running' && game.rank('speed') === 0 && game.time < 600) {
     game.advance(1000 / rules.tickRate);
@@ -156,7 +156,7 @@ test('recovery is absent in safe orbits and remains available alongside maxed sk
 
 test('global cooldown reduction retains progress for every timed skill', () => {
   const g = stationarySkill({}, [target(0, 190, 128, 100000)]);
-  for (const id of ['strike', 'repel', 'orb', 'focus'] as const) choose(g, id);
+  for (const id of ['strike', 'repel', 'satellite', 'focus'] as const) choose(g, id);
   g.advance(250);
   const before = skillIds.map((id) => g.combat.status(id).progress);
   const oldInterval = g.attackInterval;

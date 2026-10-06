@@ -157,8 +157,8 @@ try {
   const scenarios = [
     { count: 200, skills: ['pierce', 'multi', 'repeat', 'chain'], name: '200' },
     { count: 800, skills: ['pierce', 'multi', 'repeat', 'chain'], name: '800' },
-    { count: 800, skills: ['orb', 'bridge', 'multi', 'repeat'], name: 'persistent' },
-    { count: 800, skills: ['gather', 'stun', 'return', 'repel'], name: 'control' },
+    { count: 800, skills: ['satellite', 'bridge', 'multi', 'repeat'], name: 'persistent' },
+    { count: 800, skills: ['gather', 'vent', 'return', 'repel'], name: 'control' },
     { count: 800, skills: ['focus', 'charge', 'repeat', 'chain'], name: 'charge' },
   ];
   for (const { count, skills, name } of process.argv.includes('--frozen') ? [] : scenarios) {

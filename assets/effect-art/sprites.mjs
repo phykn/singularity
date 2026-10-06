@@ -39,7 +39,7 @@ function sheet(width, height, cellWidth, cellHeight) {
 }
 
 export function effectArtwork() {
-  const effects = sheet(128, 224, 32, 32);
+  const effects = sheet(128, 192, 32, 32);
   for (let frame = 0; frame < 4; frame++) {
     const hit = effects.frame(frame, 0),
       impact = effects.frame(frame, 1);
@@ -59,7 +59,7 @@ export function effectArtwork() {
           sprite.pixel(16 + dx * (radius - 1), 16 + dy * (radius - 1), 2);
       }
     }
-    const dissolve = effects.frame(frame, 5),
+    const dissolve = effects.frame(frame, 4),
       distance = frame + 2;
     for (const [dx, dy] of [
       [-1, -1],

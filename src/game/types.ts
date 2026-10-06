@@ -19,8 +19,7 @@ export type Target = Point & {
   speed: number;
   turn: number;
   hitAt?: number;
-  stunUntil?: number;
-  stunReady?: number;
+  bridgeUntil?: number;
   pushReady?: number;
   gatherReady?: number;
   controlCount?: number;
@@ -32,7 +31,7 @@ export type Effect = {
     | 'strike'
     | 'bridge'
     | 'charge'
-    | 'stun'
+    | 'vent'
     | 'surge'
     | 'return'
     | 'focus'

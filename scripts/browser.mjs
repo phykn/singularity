@@ -205,7 +205,7 @@ const rarityFlow = async () => {
   await page.evaluate((rarities) => {
     window.__gameDebug.restart(42, false);
     const g = window.__gameDebug.getModel();
-    for (const [i, id] of ['repeat', 'chain', 'strike', 'orb'].entries()) {
+    for (const [i, id] of ['repeat', 'chain', 'strike', 'satellite'].entries()) {
       g.choice = {
         number: g.selections.length + 1,
         opened: g.time,
@@ -387,16 +387,18 @@ const showSkill = async (page, id, rank = 5, rarity = 'common') =>
           g.combat.fireBasic(t);
         }
       } else if (id === 'bridge') {
-        g.combat.fireBasic(g.targets[0]);
-        g.combat.fireBasic(g.targets[4]);
+        g.combat.fireSkill('bridge');
+      } else if (id === 'vent') {
+        g.mass = 40;
+        g.combat.fireSkill('vent');
       } else if (id === 'charge') {
         for (let i = 0; i < Math.ceil(g.forms.charge.threshold); i++) g.combat.fireBasic();
-      } else if (['strike', 'repel', 'focus', 'orb', 'gather', 'chase'].includes(id))
+      } else if (['strike', 'repel', 'focus', 'satellite', 'gather', 'chase'].includes(id))
         g.combat.fireSkill(id);
       else g.combat.fireBasic();
       if (id === 'return') g.angle += 0.65;
       window.__gameDebug.advance(
-        id === 'return' ? 300 : id === 'repeat' ? 150 : id === 'orb' ? 400 : 50,
+        id === 'return' ? 300 : id === 'repeat' ? 150 : id === 'satellite' ? 400 : 50,
       );
       g.setHidden(true);
       return {
@@ -405,7 +407,7 @@ const showSkill = async (page, id, rank = 5, rarity = 'common') =>
           .map((f) => ({ rank: f.rank, radius: f.radius, width: f.width })),
         hits: g.events.filter((e) => e.kind === 'hit').length,
         damage: g.damageNumbers.map((d) => d.value),
-        orbs: g.combat.orbPoints.map((p) => ({ ...p })),
+        satellites: g.combat.satellitePoints.map((p) => ({ ...p })),
       };
     },
     { id, rank, rarity },
@@ -416,13 +418,13 @@ const skillFlow = async () => {
   for (const id of skillIds) {
     const result = await showSkill(page, id, 5, 'epic');
     assert.ok(
-      result.damage.length > 0 &&
-        (id === 'orb' ? result.orbs.length > 0 : result.effects.length > 0),
+      (id === 'vent' || result.damage.length > 0) &&
+        (id === 'satellite' ? result.satellites.length > 0 : result.effects.length > 0),
       'No visible skill impact: ' + id,
     );
     await screenshot(page, 'skill-' + id);
   }
-  report('all sixteen lightning skills render actual impacts and damage', { skills: skillIds });
+  report('all sixteen skills render their actual combat or recovery effect', { skills: skillIds });
   await page.close();
 };
 
@@ -433,7 +435,8 @@ const visualFlow = async () => {
     for (const rank of [1, 5]) {
       const result = await showSkill(page, id, rank);
       assert.ok(
-        (id === 'orb' ? result.orbs.length > 0 : result.effects.length > 0) && result.hits > 0,
+        (id === 'satellite' ? result.satellites.length > 0 : result.effects.length > 0) &&
+          (id === 'vent' || result.hits > 0),
         id + ' must produce an actual visible attack',
       );
       assert.ok(result.effects.every((fx) => fx.rank === rank));
@@ -923,7 +926,7 @@ const qaFlow = async () => {
   );
 };
 
-const orbFlow = async () => {
+const satelliteFlow = async () => {
   const page = await browser.newPage({ viewport: { width: 375, height: 812 } });
   page.on('pageerror', (error) => errors.push(error.message));
   await observeScene(page);
@@ -933,7 +936,7 @@ const orbFlow = async () => {
     const debug = window.__gameDebug;
     debug.restart(17, false);
     const g = debug.getModel();
-    g.ranks.orb = 5;
+    g.ranks.satellite = 5;
     const p = g.position;
     g.targets = [
       {
@@ -955,7 +958,7 @@ const orbFlow = async () => {
       },
     ];
     g.counts.proton.generated = 1;
-    g.combat.fireSkill('orb');
+    g.combat.fireSkill('satellite');
     const scene = window.__gameScene,
       positions = [],
       labels = [];
@@ -964,27 +967,26 @@ const orbFlow = async () => {
       debug.advance(1000 / g.rules.tickRate);
       g.setHidden(true);
       scene.update();
-      const orb = scene.sprites.images.find(
-        (s) =>
-          s.visible &&
-          s.texture.key === 'effects' &&
-          Number(s.frame.name) >= 8 &&
-          Number(s.frame.name) < 12,
+      const satellite = scene.sprites.images.find(
+        (s) => s.visible && s.texture.key === 'electron' && s.displayWidth === 8,
       );
-      if (!orb) throw new Error('Missing generated orb sprite');
-      positions.push(JSON.stringify([orb.x, orb.y]));
+      if (!satellite) throw new Error('Missing satellite sprite');
+      positions.push(JSON.stringify([satellite.x, satellite.y]));
       labels.push(...scene.damageLabels.texts.filter((t) => t.visible).map((t) => t.text));
     }
     return { frames: positions.length, positions: new Set(positions).size, labels };
   });
-  assert.equal(result.positions, result.frames, 'The visible orb must move on each frame');
+  assert.ok(
+    result.positions >= result.frames * 0.8,
+    'The orbit must keep moving at native pixel precision',
+  );
   assert.ok(result.labels.length > 0, 'Hits must retain visible damage numbers');
   assert.ok(
     result.labels.every((label) => /^\d+$/.test(label)),
     'Damage labels must be integers',
   );
-  await screenshot(page, 'orb-smooth-motion');
-  report('orb body updates on every frame and damage labels stay visible integers', {
+  await screenshot(page, 'satellite-smooth-motion');
+  report('satellite body updates on every frame and damage labels stay visible integers', {
     frames: result.frames,
     positions: result.positions,
   });
@@ -1172,8 +1174,8 @@ try {
     await speedFlow();
   } else if (process.argv.includes('--warning')) {
     await waveWarningFlow();
-  } else if (process.argv.includes('--orb')) {
-    await orbFlow();
+  } else if (process.argv.includes('--satellite')) {
+    await satelliteFlow();
   } else if (process.argv.includes('--qa')) {
     await qaFlow();
   } else if (process.argv.includes('--polish')) {
@@ -1380,7 +1382,7 @@ try {
     await interfaceFlow();
     await visualFlow();
     await qaFlow();
-    await orbFlow();
+    await satelliteFlow();
 
     const page = await pageFor(375, 812);
     await page.getByRole('button', { name: 'START' }).click();

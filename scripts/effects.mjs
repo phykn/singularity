@@ -26,20 +26,20 @@ try {
       if (texture.key !== 'effects') throw new Error('Pixel effects did not load');
       const canvas = document.createElement('canvas');
       canvas.width = 128;
-      canvas.height = 224;
+      canvas.height = 192;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(texture.source[0].image, 0, 0);
-      const pixels = ctx.getImageData(0, 0, 128, 224).data;
+      const pixels = ctx.getImageData(0, 0, 128, 192).data;
       const alpha = (x, y) => pixels[(y * 128 + x) * 4 + 3];
       const frames = [];
-      for (let row = 0; row < 7; row++)
+      for (let row = 0; row < 6; row++)
         for (let col = 0; col < 4; col++) {
           let painted = 0;
           for (let y = 0; y < 32; y++)
             for (let x = 0; x < 32; x++) if (alpha(col * 32 + x, row * 32 + y) > 180) painted++;
           if (!painted) throw new Error(`Empty animation frame ${row}:${col}`);
           if (alpha(col * 32, row * 32) !== 0) throw new Error('Nontransparent frame margin');
-          if (row === 3 || row === 4)
+          if (row === 2 || row === 3)
             for (let y = 14; y < 18; y++)
               for (let x = 14; x < 18; x++)
                 if (alpha(col * 32 + x, row * 32 + y) > 16)
@@ -87,8 +87,8 @@ try {
         (s) =>
           s.visible &&
           s.texture.key === 'effects' &&
-          Number(s.frame.name) >= 16 &&
-          Number(s.frame.name) < 20,
+          Number(s.frame.name) >= 12 &&
+          Number(s.frame.name) < 16,
       );
       const electron = scene.sprites.images.find(
         (s) => s.visible && s.texture.key === 'electronSurge',
@@ -201,7 +201,7 @@ try {
         electronPixels,
       };
     });
-    assert.equal(result.frames, 28);
+    assert.equal(result.frames, 24);
     assert.equal(result.beamFrames, 32);
     await capture(page, `artifacts/screens/effects-tracked-${width}x${height}.png`);
     checks.push({ viewport: [width, height], ...result });

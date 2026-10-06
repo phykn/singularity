@@ -1,7 +1,16 @@
 import { rarityScale, rules } from './rules.ts';
 import type { Ranks, Rarities, RuleSet, SkillId } from './rules.ts';
 
-export const timedSkills = ['strike', 'repel', 'focus', 'orb', 'gather', 'chase'] as const;
+export const timedSkills = [
+  'strike',
+  'repel',
+  'focus',
+  'satellite',
+  'bridge',
+  'gather',
+  'chase',
+  'vent',
+] as const;
 export type TimedSkill = (typeof timedSkills)[number];
 
 export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rules, reach = 1) {
@@ -43,10 +52,10 @@ export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rul
       duration: s.focus.durations[ranks.focus],
       damage: s.focus.damage * scale('focus'),
     },
-    orb: {
-      radius: s.orb.radii[ranks.orb] * scale('orb') * reach,
-      duration: s.orb.duration[ranks.orb],
-      damage: s.orb.damage * scale('orb'),
+    satellite: {
+      count: s.satellite.counts[ranks.satellite],
+      range: s.satellite.ranges[ranks.satellite] * reach,
+      damage: s.satellite.damage * scale('satellite'),
     },
     charge: {
       threshold: s.charge.threshold[ranks.charge] / scale('charge'),
@@ -65,9 +74,10 @@ export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rul
       pull: s.gather.pull[ranks.gather] * scale('gather'),
       damage: s.gather.damage[ranks.gather] * scale('gather'),
     },
-    stun: { duration: s.stun.duration[ranks.stun] * scale('stun') },
+    vent: { mass: Math.round(s.vent.mass[ranks.vent] * scale('vent')) },
     chase: {
       threshold: s.chase.threshold[ranks.chase],
+      jumps: s.chase.jumps[ranks.chase],
       count: s.chase.count[ranks.chase] + extra('chase'),
       damage: s.chase.damage[ranks.chase] * scale('chase'),
     },

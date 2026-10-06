@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { launchBrowser } from './browser-support.mjs';
 import { effectArtwork } from '../assets/effect-art/sprites.mjs';
+import { skillGlyphs } from '../assets/icon-art/skill-glyphs.mjs';
 
 // Pack the generated pixel artwork into native UI cells; artistic conversion is already complete.
 const browser = await launchBrowser();
@@ -12,7 +13,7 @@ try {
   ]) {
     const source = readFileSync(sourcePath).toString('base64');
     const png = await page.evaluate(
-      async ({ source, cols, rows, cellWidth, cellHeight }) => {
+      async ({ source, cols, rows, cellWidth, cellHeight, skillGlyphs }) => {
         const image = new Image();
         image.src = 'data:image/png;base64,' + source;
         await image.decode();
@@ -61,9 +62,21 @@ try {
               dh,
             );
           }
+        for (const glyph of skillGlyphs) {
+          const left = (glyph.cell % cols) * 32,
+            top = Math.floor(glyph.cell / cols) * 32;
+          ctx.clearRect(left, top, 32, 32);
+          glyph.rows.forEach((row, y) =>
+            [...row].forEach((shade, x) => {
+              if (shade === '.') return;
+              ctx.fillStyle = glyph.colors[Number(shade)];
+              ctx.fillRect(left + x * 2, top + y * 2, 2, 2);
+            }),
+          );
+        }
         return canvas.toDataURL('image/png').split(',')[1];
       },
-      { source, cols, rows, cellWidth, cellHeight },
+      { source, cols, rows, cellWidth, cellHeight, skillGlyphs },
     );
     const buffer = Buffer.from(png, 'base64');
     assert.equal(buffer.readUInt32BE(16), cols * cellWidth);
@@ -94,12 +107,11 @@ try {
           const size = source.width / 4;
           // Register the generated row pivots to the electron without recentering each frame.
           const rows = [
-            [2, -3],
-            [3, -1],
-            [4, 1],
-            [6, 3],
+            [2, -1],
+            [3, 1],
+            [5, 3],
           ];
-          for (let row = 0; row < 4; row++)
+          for (let row = 0; row < 3; row++)
             for (let col = 0; col < 4; col++) {
               ctx.save();
               ctx.beginPath();
@@ -108,7 +120,7 @@ try {
               ctx.drawImage(
                 source,
                 col * size,
-                row * size,
+                (row + 1) * size,
                 size,
                 size,
                 col * 32,

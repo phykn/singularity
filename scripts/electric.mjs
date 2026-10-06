@@ -19,7 +19,7 @@ try {
     await page.goto(base);
     await page.waitForFunction(() => window.__gameScene && window.__gameDebug);
     await page.evaluate(() => document.fonts.ready);
-    for (const kind of ['orb', 'charge-low', 'charge-high', 'surge', 'return', 'crowd']) {
+    for (const kind of ['satellite', 'charge-low', 'charge-high', 'surge', 'return', 'crowd']) {
       const states = [];
       for (const pose of [0, 1, 2]) {
         const state = await page.evaluate(
@@ -39,9 +39,9 @@ try {
               debug.advance(ms);
               g.setHidden(true);
             };
-            if (kind === 'orb') {
-              g.ranks.orb = 3;
-              g.combat.fireSkill('orb');
+            if (kind === 'satellite') {
+              g.ranks.satellite = 3;
+              g.combat.fireSkill('satellite');
               advance(350 + pose * 100);
             } else if (kind.startsWith('charge')) {
               g.ranks.charge = 1;
@@ -58,7 +58,7 @@ try {
               }
               if (kind === 'crowd') {
                 const { orbit } = await import('/src/game/geometry.ts');
-                Object.assign(g.ranks, { orb: 5, charge: 5, return: 5 });
+                Object.assign(g.ranks, { satellite: 5, charge: 5, return: 5 });
                 g.targets = Array.from({ length: 240 }, (_, i) => {
                   const p = orbit(i * 2.39996, 50 + ((i * 37) % 115));
                   return {
@@ -66,7 +66,7 @@ try {
                     particle: ['quark', 'muon', 'proton', 'neutron'][i % 4],
                   };
                 });
-                g.combat.fireSkill('orb');
+                g.combat.fireSkill('satellite');
                 g.combat.fireBasic();
               }
               advance(100 + pose * 100);
@@ -141,7 +141,7 @@ try {
           if (kind.startsWith('charge')) {
             assert.ok(state.charge > 0);
             assert.equal(
-              state.sprites.filter((s) => s.key === 'effects' && s.frame >= 12 && s.frame < 16)
+              state.sprites.filter((s) => s.key === 'effects' && s.frame >= 8 && s.frame < 12)
                 .length,
               1,
               'Stored charge must persist after hit effects expire',
@@ -150,7 +150,7 @@ try {
           if (kind === 'surge') {
             assert.ok(state.active);
             assert.ok(
-              state.sprites.some((s) => s.key === 'effects' && s.frame >= 16 && s.frame < 20),
+              state.sprites.some((s) => s.key === 'effects' && s.frame >= 12 && s.frame < 16),
             );
             assert.ok(state.sprites.some((s) => s.key === 'electronSurge' && s.width === 16));
           }
@@ -158,15 +158,21 @@ try {
         await capture(page, `${output}/${kind}-${viewport.width}-${pose}.png`);
         states.push(state);
       }
-      if (!baseline && kind === 'orb')
+      if (!baseline && kind === 'satellite') {
+        for (const state of states)
+          assert.equal(
+            state.sprites.filter((s) => s.key === 'electron' && s.width === 8).length,
+            3,
+          );
         assert.ok(
           new Set(
-            states.map(
-              (s) =>
-                s.sprites.find((p) => p.key === 'effects' && p.frame >= 8 && p.frame < 12)?.frame,
-            ),
+            states.map((s) => {
+              const p = s.sprites.find((p) => p.key === 'electron' && p.width === 8);
+              return JSON.stringify([p.x, p.y]);
+            }),
           ).size > 1,
         );
+      }
       checks.push({ viewport, kind, states });
     }
     await page.close();

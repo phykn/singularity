@@ -33,12 +33,12 @@ test('segment targeting includes exact endpoints and width edges, ignores dead t
 
 test('owned skills retain acquisition order after later upgrades', () => {
   const game = fixture();
-  choose(game, 'orb');
+  choose(game, 'satellite');
   choose(game, 'chain');
-  choose(game, 'orb');
+  choose(game, 'satellite');
   choose(game, 'repeat');
-  assert.deepEqual(game.ownedSkills, ['orb', 'chain', 'repeat']);
-  assert.equal(game.rank('orb'), 2);
+  assert.deepEqual(game.ownedSkills, ['satellite', 'chain', 'repeat']);
+  assert.equal(game.rank('satellite'), 2);
 });
 
 test('reserved repeat visuals retain the cast rank while the acquired rarity stays fixed', () => {

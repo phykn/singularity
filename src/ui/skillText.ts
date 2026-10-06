@@ -47,20 +47,20 @@ export function skillValue(
       return `${m.targets(String(s.repel.count))} · ${m.push} ${n(s.repel.push)}`;
     case 'focus':
       return `${n(s.focus.duration)}${c.seconds} · ×${n(s.focus.damage)}`;
-    case 'orb':
-      return `${n(s.orb.duration)}${c.seconds} · ${m.radius} ${n(s.orb.radius)}`;
+    case 'satellite':
+      return `${m.satellites(String(s.satellite.count))} · ×${n(s.satellite.damage)}`;
     case 'charge':
       return `${m.charge} ${n(s.charge.threshold)} · ×${n(s.charge.damage)}`;
     case 'bridge':
       return `${m.length} ${n(s.bridge.length)} · ${n(s.bridge.duration)}${c.seconds}`;
     case 'gather':
       return `${m.targets(String(s.gather.count))} · ${m.radius} ${n(s.gather.radius)}`;
-    case 'stun':
-      return `${m.stun} ${n(s.stun.duration)}${c.seconds}`;
+    case 'vent':
+      return `${cfg.skills.vent.periodSeconds}${c.seconds} · ${c.mass} -${s.vent.mass}`;
     case 'chase':
       return `${m.health} <=${Math.round(s.chase.threshold * 100)}% · ×${n(s.chase.damage)}`;
     case 'surge':
-      return `${m.kills} ${s.surge.kills} · ${n(s.surge.duration)}${c.seconds}`;
+      return `${m.charge} ${s.surge.kills} · ${n(s.surge.duration)}${c.seconds}`;
     case 'return':
       return `${m.damage} ×${n(s.return.damage)}`;
     case 'power':
@@ -123,13 +123,18 @@ export function skillChange(
       return c.metric.targets(
         current ? `${before.strike.count}→${after.strike.count}` : String(after.strike.count),
       );
+    case 'satellite':
+      return c.metric.satellites(
+        current
+          ? `${before.satellite.count}→${after.satellite.count}`
+          : String(after.satellite.count),
+      );
     case 'repel':
     case 'focus':
-    case 'orb':
     case 'charge':
     case 'bridge':
     case 'gather':
-    case 'stun':
+    case 'vent':
     case 'chase':
     case 'surge':
     case 'return':

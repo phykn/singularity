@@ -92,29 +92,29 @@ export function drawEffect(
     g.fillStyle(WHITE, 0.65);
     const phase = (time * 1.5) % 1;
     g.fillRect(lerp(from.x, to.x, phase), lerp(from.y, to.y, phase), 2 / scale, 2 / scale);
-  } else if (fx.kind === 'charge' || fx.kind === 'stun') {
-    const point = targets.find((target) => target.id === fx.targetId) ?? from;
-    if (fx.kind === 'charge') {
-      // The persistent halo comes from stored charge; this is only the hit's inward spark.
-      const angle = fx.born * 17;
-      const radius = (13 - t * 6) / scale;
-      g.fillStyle(WHITE, alpha * clamp(fx.width));
+  } else if (fx.kind === 'vent') {
+    // A few outward motes make mass loss visible without a persistent core border.
+    for (let i = 0; i < 6; i++) {
+      const angle = (i * Math.PI) / 3 + fx.born;
+      const radius = fx.radius * (0.5 + t);
+      g.fillStyle(i % 2 ? WHITE : ink, alpha * 0.85);
       g.fillRect(
-        point.x + Math.cos(angle) * radius,
-        point.y + Math.sin(angle) * radius,
+        from.x + Math.cos(angle) * radius,
+        from.y + Math.sin(angle) * radius,
         2 / scale,
         2 / scale,
       );
-    } else {
-      g.lineStyle(1 / scale, ink, alpha);
-      for (const side of [-1, 1])
-        g.lineBetween(
-          point.x + side * fx.radius,
-          point.y - 2 / scale,
-          point.x + side * (fx.radius + 2 / scale),
-          point.y + 2 / scale,
-        );
     }
+  } else if (fx.kind === 'charge') {
+    const angle = fx.born * 17;
+    const radius = (13 - t * 6) / scale;
+    g.fillStyle(WHITE, alpha * clamp(fx.width));
+    g.fillRect(
+      from.x + Math.cos(angle) * radius,
+      from.y + Math.sin(angle) * radius,
+      2 / scale,
+      2 / scale,
+    );
   } else if (fx.kind === 'surge') {
     if (t < 0.15) stamp('reconnect', from, t / 0.15, ink, (1 - t / 0.15) * 0.7, 36);
   } else if (fx.kind === 'return') {

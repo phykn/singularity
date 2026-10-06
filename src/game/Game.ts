@@ -867,7 +867,7 @@ export class Game {
     this.effects.push(effect);
     if (this.effects.length > 160) {
       const discard = this.effects.findIndex((fx) =>
-        ['kill', 'absorb', 'charge', 'stun'].includes(fx.kind),
+        ['kill', 'absorb', 'charge', 'vent'].includes(fx.kind),
       );
       this.effects.splice(Math.max(0, discard), 1);
     }

@@ -150,8 +150,8 @@ export class ElectronScene extends Phaser.Scene {
       }
     }
     if (!ending) {
-      for (const [index, point] of game.combat.orbPoints.entries())
-        this.stamp('orb', point, clock * 1.2 + index * 0.13, skillColors.orb, 1);
+      for (const point of game.combat.satellitePoints)
+        this.sprites.draw(this.screen(point), 'electron', 0.5, 1).clearTint();
       for (const fx of visibleEffects(game.effects))
         drawEffect(
           this.effectGraphics,

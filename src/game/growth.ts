@@ -31,7 +31,7 @@ export function makeCards(state: CardState, random: Random, cfg: RuleSet = rules
   if (number === 1) {
     const forms = pool.filter(isSkill),
       cards = forms.slice(0, cfg.choiceCount);
-    const broad = (id: SkillId) => ['chain', 'multi', 'pierce', 'orb'].includes(id);
+    const broad = (id: SkillId) => ['chain', 'multi', 'pierce', 'satellite'].includes(id);
     const lead = cards.find(broad) ?? forms.find(broad)!;
     if (!cards.includes(lead)) cards[2] = lead;
     return [lead, ...cards.filter((id) => id !== lead)];

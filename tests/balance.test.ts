@@ -39,12 +39,12 @@ test('a full capacitor waits for an actual recipient and clears with combat stat
   assert.equal(g.combat.status('charge').progress, 0);
 });
 
-test('return hits a stunned stationary primary once without scheduling another return', () => {
-  const p = target(0, 190, 128, 22);
-  const g = stationarySkill({ return: 3, stun: 3 }, [p]);
+test('return hits a stationary primary once without scheduling another return', () => {
+  const p = target(0, 190, 128, 20);
+  const g = stationarySkill({ return: 3 }, [p]);
   g.boosts.power = 1;
   g.combat.fireBasic();
-  assert.equal(p.hp, 9);
+  assert.equal(p.hp, 7);
   g.advance(300);
   assert.equal(p.hp, 0);
   assert.equal(g.counts.quark.killed, 1);

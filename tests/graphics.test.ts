@@ -181,9 +181,16 @@ const effect: Effect = {
 
 test('lightning remains finite at mobile scales and never changes combat data', () => {
   for (const id of skillIds) {
-    const kind = ['multi', 'repeat', 'chain', 'burst', 'repel', 'gather', 'chase', 'orb'].includes(
-      id,
-    )
+    const kind = [
+      'multi',
+      'repeat',
+      'chain',
+      'burst',
+      'repel',
+      'gather',
+      'chase',
+      'satellite',
+    ].includes(id)
       ? 'bolt'
       : id;
     const fx = { ...effect, source: id, kind } as Effect;
@@ -223,7 +230,7 @@ test('lightning remains finite at mobile scales and never changes combat data', 
 test('effect frames stay inside their row, loop only sustained effects and freeze with combat time', () => {
   const png = readFileSync(new URL('../src/art/assets/effects.png', import.meta.url));
   assert.equal(png.readUInt32BE(16), 128);
-  assert.equal(png.readUInt32BE(20), 224);
+  assert.equal(png.readUInt32BE(20), 192);
   assert.equal(png[25], 6);
   for (const id of Object.keys(effectRows) as (keyof typeof effectRows)[]) {
     const row = effectRows[id] * 4;
@@ -238,7 +245,6 @@ test('effect frames stay inside their row, loop only sustained effects and freez
     assert.equal(effectFrame(id, 1), effectRows[id] * 4 + 3);
   }
   for (const [id, period] of [
-    ['orb', 0.4],
     ['charge', 0.5],
     ['surge', 0.4],
   ] as const)

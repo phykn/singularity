@@ -21,14 +21,14 @@ const strength: Record<SkillId, number> = {
   burst: 7,
   strike: 6,
   focus: 6,
-  orb: 6,
+  satellite: 6,
   bridge: 6,
   charge: 4,
   surge: 4,
   return: 4,
   repel: 4,
   chase: 4,
-  stun: 3,
+  vent: 3,
   gather: 3,
 };
 function value(g: Game, card: Card) {

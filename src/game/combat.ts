@@ -28,6 +28,7 @@ type Pulse = {
   target?: Target;
   from?: Point;
   reverse?: Point;
+  pursuit?: { remaining: number; visited: Set<number> };
   anchored: boolean;
 };
 type Focus = {
@@ -39,13 +40,6 @@ type Focus = {
   group: number;
   started: boolean;
 };
-type Orb = {
-  attack: Attack;
-  point: Point;
-  velocity: Point;
-  until: number;
-  next: number;
-};
 type Bridge = {
   id: number;
   attack: Attack;
@@ -53,7 +47,7 @@ type Bridge = {
   to: Point;
   until: number;
   drawn: number;
-  hit: Set<number>;
+  next: Map<number, number>;
 };
 
 export class Combat {
@@ -68,19 +62,19 @@ export class Combat {
     strike: Infinity,
     repel: Infinity,
     focus: Infinity,
-    orb: Infinity,
+    satellite: Infinity,
+    bridge: Infinity,
+    vent: Infinity,
     gather: Infinity,
     chase: Infinity,
   };
   private pulses: Pulse[] = [];
   private focus: Focus[] = [];
-  private orbs: Orb[] = [];
   private bridges: Bridge[] = [];
-  private lastNode?: { point: Point; id: number; time: number };
-  private nextBridge = 0;
   private surgeCharge = 0;
   private storedCharge = 0;
-  private lastKill = -Infinity;
+  private lastSurgeCharge = -Infinity;
+  private nextSurgeHit = 0;
   private surgeUntil = 0;
   private nextSurge = 0;
   private surgeAttack?: Attack;
@@ -90,8 +84,16 @@ export class Combat {
     this.nextAttack = game.rules.attackBaseSeconds * game.rules.tickRate;
   }
 
-  get orbPoints(): readonly Point[] {
-    return this.orbs.map((orb) => orb.point);
+  get satellitePoints(): readonly Point[] {
+    const g = this.game,
+      count = g.forms.satellite.count;
+    return Array.from({ length: count }, (_, i) => {
+      const angle = g.time * g.rules.skills.satellite.angularSpeed + (i * Math.PI * 2) / count;
+      return {
+        x: g.position.x + Math.cos(angle) * g.rules.skills.satellite.orbitRadius,
+        y: g.position.y + Math.sin(angle) * g.rules.skills.satellite.orbitRadius,
+      };
+    });
   }
 
   update(): void {
@@ -101,7 +103,10 @@ export class Combat {
       .sort((a, b) => a.at - b.at || a.order - b.order);
     this.pulses = this.pulses.filter((p) => p.at > g.tick + 1e-8);
     for (const pulse of due) {
-      if (pulse.reverse) this.reverse(pulse.attack, pulse.reverse);
+      if (pulse.pursuit) {
+        const target = this.wounded(pulse.attack, pulse.from!, pulse.pursuit.visited)[0];
+        if (target) this.pursue(pulse.attack, pulse.from!, target, pulse.pursuit);
+      } else if (pulse.reverse) this.reverse(pulse.attack, pulse.reverse);
       else {
         const from = pulse.anchored ? g.position : pulse.from!;
         const target =
@@ -125,14 +130,12 @@ export class Combat {
     for (const id of timedSkills) {
       if (this.nextSkill[id] > g.tick + 1e-8) continue;
       if (id === 'focus' && this.focus.length) continue;
-      if (id === 'orb' && this.orbs.length + g.forms.multi.count > g.rules.skills.orb.maxActive)
-        continue;
       if (this.fireSkill(id) && id !== 'focus')
         this.nextSkill[id] =
-          g.tick + (g.rules.skills[id].periodSeconds / g.rate) * g.rules.tickRate;
+          g.tick +
+          (g.rules.skills[id].periodSeconds / (id === 'vent' ? 1 : g.rate)) * g.rules.tickRate;
     }
     this.updateFocus();
-    this.updateOrbs();
     this.updateBridges();
     this.updateSurge();
   }
@@ -146,7 +149,7 @@ export class Combat {
         progress:
           this.surgeUntil > g.time
             ? 1
-            : g.time - this.lastKill > g.rules.skills.surge.windowSeconds
+            : g.time - this.lastSurgeCharge > g.rules.skills.surge.windowSeconds
               ? 0
               : this.surgeCharge / g.forms.surge.kills,
         active: g.phase === 'running' && this.surgeUntil > g.time,
@@ -159,32 +162,19 @@ export class Combat {
         active: false,
         fired,
       };
-    if (id === 'burst' || id === 'stun')
-      return { mode: 'conditional', progress: 0, active: false, fired };
+    if (id === 'burst') return { mode: 'conditional', progress: 0, active: false, fired };
     const timed = timedSkills.includes(id as TimedSkill),
       skill = id as TimedSkill;
     const interval =
       (timed
-        ? g.rules.skills[skill].periodSeconds / g.rate
-        : id === 'bridge'
-          ? g.rules.skills.bridge.periodSeconds / g.rate
-          : g.attackInterval) * g.rules.tickRate;
-    const next = timed
-      ? this.nextSkill[skill]
-      : id === 'bridge'
-        ? this.nextBridge
-        : (this.nextLinked[id] ?? g.tick);
+        ? g.rules.skills[skill].periodSeconds / (id === 'vent' ? 1 : g.rate)
+        : g.attackInterval) * g.rules.tickRate;
+    const next = timed ? this.nextSkill[skill] : (this.nextLinked[id] ?? g.tick);
     const active =
       g.phase === 'running' &&
-      (id === 'focus'
-        ? this.focus.length > 0
-        : id === 'orb'
-          ? this.orbs.length > 0
-          : id === 'bridge'
-            ? this.bridges.length > 0
-            : false);
+      (id === 'focus' ? this.focus.length > 0 : id === 'bridge' ? this.bridges.length > 0 : false);
     return {
-      mode: timed || id === 'bridge' ? 'timed' : 'linked',
+      mode: timed ? 'timed' : 'linked',
       progress: Math.max(0, Math.min(1, 1 - (next - g.tick) / interval)),
       active,
       fired,
@@ -200,27 +190,24 @@ export class Combat {
     const { tick, rate } = this.game,
       ratio = oldRate / rate;
     this.nextAttack = tick + Math.max(0, this.nextAttack - tick) * ratio;
-    this.nextBridge = tick + Math.max(0, this.nextBridge - tick) * ratio;
     this.nextSurge = tick + Math.max(0, this.nextSurge - tick) * ratio;
     for (const id of Object.keys(this.nextLinked) as SkillId[])
       this.nextLinked[id] = tick + Math.max(0, this.nextLinked[id]! - tick) * ratio;
     for (const id of timedSkills)
-      if (Number.isFinite(this.nextSkill[id]))
+      if (id !== 'vent' && Number.isFinite(this.nextSkill[id]))
         this.nextSkill[id] = tick + Math.max(0, this.nextSkill[id] - tick) * ratio;
   }
 
   clear(): void {
     this.pulses = [];
     this.focus = [];
-    this.orbs = [];
     this.bridges = [];
-    this.lastNode = undefined;
     this.surgeCharge = 0;
     this.storedCharge = 0;
     this.surgeUntil = 0;
     this.surgeAttack = undefined;
     for (const target of this.game.targets) {
-      target.stunUntil = 0;
+      target.bridgeUntil = 0;
     }
   }
 
@@ -228,22 +215,29 @@ export class Combat {
     this.clear();
     this.firedAt = {};
     this.nextLinked = {};
-    this.lastKill = -Infinity;
-    this.nextAttack = this.nextBridge = this.nextSurge = this.game.tick + 1;
+    this.lastSurgeCharge = -Infinity;
+    this.nextSurgeHit = 0;
+    this.nextAttack = this.nextSurge = this.game.tick + 1;
     for (const id of timedSkills)
       this.nextSkill[id] = this.game.ranks[id] ? this.game.tick + 1 : Infinity;
   }
 
   movementScale(target: Target): number {
-    return this.game.time < (target.stunUntil ?? 0) ? 0 : 1;
+    return this.game.time < (target.bridgeUntil ?? 0)
+      ? this.game.rules.skills.bridge.movementScale
+      : 1;
   }
 
   killed(): void {
+    this.chargeSurge(1);
+  }
+
+  private chargeSurge(amount: number): void {
     const g = this.game;
     if (!g.ranks.surge || g.time < this.surgeUntil) return;
-    if (g.time - this.lastKill > g.rules.skills.surge.windowSeconds) this.surgeCharge = 0;
-    this.lastKill = g.time;
-    this.surgeCharge++;
+    if (g.time - this.lastSurgeCharge > g.rules.skills.surge.windowSeconds) this.surgeCharge = 0;
+    this.lastSurgeCharge = g.time;
+    this.surgeCharge += amount;
     const surge = g.forms.surge;
     if (this.surgeCharge < surge.kills) return;
     this.surgeCharge = 0;
@@ -273,7 +267,17 @@ export class Combat {
 
   fireSkill(id: TimedSkill, origin: Point = this.game.position): boolean {
     const g = this.game;
-    if (!g.ranks[id] || !g.targets.length) return false;
+    if (!g.ranks[id]) return false;
+    if (id === 'vent') {
+      const removed = Math.min(g.mass, g.forms.vent.mass);
+      if (!removed) return false;
+      g.mass -= removed;
+      g.log('vent', { removed, mass: g.mass });
+      this.activate(id);
+      this.effect(this.begin(id), 'vent', CENTER, CENTER, g.core + 8, 0.65, false, id);
+      return true;
+    }
+    if (!g.targets.length) return false;
     const attack = this.begin(id),
       s = attack.forms;
     const multiplier =
@@ -281,13 +285,15 @@ export class Combat {
         ? s.strike.damage
         : id === 'focus'
           ? s.focus.damage
-          : id === 'orb'
-            ? s.orb.damage
-            : id === 'chase'
-              ? s.chase.damage
-              : id === 'gather'
-                ? s.gather.damage
-                : g.rules.skills[id].damage;
+          : id === 'satellite'
+            ? s.satellite.damage
+            : id === 'bridge'
+              ? s.bridge.damage
+              : id === 'chase'
+                ? s.chase.damage
+                : id === 'gather'
+                  ? s.gather.damage
+                  : g.rules.skills[id].damage;
     attack.damage *= multiplier;
     const branches = s.multi.count;
     const within = (range: number) =>
@@ -305,20 +311,31 @@ export class Combat {
         });
       return true;
     }
-    if (id === 'orb') {
-      const selected = closest(g.targets, origin, branches, g.range * 1.5);
-      if (!selected.length || this.orbs.length + selected.length > g.rules.skills.orb.maxActive)
-        return false;
-      for (const [i, target] of selected.entries())
-        this.orbs.push({
-          attack: i ? { ...attack, damage: attack.damage * s.multi.damage } : attack,
-          point: { ...origin },
-          velocity: norm({ x: target.x - origin.x, y: target.y - origin.y }),
-          until: g.time + s.orb.duration,
-          next: g.tick,
-        });
+    if (id === 'satellite') {
+      let fired = 0;
+      for (const point of this.satellitePoints) {
+        const targets = closest(g.targets, point, branches, s.satellite.range);
+        fired += this.volley(attack, point, targets, false);
+      }
+      if (fired) this.activate(id);
+      return fired > 0;
+    }
+    if (id === 'bridge') {
+      const target = within(g.range * 1.5).sort((a, b) => a.radius - b.radius || a.id - b.id)[0];
+      if (!target) return false;
+      const direction = norm({ x: target.x - CENTER.x, y: target.y - CENTER.y });
+      const half = s.bridge.length / 2;
+      this.bridges.push({
+        id: this.order++,
+        attack: { ...attack, depth: 1 },
+        from: { x: target.x - direction.y * half, y: target.y + direction.x * half },
+        to: { x: target.x + direction.y * half, y: target.y - direction.x * half },
+        until: g.time + s.bridge.duration,
+        drawn: -Infinity,
+        next: new Map(),
+      });
+      if (this.bridges.length > s.bridge.count) this.bridges.shift();
       this.activate(id);
-      if (selected.length > 1) this.activate('multi');
       return true;
     }
     if (id === 'gather') {
@@ -374,9 +391,55 @@ export class Combat {
               .sort((a, b) => a.hp - b.hp || a.radius - b.radius || a.id - b.id)
               .slice(0, s.chase.count + branches - 1);
     attack.push = id === 'repel';
-    this.volley(attack, origin, targets, true);
+    if (id === 'chase') {
+      const pursuit = { remaining: s.chase.jumps, visited: new Set<number>() };
+      for (const [i, target] of targets.entries())
+        this.pursue(
+          i ? { ...attack, damage: attack.damage * s.multi.damage } : attack,
+          origin,
+          target,
+          pursuit,
+          true,
+        );
+    } else this.volley(attack, origin, targets, true);
     if (targets.length) this.activate(id);
     return targets.length > 0;
+  }
+
+  private wounded(attack: Attack, origin: Point, visited: Set<number>): Target[] {
+    return this.game.targets
+      .filter(
+        (t) =>
+          t.hp > 0 &&
+          !visited.has(t.id) &&
+          t.hp / t.maxHp <= attack.forms.chase.threshold &&
+          distance(t, origin) <= attack.range * 1.5,
+      )
+      .sort((a, b) => a.hp - b.hp || a.radius - b.radius || a.id - b.id);
+  }
+
+  private pursue(
+    attack: Attack,
+    origin: Point,
+    target: Target,
+    pursuit: { remaining: number; visited: Set<number> },
+    anchored = false,
+  ): void {
+    if (target.hp <= 0 || pursuit.visited.has(target.id)) return;
+    pursuit.visited.add(target.id);
+    this.activate('chase', attack.ranks.chase);
+    this.volley(attack, origin, [target], anchored);
+    if (target.hp <= 0 && pursuit.remaining > 0) {
+      pursuit.remaining--;
+      this.pulses.push({
+        at: this.game.tick + this.game.rules.skills.chase.jumpSeconds * this.game.rules.tickRate,
+        order: this.order++,
+        attack,
+        from: { x: target.x, y: target.y },
+        anchored: false,
+        pursuit,
+      });
+    }
   }
 
   private begin(source?: SkillId, multiplier = 1): Attack {
@@ -419,10 +482,7 @@ export class Combat {
       rarity: source ? attack.rarities[source] : attack.rarities.power,
       rank: source ? attack.ranks[source] : 0,
       anchor: anchored ? 'electron' : undefined,
-      endAnchor:
-        kind === 'return' || (kind === 'pierce' && attack.source === 'return')
-          ? 'electron'
-          : undefined,
+      endAnchor: kind === 'return' ? 'electron' : undefined,
       targetId,
     });
   }
@@ -550,7 +610,10 @@ export class Combat {
     if (target.hp <= 0) return;
     const g = this.game;
     g.damageTarget(target, damage, attack);
-    if (attack.ranks.bridge && attack.depth === 0) this.connect(attack, target);
+    if (target.hp > 0 && attack.source !== 'surge' && g.time >= this.nextSurgeHit) {
+      this.nextSurgeHit = g.time + g.rules.skills.surge.hitIntervalSeconds;
+      this.chargeSurge(g.rules.skills.surge.hitCharge * Math.min(1, damage / attack.power));
+    }
     if (attack.ranks.charge && attack.source !== 'charge' && attack.depth < 2) {
       this.storedCharge = Math.min(
         attack.forms.charge.threshold,
@@ -593,14 +656,6 @@ export class Combat {
       );
       Object.assign(target, orbit(target.angle, target.radius));
     }
-    if (attack.ranks.stun && g.time >= (target.stunReady ?? 0)) {
-      target.controlCount = (target.controlCount ?? 0) + 1;
-      const duration = attack.forms.stun.duration / (1 + 0.18 * (target.controlCount - 1));
-      target.stunUntil = g.time + duration;
-      target.stunReady = target.stunUntil + g.rules.skills.stun.immunitySeconds;
-      this.effect(attack, 'stun', target, target, target.size + 3, duration, false, 'stun');
-      this.activate('stun', attack.ranks.stun);
-    }
   }
 
   private discharge(attack: Attack): void {
@@ -627,49 +682,24 @@ export class Combat {
   }
 
   private reverse(attack: Attack, from: Point): void {
-    const to = this.game.position,
-      targets = onSegment(this.game.targets, from, to, attack.forms.return.width),
-      target = targets[0];
+    const to = this.game.position;
+    const targets = onSegment(this.game.targets, from, to, attack.forms.return.width);
     this.effect(attack, 'return', from, to, 0, 0.2, false, 'return');
     this.activate('return', attack.ranks.return);
-    if (target) this.resolve(attack, target, from, false, to);
-  }
-
-  private connect(attack: Attack, target: Target): void {
-    const g = this.game,
-      previous = this.lastNode;
-    this.lastNode = { point: { x: target.x, y: target.y }, id: target.id, time: g.time };
-    if (
-      !previous ||
-      previous.id === target.id ||
-      g.time - previous.time > 2 ||
-      g.tick < this.nextBridge
-    )
-      return;
-    const length = distance(previous.point, target);
-    if (length < 12 || length > attack.forms.bridge.length) return;
-    const cast: Bridge = {
-      id: this.order++,
-      attack: {
-        ...attack,
-        id: this.nextId++,
-        source: 'bridge',
-        damage: attack.power * attack.forms.bridge.damage,
-        depth: 1,
-        firstKill: undefined,
-        budget: { burst: false },
-        push: false,
-      },
-      from: previous.point,
-      to: { x: target.x, y: target.y },
-      until: g.time + attack.forms.bridge.duration,
-      drawn: -Infinity,
-      hit: new Set(),
-    };
-    this.bridges.push(cast);
-    if (this.bridges.length > attack.forms.bridge.count) this.bridges.shift();
-    this.nextBridge = g.tick + (g.rules.skills.bridge.periodSeconds / g.rate) * g.rules.tickRate;
-    this.activate('bridge', attack.ranks.bridge);
+    // One shared visit set keeps the swept path and its chain branches from doubling hits.
+    const visited = new Set(targets.map((t) => t.id));
+    for (const target of targets) this.deal(attack, target, attack.damage);
+    let previous: Point = targets.at(-1) ?? from;
+    for (let hop = 0; hop < attack.forms.chain.hops; hop++) {
+      const next = closest(this.game.targets, previous, 1, attack.forms.chain.range, visited)[0];
+      if (!next) break;
+      visited.add(next.id);
+      this.effect(attack, 'bolt', previous, next, 0, 0.14, false, 'chain', 1.3);
+      this.activate('chain', attack.ranks.chain);
+      previous = { x: next.x, y: next.y };
+      this.deal(attack, next, attack.damage * this.game.rules.skills.chain.falloff ** (hop + 1));
+    }
+    this.discharge(attack);
   }
 
   private updateFocus(): void {
@@ -726,31 +756,6 @@ export class Combat {
     this.focus = this.focus.filter((cast) => cast.started);
   }
 
-  private updateOrbs(): void {
-    const g = this.game,
-      cfg = g.rules.skills.orb;
-    this.orbs = this.orbs.filter(
-      (c) =>
-        g.time < c.until - 1e-8 &&
-        c.point.x > -30 &&
-        c.point.x < 390 &&
-        c.point.y > 60 &&
-        c.point.y < 460,
-    );
-    for (const orb of this.orbs) {
-      orb.point.x += (orb.velocity.x * cfg.speed) / g.rules.tickRate;
-      orb.point.y += (orb.velocity.y * cfg.speed) / g.rules.tickRate;
-      if (g.tick < orb.next - 1e-8) continue;
-      this.volley(
-        orb.attack,
-        orb.point,
-        closest(g.targets, orb.point, 1, orb.attack.forms.orb.radius),
-        false,
-      );
-      orb.next += cfg.tickSeconds * g.rules.tickRate;
-    }
-  }
-
   private updateBridges(): void {
     const g = this.game;
     this.bridges = this.bridges.filter((c) => g.time < c.until - 1e-8);
@@ -776,8 +781,9 @@ export class Combat {
         bridge.to,
         bridge.attack.forms.bridge.width,
       )) {
-        if (bridge.hit.has(target.id)) continue;
-        bridge.hit.add(target.id);
+        target.bridgeUntil = g.time + 2 / g.rules.tickRate;
+        if (g.time + 1e-8 < (bridge.next.get(target.id) ?? 0)) continue;
+        bridge.next.set(target.id, g.time + g.rules.skills.bridge.tickSeconds);
         this.volley(bridge.attack, bridge.from, [target], false);
       }
     }
