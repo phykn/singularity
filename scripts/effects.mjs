@@ -95,19 +95,113 @@ try {
       if (!aura || !electron) throw new Error('Surge lacks its aura or energized electron');
       if (aura.x !== electron.x || aura.y !== electron.y)
         throw new Error('Aura drifts from the electron');
-      if (aura.displayWidth !== 32 || electron.displayWidth !== 13)
-        throw new Error('Native sprites were enlarged');
+      if (aura.displayWidth !== 32 || electron.displayWidth !== 16)
+        throw new Error('Particles must use native 16-pixel texture cells');
+      const auraPixels = aura.displayWidth,
+        electronPixels = electron.displayWidth;
+      const beamTexture = scene.textures.get('beams');
+      if (beamTexture.key !== 'beams') throw new Error('Generated beams did not load');
+      canvas.width = 256;
+      canvas.height = 128;
+      ctx.drawImage(beamTexture.source[0].image, 0, 0);
+      const beamPixels = ctx.getImageData(0, 0, 256, 128).data;
+      const beamAlpha = (x, y) => beamPixels[(y * 256 + x) * 4 + 3];
+      for (let row = 0; row < 8; row++)
+        for (let col = 0; col < 4; col++) {
+          let painted = 0;
+          for (let y = 0; y < 16; y++)
+            for (let x = 0; x < 64; x++) if (beamAlpha(col * 64 + x, row * 16 + y) > 180) painted++;
+          if (!painted) throw new Error(`Empty beam frame ${row}:${col}`);
+          if (beamAlpha(col * 64, row * 16) > 1) throw new Error('Nontransparent beam margin');
+        }
+
+      debug.restart(17, false);
+      const combat = debug.getModel();
+      combat.ranks.focus = 1;
+      const tracked = {
+        id: 701,
+        x: combat.position.x + 40,
+        y: combat.position.y + 20,
+        hp: 1000,
+        maxHp: 1000,
+        kind: 'small',
+        particle: 'muon',
+        born: 0,
+        xp: 1,
+        mass: 1,
+        size: 5,
+        angle: 0,
+        radius: 100,
+        speed: 0,
+        turn: 0,
+      };
+      combat.targets = [tracked];
+      if (!combat.combat.fireSkill('focus')) throw new Error('Focus did not cast');
+      combat.combat.update();
+      combat.setHidden(true);
+      const casts = combat.events.filter((event) => event.kind === 'hit').length;
+      if (!casts) throw new Error('Focus fixture must actually hit');
+      const near = (actual, expected) => {
+        if (Math.abs(actual - expected) > 1.01)
+          throw new Error(`Beam geometry drift: ${actual} vs ${expected}`);
+      };
+      for (const [angle, dx, dy] of [
+        [0, 50, 0],
+        [1, 0, 50],
+        [2, -40, -30],
+        [3, 0, 0],
+      ]) {
+        combat.angle = angle;
+        Object.assign(tracked, { x: combat.position.x + dx, y: combat.position.y + dy });
+        scene.update();
+        const beam = scene.sprites.find((s) => s.visible && s.texture.key === 'beams');
+        if (!dx && !dy) {
+          if (beam) throw new Error('Coincident endpoints must skip the beam');
+          continue;
+        }
+        if (!beam || Number(beam.frame.name) < 16 || Number(beam.frame.name) >= 20)
+          throw new Error('Real focus cast lacks generated focused lightning');
+        const from = scene.screen(combat.position),
+          to = scene.screen(tracked);
+        for (const [point, side] of [
+          [from, -1],
+          [to, 1],
+        ]) {
+          near(beam.x + (side * Math.cos(beam.rotation) * beam.displayWidth) / 2, point.x);
+          near(beam.y + (side * Math.sin(beam.rotation) * beam.displayWidth) / 2, point.y);
+        }
+        const frozenBeam = JSON.stringify(visible()),
+          beamPool = scene.sprites.length;
+        for (let i = 0; i < 30; i++) scene.update();
+        if (JSON.stringify(visible()) !== frozenBeam)
+          throw new Error('Paused beam keeps animating');
+        if (scene.sprites.length !== beamPool) throw new Error('Beam pool grows every render');
+      }
+      // Shift pooled beam slots into particle slots; rotation and scale must reset.
+      combat.targets.push(...Array.from({ length: 4 }, (_, i) => ({ ...tracked, id: 800 + i })));
+      scene.update();
+      const particles = scene.sprites.filter((s) => s.visible && s.texture.key === 'muon');
+      if (
+        particles.some((s) => s.rotation !== 0 || s.displayWidth !== 16 || s.displayHeight !== 16)
+      )
+        throw new Error('Reused beam geometry leaked into native particles');
+      Object.assign(tracked, { x: combat.position.x + 50, y: combat.position.y + 20 });
+      scene.update();
       return {
         frames: frames.length,
+        beamFrames: 32,
+        trackedBeam: true,
+        hits: casts,
         pool,
         frozen: true,
         centered: true,
-        auraPixels: aura.displayWidth,
-        electronPixels: electron.displayWidth,
+        auraPixels,
+        electronPixels,
       };
     });
     assert.equal(result.frames, 24);
-    await capture(page, `artifacts/screens/effects-surge-${width}x${height}.png`);
+    assert.equal(result.beamFrames, 32);
+    await capture(page, `artifacts/screens/effects-tracked-${width}x${height}.png`);
     checks.push({ viewport: [width, height], ...result });
     console.log('PASS generated effects', JSON.stringify(checks.at(-1)));
     await page.close();

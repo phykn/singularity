@@ -11,6 +11,40 @@ export type EffectStamp = (
   alpha: number,
 ) => void;
 
+export const beamRows = {
+  basic: 0,
+  chain: 1,
+  pierce: 2,
+  strike: 3,
+  focus: 4,
+  charge: 5,
+  bridge: 6,
+  return: 7,
+} as const;
+export type BeamId = keyof typeof beamRows;
+export type BeamStamp = (
+  id: BeamId,
+  from: Point,
+  to: Point,
+  progress: number,
+  color: number,
+  alpha: number,
+  height: number,
+) => void;
+
+export function beamFrame(id: BeamId, progress: number): number {
+  return beamRows[id] * 4 + (Math.floor(Math.max(0, progress) * 12) % 4);
+}
+
+export function beamPose(from: Point, to: Point) {
+  return {
+    x: (from.x + to.x) / 2,
+    y: (from.y + to.y) / 2,
+    length: Math.hypot(to.x - from.x, to.y - from.y),
+    angle: Math.atan2(to.y - from.y, to.x - from.x),
+  };
+}
+
 export function effectFrame(id: EffectSprite, progress: number): number {
   const loop = id === 'orb' || id === 'charge' || id === 'surge';
   const frame = loop

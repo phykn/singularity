@@ -32,15 +32,15 @@ export function ParticleIcon({ id }: { id: ParticleKind }) {
   const rows = art[id],
     palette = palettes[id];
   return (
-    <svg width={34} height={34} viewBox="0 0 17 17" shapeRendering="crispEdges" aria-hidden="true">
+    <svg width={32} height={32} viewBox="0 0 16 16" shapeRendering="crispEdges" aria-hidden="true">
       {rows.flatMap((row, y) =>
         [...row].map(
           (pixel, x) =>
             pixel !== '.' && (
               <rect
                 key={y * 20 + x}
-                x={x + Math.floor((17 - row.length) / 2)}
-                y={y + Math.floor((17 - rows.length) / 2)}
+                x={x}
+                y={y}
                 width={1}
                 height={1}
                 fill={palette[Number(pixel)]}

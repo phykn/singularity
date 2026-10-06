@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type Phaser from 'phaser';
 import { readFileSync } from 'node:fs';
-import { effectFrame, effectRows } from '../src/render/effects.ts';
+import { beamFrame, beamPose, beamRows, effectFrame, effectRows } from '../src/render/effects.ts';
 import { art, createPixels, palettes } from '../src/render/pixels.ts';
 import { healthBar } from '../src/render/health.ts';
 import { drawEffect } from '../src/render/lightning.ts';
@@ -18,6 +18,8 @@ test('native sprites paint only palette pixels within their texture bounds', () 
     textures: {
       createCanvas(key: keyof typeof art, width: number, height: number) {
         const rows = art[key];
+        assert.equal(width, 16);
+        assert.equal(height, 16);
         assert.equal(width, rows[0].length);
         assert.equal(height, rows.length);
         const painted = new Set<string>();
@@ -74,7 +76,7 @@ test('generated icon atlases have transparent-capable PNGs and unique in-bounds 
 test('health bars show continuous proportional health and hide one-hit particles', () => {
   const enemy = target(1, 180, 200, 8, 'dense');
   const original = structuredClone(enemy);
-  assert.deepEqual(healthBar(enemy, 2), { width: 15, height: 2, offset: 13, filled: 15 });
+  assert.deepEqual(healthBar(enemy, 2), { width: 16, height: 2, offset: 13, filled: 16 });
   enemy.hp = 4;
   assert.equal(healthBar(enemy, 2)?.filled, 8);
   enemy.hp = 0.1;
@@ -105,6 +107,19 @@ function drawing() {
   return {
     graphics,
     commands,
+    beam: (
+      id: string,
+      from: { x: number; y: number },
+      to: { x: number; y: number },
+      progress: number,
+      color: number,
+      alpha: number,
+      height: number,
+    ) => {
+      const args = [from.x, from.y, to.x, to.y, progress, color, alpha, height];
+      assert.ok(args.every(Number.isFinite), id + ' received invalid beam geometry');
+      commands.push({ method: 'beam:' + id, args });
+    },
     stamp: (
       id: string,
       point: { x: number; y: number },
@@ -162,10 +177,10 @@ test('lightning remains finite at mobile scales and never changes combat data', 
     const before = structuredClone(fx);
     for (const scale of [0.65, 1, 1.75]) {
       const active = drawing();
-      drawEffect(active.graphics, fx, 1.5, scale, fx.from, [], active.stamp);
+      drawEffect(active.graphics, fx, 1.5, scale, fx.from, [], active.stamp, active.beam);
       assert.ok(active.commands.length > 0, id + ' must have a visible attack');
       const expired = drawing();
-      drawEffect(expired.graphics, fx, 2, scale, fx.from, [], expired.stamp);
+      drawEffect(expired.graphics, fx, 2, scale, fx.from, [], expired.stamp, expired.beam);
       assert.equal(expired.commands.length, 0);
       const coincident = drawing();
       drawEffect(
@@ -176,6 +191,7 @@ test('lightning remains finite at mobile scales and never changes combat data', 
         fx.from,
         [],
         coincident.stamp,
+        coincident.beam,
       );
     }
     assert.deepEqual(fx, before);
@@ -213,33 +229,50 @@ test('focused lightning follows the current electron and tracked particle', () =
   const fx = { ...effect, anchor: 'electron' as const, targetId: enemy.id };
   const before = structuredClone({ fx, enemy, electron });
   {
-    const { graphics, commands, stamp } = drawing();
-    drawEffect(graphics, fx, 1.5, 1, electron, [enemy], stamp);
-    assert.ok(
-      commands.some(
-        ({ method, args }) =>
-          method === 'moveTo' && args[0] === electron.x && args[1] === electron.y,
-      ),
-    );
-    assert.ok(
-      commands.some(
-        ({ method, args }) => method === 'lineTo' && args[0] === enemy.x && args[1] === enemy.y,
-      ),
-    );
+    const { graphics, commands, stamp, beam } = drawing();
+    drawEffect(graphics, fx, 1.5, 1, electron, [enemy], stamp, beam);
+    const focused = commands.find(({ method }) => method === 'beam:focus');
+    assert.ok(focused);
+    assert.deepEqual(focused.args.slice(0, 4), [electron.x, electron.y, enemy.x, enemy.y]);
   }
   assert.deepEqual({ fx, enemy, electron }, before);
 });
 
-test('lightning stroke widths use whole screen pixels at every viewport scale', () => {
+test('lightning beam heights use whole screen pixels at every viewport scale', () => {
   for (const scale of [0.65, 1, 1.75]) {
     for (const kind of ['bolt', 'strike', 'focus', 'pierce', 'return'] as const) {
-      const { graphics, commands, stamp } = drawing();
-      drawEffect(graphics, { ...effect, kind }, 1.5, scale, effect.from, [], stamp);
+      const { graphics, commands, stamp, beam } = drawing();
+      drawEffect(graphics, { ...effect, kind }, 1.5, scale, effect.from, [], stamp, beam);
       const widths = commands
-        .filter(({ method }) => method === 'lineStyle')
-        .map(({ args }) => args[0] * scale);
+        .filter(({ method }) => method.startsWith('beam:'))
+        .map(({ args }) => args[7]);
       assert.ok(widths.length > 0);
       widths.forEach((width) => assert.ok(Math.abs(width - Math.round(width)) < 1e-8, kind));
+    }
+  }
+});
+
+test('beam atlas frames freeze with simulation time and geometry connects both endpoints', () => {
+  const png = readFileSync(new URL('../src/render/assets/beams.png', import.meta.url));
+  assert.equal(png.readUInt32BE(16), 256);
+  assert.equal(png.readUInt32BE(20), 128);
+  assert.equal(png[25], 6);
+  for (const id of Object.keys(beamRows) as (keyof typeof beamRows)[]) {
+    for (const time of [-1, 0, 0.1, 0.7, 3, 30]) {
+      const frame = beamFrame(id, time);
+      assert.ok(frame >= beamRows[id] * 4 && frame < beamRows[id] * 4 + 4);
+      assert.equal(beamFrame(id, time), frame);
+    }
+  }
+  for (const to of [{ x: 90, y: 20 }, { x: 10, y: 200 }, { x: -90, y: -10 }, effect.from]) {
+    const pose = beamPose(effect.from, to);
+    assert.ok(Object.values(pose).every(Number.isFinite));
+    for (const [point, side] of [
+      [effect.from, -1],
+      [to, 1],
+    ] as const) {
+      close(pose.x + (side * Math.cos(pose.angle) * pose.length) / 2, point.x);
+      close(pose.y + (side * Math.sin(pose.angle) * pose.length) / 2, point.y);
     }
   }
 });

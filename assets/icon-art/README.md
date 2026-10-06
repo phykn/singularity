@@ -10,7 +10,7 @@ Run `npm run build:art` from the repository root to pack the selected pixel artw
 
 The skill atlas has seven columns and three rows. Its order is Attack Power, Attack Speed, Range, Move Speed, Mass Vent, Repeat, Fork; Chain, Pierce, Death Arc, Thunderstrike, Repulsion, Focus, Ball Lightning; Capacitor, Arc Bridge, Gather, Short Circuit, Pursuit Arc, Surge, Return Arc. See `src/ui/iconAtlas.ts` for runtime coordinates.
 
-Particle textures and guide icons share the original pixel grids. Native gameplay sizes are 13 pixels for Electron and Electron Surge, 11 for Quark, 13 for Muon, 15 for Proton and 17 for Neutron. Enemy movement, collision and combat rules are unchanged.
+Particle textures and guide icons share hand-authored 16×16 grids at native screen scale. Their stepped silhouettes restore the early artwork: a triangular Quark, diamond Muon, faceted Proton and hollow Neutron, beside the small Electron. Transparent padding keeps the smaller particles small; the grid size does not enlarge their visible bodies. Enemy movement, collision and combat rules are unchanged.
 
 ## Generation prompts
 

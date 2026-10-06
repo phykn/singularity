@@ -1,7 +1,7 @@
 import type Phaser from 'phaser';
 import { BLUE, WHITE, AMBER, skillColors } from './palette.ts';
 import { effectOrigin } from './effects.ts';
-import type { EffectStamp } from './effects.ts';
+import type { BeamStamp, EffectStamp } from './effects.ts';
 import { rarityIds } from '../game/rules.ts';
 import { lerp, clamp } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
@@ -20,22 +20,6 @@ function stroke(
   g.moveTo(points[0].x, points[0].y);
   for (let i = 1; i < points.length; i++) g.lineTo(points[i].x, points[i].y);
   g.strokePath();
-}
-function bolt(from: Point, to: Point, seed: number, scale: number): Point[] {
-  const dx = to.x - from.x,
-    dy = to.y - from.y;
-  const length = Math.hypot(dx, dy) || 1;
-  const points = [from];
-  const segments = Math.max(2, Math.min(7, Math.ceil((length * scale) / 24)));
-  for (let i = 1; i < segments; i++) {
-    const shift = Math.sin(seed + i * 11) * Math.min(4 / scale, length / 10);
-    points.push({
-      x: Math.round((lerp(from.x, to.x, i / segments) - (dy / length) * shift) * scale) / scale,
-      y: Math.round((lerp(from.y, to.y, i / segments) + (dx / length) * shift) * scale) / scale,
-    });
-  }
-  points.push(to);
-  return points;
 }
 function arrow(g: Graphics, from: Point, to: Point, ink: number, alpha: number, scale: number) {
   const dx = to.x - from.x,
@@ -86,6 +70,7 @@ export function drawEffect(
   electron: Point,
   targets: Target[],
   stamp: EffectStamp,
+  beam: BeamStamp,
 ): void {
   const from = effectOrigin(fx, electron);
   const to =
@@ -99,8 +84,9 @@ export function drawEffect(
   const alpha = Math.pow(1 - t, 0.7);
   const ink = fx.source ? skillColors[fx.source] : BLUE;
   const strength = clamp(fx.rank / 5) + rarityIds.indexOf(fx.rarity) * 0.06;
+  const clock = time + fx.born * 3;
   if (fx.kind === 'bridge') {
-    stroke(g, bolt(from, to, fx.targetId ?? 0, scale), 1, ink, 0.6, scale);
+    beam('bridge', from, to, clock, ink, 0.65, 6);
     g.fillStyle(WHITE, 0.75);
     for (const point of [from, to])
       g.fillRect(point.x - 1 / scale, point.y - 1 / scale, 2 / scale, 2 / scale);
@@ -123,36 +109,44 @@ export function drawEffect(
   } else if (fx.kind === 'surge') {
     stamp('surge', from, time, ink, 0.9);
   } else if (fx.kind === 'return') {
-    const points = bolt(from, to, fx.born * 10, scale);
-    stroke(g, points, 3, ink, alpha * 0.2, scale);
-    stroke(g, points, 1, ink, alpha * 0.9, scale);
+    beam('return', from, to, clock, ink, alpha * 0.9, 6);
     const point = { x: lerp(from.x, to.x, t), y: lerp(from.y, to.y, t) };
     g.fillStyle(WHITE, alpha);
     g.fillRect(point.x - 1 / scale, point.y - 1 / scale, 2 / scale, 2 / scale);
   } else if (fx.kind === 'bolt' || fx.kind === 'strike' || fx.kind === 'focus') {
-    const seed = from.x * 3 + to.y * 7 + fx.born * 100;
-    const points = fx.kind === 'focus' ? [from, to] : bolt(from, to, seed, scale);
     const opacity = fx.kind === 'focus' ? 1 : alpha;
-    const width = fx.kind === 'strike' ? 3 : 2;
-    stroke(g, points, width + 2, ink, 0.12 * opacity, scale);
-    stroke(g, points, width, ink, 0.8 * opacity, scale);
-    stroke(g, points, 1, WHITE, 0.8 * opacity, scale);
+    const id =
+      fx.kind === 'strike'
+        ? 'strike'
+        : fx.kind === 'focus'
+          ? 'focus'
+          : fx.source === 'charge'
+            ? 'charge'
+            : fx.source === 'repel'
+              ? 'pierce'
+              : ['chain', 'burst', 'gather'].includes(fx.source ?? '')
+                ? 'chain'
+                : 'basic';
+    const height = id === 'strike' ? 14 : id === 'charge' ? 12 : 8;
+    beam(id, from, to, clock, ink, 0.9 * opacity, height + Math.floor(strength));
     if (fx.source === 'repel') arrow(g, { x: 180, y: 260 }, to, ink, alpha, scale);
     if (fx.source === 'repeat') {
       const dx = to.x - from.x,
         dy = to.y - from.y,
         length = Math.hypot(dx, dy) || 1;
-      const line = points;
-      const echo = line.map((point, i) => {
-        const offset = i && i < line.length - 1 ? 3 / scale : 0;
-        return { x: point.x - (dy / length) * offset, y: point.y + (dx / length) * offset };
-      });
-      stroke(g, echo, 1, ink, 0.75 * opacity, scale);
+      const x = ((-dy / length) * 2) / scale,
+        y = ((dx / length) * 2) / scale;
+      beam(
+        'basic',
+        { x: from.x + x, y: from.y + y },
+        { x: to.x + x, y: to.y + y },
+        clock + 0.1,
+        ink,
+        0.5 * opacity,
+        6,
+      );
     }
-    if (fx.kind === 'focus') {
-      const braid = bolt(from, to, seed + 4, scale);
-      stroke(g, braid, 1, ink, 0.7, scale);
-    } else if (fx.kind !== 'strike') {
+    if (fx.kind !== 'focus' && fx.kind !== 'strike') {
       stamp(fx.source === 'charge' ? 'impact' : 'hit', to, t, ink, opacity);
       if (fx.source === 'chain') {
         const pulse = { x: lerp(from.x, to.x, t), y: lerp(from.y, to.y, t) };
@@ -170,28 +164,7 @@ export function drawEffect(
       stamp('impact', to, t, ink, alpha);
     }
   } else if (fx.kind === 'pierce') {
-    const points = [from, to];
-    stroke(g, points, fx.width * scale, ink, 0.08 * alpha, scale);
-    stroke(g, points, 2 + Math.floor(strength), ink, 0.7 * alpha, scale);
-    stroke(g, points, 1, WHITE, alpha, scale);
-    const dx = to.x - from.x,
-      dy = to.y - from.y,
-      length = Math.hypot(dx, dy) || 1;
-    for (const side of [-1, 1]) {
-      const x = (-dy / length) * fx.width * 0.5 * side,
-        y = (dx / length) * fx.width * 0.5 * side;
-      stroke(
-        g,
-        [
-          { x: from.x + x, y: from.y + y },
-          { x: to.x + x, y: to.y + y },
-        ],
-        1,
-        ink,
-        0.55 * alpha,
-        scale,
-      );
-    }
+    beam('pierce', from, to, clock, ink, 0.85 * alpha, 10 + Math.floor(strength * 2));
     arrow(g, from, to, WHITE, alpha, scale);
   } else if (fx.kind === 'upgrade') {
     if (fx.source === 'range') {

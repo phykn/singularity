@@ -6,19 +6,20 @@ import { launchBrowser } from './browser-support.mjs';
 const browser = await launchBrowser();
 try {
   const page = await browser.newPage();
-  for (const [sourcePath, output, cols, rows, trim] of [
-    ['assets/icon-art/pixel-art.png', 'src/ui/assets/skills.png', 7, 3, true],
-    ['assets/effect-art/pixel-art.png', 'src/render/assets/effects.png', 4, 6, false],
+  for (const [sourcePath, output, cols, rows, trim, cellWidth, cellHeight] of [
+    ['assets/icon-art/pixel-art.png', 'src/ui/assets/skills.png', 7, 3, true, 32, 32],
+    ['assets/effect-art/pixel-art.png', 'src/render/assets/effects.png', 4, 6, false, 32, 32],
+    ['assets/effect-art/beams.png', 'src/render/assets/beams.png', 4, 8, false, 64, 16],
   ]) {
     const source = readFileSync(sourcePath).toString('base64');
     const png = await page.evaluate(
-      async ({ source, cols, rows, trim }) => {
+      async ({ source, cols, rows, trim, cellWidth, cellHeight }) => {
         const image = new Image();
         image.src = 'data:image/png;base64,' + source;
         await image.decode();
         const canvas = document.createElement('canvas');
-        canvas.width = cols * 32;
-        canvas.height = rows * 32;
+        canvas.width = cols * cellWidth;
+        canvas.height = rows * cellHeight;
         const ctx = canvas.getContext('2d');
         ctx.imageSmoothingEnabled = false;
         // Animated frames retain their shared cell center, including transparent margins.
@@ -68,14 +69,14 @@ try {
           }
         return canvas.toDataURL('image/png').split(',')[1];
       },
-      { source, cols, rows, trim },
+      { source, cols, rows, trim, cellWidth, cellHeight },
     );
     const buffer = Buffer.from(png, 'base64');
-    assert.equal(buffer.readUInt32BE(16), cols * 32);
-    assert.equal(buffer.readUInt32BE(20), rows * 32);
+    assert.equal(buffer.readUInt32BE(16), cols * cellWidth);
+    assert.equal(buffer.readUInt32BE(20), rows * cellHeight);
     writeFileSync(output, buffer);
     console.log(
-      `Packed ${cols * rows} generated sprites into ${cols * 32}×${rows * 32} transparent atlas.`,
+      `Packed ${cols * rows} generated sprites into ${cols * cellWidth}×${rows * cellHeight} transparent atlas.`,
     );
   }
 } finally {

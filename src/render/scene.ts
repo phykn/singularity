@@ -2,9 +2,10 @@ import Phaser from 'phaser';
 import { createPixels } from './pixels.ts';
 import { healthBar } from './health.ts';
 import { endingFrame } from './ending.ts';
-import { effectFrame, visibleEffects } from './effects.ts';
-import type { EffectStamp } from './effects.ts';
+import { beamFrame, beamPose, effectFrame, visibleEffects } from './effects.ts';
+import type { BeamStamp, EffectStamp } from './effects.ts';
 import effectsUrl from './assets/effects.png';
+import beamsUrl from './assets/beams.png';
 import { maxDamageNumbers } from '../game/rules.ts';
 import { orbit, clamp } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
@@ -32,6 +33,7 @@ export class ElectronScene extends Phaser.Scene {
   }
   preload(): void {
     this.load.spritesheet('effects', effectsUrl, { frameWidth: 32, frameHeight: 32 });
+    this.load.spritesheet('beams', beamsUrl, { frameWidth: 64, frameHeight: 16 });
   }
   create(): void {
     this.graphics = this.add.graphics();
@@ -137,7 +139,16 @@ export class ElectronScene extends Phaser.Scene {
         this.stamp('orb', point, clock, skillColors.orb, 1);
       for (const fx of visibleEffects(model.effects))
         if (fx.kind !== 'surge')
-          drawEffect(this.effectGraphics, fx, clock, scale, position, model.targets, this.stamp);
+          drawEffect(
+            this.effectGraphics,
+            fx,
+            clock,
+            scale,
+            position,
+            model.targets,
+            this.stamp,
+            this.beam,
+          );
       const surging = model.combat.status('surge').active;
       if (surging) this.stamp('surge', position, clock, skillColors.surge, 0.9);
       this.drawTrail(
@@ -401,6 +412,8 @@ export class ElectronScene extends Phaser.Scene {
     alpha = 1,
     depth = 0.5,
     frame?: number,
+    rotation = 0,
+    scaleY = scale,
   ): Phaser.GameObjects.Image {
     const index = this.spriteCount++;
     const sprite = (this.sprites[index] ??= this.add.image(point.x, point.y, key));
@@ -409,13 +422,30 @@ export class ElectronScene extends Phaser.Scene {
     const x = Math.round(point.x),
       y = Math.round(point.y);
     if (sprite.x !== x || sprite.y !== y) sprite.setPosition(x, y);
-    if (sprite.scaleX !== scale || sprite.scaleY !== scale) sprite.setScale(scale);
+    if (sprite.scaleX !== scale || sprite.scaleY !== scaleY) sprite.setScale(scale, scaleY);
     if (sprite.alpha !== alpha) sprite.setAlpha(alpha);
     if (sprite.depth !== depth) sprite.setDepth(depth);
+    if (sprite.rotation !== rotation) sprite.setRotation(rotation);
     return sprite.setActive(true).setVisible(true);
   }
   private stamp: EffectStamp = (id, point, progress, color, alpha) => {
     this.sprite(this.screen(point), 'effects', 1, alpha, 1.5, effectFrame(id, progress))
+      .setTintMode(Phaser.TintModes.MULTIPLY)
+      .setTint(color);
+  };
+  private beam: BeamStamp = (id, from, to, progress, color, alpha, height) => {
+    const pose = beamPose(this.screen(from), this.screen(to));
+    if (pose.length < 1) return;
+    this.sprite(
+      pose,
+      'beams',
+      pose.length / 64,
+      alpha,
+      1,
+      beamFrame(id, progress),
+      pose.angle,
+      height / 16,
+    )
       .setTintMode(Phaser.TintModes.MULTIPLY)
       .setTint(color);
   };
