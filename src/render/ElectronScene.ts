@@ -20,7 +20,10 @@ export class ElectronScene extends Phaser.Scene {
   private graphics!: Phaser.GameObjects.Graphics;
   private effectGraphics!: Phaser.GameObjects.Graphics;
   private sprites!: SpritePool;
-  private contacts = new Map<string, Phaser.GameObjects.Image>();
+  private contacts = new Map<
+    string,
+    { point: Point; color: number; alpha: number; size: number }
+  >();
   private impactAt = -Infinity;
   private lastModel: Game | null = null;
   private returnAt = -Infinity;
@@ -170,6 +173,10 @@ export class ElectronScene extends Phaser.Scene {
           game.radius,
           satellites,
         );
+      for (const { point, color, alpha, size } of this.contacts.values()) {
+        this.effectGraphics.lineStyle(1 / scale, color, alpha * 0.65);
+        this.effectGraphics.strokeCircle(point.x, point.y, size / 2.5 / scale);
+      }
       const surging = game.combat.status('surge').active;
       if (game.ranks.charge || surging)
         drawElectronField(
@@ -179,7 +186,6 @@ export class ElectronScene extends Phaser.Scene {
           scale,
           game.combat.status('charge'),
           surging,
-          this.stamp,
           game.ranks.charge,
           game.ranks.surge,
         );
@@ -438,22 +444,15 @@ export class ElectronScene extends Phaser.Scene {
   private stamp: EffectStamp = (id, point, progress, color, alpha, size = 32) => {
     const screen = this.screen(point);
     const key = `${Math.round(screen.x)},${Math.round(screen.y)}`;
-    const contact = id === 'reconnect' ? this.contacts.get(key) : undefined;
-    // Simultaneous returns share one contact flash per emitter, keeping every beam visible.
-    if (contact) {
-      if (alpha > contact.alpha)
-        contact
-          .setFrame(effectFrame(id, progress))
-          .setScale(size / 32)
-          .setAlpha(alpha)
-          .setTint(color);
+    if (id === 'reconnect') {
+      const contact = this.contacts.get(key);
+      if (!contact || alpha > contact.alpha) this.contacts.set(key, { point, color, alpha, size });
       return;
     }
-    const sprite = this.sprites
+    this.sprites
       .draw(screen, 'effects', size / 32, alpha, 1.5, effectFrame(id, progress))
       .setTintMode(Phaser.TintModes.MULTIPLY)
       .setTint(color);
-    if (id === 'reconnect') this.contacts.set(key, sprite);
   };
   private beam: BeamStamp = (id, from, to, progress, color, alpha, height, rank) => {
     const pose = beamPose(this.screen(from), this.screen(to));

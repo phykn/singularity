@@ -3,7 +3,6 @@ import type { Point } from '../game/geometry.ts';
 import { clamp } from '../game/geometry.ts';
 import type { SkillStatus } from '../game/types.ts';
 import { skillColors, WHITE } from '../art/palette.ts';
-import type { EffectStamp } from './effects.ts';
 
 export function drawElectronField(
   g: Phaser.GameObjects.Graphics,
@@ -12,39 +11,27 @@ export function drawElectronField(
   scale: number,
   charge: SkillStatus,
   surging: boolean,
-  stamp: EffectStamp,
   chargeRank = 1,
   surgeRank = 1,
 ): void {
   const stored = clamp(charge.progress);
-  if (surging) {
-    stamp(
-      'surge',
-      point,
-      time * 0.45,
-      skillColors.surge,
-      0.9,
-      30 + Math.max(0, Math.min(4, surgeRank - 1)),
-    );
-    // Charge remains readable during surge without stacking a second aura.
-    if (stored > 0) {
-      g.fillStyle(WHITE, 0.35 + stored * 0.6);
-      g.fillRect(
-        point.x + 8 / scale,
-        point.y + 7 / scale,
-        Math.ceil(stored * 3) / scale,
-        1 / scale,
-      );
-    }
-  } else if (stored > 0) {
-    const growth = Math.max(0, Math.min(4, chargeRank - 1));
-    stamp(
-      'charge',
-      point,
-      time * 0.35,
-      skillColors.charge,
-      0.3 + stored * 0.6,
-      26 + Math.round(stored * 4) + growth,
-    );
+  if (!surging && stored <= 0) return;
+  const rank = Math.max(1, Math.min(5, surging ? surgeRank : chargeRank));
+  const pulse = surging ? Math.sin(time * 3) * 0.035 : 0;
+  const radius = (10 + (rank - 1) * 0.35 + (surging ? 1 : stored)) / scale;
+  const color = surging ? skillColors.surge : skillColors.charge;
+  const opacity = surging ? 0.7 + pulse : 0.18 + stored * 0.24;
+  // A single hollow aura: soft edge and crisp contour share the same radius.
+  g.lineStyle((3 + (rank - 1) * 0.2) / scale, color, opacity * 0.16);
+  g.strokeCircle(point.x, point.y, radius);
+  g.lineStyle((1 + (rank - 1) * 0.12) / scale, color, opacity);
+  g.strokeCircle(point.x, point.y, radius);
+  if (stored > 0) {
+    // Charge fills the existing contour, including while Surge is active.
+    const weight = 1.4 + (Math.max(1, Math.min(5, chargeRank)) - 1) * 0.1;
+    g.lineStyle(weight / scale, surging ? WHITE : skillColors.charge, 0.9);
+    g.beginPath();
+    g.arc(point.x, point.y, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * stored);
+    g.strokePath();
   }
 }

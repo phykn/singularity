@@ -138,9 +138,7 @@ export function drawEffect(
       );
     }
   } else if (fx.kind === 'charge') {
-    // A short highlight on the field replaces scattered incoming motes.
-    g.fillStyle(WHITE, alpha * clamp(fx.width) * 0.5);
-    g.fillRect(from.x + 8 / scale, from.y + 7 / scale, 2 / scale, 1 / scale);
+    stamp('reconnect', from, t, ink, alpha * clamp(fx.width) * 0.3, 25);
   } else if (fx.kind === 'surge') {
     if (t < 0.15) stamp('reconnect', from, t / 0.15, ink, (1 - t / 0.15) * 0.7, 24);
   } else if (fx.kind === 'return') {

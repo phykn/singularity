@@ -4,14 +4,11 @@ import type { Point } from '../game/geometry.ts';
 export const effectRows = {
   hit: 0,
   impact: 1,
-  charge: 2,
-  surge: 3,
-  dissolve: 4,
-  reconnect: 5,
+  dissolve: 2,
 } as const;
 export type EffectSprite = keyof typeof effectRows;
 export type EffectStamp = (
-  id: EffectSprite,
+  id: EffectSprite | 'reconnect',
   point: Point,
   progress: number,
   color: number,
@@ -56,10 +53,7 @@ export function beamPose(from: Point, to: Point) {
 }
 
 export function effectFrame(id: EffectSprite, progress: number): number {
-  const loop = id === 'charge' || id === 'surge';
-  const frame = loop
-    ? Math.floor(Math.max(0, progress) * (id === 'charge' ? 8 : 10)) % 4
-    : Math.min(3, Math.floor(Math.max(0, progress) * 4));
+  const frame = Math.min(3, Math.floor(Math.max(0, progress) * 4));
   return effectRows[id] * 4 + frame;
 }
 

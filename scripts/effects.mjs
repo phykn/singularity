@@ -26,24 +26,19 @@ try {
       if (texture.key !== 'effects') throw new Error('Pixel effects did not load');
       const canvas = document.createElement('canvas');
       canvas.width = 128;
-      canvas.height = 192;
+      canvas.height = 96;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(texture.source[0].image, 0, 0);
-      const pixels = ctx.getImageData(0, 0, 128, 192).data;
+      const pixels = ctx.getImageData(0, 0, 128, 96).data;
       const alpha = (x, y) => pixels[(y * 128 + x) * 4 + 3];
       const frames = [];
-      for (let row = 0; row < 6; row++)
+      for (let row = 0; row < 3; row++)
         for (let col = 0; col < 4; col++) {
           let painted = 0;
           for (let y = 0; y < 32; y++)
             for (let x = 0; x < 32; x++) if (alpha(col * 32 + x, row * 32 + y) > 180) painted++;
           if (!painted) throw new Error(`Empty animation frame ${row}:${col}`);
           if (alpha(col * 32, row * 32) !== 0) throw new Error('Nontransparent frame margin');
-          if (row === 2 || row === 3)
-            for (let y = 14; y < 18; y++)
-              for (let x = 14; x < 18; x++)
-                if (alpha(col * 32 + x, row * 32 + y) > 16)
-                  throw new Error('Aura hides its particle center');
           frames.push(painted);
         }
       const debug = window.__gameDebug;
@@ -83,24 +78,28 @@ try {
       for (let i = 0; i < 120; i++) scene.update();
       if (JSON.stringify(visible()) !== frozen) throw new Error('Paused effects keep animating');
       if (scene.sprites.images.length !== pool) throw new Error('Effect pool grows every render');
-      const aura = scene.sprites.images.find(
-        (s) =>
-          s.visible &&
-          s.texture.key === 'effects' &&
-          Number(s.frame.name) >= 12 &&
-          Number(s.frame.name) < 16,
-      );
+      const circles = [];
+      const originalCircle = scene.effectGraphics.strokeCircle.bind(scene.effectGraphics);
+      scene.effectGraphics.strokeCircle = (...args) => {
+        circles.push(args);
+        return originalCircle(...args);
+      };
+      scene.update();
+      scene.effectGraphics.strokeCircle = originalCircle;
+      const aura = circles.slice(-2);
       const electron = scene.sprites.images.find(
         (s) => s.visible && s.texture.key === 'electronSurge',
       );
-      if (!aura || !electron) throw new Error('Surge lacks its aura or energized electron');
-      if (aura.x !== electron.x || aura.y !== electron.y)
+      if (aura.length !== 2 || !electron) throw new Error('Surge lacks its procedural aura');
+      if (JSON.stringify(aura[0]) !== JSON.stringify(aura[1]))
+        throw new Error('Glow and contour must share one radius');
+      if (aura[0][0] !== g.position.x || aura[0][1] !== g.position.y)
         throw new Error('Aura drifts from the electron');
       if (electron.displayWidth !== 16)
         throw new Error('Electron must retain its native 16-pixel size');
-      if (aura.displayWidth !== 30) throw new Error('Rank-one field must stay compact');
-      const auraPixels = aura.displayWidth,
+      const auraPixels = aura[0][2] * scene.worldScale * 2,
         electronPixels = electron.displayWidth;
+      if (Math.abs(auraPixels - 22) > 0.01) throw new Error('Rank-one aura must stay compact');
       const beamTexture = scene.textures.get('beams');
       if (beamTexture.key !== 'beams') throw new Error('Pixel beams did not load');
       canvas.width = 256;
@@ -215,7 +214,7 @@ try {
         electronPixels,
       };
     });
-    assert.equal(result.frames, 24);
+    assert.equal(result.frames, 12);
     assert.equal(result.beamFrames, 160);
     await capture(page, `artifacts/screens/effects-tracked-${width}x${height}.png`);
     checks.push({ viewport: [width, height], ...result });

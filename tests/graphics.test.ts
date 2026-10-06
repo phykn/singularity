@@ -241,10 +241,10 @@ test('lightning remains finite at mobile scales and never changes combat data', 
   }
 });
 
-test('effect frames stay inside their row, loop only sustained effects and freeze with combat time', () => {
+test('effect frames stay inside their row, clamp transient animation and freeze with combat time', () => {
   const png = readFileSync(new URL('../src/art/assets/effects.png', import.meta.url));
   assert.equal(png.readUInt32BE(16), 128);
-  assert.equal(png.readUInt32BE(20), 192);
+  assert.equal(png.readUInt32BE(20), 96);
   assert.equal(png[25], 6);
   for (const id of Object.keys(effectRows) as (keyof typeof effectRows)[]) {
     const row = effectRows[id] * 4;
@@ -254,15 +254,10 @@ test('effect frames stay inside their row, loop only sustained effects and freez
       assert.equal(effectFrame(id, progress), frame);
     }
   }
-  for (const id of ['hit', 'impact', 'dissolve', 'reconnect'] as const) {
+  for (const id of ['hit', 'impact', 'dissolve'] as const) {
     assert.equal(effectFrame(id, 0), effectRows[id] * 4);
     assert.equal(effectFrame(id, 1), effectRows[id] * 4 + 3);
   }
-  for (const [id, period] of [
-    ['charge', 0.5],
-    ['surge', 0.4],
-  ] as const)
-    assert.equal(effectFrame(id, period), effectFrame(id, 0));
 });
 
 test('focused lightning follows the current electron and tracked particle', () => {
@@ -353,63 +348,41 @@ test('satellite echoes and returns follow the actual emitting satellite, includi
   }
 });
 
-test('electron field artwork has two coherent arcs, an open center and no stray flecks', () => {
-  const sheet = effectArtwork().find((s) => s.output.endsWith('/effects.png'))!;
-  for (const row of [2, 3, 5])
-    for (let frame = 0; frame < 4; frame++) {
-      const pixels = sheet.pixels.filter(
-        ([x, y]) => Math.floor(x / 32) === frame && Math.floor(y / 32) === row,
-      );
-      assert.ok(pixels.length >= 15 && pixels.length < 100);
-      assert.ok(pixels.every(([x, y]) => Math.hypot((x % 32) - 16, (y % 32) - 16) >= 7));
-      const remaining = new Set(pixels.map(([x, y]) => `${x},${y}`));
-      const sizes = [];
-      while (remaining.size) {
-        const queue = [remaining.values().next().value!];
-        let size = 0;
-        while (queue.length) {
-          const key = queue.pop()!;
-          if (!remaining.delete(key)) continue;
-          size++;
-          const [x, y] = key.split(',').map(Number);
-          for (const dx of [-1, 0, 1])
-            for (const dy of [-1, 0, 1]) if (dx || dy) queue.push(`${x + dx},${y + dy}`);
-        }
-        sizes.push(size);
-      }
-      assert.equal(sizes.length, 2);
-      assert.ok(sizes.every((size) => size >= 7));
-    }
-});
-
-test('stored electricity remains visible without a recent hit and grows with actual charge', () => {
+test('electron aura stays hollow, compact and stationary while charge fills its contour', () => {
   const point = { x: 120, y: 200 };
-  const levels = [0, 0.1, 0.8, 1].map((progress) => {
-    const a = drawing(),
-      b = drawing();
-    const state = { mode: 'charging' as const, progress, active: false, fired: false };
-    drawElectronField(a.graphics, point, 12.25, 0.65, state, false, a.stamp);
-    drawElectronField(b.graphics, point, 12.25, 0.65, state, false, b.stamp);
-    assert.deepEqual(a.commands, b.commands, 'Rendering a paused frame must remain stationary');
-    return a.commands.filter((c) => c.method === 'stamp:charge');
-  });
-  assert.equal(levels[0].length, 0);
-  for (const level of levels.slice(1)) assert.equal(level.length, 1);
-  assert.ok(levels[1][0].args[4] < levels[2][0].args[4]);
-  assert.ok(levels[1][0].args[5] < levels[2][0].args[5]);
-  const combined = drawing();
-  drawElectronField(
-    combined.graphics,
-    point,
-    12.25,
-    1,
-    { mode: 'charging', progress: 0.8, active: false, fired: false },
-    true,
-    combined.stamp,
-  );
-  assert.equal(combined.commands.filter((c) => c.method === 'stamp:surge').length, 1);
-  assert.equal(combined.commands.filter((c) => c.method === 'stamp:charge').length, 0);
-  assert.equal(combined.commands.filter((c) => c.method === 'fillRect').length, 1);
+  for (const scale of [0.65, 1, 1.75]) {
+    for (const surging of [false, true]) {
+      let previousSweep = 0;
+      for (const progress of [0, 0.1, 0.8, 1]) {
+        const a = drawing(),
+          b = drawing();
+        const state = { mode: 'charging' as const, progress, active: false, fired: false };
+        drawElectronField(a.graphics, point, 12.25, scale, state, surging, 5, 5);
+        drawElectronField(b.graphics, point, 12.25, scale, state, surging, 5, 5);
+        assert.deepEqual(a.commands, b.commands);
+        assert.ok(
+          !a.commands.some((c) => c.method.startsWith('fill') || c.method.startsWith('stamp:')),
+        );
+        const circles = a.commands.filter((c) => c.method === 'strokeCircle');
+        assert.equal(circles.length, surging || progress > 0 ? 2 : 0);
+        for (const c of circles) {
+          assert.deepEqual(c.args.slice(0, 2), [point.x, point.y]);
+          assert.ok(c.args[2] * scale >= 10 && c.args[2] * scale <= 13);
+        }
+        if (circles.length)
+          assert.deepEqual(circles[0], circles[1], 'Glow and contour share one radius');
+        const arcs = a.commands.filter((c) => c.method === 'arc');
+        assert.equal(arcs.length, progress > 0 ? 1 : 0);
+        if (arcs.length) {
+          close(arcs[0].args[2], circles[0].args[2]);
+          const sweep = arcs[0].args[4] - arcs[0].args[3];
+          assert.ok(sweep > previousSweep);
+          close(sweep, Math.PI * 2 * progress);
+          previousSweep = sweep;
+        }
+      }
+    }
+  }
 });
 
 test('rapid charging hits display the newest charge level once while their attacks remain visible', () => {

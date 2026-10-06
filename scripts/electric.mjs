@@ -94,7 +94,25 @@ try {
             debug.advance(0);
             g.setHidden(true);
             const scene = window.__gameScene;
+            const aura = [];
+            const originalMethods = {};
+            let drawingShape = false;
+            for (const method of ['strokeCircle', 'arc']) {
+              const original = scene.effectGraphics[method].bind(scene.effectGraphics);
+              originalMethods[method] = original;
+              scene.effectGraphics[method] = (...args) => {
+                if (drawingShape) return original(...args);
+                aura.push({ method, args });
+                drawingShape = true;
+                try {
+                  return original(...args);
+                } finally {
+                  drawingShape = false;
+                }
+              };
+            }
             scene.update();
+            const geometry = JSON.stringify(aura);
             const sprites = () =>
               scene.sprites.images
                 .filter((s) => s.visible)
@@ -110,11 +128,18 @@ try {
                 }));
             const visible = sprites(),
               pool = scene.sprites.images.length;
-            for (let i = 0; i < 20; i++) scene.update();
+            for (let i = 0; i < 20; i++) {
+              aura.length = 0;
+              scene.update();
+              if (JSON.stringify(aura) !== geometry) throw Error('Paused aura moved');
+            }
+            Object.assign(scene.effectGraphics, originalMethods);
             if (JSON.stringify(sprites()) !== JSON.stringify(visible))
               throw Error('Paused visual moved');
             if (pool !== scene.sprites.images.length) throw Error('Sprite pool grew while paused');
             return {
+              aura: JSON.parse(geometry),
+              contacts: [...scene.contacts.keys()],
               satellitePoints: g.combat.satellitePoints.map((p) => scene.screen(p)),
               satelliteReturns: scene.sprites.images
                 .filter(
@@ -152,14 +177,8 @@ try {
           { kind, pose },
         );
         if (!baseline) {
-          const contacts = state.sprites.filter(
-            (s) => s.key === 'effects' && s.frame >= 20 && s.frame < 24,
-          );
-          assert.equal(
-            new Set(contacts.map((s) => `${s.x},${s.y}`)).size,
-            contacts.length,
-            'Simultaneous returns must share one contact flash per emitter',
-          );
+          assert.equal(new Set(state.contacts).size, state.contacts.length);
+          assert.ok(state.sprites.every((s) => s.key !== 'effects' || s.frame < 12));
           if (kind === 'satellite-return') {
             assert.ok(state.satelliteReturns.length >= 3);
             for (const end of state.satelliteReturns)
@@ -169,12 +188,10 @@ try {
           }
           if (kind === 'combined') {
             assert.ok(state.charge > 0 && state.active);
-            assert.equal(
-              state.sprites.filter((s) => s.key === 'effects' && s.frame >= 8 && s.frame < 16)
-                .length,
-              1,
-              'Charge and Surge must share one clear field',
-            );
+            assert.equal(state.aura.filter((c) => c.method === 'arc').length, 1);
+            const contours = state.aura.filter((c) => c.method === 'strokeCircle').slice(-2);
+            assert.equal(contours.length, 2);
+            assert.deepEqual(contours[0], contours[1], 'Both states share one aura radius');
           }
           if (kind === 'return') {
             assert.ok(state.returnEndpoint);
@@ -188,18 +205,12 @@ try {
           }
           if (kind.startsWith('charge')) {
             assert.ok(state.charge > 0);
-            assert.equal(
-              state.sprites.filter((s) => s.key === 'effects' && s.frame >= 8 && s.frame < 12)
-                .length,
-              1,
-              'Stored charge must persist after hit effects expire',
-            );
+            assert.equal(state.aura.filter((c) => c.method === 'arc').length, 1);
+            assert.equal(state.aura.filter((c) => c.method === 'strokeCircle').length, 2);
           }
           if (kind === 'surge') {
             assert.ok(state.active);
-            assert.ok(
-              state.sprites.some((s) => s.key === 'effects' && s.frame >= 12 && s.frame < 16),
-            );
+            assert.ok(state.aura.filter((c) => c.method === 'strokeCircle').length >= 2);
             assert.ok(state.sprites.some((s) => s.key === 'electronSurge' && s.width === 16));
           }
         }
