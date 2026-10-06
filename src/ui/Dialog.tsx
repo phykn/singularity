@@ -19,8 +19,9 @@ export function Dialog({
     const previous = document.activeElement as HTMLElement | null;
     const dialog = ref.current!;
     (
-      dialog.querySelector<HTMLElement>('button.primary') ??
-      dialog.querySelector<HTMLElement>('button')
+      dialog.querySelector<HTMLElement>('[data-autofocus]:not(:disabled)') ??
+      dialog.querySelector<HTMLElement>('button.primary:not(:disabled)') ??
+      dialog.querySelector<HTMLElement>('button:not(:disabled), summary')
     )?.focus({ preventScroll: true });
     const trap = (event: KeyboardEvent) => {
       if (event.key !== 'Tab') return;

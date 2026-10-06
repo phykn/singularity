@@ -1422,6 +1422,7 @@ try {
       window.__gameDebug.xp(1000);
       g.select(g.choice.cards[0].id);
       window.__gameDebug.advance(25000);
+      window.__gameDebug.xp(g.xp + g.levelProgress.required - g.levelProgress.current);
       g.mass = 150;
       g.radius = 40;
       g.choice.cards = ['recover', 'power', 'rate'].map((id) => ({ id, rarity: 'common' }));
@@ -1468,11 +1469,31 @@ try {
 
     await page.evaluate(() => {
       window.__gameDebug.restart(96031);
-      window.__gameDebug.advance(450000);
+      const g = window.__gameDebug.getModel();
+      // Build a live late-stage crowd; a balance change may end a seeded run before this point.
+      for (const id of ['pierce', 'multi', 'repeat', 'chain']) {
+        for (let rank = 0; rank < g.rules.maxRank; rank++) {
+          window.__gameDebug.xp(g.xp + g.levelProgress.required - g.levelProgress.current);
+          g.choice.cards = [{ id, rarity: 'common' }];
+          g.select(id);
+        }
+      }
+      g.tick = g.elapsedTicks = 450 * g.rules.tickRate;
+      g.nextSpawn = g.tick;
+      g.mass = 60;
+      g.radius = 108;
+      Object.assign(g.boosts, { power: 4, rate: 4, range: 4, speed: 4 });
+      for (let i = 0; i < 20; i++) g.spawnBatch();
+      for (const target of g.targets) target.hp = target.maxHp = 1000;
+      window.__gameDebug.advance(0);
     });
     const frames = await page.evaluate(
       () =>
-        new Promise((resolve) => {
+        new Promise((resolve, reject) => {
+          const timeout = setTimeout(
+            () => reject(new Error('Late-stage frame sampling stalled')),
+            30000,
+          );
           const values = [];
           let previous;
           const sample = (now) => {
@@ -1490,14 +1511,16 @@ try {
                 radius: g.radius,
                 phase: g.phase,
               });
+              clearTimeout(timeout);
             }
           };
           requestAnimationFrame(sample);
         }),
     );
     assert.equal(frames.phase, 'running');
+    assert.ok(frames.targets > 0, 'Measure active combat rather than an empty arena');
     await screenshot(page, 'late-play');
-    report('late normal rendering on desktop Chrome', frames);
+    report('late-stage live crowd rendering on desktop Chrome', frames);
     await page.close();
 
     const settings = await pageFor(375, 812);

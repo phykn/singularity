@@ -9,7 +9,15 @@ import type { Language } from './i18n.ts';
 import type { CSSProperties } from 'react';
 import { skillColor } from '../art/palette.ts';
 
-export function Loadout({ game, language }: { game: Game; language: Language }) {
+export function Loadout({
+  game,
+  language,
+  onInspect,
+}: {
+  game: Game;
+  language: Language;
+  onInspect: (id: SkillId) => void;
+}) {
   const c = copy[language],
     rules = game.rules,
     owned = game.ownedSkills;
@@ -44,44 +52,54 @@ export function Loadout({ game, language }: { game: Game; language: Language }) 
           const id = owned[i];
           const status = id ? game.combat.status(id) : null;
           return (
-            <div
-              className={`slot ${id ? '' : 'empty'}`}
-              key={id ? id + game.rank(id) : i}
-              data-skill={id}
-              style={id ? ({ '--skill': skillColor(id) } as CSSProperties) : undefined}
-              data-mode={status?.mode}
-              data-active={status?.active}
-              data-fired={status?.fired}
-              data-acquired={game.notice === id && game.time < game.noticeUntil}
-              data-new={id && game.rank(id) === 1}
-              data-rarity={id ? game.rarities[id] : undefined}
-              role={status && status.mode !== 'conditional' ? 'progressbar' : 'img'}
-              aria-valuemin={status && status.mode !== 'conditional' ? 0 : undefined}
-              aria-valuemax={status && status.mode !== 'conditional' ? 100 : undefined}
-              aria-valuenow={
-                status && status.mode !== 'conditional'
-                  ? Math.floor(status.progress * 100)
-                  : undefined
-              }
-              aria-label={
-                id
-                  ? c.rarities[game.rarities[id]] +
-                    ' ' +
-                    c.upgrades[id].name +
-                    ', ' +
-                    c.rank +
-                    ' ' +
-                    game.rank(id) +
-                    '/' +
-                    rules.maxRank
-                  : c.empty
-              }
-              title={id ? c.upgrades[id].name + ' · ' + value(id) : undefined}
-            >
-              {id && status ? (
-                <SkillSlot id={id} status={status} rank={game.rank(id)} max={rules.maxRank} />
-              ) : (
-                <i />
+            <div className="slot-cell" key={id ? id + game.rank(id) : i}>
+              <div
+                className={`slot ${id ? '' : 'empty'}`}
+                data-skill={id}
+                style={id ? ({ '--skill': skillColor(id) } as CSSProperties) : undefined}
+                data-mode={status?.mode}
+                data-active={status?.active}
+                data-fired={status?.fired}
+                data-acquired={game.notice === id && game.time < game.noticeUntil}
+                data-new={id && game.rank(id) === 1}
+                data-rarity={id ? game.rarities[id] : undefined}
+                role={status && status.mode !== 'conditional' ? 'progressbar' : 'img'}
+                aria-valuemin={status && status.mode !== 'conditional' ? 0 : undefined}
+                aria-valuemax={status && status.mode !== 'conditional' ? 100 : undefined}
+                aria-valuenow={
+                  status && status.mode !== 'conditional'
+                    ? Math.floor(status.progress * 100)
+                    : undefined
+                }
+                aria-label={
+                  id
+                    ? c.rarities[game.rarities[id]] +
+                      ' ' +
+                      c.upgrades[id].name +
+                      ', ' +
+                      c.rank +
+                      ' ' +
+                      game.rank(id) +
+                      '/' +
+                      rules.maxRank
+                    : c.empty
+                }
+                title={id ? c.upgrades[id].name + ' · ' + value(id) : undefined}
+              >
+                {id && status ? (
+                  <SkillSlot id={id} status={status} rank={game.rank(id)} max={rules.maxRank} />
+                ) : (
+                  <i />
+                )}
+              </div>
+              {id && (
+                <button
+                  className="slot-inspect"
+                  aria-label={c.upgrades[id].name + ' · ' + c.skillDetails}
+                  aria-haspopup="dialog"
+                  onClick={() => onInspect(id)}
+                  disabled={game.phase !== 'running'}
+                />
               )}
             </div>
           );

@@ -401,6 +401,19 @@ svg {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
+.slot-cell {
+  position: relative;
+  min-width: 0;
+}
+.slot-inspect {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+}
 .slot {
   position: relative;
   height: 48px;
@@ -734,10 +747,35 @@ svg {
   margin: 24px 0;
 }
 .skill-guide > div {
-  display: flex;
-  gap: 12px;
-  padding: 16px 0;
   border-bottom: 1px solid #262b34;
+}
+.skill-guide summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  cursor: pointer;
+  list-style: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.skill-guide summary::-webkit-details-marker {
+  display: none;
+}
+.skill-guide summary::after {
+  content: '+';
+  margin-left: auto;
+  color: var(--muted);
+}
+.skill-guide details[open] summary::after {
+  content: '−';
+}
+.guide-skill-body {
+  padding: 0 0 16px 44px;
+}
+.guide-skill-body .guide-rarity {
+  display: block;
+  margin: 12px 0 4px;
 }
 .skill-guide svg {
   color: var(--blue);
@@ -790,6 +828,25 @@ svg {
 }
 .pause-panel h2 + p {
   margin-top: 8px;
+}
+.quit-button {
+  color: #ffb8a7;
+}
+.skill-details .dialog-title {
+  justify-content: flex-start;
+  gap: 16px;
+}
+.skill-details h2 {
+  font-size: 24px;
+  overflow-wrap: anywhere;
+  margin-bottom: 10px;
+}
+.skill-rarity {
+  color: var(--rarity);
+  margin-right: 12px;
+}
+.skill-details .skill-value {
+  color: var(--blue);
 }
 .settings-controls {
   display: flex;
@@ -1214,21 +1271,24 @@ svg {
     padding: 16px;
   }
   .pause-panel {
-    max-width: 400px;
+    max-width: 560px;
+  }
+  .pause-panel:not(.is-confirming) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 184px;
   }
   .pause-panel .dialog-body {
-    padding: 16px 24px 8px;
+    padding: 20px 16px;
   }
   .pause-panel .setting-row {
     min-height: 44px;
   }
-  .pause-panel .settings-controls {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
   .pause-panel .dialog-actions {
     gap: 4px;
+  }
+  .pause-panel:not(.is-confirming) .dialog-actions {
+    justify-content: center;
+    padding: 16px;
   }
   .pause-panel .primary {
     min-height: 44px;

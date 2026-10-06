@@ -11,6 +11,8 @@ import { Choices } from '../ui/Choices.tsx';
 import { Guide } from '../ui/Guide.tsx';
 import { Result } from '../ui/Result.tsx';
 import { Settings } from '../ui/Settings.tsx';
+import { SkillDetails } from '../ui/SkillDetails.tsx';
+import type { SkillId } from '../game/rules.ts';
 import { Dialog } from '../ui/Dialog.tsx';
 import { LanguagePicker } from '../ui/controls.tsx';
 import { copy } from '../ui/i18n.ts';
@@ -42,6 +44,7 @@ export default function App() {
   } = useGame();
   const c = copy[language];
   const [panel, setPanel] = useState<'guide' | 'settings' | null>(null);
+  const [inspected, setInspected] = useState<SkillId | null>(null);
   const [exitConfirm, setExitConfirm] = useState(false);
   const [homecoming, setHomecoming] = useState(false);
   const ready = game.phase === 'ready';
@@ -60,10 +63,21 @@ export default function App() {
     setExitConfirm(false);
   }
 
+  function inspectSkill(id: SkillId) {
+    if (game.phase !== 'running' || game.manualPaused) return;
+    pause(true);
+    setInspected(id);
+  }
+  function closeSkill() {
+    setInspected(null);
+    pause(false);
+  }
+
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.repeat || event.defaultPrevented) return;
-      if (exitConfirm) setExitConfirm(false);
+      if (inspected) closeSkill();
+      else if (exitConfirm) setExitConfirm(false);
       else if (panel !== null) setPanel(null);
       else if (renderReady && game.phase !== 'ready' && game.phase !== 'result') {
         actions.pause(!game.manualPaused);
@@ -73,7 +87,7 @@ export default function App() {
     };
     window.addEventListener('keydown', escape);
     return () => window.removeEventListener('keydown', escape);
-  }, [game, panel, exitConfirm, renderReady, actions.pause]);
+  }, [game, panel, inspected, exitConfirm, renderReady, actions.pause]);
 
   const notice = (audioUnavailable || !storageOk) && (
     <p className="setting-notice" role="status">
@@ -185,7 +199,7 @@ export default function App() {
               {notice}
             </div>
           ) : (
-            <Loadout game={game} language={language} />
+            <Loadout game={game} language={language} onInspect={inspectSkill} />
           )}
         </section>
         {!ready && (
@@ -224,10 +238,13 @@ export default function App() {
           </div>
         </Dialog>
       )}
-      {game.manualPaused && panel === null && (
+      {inspected && (
+        <SkillDetails game={game} id={inspected} language={language} onClose={closeSkill} />
+      )}
+      {game.manualPaused && panel === null && !inspected && (
         <Dialog
           titleId="pause-title"
-          className="pause-panel"
+          className={`pause-panel ${exitConfirm ? 'is-confirming' : ''}`}
           focusKey={exitConfirm ? 'quit' : 'pause'}
         >
           <div className="dialog-body">
@@ -245,10 +262,10 @@ export default function App() {
           <div className="dialog-actions">
             {exitConfirm ? (
               <>
-                <button className="primary" onClick={replace}>
+                <button className="text-button quit-button" onClick={replace}>
                   {c.quitConfirm}
                 </button>
-                <button className="text-button" onClick={() => setExitConfirm(false)}>
+                <button className="primary" data-autofocus onClick={() => setExitConfirm(false)}>
                   {c.back}
                 </button>
               </>

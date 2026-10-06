@@ -52,23 +52,28 @@ export function Guide({
         <div className="skill-guide">
           {([...statIds, 'recover', ...skillIds] as UpgradeId[]).map((id) => (
             <div key={id}>
-              <SkillIcon id={id} />
-              <div>
-                <strong>{c.upgrades[id].name}</strong>
-                <p>{c.upgrades[id].description}</p>
-                <span>
-                  {Array.from(
-                    { length: id === 'recover' ? 1 : rules.maxRank },
-                    (_, i) => i + 1,
-                  ).map((rank) => (
-                    <span className="guide-rank" key={rank}>
-                      {id === 'recover' ? c.instant : rank} ·{' '}
-                      {skillValue(id, rank, 'common', language, rules)}
-                    </span>
-                  ))}
-                </span>
-                {!isSkill(id) && id !== 'recover' && <p className="muted">{c.unlimited}</p>}
-              </div>
+              <details>
+                <summary>
+                  <SkillIcon id={id} />
+                  <strong>{c.upgrades[id].name}</strong>
+                </summary>
+                <div className="guide-skill-body">
+                  <p>{c.upgrades[id].description}</p>
+                  <span className="guide-rarity">{c.rarities.common}</span>
+                  <span>
+                    {Array.from(
+                      { length: id === 'recover' ? 1 : rules.maxRank },
+                      (_, i) => i + 1,
+                    ).map((rank) => (
+                      <span className="guide-rank" key={rank}>
+                        {id === 'recover' ? c.instant : rank} ·{' '}
+                        {skillValue(id, rank, 'common', language, rules)}
+                      </span>
+                    ))}
+                  </span>
+                  {!isSkill(id) && id !== 'recover' && <p className="muted">{c.unlimited}</p>}
+                </div>
+              </details>
             </div>
           ))}
         </div>
