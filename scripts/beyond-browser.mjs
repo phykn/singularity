@@ -14,6 +14,24 @@ const cases = [
   { width: 320, height: 568, language: 'zh', motion: 'reduce' },
   { width: 812, height: 375, language: 'ja', motion: 'no-preference' },
 ];
+function diskDrawing() {
+  const scene = window.__gameScene,
+    graphics = scene.graphics;
+  const keys = ['fillStyle', 'lineStyle', 'fillCircle', 'lineBetween', 'fillRect'];
+  const originals = Object.fromEntries(keys.map((key) => [key, graphics[key]]));
+  const commands = [];
+  for (const key of keys)
+    graphics[key] = function (...args) {
+      commands.push([key, ...args]);
+      return originals[key].apply(this, args);
+    };
+  try {
+    scene.update();
+  } finally {
+    Object.assign(graphics, originals);
+  }
+  return commands;
+}
 try {
   for (const { width, height, language, motion } of cases) {
     const c = copy[language];
@@ -42,6 +60,7 @@ try {
     await page.getByRole('button', { name: c.beyond, exact: true }).waitFor();
     await page.waitForFunction(() => !document.querySelector('.result button.primary').disabled);
     await capture(page, `artifacts/beyond/result-${language}.png`);
+    const settledDisk = await page.evaluate(diskDrawing);
     const button = page.getByRole('button', { name: c.beyond, exact: true });
     await page.evaluate(() => {
       window.addEventListener(
@@ -63,6 +82,12 @@ try {
       return { at: g.continuedAt, xp: g.xp, ranks: g.ranks, rarities: g.rarities, phase: g.phase };
     });
     assert.equal(initial.phase, 'crossing');
+    if (motion !== 'reduce')
+      assert.deepEqual(
+        await page.evaluate(diskDrawing),
+        settledDisk,
+        'The result and the first crossing frame must draw the same singularity',
+      );
     assert.equal(await page.evaluate(() => window.__gameDebug.getModel().continueBeyond()), false);
     const pose = async (seconds) =>
       page.evaluate((seconds) => {

@@ -3,8 +3,47 @@ import assert from 'node:assert/strict';
 import { Game } from '../src/game/Game.ts';
 import { endingFrame } from '../src/render/ending.ts';
 import { drawCollapse } from '../src/render/collapse.ts';
+import { drawSingularity, drawAccretion } from '../src/render/singularity.ts';
 import type Phaser from 'phaser';
 import { KillRhythm, SoundMixer } from '../src/app/sounds.ts';
+
+test('singularity disk is compact, occluded and quiet after its one-time light sweep', () => {
+  for (const scale of [0.65, 1, 1.75]) {
+    const commands: { name: string; args: number[] }[] = [];
+    const graphics = new Proxy(
+      {},
+      {
+        get:
+          (_, name) =>
+          (...args: number[]) => {
+            assert.ok(args.every(Number.isFinite));
+            commands.push({ name: String(name), args });
+          },
+      },
+    ) as Phaser.GameObjects.Graphics;
+    drawSingularity(graphics, 24, scale);
+    const disk = commands.findIndex((c) => c.name === 'fillCircle');
+    assert.ok(disk > 0 && disk < commands.length - 1, 'Back light, black center, then front light');
+    assert.equal(commands.filter((c) => c.name === 'fillCircle').length, 1);
+    assert.ok(!commands.some((c) => c.name === 'strokeCircle' || c.name === 'fillRect'));
+    for (const { args } of commands.filter((c) => c.name === 'lineBetween')) {
+      for (let i = 0; i < 4; i += 2) {
+        assert.ok(Math.hypot(args[i] - 180, args[i + 1] - 260) <= 40 + 2 / scale);
+        const x = (args[i] - 180) * scale,
+          y = (args[i + 1] - 260) * scale;
+        assert.ok(Math.abs(x - Math.round(x)) < 1e-8 && Math.abs(y - Math.round(y)) < 1e-8);
+      }
+    }
+    const baseline = structuredClone(commands);
+    commands.length = 0;
+    drawSingularity(graphics, 24, scale);
+    assert.deepEqual(commands, baseline, 'No ambient jitter after the ending settles');
+    commands.length = 0;
+    drawAccretion(graphics, 2.1, scale);
+    drawSingularity(graphics, 0, scale);
+    assert.deepEqual(commands, [], 'No lingering dust or disk after contraction to a point');
+  }
+});
 
 test('kill rhythm increases with kills, caps its rate and never drains a backlog', () => {
   const run = (killsPerSecond: number) => {

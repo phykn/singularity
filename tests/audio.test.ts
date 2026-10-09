@@ -1,6 +1,42 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GameAudio } from '../src/app/GameAudio.ts';
+import { Game } from '../src/game/Game.ts';
+
+test('success audio compresses, goes silent at the point and settles into a low resonance', () => {
+  const game = new Game(17, { combat: false });
+  game.start();
+  game.debugSetXp(game.rules.energyGoal);
+  game.advance(1000 / game.rules.tickRate);
+  const cues: string[] = [];
+  const audio = new GameAudio();
+  Object.assign(audio, {
+    enabled: true,
+    context: { state: 'running', currentTime: 10 },
+    mixer: {
+      stop() {
+        cues.push('silence');
+      },
+      play(cue: string) {
+        cues.push(cue);
+      },
+    },
+  });
+  audio.update(game, 0);
+  game.advance(600);
+  audio.update(game, 0);
+  assert.equal(cues.at(-1), 'ending-compress');
+  game.phaseTicks = Math.round((game.rules.collisionSeconds - 0.1) * game.rules.tickRate);
+  audio.update(game, 0);
+  assert.equal(cues.at(-1), 'silence');
+  game.advance(150);
+  audio.update(game, 0);
+  assert.equal(cues.at(-1), 'ending');
+  game.advance(450);
+  audio.update(game, 0);
+  assert.equal(cues.at(-1), 'ending-resonance');
+  assert.ok(!cues.includes('level'));
+});
 
 test('a pending suspension finishes before the newest audio unlock resumes', async (t) => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext');

@@ -32,12 +32,13 @@ export function endingFrame(game: Game) {
   const contactAngle = game.angle + Math.PI * 2.6;
   const contactRadius = Math.min(game.radius, game.core * 0.92);
   if (success && collapsing) {
-    const q = clamp((p - 0.34) / 0.54);
-    stage = p < 0.34 ? 'accelerate' : p < 0.88 ? 'compress' : 'silence';
+    const still = 1 - 0.15 / game.rules.collisionSeconds;
+    const q = clamp((p - 0.34) / (still - 0.34));
+    stage = p < 0.34 ? 'accelerate' : p < still ? 'compress' : 'silence';
     radius = game.radius * (1 - 0.06 * clamp(p / 0.34)) * (1 - q) ** 2;
     core = (1 - q) ** 2;
     angle += Math.PI * (p < 0.34 ? 0.8 * (p / 0.34) ** 2 : 0.8 + q * 5.5);
-    absorb = q * 0.7;
+    absorb = q;
     hud = 1 - 0.78 * clamp(p / 0.88);
   } else if (success) {
     const t = p * game.rules.successEndingSeconds;
@@ -45,7 +46,7 @@ export function endingFrame(game: Game) {
     hole = t < 0.4 ? [2, 5, 10, 17, 24][Math.min(4, Math.floor(t / 0.08))] : 24;
     glow = (1 - clamp((t - 0.08) / 0.8)) ** 2;
     hud = 0.22;
-    absorb = 0.7 + 0.3 * clamp(t / 1.8);
+    absorb = 1;
     flash = 1 - clamp(t / 0.12);
   } else if (collapsing) {
     const q = clamp((p - 0.25) / 0.75);

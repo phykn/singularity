@@ -73,6 +73,7 @@ try {
           }
           g.setHidden(true);
           const fill = scene.graphics.fillCircle,
+            line = scene.graphics.lineBetween,
             stroke = scene.graphics.strokePoints,
             draw = scene.drawSingularity,
             sprite = scene.sprites.draw;
@@ -82,6 +83,11 @@ try {
           scene.graphics.fillCircle = function (x, y, r, ...args) {
             radii.push(r);
             return fill.call(this, x, y, r, ...args);
+          };
+          scene.graphics.lineBetween = function (x, y, x2, y2, ...args) {
+            if (g.phase !== 'collapse')
+              radii.push(Math.hypot(x - 180, y - 260), Math.hypot(x2 - 180, y2 - 260));
+            return line.call(this, x, y, x2, y2, ...args);
           };
           scene.graphics.strokePoints = function (points, ...args) {
             if (g.phase !== 'collapse')
@@ -100,6 +106,7 @@ try {
             scene.update();
           } finally {
             scene.graphics.fillCircle = fill;
+            scene.graphics.lineBetween = line;
             scene.graphics.strokePoints = stroke;
             scene.drawSingularity = draw;
             scene.sprites.draw = sprite;
@@ -111,6 +118,7 @@ try {
             counts: g.counts,
             selections: g.selections,
             hole,
+            sprites: points.length,
             maxRadius: Math.max(0, ...radii),
             scale: scene.worldScale,
             inside: hole
@@ -131,9 +139,10 @@ try {
       assert.deepEqual(state.selections, collision.selections);
       if (phase !== 'collapse') {
         assert.ok(state.hole > 0 && state.hole <= 24);
-        assert.ok(state.maxRadius <= 24 + 6 / state.scale, 'No viewport-sized ring or flash');
+        assert.ok(state.maxRadius <= 40 + 2 / state.scale, 'The tilted disk stays compact');
         assert.equal(state.inside, 0, 'Absorbed particles must not cover the singularity');
       }
+      if (name === 'silence') assert.equal(state.sprites, 0, 'Only the central point remains');
       await page.waitForTimeout(phase === 'result' ? 650 : 60);
       const opacity = await page
         .locator('.hud')

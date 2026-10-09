@@ -86,13 +86,11 @@ export function SingularityIcon() {
       shapeRendering="crispEdges"
       aria-hidden="true"
     >
-      <path
-        d="M5 2H11V3H13V5H14V11H13V13H11V14H5V13H3V11H2V5H3V3H5Z"
-        fill="#020306"
-        stroke="currentColor"
-        strokeWidth={1}
-      />
-      <path d="M3 7V5H4V4H5V3H8" fill="none" stroke="#fff4d8" strokeWidth={1} />
+      <path d="M1 10V8H3V7H5L11 4H14V5H15V7" fill="none" stroke="#d7ad68" />
+      <path d="M6 2H10V3H12V5H13V11H11V13H6V12H4V10H3V6H4V4H6Z" fill="#020306" />
+      <path d="M4 7V5H5V4H6V3H10V4H11" fill="none" stroke="#fff4d8" />
+      <path d="M1 10H4V11H7V10H10V9H12V8H14V7H15V5" fill="none" stroke="#d7ad68" strokeWidth={2} />
+      <path d="M2 10H6V9H10V8H12V7H14" fill="none" stroke="#f1fcff" />
     </svg>
   );
 }

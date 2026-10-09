@@ -3,6 +3,7 @@ import { createParticleTextures } from './particleTextures.ts';
 import { SpritePool } from './SpritePool.ts';
 import { healthBar } from './healthBars.ts';
 import { endingFrame } from './ending.ts';
+import { drawSingularity, drawAccretion } from './singularity.ts';
 import { drawCollapse } from './collapse.ts';
 import { beyondFrame } from './beyond.ts';
 import { beamFrame, beamPose, effectFrame, visibleEffects } from './effects.ts';
@@ -139,13 +140,21 @@ export class ElectronScene extends Phaser.Scene {
       const absorb = ending?.absorb ?? 0;
       if (absorb >= 0.99) continue;
       const p = ending?.success
-        ? orbit(target.angle + absorb * absorb * Math.PI * 2, target.radius * (1 - absorb) ** 1.5)
+        ? orbit(target.angle + absorb * absorb * Math.PI * 2, target.radius * (1 - absorb) ** 1.15)
         : target;
       if (ending?.hole && Math.hypot(p.x - 180, p.y - 260) <= ending.hole) continue;
       const point = this.screen(p);
       if (point.x < -20 || point.x > width + 20 || point.y < -20 || point.y > height + 20) continue;
       const hit = !ending && target.hitAt !== undefined && game.time - target.hitAt < 0.06;
       const sprite = this.sprites.draw(point, target.particle, 1, 1 - absorb);
+      if (ending?.success && absorb > 0 && target.id % 9 === 0) {
+        const tail = orbit(
+          target.angle + absorb * absorb * Math.PI * 2 - 0.08,
+          target.radius * (1 - absorb) ** 1.15 + 4 * absorb,
+        );
+        g.lineStyle(1 / scale, WHITE, Math.sin(absorb * Math.PI) * 0.25);
+        g.lineBetween(tail.x, tail.y, p.x, p.y);
+      }
       if (hit) sprite.setTint(WHITE).setTintMode(Phaser.TintModes.FILL);
       else sprite.clearTint();
       const bar = !ending && healthBar(target, damage);
@@ -215,28 +224,17 @@ export class ElectronScene extends Phaser.Scene {
       this.drawElectron(ending.electron, 1, BLUE);
     }
     if (ending.stage === 'silence') {
-      g.fillStyle(GOLD, 0.7);
-      g.fillRect(180 - 1 / scale, 260 - 1 / scale, 2 / scale, 2 / scale);
+      g.fillStyle(WHITE, 0.85);
+      g.fillRect(180 - 1.5 / scale, 260 - 1.5 / scale, 3 / scale, 3 / scale);
     }
     if (ending.hole) this.drawSingularity(ending.hole, scale, ending.glow);
+    if (ending.success && game.phase === 'ending')
+      drawAccretion(g, game.phaseTicks / game.rules.tickRate, scale);
     if (ending.success && ending.flash) {
       g.fillStyle(WHITE, ending.flash * 0.6);
       g.fillCircle(180, 260, 5 / scale);
     }
   }
-  private drawPixelRing(radius: number, ink: number, alpha: number, scale: number): void {
-    const pixel = 2 / scale;
-    const points = Array.from({ length: 65 }, (_, i) => {
-      const a = (i * Math.PI) / 32;
-      return new Phaser.Math.Vector2(
-        180 + Math.round((Math.cos(a) * radius) / pixel) * pixel,
-        260 + Math.round((Math.sin(a) * radius) / pixel) * pixel,
-      );
-    });
-    this.graphics.lineStyle(1 / scale, ink, alpha);
-    this.graphics.strokePoints(points, true);
-  }
-
   private drawBeyond(
     frame: NonNullable<ReturnType<typeof beyondFrame>>,
     scale: number,
@@ -245,19 +243,7 @@ export class ElectronScene extends Phaser.Scene {
     const g = this.graphics;
     if (frame.stage === 'depart' || frame.stage === 'contract' || frame.stage === 'quiet') {
       if (frame.core > 0) {
-        const r = Math.round(frame.core * scale) / scale;
-        g.fillStyle(0x020306, 1);
-        g.fillCircle(180, 260, r);
-        const pixel = 2 / scale;
-        const edge = Array.from({ length: 9 }, (_, i) => {
-          const p = orbit(Math.PI * (1.08 + i * 0.05), r);
-          return new Phaser.Math.Vector2(
-            180 + Math.round((p.x - 180) / pixel) * pixel,
-            260 + Math.round((p.y - 260) / pixel) * pixel,
-          );
-        });
-        g.lineStyle(1 / scale, WHITE, 0.25);
-        g.strokePoints(edge, false);
+        drawSingularity(g, frame.core, scale, 0, frame.core / 24);
       }
     } else {
       if (frame.ring > 0 && frame.alpha > 0)
@@ -376,22 +362,7 @@ export class ElectronScene extends Phaser.Scene {
     g.strokePoints([hull[5], hull[6], hull[7]].map(point), false);
   }
   private drawSingularity(radius: number, scale: number, glow: number): void {
-    const g = this.graphics;
-    const r = Math.round(radius * scale) / scale;
-    g.fillStyle(0x020306, 1);
-    g.fillCircle(180, 260, r);
-    this.drawPixelRing(r, GOLD, 0.7 + glow * 0.2, scale);
-    if (glow > 0) this.drawPixelRing(r + 4 / scale, GOLD, glow * 0.18, scale);
-    const pixel = 2 / scale;
-    const edge = Array.from({ length: 9 }, (_, i) => {
-      const p = orbit(Math.PI * (1.08 + i * 0.05), r);
-      return new Phaser.Math.Vector2(
-        180 + Math.round((p.x - 180) / pixel) * pixel,
-        260 + Math.round((p.y - 260) / pixel) * pixel,
-      );
-    });
-    g.lineStyle(1 / scale, WHITE, 0.25 + glow * 0.55);
-    g.strokePoints(edge, false);
+    drawSingularity(this.graphics, radius, scale, glow);
   }
   private cover(width: number, height: number, alpha: number): void {
     if (alpha <= 0) return;

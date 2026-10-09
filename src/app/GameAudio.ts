@@ -103,8 +103,9 @@ export class GameAudio {
         this.rhythm.reset();
         const cues: Record<string, string> = {
           accelerate: 'charged',
+          compress: 'ending-compress',
           formation: 'ending',
-          settle: 'level',
+          settle: 'ending-resonance',
           impact: 'collision',
         };
         const cue = cues[ending.stage];
