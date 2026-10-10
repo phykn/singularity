@@ -2,12 +2,11 @@ import Phaser from 'phaser';
 import { createParticleTextures } from './particleTextures.ts';
 import { SpritePool } from './SpritePool.ts';
 import { healthBar } from './healthBars.ts';
-import { endingFrame } from './ending.ts';
+import { endingFrame } from '../presentation/ending.ts';
 import { drawSingularity, drawAccretion } from './singularity.ts';
 import { drawCollapse } from './collapse.ts';
-import { beyondFrame } from './beyond.ts';
-import { beamFrame, beamPose, effectFrame, visibleEffects } from './effects.ts';
-import type { EffectPainter } from './effects.ts';
+import { beyondFrame } from '../presentation/beyond.ts';
+import { EffectRenderer } from './EffectRenderer.ts';
 import effectsUrl from '../art/assets/effects.png';
 import beamsUrl from '../art/assets/beams.png';
 import { DamageLabels } from './DamageLabels.ts';
@@ -15,19 +14,13 @@ import { orbit, clamp } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
 import type { Game } from '../game/Game.ts';
 import { BLUE, WHITE, AMBER, GOLD, VIOLET, skillColors } from '../art/palette.ts';
-import { drawEffect } from './drawEffects.ts';
 import { drawWaveWarning } from './warning.ts';
-import { drawElectronField } from './electronField.ts';
 import type { OrbitRhythm } from '../app/OrbitRhythm.ts';
 import { drawRhythm } from './rhythm.ts';
 export class ElectronScene extends Phaser.Scene {
   private graphics!: Phaser.GameObjects.Graphics;
-  private effectGraphics!: Phaser.GameObjects.Graphics;
+  private effects!: EffectRenderer;
   private sprites!: SpritePool;
-  private contacts = new Map<
-    string,
-    { point: Point; color: number; alpha: number; radius: number }
-  >();
   private impactAt = -Infinity;
   private lastModel: Game | null = null;
   private returnAt = -Infinity;
@@ -50,17 +43,18 @@ export class ElectronScene extends Phaser.Scene {
   }
   create(): void {
     this.graphics = this.add.graphics();
-    this.effectGraphics = this.add.graphics().setDepth(1);
+    this.effects = new EffectRenderer(this.add, (point) => this.screen(point));
     createParticleTextures(this);
     this.sprites = new SpritePool(this.add);
     this.damageLabels = new DamageLabels(this.add);
   }
   update(): void {
     if (!this.graphics) return;
-    this.contacts.clear();
+    this.effects.begin();
     this.sprites.begin();
     this.drawFrame();
     this.sprites.end();
+    this.effects.end();
   }
   private drawFrame(): void {
     const g = this.graphics;
@@ -69,7 +63,6 @@ export class ElectronScene extends Phaser.Scene {
       height = this.scale.height,
       scale = Math.min(width, height) / 360;
     if (game.phase !== 'running') this.damageLabels.hide();
-    this.effectGraphics.clear();
     g.clear();
     this.width = width;
     this.worldScale = scale;
@@ -84,13 +77,13 @@ export class ElectronScene extends Phaser.Scene {
     }
     g.setPosition(width / 2 - 180 * scale, this.centerY - 260 * scale);
     g.setScale(scale);
-    this.effectGraphics.setPosition(g.x, g.y).setScale(scale).setDepth(1);
+    this.effects.setViewport(g.x, g.y, scale);
     if (game.phase === 'ready') {
       this.offset = { x: 0, y: 0 };
       this.drawOrbit(game.radius, BLUE, 0.32, false, scale);
       this.drawTrail(game.angle, game.radius, 8, BLUE, scale);
       this.drawElectron(game.position, 1, BLUE);
-      this.cover(width, height, 1 - clamp((this.time.now - this.returnAt) / 550));
+      this.effects.cover(width, height, 1 - clamp((this.time.now - this.returnAt) / 550));
       return;
     }
     const crossing = beyondFrame(game, this.reducedMotion.matches);
@@ -122,7 +115,7 @@ export class ElectronScene extends Phaser.Scene {
         ? { x: impactAge < 0.03 ? 1 : -1, y: 1 }
         : { x: 0, y: 0 };
     g.setPosition(g.x + this.offset.x, g.y + this.offset.y);
-    this.effectGraphics.setPosition(g.x, g.y);
+    this.effects.graphics.setPosition(g.x, g.y);
     const radius = ending?.electron ? ending.radius : game.radius;
     if (!ending || (ending.success && ending.electron)) {
       const opacity = (danger ? 0.8 : 0.32) * (1 - (ending?.absorb ?? 0));
@@ -177,34 +170,7 @@ export class ElectronScene extends Phaser.Scene {
       const satellites = game.combat.satellitePoints;
       for (const point of satellites)
         this.sprites.draw(this.screen(point), 'electron', 0.5, 1).clearTint();
-      for (const fx of visibleEffects(game.effects))
-        drawEffect(
-          this.effectGraphics,
-          fx,
-          clock,
-          scale,
-          position,
-          game.targets,
-          this.paint,
-          game.radius,
-          satellites,
-        );
-      for (const { point, color, alpha, radius } of this.contacts.values()) {
-        this.effectGraphics.lineStyle(1 / scale, color, alpha * 0.65);
-        this.effectGraphics.strokeCircle(point.x, point.y, radius / scale);
-      }
-      const surging = game.combat.status('surge').active;
-      if (game.ranks.charge || surging)
-        drawElectronField(
-          this.effectGraphics,
-          position,
-          clock,
-          scale,
-          game.combat.status('charge'),
-          surging,
-          game.ranks.charge,
-          game.ranks.surge,
-        );
+      const surging = this.effects.draw(game, scale, satellites);
       this.drawTrail(
         game.angle,
         game.radius,
@@ -215,7 +181,7 @@ export class ElectronScene extends Phaser.Scene {
       this.drawElectron(position, 1, color, surging);
       if (!game.paused)
         drawRhythm(
-          this.effectGraphics,
+          this.effects.graphics,
           this.getRhythm(),
           game.radius,
           scale,
@@ -378,49 +344,12 @@ export class ElectronScene extends Phaser.Scene {
   private drawSingularity(radius: number, scale: number, glow: number): void {
     drawSingularity(this.graphics, radius, scale, glow);
   }
-  private cover(width: number, height: number, alpha: number): void {
-    if (alpha <= 0) return;
-    this.effectGraphics.setPosition(0, 0).setScale(1).setDepth(3);
-    this.effectGraphics.fillStyle(0x020306, alpha);
-    this.effectGraphics.fillRect(0, 0, width, height);
-  }
   private screen(point: Point): Point {
     return {
       x: this.width / 2 + (point.x - 180) * this.worldScale + this.offset.x,
       y: this.centerY + (point.y - 260) * this.worldScale + this.offset.y,
     };
   }
-  private paint: EffectPainter = {
-    sprite: (id, point, progress, color, alpha, size = 32) => {
-      this.sprites
-        .draw(this.screen(point), 'effects', size / 32, alpha, 1.5, effectFrame(id, progress))
-        .setTintMode(Phaser.TintModes.MULTIPLY)
-        .setTint(color);
-    },
-    beam: (id, from, to, progress, color, alpha, height, strength) => {
-      const pose = beamPose(this.screen(from), this.screen(to));
-      if (pose.length < 1) return;
-      const beam = this.sprites.draw(
-        pose,
-        'beams',
-        pose.length / 64,
-        alpha,
-        1,
-        beamFrame(id, progress, strength),
-        pose.angle,
-        height / 16,
-      );
-      if (id === 'strike') beam.clearTint();
-      else beam.setTintMode(Phaser.TintModes.MULTIPLY).setTint(color);
-    },
-    contact: (point, color, alpha, radius) => {
-      const screen = this.screen(point);
-      const key = `${Math.round(screen.x)},${Math.round(screen.y)}`;
-      const contact = this.contacts.get(key);
-      if (!contact || alpha > contact.alpha)
-        this.contacts.set(key, { point, color, alpha, radius });
-    },
-  };
   private drawElectron(point: Point, alpha: number, color = BLUE, surging = false): void {
     const sprite = this.sprites.draw(
       this.screen(point),

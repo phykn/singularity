@@ -15,7 +15,7 @@ try {
     await page.waitForFunction(() => window.__gameDebug && window.__gameScene);
     await page.evaluate(() => document.fonts.ready);
     await capture(page, `artifacts/presentation-after/title-${viewport.width}.png`);
-    const labels = await page.evaluate(() => {
+    const labels = await page.evaluate(async () => {
       const debug = window.__gameDebug;
       debug.restart(421, false);
       const game = debug.getModel();
@@ -55,7 +55,43 @@ try {
       game.damageNumbers = [];
       scene.update();
       const cleared = scene.damageLabels.texts.every((text) => !text.visible);
-      return { before, after, values, stablePool, cleared, visibilityChanges };
+      const { target } = await import('/tests/helpers.ts');
+      const edges = [];
+      for (const [x, y] of [
+        [0, scene.scale.height / 2],
+        [scene.scale.width, scene.scale.height / 2],
+        [scene.scale.width / 2, 0],
+        [scene.scale.width / 2, scene.scale.height],
+      ]) {
+        game.damageNumbers = [];
+        const enemy = target(
+          200 + edges.length,
+          180 + (x - scene.scale.width / 2) / scene.worldScale,
+          260 + (y - scene.centerY) / scene.worldScale,
+          100000,
+        );
+        game.targets = [enemy];
+        game.counts[enemy.particle].generated++;
+        game.damageTarget(enemy, 10000);
+        scene.update();
+        const text = scene.damageLabels.texts.find((text) => text.visible);
+        if (!text || text.text !== '10000') throw Error('Large integer damage was hidden');
+        const bounds = text.getBounds();
+        if (
+          bounds.left < 0 ||
+          bounds.right > scene.scale.width ||
+          bounds.top < 0 ||
+          bounds.bottom > scene.scale.height
+        )
+          throw Error('Edge damage text leaves the viewport');
+        edges.push({
+          left: bounds.left,
+          right: bounds.right,
+          top: bounds.top,
+          bottom: bounds.bottom,
+        });
+      }
+      return { before, after, values, stablePool, cleared, visibilityChanges, edges };
     });
     assert.deepEqual(
       labels.after,
@@ -72,6 +108,7 @@ try {
       'Labels reuse their pool and disappear when expired',
     );
     assert.equal(labels.visibilityChanges, 0, 'Stable hits must not hide and show every frame');
+    assert.equal(labels.edges.length, 4, 'Large damage stays inside every screen edge');
     for (const reducedMotion of ['no-preference', 'reduce']) {
       await page.emulateMedia({ reducedMotion });
       const offset = await page.evaluate(() => {

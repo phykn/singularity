@@ -235,7 +235,7 @@ try {
     const g = window.__gameDebug.getModel(),
       r = window.__gameDebug.getRhythm();
     const scene = window.__gameScene,
-      graphics = scene.effectGraphics;
+      graphics = scene.effects.graphics;
     let markers = 0;
     const lineStyle = graphics.lineStyle;
     graphics.lineStyle = function (width, color, ...args) {

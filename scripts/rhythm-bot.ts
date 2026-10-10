@@ -19,7 +19,7 @@ export function playRhythm(
         return true;
       },
     },
-    { sound: () => false, saveResult: () => true, redraw() {} },
+    { sound: () => false, recordResult() {}, audioUnlocked() {}, redraw() {} },
   );
   session.setRenderReady(true, 0);
   session.begin(0);

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Choice } from '../game/types.ts';
 import type { Rarity, UpgradeId } from '../game/rules.ts';
 import { isSkill } from '../game/rules.ts';
@@ -8,7 +8,7 @@ import { Rank } from './controls.tsx';
 import type { Game } from '../game/Game.ts';
 import { copy } from './i18n.ts';
 import type { Language } from './i18n.ts';
-import { ChoiceInput } from './ChoiceInput.ts';
+import { useChoiceInput } from './useChoiceInput.ts';
 
 export function Choices({
   game,
@@ -16,12 +16,14 @@ export function Choices({
   onSelect,
   pauseOnChoice,
   onTogglePause,
+  interactive,
 }: {
   game: Game;
   language: Language;
   onSelect: (id: UpgradeId, number: number) => void;
   pauseOnChoice: boolean;
   onTogglePause: () => void;
+  interactive: boolean;
 }) {
   const c = copy[language],
     rules = game.rules,
@@ -36,88 +38,14 @@ export function Choices({
     selected: UpgradeId;
   } | null>(null);
   const selection = game.selections.at(-1);
-  const cards = useRef<HTMLDivElement>(null);
-  const [input] = useState(() => new ChoiceInput());
-  const [pointerReady, setPointerReady] = useState(false);
-  const press = useRef<{ button: HTMLButtonElement; choice: Choice; pointer: number } | null>(null);
-  const click = useRef<{ button: HTMLButtonElement; choice: Choice; allowed: boolean } | null>(
-    null,
-  );
-  useLayoutEffect(() => {
-    input.show(choice, performance.now());
-    press.current = click.current = null;
-    let timer: number | undefined;
-    const refresh = () => {
-      window.clearTimeout(timer);
-      const delay = input.remaining(performance.now());
-      setPointerReady(delay === 0);
-      if (Number.isFinite(delay) && delay > 0) timer = window.setTimeout(refresh, delay + 1);
-    };
-    const down = (event: PointerEvent) => {
-      if (event.button !== 0) return;
-      click.current = null;
-      const allowed = input.down(event.pointerId, performance.now());
-      const button =
-        event.target instanceof Element
-          ? event.target.closest<HTMLButtonElement>('button.card')
-          : null;
-      if (event.isPrimary && choice && button && cards.current?.contains(button)) {
-        press.current = { button, choice, pointer: event.pointerId };
-        // Consume protected contacts instead of letting them fall through to combat.
-        if (!allowed) event.preventDefault();
-      }
-      refresh();
-    };
-    const up = (event: PointerEvent) => {
-      const allowed = input.up(event.pointerId, performance.now(), event.type === 'pointercancel');
-      const p = press.current;
-      if (p?.pointer === event.pointerId) {
-        const target = document.elementFromPoint(event.clientX, event.clientY);
-        click.current = {
-          button: p.button,
-          choice: p.choice,
-          allowed: allowed && p.button.contains(target),
-        };
-        press.current = null;
-      }
-      refresh();
-    };
-    const cancel = () => {
-      input.cancel(performance.now());
-      press.current = click.current = null;
-      refresh();
-    };
-    const hidden = () => {
-      if (document.hidden) cancel();
-      else refresh();
-    };
-    const key = (event: KeyboardEvent) => {
-      if (['Space', 'Enter'].includes(event.code)) click.current = null;
-    };
-    window.addEventListener('pointerdown', down, { capture: true, passive: false });
-    window.addEventListener('pointerup', up, true);
-    window.addEventListener('pointercancel', up, true);
-    window.addEventListener('keydown', key, true);
-    window.addEventListener('blur', cancel);
-    document.addEventListener('visibilitychange', hidden);
-    refresh();
-    return () => {
-      window.clearTimeout(timer);
-      window.removeEventListener('pointerdown', down, true);
-      window.removeEventListener('pointerup', up, true);
-      window.removeEventListener('pointercancel', up, true);
-      window.removeEventListener('keydown', key, true);
-      window.removeEventListener('blur', cancel);
-      document.removeEventListener('visibilitychange', hidden);
-    };
-  }, [choice, input]);
+  const { cards, pointerReady, accept } = useChoiceInput(choice, interactive);
   useEffect(() => {
-    if (!choice || game.paused) return;
+    if (!choice || !interactive) return;
     (
       cards.current?.querySelector<HTMLButtonElement>('button.auto') ??
       cards.current?.querySelector<HTMLButtonElement>('button')
     )?.focus({ preventScroll: true });
-  }, [choice?.number, game, game.paused]);
+  }, [choice?.number, game, interactive]);
   useEffect(() => {
     const old = previous.current;
     if (
@@ -163,7 +91,7 @@ export function Choices({
                 aria-checked={pauseOnChoice}
                 aria-label={c.choicePause}
                 onClick={onTogglePause}
-                disabled={game.paused}
+                disabled={!interactive}
               >
                 <span className="choice-switch" aria-hidden="true">
                   <span>
@@ -220,23 +148,9 @@ export function Choices({
                   (id === game.automaticCard?.id ? ', ' + c.auto : '')
                 }
                 onClick={(event) => {
-                  const native = event.nativeEvent;
-                  const p = click.current;
-                  const pointer =
-                    event.detail > 0 ||
-                    (native instanceof PointerEvent && native.pointerType !== '') ||
-                    p?.button === event.currentTarget;
-                  click.current = null;
-                  if (
-                    pointer &&
-                    (!p?.allowed || p.choice !== choice || p.button !== event.currentTarget)
-                  ) {
-                    event.preventDefault();
-                    return;
-                  }
-                  onSelect(id, choice.number);
+                  if (accept(event)) onSelect(id, choice.number);
                 }}
-                disabled={game.paused || game.phase !== 'running'}
+                disabled={!interactive || !game.canUpgrade(id)}
               >
                 <span className="card-label">
                   <b>{c.rarities[rarity]}</b>

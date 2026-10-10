@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { endingFrame } from '../render/ending.ts';
-import { beyondFrame } from '../render/beyond.ts';
+import { endingFrame } from '../presentation/ending.ts';
+import { beyondFrame } from '../presentation/beyond.ts';
 import { ControlIcon } from '../ui/icons.tsx';
 import { GameCanvas } from '../render/GameCanvas.tsx';
 import { Hud } from '../ui/Hud.tsx';
@@ -224,6 +224,7 @@ export default function App() {
             onSelect={select}
             pauseOnChoice={pauseOnChoice}
             onTogglePause={toggleChoicePause}
+            interactive={renderReady && !game.paused && game.phase === 'running'}
           />
         )}
       </div>
@@ -256,7 +257,7 @@ export default function App() {
       {inspected && (
         <SkillDetails game={game} id={inspected} language={language} onClose={closeSkill} />
       )}
-      {game.manualPaused && panel === null && !inspected && (
+      {game.manualPaused && game.phase !== 'result' && panel === null && !inspected && (
         <Dialog
           titleId="pause-title"
           className={`pause-panel ${exitConfirm ? 'is-confirming' : ''}`}

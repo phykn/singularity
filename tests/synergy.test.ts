@@ -4,6 +4,18 @@ import { distance } from '../src/game/geometry.ts';
 import { rules } from '../src/game/rules.ts';
 import { close, stationarySkill, target } from './helpers.ts';
 
+test('gather branches share Multi damage scaling with their repeated hits', () => {
+  const enemies = [target(0, 200, 128, 1000), target(1, 230, 128, 1000)];
+  const g = stationarySkill({ gather: 1, multi: 1, repeat: 1 }, enemies);
+  const damage = g.damage * g.forms.gather.damage;
+  g.combat.fireSkill('gather');
+  close(1000 - enemies[0].hp, damage);
+  close(1000 - enemies[1].hp, damage * g.forms.multi.damage);
+  g.advance(500);
+  close(1000 - enemies[0].hp, damage * (1 + g.forms.repeat.damage));
+  close(1000 - enemies[1].hp, damage * g.forms.multi.damage * (1 + g.forms.repeat.damage));
+});
+
 test('satellites distribute fire before sharing a target and repeats follow their live emitter', () => {
   const enemies = [target(0, 181, 128, 1000), target(1, 185, 130, 1000), target(2, 185, 126, 1000)];
   const g = stationarySkill({ satellite: 3, repeat: 1 }, enemies);

@@ -48,7 +48,7 @@ for (const id of ['focus', 'gather'] as const)
     close(g.combat.status('multi').progress, 0);
     const expected = g.damage * (id === 'gather' ? g.forms.gather.damage : rules.skills[id].damage);
     close(10000 - ts[0].hp, expected);
-    close(10000 - ts[1].hp, expected * (id === 'focus' ? g.forms.multi.damage : 1));
+    close(10000 - ts[1].hp, expected * g.forms.multi.damage);
     const h = stationarySkill({ [id]: 1, multi: 1 }, [target(0, 190, 128, 10000)]);
     h.combat.fireSkill(id);
     if (id === 'focus') h.advance(1000 / rules.tickRate);

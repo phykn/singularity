@@ -24,7 +24,7 @@ import {
   skillIds,
   xpForLevel,
 } from './rules.ts';
-import type { RuleSet, UpgradeId } from './rules.ts';
+import type { Card, RuleSet, UpgradeId } from './rules.ts';
 
 import { Combat } from './combat.ts';
 import type { Attack } from './combat.ts';
@@ -226,10 +226,16 @@ export class Game {
   get paused(): boolean {
     return this.manualPaused || this.hiddenPaused;
   }
-  get automaticCard() {
-    return this.choice?.cards.reduce((a, b) =>
-      rarityIds.indexOf(b.rarity) > rarityIds.indexOf(a.rarity) ? b : a,
-    );
+  get automaticCard(): Card | undefined {
+    return this.choice?.cards
+      .filter((card) => this.canUpgrade(card.id))
+      .reduce<Card | undefined>(
+        (a, b) => (!a || rarityIds.indexOf(b.rarity) > rarityIds.indexOf(a.rarity) ? b : a),
+        undefined,
+      );
+  }
+  canUpgrade(id: UpgradeId): boolean {
+    return eligibleUpgrades(this.ranks, this.rules, this.recoverable).includes(id);
   }
   get position(): Point {
     return orbit(this.angle, this.radius);
@@ -425,12 +431,18 @@ export class Game {
           } else this.finishResult();
         }
       }
-      this.effects = this.effects.filter((fx) => this.seconds < fx.born + fx.life);
-      this.damageNumbers = this.damageNumbers.filter((damage) => this.seconds < damage.born + 0.72);
+      this.expireEffects();
     }
     if (stopAtChoice && this.choice) this.pendingTicks = 0;
-    if (autoSelect && this.choice && this.time + 1e-8 >= this.choice.deadline)
-      this.select(this.automaticCard!.id, true);
+    if (autoSelect && this.choice && this.time + 1e-8 >= this.choice.deadline) {
+      const card = this.automaticCard;
+      if (card) this.select(card.id, true);
+    }
+  }
+
+  expireEffects(): void {
+    this.effects = this.effects.filter((fx) => this.seconds < fx.born + fx.life);
+    this.damageNumbers = this.damageNumbers.filter((damage) => this.seconds < damage.born + 0.72);
   }
 
   private step(autoSelect: boolean, beforeCombat?: () => void): void {
@@ -440,8 +452,10 @@ export class Game {
       return;
     }
     beforeCombat?.();
-    if (autoSelect && this.choice && this.time + 1e-8 >= this.choice.deadline)
-      this.select(this.automaticCard!.id, true, this.choice.number, true);
+    if (autoSelect && this.choice && this.time + 1e-8 >= this.choice.deadline) {
+      const card = this.automaticCard;
+      if (card) this.select(card.id, true, this.choice.number, true);
+    }
     if (this.combatEnabled && this.tick + 1e-8 >= this.nextSpawn) {
       const rushing = this.rushing;
       this.spawnBatch();
@@ -658,7 +672,7 @@ export class Game {
     const card = this.choice.cards.find((card) => card.id === id);
     if (!card) return false;
     if (!automatic && this.time + 1e-8 >= this.choice.deadline) return false;
-    if (!eligibleUpgrades(this.ranks, this.rules, this.recoverable).includes(id)) return false;
+    if (!this.canUpgrade(id)) return false;
     const previous = this.rank(id),
       oldRate = this.rate;
     if (isSkill(id)) {

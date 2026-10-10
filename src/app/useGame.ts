@@ -2,21 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Game } from '../game/Game.ts';
 import { GameAudio } from './GameAudio.ts';
 import { GameSession } from './GameSession.ts';
+import { ResultRecords } from './ResultRecords.ts';
 import { newSeed } from './seed.ts';
-import {
-  bestRecord,
-  bestBeyondRecord,
-  readBeyondRecord,
-  beyondRecordKey,
-  readLanguage,
-  readRecord,
-  readSettings,
-  languageKey,
-  recordKey,
-  save,
-  settingsKey,
-} from './storage.ts';
-import type { BestRecord, BeyondRecord, Settings } from './storage.ts';
+import { readLanguage, readSettings, languageKey, save, settingsKey } from './storage.ts';
+import type { Settings } from './storage.ts';
 import type { UpgradeId } from '../game/rules.ts';
 import { languages } from '../ui/i18n.ts';
 import type { Language } from '../ui/i18n.ts';
@@ -36,60 +25,55 @@ export function useGame() {
       return { sound: false };
     }
   });
-  const [best, setBest] = useState<BestRecord | null>(() => {
-    try {
-      return readRecord(localStorage);
-    } catch {
-      return null;
-    }
-  });
   const [storageOk, setStorageOk] = useState(true);
-  const [bestBeyond, setBestBeyond] = useState<BeyondRecord | null>(() => {
-    try {
-      return readBeyondRecord(localStorage);
-    } catch {
-      return null;
-    }
-  });
-  const beyondRef = useRef(bestBeyond);
-  beyondRef.current = bestBeyond;
   const failedSaves = useRef(new Set<string>());
   const [audioUnavailable, setAudioUnavailable] = useState(false);
   const [, redraw] = useState(0);
-  const force = () => redraw((n) => n + 1);
+  const force = useCallback(() => redraw((n) => n + 1), []);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
-  const bestRef = useRef(best);
-  bestRef.current = best;
-  const [audio] = useState(() => new GameAudio());
+  const reportSave = useCallback((key: string, ok: boolean): boolean => {
+    if (ok) failedSaves.current.delete(key);
+    else failedSaves.current.add(key);
+    setStorageOk(failedSaves.current.size === 0);
+    return ok;
+  }, []);
+
+  const write = useCallback(
+    (key: string, value: unknown): boolean => {
+      try {
+        return reportSave(key, save(localStorage, key, value));
+      } catch {
+        return reportSave(key, false);
+      }
+    },
+    [reportSave],
+  );
+
+  const changeSettings = useCallback(
+    (next: Settings) => {
+      settingsRef.current = next;
+      setSettings(next);
+      write(settingsKey, next);
+    },
+    [write],
+  );
+
+  const changeLanguage = useCallback(
+    (next: Language) => {
+      setLanguage(next);
+      write(languageKey, next);
+    },
+    [write],
+  );
+
+  const [records] = useState(() => new ResultRecords(() => localStorage, reportSave, force));
   const [session] = useState(() => {
     const game = new Game(newSeed(), { recordEvents: false });
-    return new GameSession(game, audio, {
+    return new GameSession(game, new GameAudio(), {
       sound: () => settingsRef.current.sound,
-      saveResult: (result) => {
-        if (result.endless) {
-          let record = bestBeyondRecord(beyondRef.current, result);
-          try {
-            const stored = readBeyondRecord(localStorage);
-            if (stored) record = bestBeyondRecord(record, stored);
-          } catch {
-            /* The write below reports unavailable storage. */
-          }
-          beyondRef.current = record;
-          setBestBeyond(record);
-          return write(beyondRecordKey, record);
-        }
-        let record = bestRecord(bestRef.current, result);
-        try {
-          const stored = readRecord(localStorage);
-          if (stored) record = bestRecord(record, stored);
-        } catch {
-          /* The write below reports unavailable storage. */
-        }
-        bestRef.current = record;
-        setBest(record);
-        return write(recordKey, record);
-      },
+      recordResult: (result) => records.record(result, performance.now()),
+      audioUnlocked: (enabled) => setAudioUnavailable(!enabled),
       redraw: force,
     });
   });
@@ -100,67 +84,45 @@ export function useGame() {
     [session],
   );
 
-  function reportSave(key: string, ok: boolean): boolean {
-    if (ok) failedSaves.current.delete(key);
-    else failedSaves.current.add(key);
-    setStorageOk(failedSaves.current.size === 0);
-    return ok;
-  }
-
-  function write(key: string, value: unknown): boolean {
-    try {
-      return reportSave(key, save(localStorage, key, value));
-    } catch {
-      return reportSave(key, false);
-    }
-  }
-
-  function changeSettings(next: Settings) {
-    settingsRef.current = next;
-    setSettings(next);
-    write(settingsKey, next);
-  }
-
-  function changeLanguage(next: Language) {
-    setLanguage(next);
-    write(languageKey, next);
-  }
-
   useEffect(() => {
     document.documentElement.lang = languages.find((entry) => entry.id === language)!.html;
   }, [language]);
 
-  async function enableAudio() {
-    const enabled = await audio.unlock();
-    if (enabled !== null) setAudioUnavailable(!enabled);
-    return enabled;
-  }
-
-  async function toggleSound() {
+  const toggleSound = useCallback(async () => {
     const sound = !settingsRef.current.sound;
     changeSettings({ ...settingsRef.current, sound });
     setAudioUnavailable(false);
-    if (!sound) audio.suspend();
-    else if ((await enableAudio()) === false && settingsRef.current.sound)
+    if ((await session.setSound(sound)) === false && settingsRef.current.sound)
       changeSettings({ ...settingsRef.current, sound: false });
-  }
+  }, [session, changeSettings]);
 
-  function replace() {
+  const replace = useCallback(() => {
     const game = new Game(newSeed(session.game.seed), { recordEvents: false });
     game.setHidden(document.hidden);
     session.replace(game, performance.now());
-  }
+  }, [session]);
 
-  function begin() {
-    if (!session.renderReady) return;
-    if (settingsRef.current.sound) void enableAudio();
+  const begin = useCallback(() => {
     session.begin(performance.now());
-  }
+  }, [session]);
 
-  function pause(paused: boolean) {
-    session.pause(paused, performance.now());
-    if (!paused && settingsRef.current.sound) void enableAudio();
-  }
+  const pause = useCallback(
+    (paused: boolean) => {
+      session.pause(paused, performance.now());
+    },
+    [session],
+  );
+  const tapRhythm = useCallback(() => session.tapRhythm(performance.now()), [session]);
+  const toggleChoicePause = useCallback(
+    () => session.toggleChoicePause(performance.now()),
+    [session],
+  );
+  const cycleSpeed = useCallback(() => session.cycleSpeed(performance.now()), [session]);
+  const continueBeyond = useCallback(() => session.continueBeyond(performance.now()), [session]);
+  const select = useCallback(
+    (id: UpgradeId, number: number) => session.select(id, number, performance.now()),
+    [session],
+  );
 
   useEffect(() => {
     let frame = 0;
@@ -174,6 +136,7 @@ export function useGame() {
     session.game.setHidden(document.hidden);
     const step = (wall: number) => {
       session.step(wall);
+      records.retry(wall);
       frame = requestAnimationFrame(step);
     };
     frame = requestAnimationFrame(step);
@@ -186,7 +149,7 @@ export function useGame() {
       window.removeEventListener('pageshow', visibility);
       session.dispose();
     };
-  }, [session]);
+  }, [session, records]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -213,34 +176,31 @@ export function useGame() {
     return () => {
       delete window.__gameDebug;
     };
-  }, [session, getGame]);
+  }, [session, getGame, getRhythm, force]);
 
   return {
     game: session.game,
     getGame,
     getRhythm,
     rhythm: session.rhythm,
-    tapRhythm: () => session.tapRhythm(performance.now()),
+    tapRhythm,
     language,
     settings,
-    best,
-    bestBeyond,
+    best: records.best,
+    bestBeyond: records.beyond,
     storageOk,
     audioUnavailable,
     renderReady: session.renderReady,
     playbackSpeed: session.playbackSpeed,
     pauseOnChoice: session.pauseOnChoice,
-    toggleChoicePause: () => session.toggleChoicePause(performance.now()),
-    cycleSpeed: () => session.cycleSpeed(performance.now()),
+    toggleChoicePause,
+    cycleSpeed,
     onRenderReady,
     begin,
-    continueBeyond: () => {
-      if (settingsRef.current.sound) void enableAudio();
-      session.continueBeyond(performance.now());
-    },
+    continueBeyond,
     pause,
     replace,
-    select: (id: UpgradeId, number: number) => session.select(id, number, performance.now()),
+    select,
     changeLanguage,
     toggleSound,
   };

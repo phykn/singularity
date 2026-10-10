@@ -29,7 +29,7 @@ test('checkpoints preserve the title orbit position used by START', () => {
         return true;
       },
     },
-    { sound: () => false, saveResult: () => true, redraw() {} },
+    { sound: () => false, recordResult() {}, audioUnlocked() {}, redraw() {} },
   );
   session.setRenderReady(true, 0);
   session.step(1800);

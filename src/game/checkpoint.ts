@@ -1,5 +1,6 @@
 import { Game } from './Game.ts';
 import type { Phase } from './types.ts';
+import { upgradeIds } from './rules.ts';
 import type { UpgradeId } from './rules.ts';
 
 export type Checkpoint = {
@@ -45,14 +46,66 @@ export function createCheckpoint(game: Game): Checkpoint | null {
   };
 }
 
-export function restoreCheckpoint(checkpoint: Checkpoint): Game | null {
+function object(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function integer(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+function finite(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function validCheckpoint(value: unknown): value is Checkpoint {
   if (
-    !Array.isArray(checkpoint.resonances) ||
-    !Number.isFinite(checkpoint.startAngle) ||
-    !Number.isFinite(checkpoint.pendingTicks) ||
-    checkpoint.pendingTicks < -1e-8
+    !object(value) ||
+    !integer(value.seed) ||
+    value.seed > 0xffffffff ||
+    !finite(value.startAngle) ||
+    !finite(value.pendingTicks) ||
+    value.pendingTicks < -1e-8 ||
+    !integer(value.ticks) ||
+    !['running', 'collapse', 'ending', 'result', 'crossing'].includes(value.phase as string) ||
+    typeof value.manualPaused !== 'boolean' ||
+    typeof value.retired !== 'boolean' ||
+    !(
+      value.continuedAt === null ||
+      (integer(value.continuedAt) && value.continuedAt <= value.ticks)
+    ) ||
+    !(value.choiceRemaining === null || finite(value.choiceRemaining)) ||
+    !Array.isArray(value.inputs) ||
+    !Array.isArray(value.resonances)
   )
-    return null;
+    return false;
+  const ticks = value.ticks;
+  return (
+    Array.from(value.inputs).every(
+      (input) =>
+        object(input) &&
+        integer(input.tick) &&
+        input.tick <= ticks &&
+        typeof input.id === 'string' &&
+        upgradeIds.includes(input.id as UpgradeId) &&
+        integer(input.number) &&
+        input.number > 0 &&
+        typeof input.automatic === 'boolean' &&
+        typeof input.beforeCombat === 'boolean',
+    ) &&
+    Array.from(value.resonances).every(
+      (input) =>
+        object(input) &&
+        integer(input.tick) &&
+        input.tick <= ticks &&
+        integer(input.selectionCount) &&
+        [1, 2, 3].includes(input.beat as number),
+    )
+  );
+}
+
+export function restoreCheckpoint(checkpoint: unknown): Game | null {
+  if (!validCheckpoint(checkpoint)) return null;
   const game = new Game(checkpoint.seed);
   game.angle = checkpoint.startAngle;
   game.start();

@@ -48,7 +48,7 @@ try {
         advance(650);
         const scene = window.__gameScene;
         const sprites = () =>
-          scene.sprites.images
+          [...scene.sprites.images, ...scene.effects.sprites.images]
             .filter((s) => s.visible)
             .map((s) => ({
               key: s.texture.key,
@@ -62,11 +62,12 @@ try {
             }));
         scene.update();
         const first = sprites(),
-          pool = scene.sprites.images.length;
+          pool = [...scene.sprites.images, ...scene.effects.sprites.images].length;
         for (let i = 0; i < 60; i++) scene.update();
         if (JSON.stringify(first) !== JSON.stringify(sprites()))
           throw Error('Paused barrier moved');
-        if (pool !== scene.sprites.images.length) throw Error('Paused sprite pool grew');
+        if (pool !== [...scene.sprites.images, ...scene.effects.sprites.images].length)
+          throw Error('Paused sprite pool grew');
         const arcs = visibleEffects(g.effects).filter((fx) => fx.kind === 'bridge');
         // The radius can change between effect refreshes; geometry must use the live orbit.
         g.radius -= 20;

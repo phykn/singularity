@@ -11,7 +11,7 @@ import {
   beyondRecordKey,
   save,
 } from '../src/app/storage.ts';
-import { beyondFrame } from '../src/render/beyond.ts';
+import { beyondFrame } from '../src/presentation/beyond.ts';
 import { BLUE, VIOLET } from '../src/art/palette.ts';
 import type { Result } from '../src/game/types.ts';
 import { playRhythm } from '../scripts/rhythm-bot.ts';
@@ -101,7 +101,8 @@ test('the entry clock ignores combat speed and freezes on pause or hidden tabs',
     };
     const session = new GameSession(g, audio, {
       sound: () => false,
-      saveResult: () => true,
+      recordResult() {},
+      audioUnlocked() {},
       redraw() {},
     });
     session.setRenderReady(true, 0);
@@ -151,10 +152,9 @@ test('current checkpoints replay entry, manual endless choices and voluntary ret
   assert.deepEqual(restoreCheckpoint(createCheckpoint(g)!)?.result, g.result);
 });
 
-test('clear saves retry during and after continuation and beyond records never replace normal clears', () => {
+test('clear and retired results emit once across continuation and replacement with separate records', () => {
   const g = cleared(),
     clear = g.result!;
-  let writable = false;
   const saved: Result[] = [];
   const audio = {
     enabled: false,
@@ -168,17 +168,15 @@ test('clear saves retry during and after continuation and beyond records never r
   const session = new GameSession(g, audio, {
     sound: () => false,
     redraw() {},
-    saveResult(result) {
-      if (!writable) return false;
+    audioUnlocked() {},
+    recordResult(result) {
       saved.push(result);
-      return true;
     },
   });
   session.setRenderReady(true, 0);
   session.continueBeyond(0);
   session.advance(10000, 10);
   session.replace(new Game(21), 20);
-  writable = true;
   session.step(1020);
   session.step(2020);
   assert.equal(saved.length, 2);
@@ -313,7 +311,8 @@ test('checkpoints preserve automatic selection timing at 2x and the remaining ch
   };
   const session = new GameSession(g, audio, {
     sound: () => false,
-    saveResult: () => true,
+    recordResult() {},
+    audioUnlocked() {},
     redraw() {},
   });
   session.setRenderReady(true, 0);

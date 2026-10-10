@@ -141,10 +141,7 @@ export class Combat {
     for (const id of timedSkills) {
       if (this.nextSkill[id] > g.tick + 1e-8) continue;
       if (id === 'focus' && this.focus.length) continue;
-      if (this.fireSkill(id) && id !== 'focus')
-        this.nextSkill[id] =
-          g.tick +
-          (g.rules.skills[id].periodSeconds / (id === 'vent' ? 1 : g.rate)) * g.rules.tickRate;
+      if (this.fireSkill(id) && id !== 'focus') this.nextSkill[id] = g.tick + this.interval(id);
     }
     this.updateFocus();
     this.updateBarriers();
@@ -176,10 +173,7 @@ export class Combat {
     if (id === 'burst') return { mode: 'conditional', progress: 0, active: false, fired };
     const timed = timedSkills.includes(id as TimedSkill),
       skill = id as TimedSkill;
-    const interval =
-      (timed
-        ? g.rules.skills[skill].periodSeconds / (id === 'vent' ? 1 : g.rate)
-        : g.attackInterval) * g.rules.tickRate;
+    const interval = timed ? this.interval(skill) : g.attackInterval * g.rules.tickRate;
     const next = timed ? this.nextSkill[skill] : (this.nextLinked[id] ?? g.tick);
     const active =
       g.phase === 'running' &&
@@ -195,6 +189,11 @@ export class Combat {
   learn(id: UpgradeId, previous: number): void {
     if (id in this.nextSkill && previous === 0)
       this.nextSkill[id as TimedSkill] = this.game.tick + 1;
+  }
+
+  private interval(id: TimedSkill): number {
+    const g = this.game;
+    return (g.rules.skills[id].periodSeconds / (id === 'vent' ? 1 : g.rate)) * g.rules.tickRate;
   }
 
   rescaleCooldowns(oldRate: number): void {
@@ -329,7 +328,7 @@ export class Combat {
       if (this.focus.length || !within(s.focus.range).length) return false;
       for (let i = 0; i < branches; i++)
         this.focus.push({
-          attack: i ? { ...attack, damage: attack.damage * s.multi.damage } : attack,
+          attack: this.branch(attack, i),
           until: g.time + s.focus.duration,
           next: g.tick,
           held: 0,
@@ -379,9 +378,10 @@ export class Combat {
       const moved = new Set<number>();
       const reserved = new Set(anchors.map((target) => target.id));
       let fired = 0;
-      for (const anchor of anchors) {
+      for (const [i, anchor] of anchors.entries()) {
+        const branch = this.branch(attack, i);
         const point = { ...anchor };
-        fired += this.volley(attack, origin, [anchor], true);
+        fired += this.volley(branch, origin, [anchor], true);
         const group = closest(g.targets, point, s.gather.count, s.gather.radius);
         for (const target of group) {
           if (moved.has(target.id) || reserved.has(target.id) || g.time < (target.gatherReady ?? 0))
@@ -397,7 +397,7 @@ export class Combat {
           target.radius = Math.max(target.radius, Math.hypot(x - CENTER.x, y - CENTER.y));
           Object.assign(target, orbit(target.angle, target.radius));
           this.emit(
-            { ...attack, damage: attack.damage * 0.5, depth: 1, firstKill: undefined },
+            { ...branch, damage: branch.damage * 0.5, depth: 1, firstKill: undefined },
             from,
             target,
             false,
@@ -430,13 +430,7 @@ export class Combat {
       };
       let fired = 0;
       for (const [i, target] of targets.entries())
-        fired += this.pursue(
-          i ? { ...attack, damage: attack.damage * s.multi.damage } : attack,
-          origin,
-          target,
-          pursuit,
-          true,
-        );
+        fired += this.pursue(this.branch(attack, i), origin, target, pursuit, true);
       if (fired > 1) this.activate('multi', attack.ranks.multi);
     } else this.volley(attack, origin, targets, true);
     if (targets.length) this.activate(id);
@@ -537,14 +531,17 @@ export class Combat {
     });
   }
 
+  private branch(attack: Attack, index: number): Attack {
+    return index && attack.ranks.multi
+      ? { ...attack, damage: attack.damage * attack.forms.multi.damage, firstKill: undefined }
+      : attack;
+  }
+
   private volley(attack: Attack, origin: Point, selected: Target[], anchored: Anchor): number {
     let fired = 0;
     for (const [i, target] of selected.entries()) {
       if (target.hp <= 0) continue;
-      const branch =
-        i && attack.ranks.multi
-          ? { ...attack, damage: attack.damage * attack.forms.multi.damage, firstKill: undefined }
-          : attack;
+      const branch = this.branch(attack, i);
       for (let hit = 1; hit < attack.forms.repeat.hits; hit++)
         this.pulses.push({
           at:
@@ -655,9 +652,14 @@ export class Combat {
         this.deal(attack, target, damage);
       }
     }
-    let previous: Point = contact;
-    for (let hop = 0; hop < s.chain.hops; hop++) {
-      const next = closest(this.game.targets, previous, 1, s.chain.range, visited)[0];
+    this.chain(attack, contact, visited);
+    this.discharge(attack);
+  }
+
+  private chain(attack: Attack, from: Point, visited: Set<number>): void {
+    let previous = from;
+    for (let hop = 0; hop < attack.forms.chain.hops; hop++) {
+      const next = closest(this.game.targets, previous, 1, attack.forms.chain.range, visited)[0];
       if (!next) break;
       visited.add(next.id);
       const damage = attack.damage * this.game.rules.skills.chain.falloff ** (hop + 1);
@@ -666,7 +668,6 @@ export class Combat {
       previous = { x: next.x, y: next.y };
       this.deal(attack, next, damage);
     }
-    this.discharge(attack);
   }
 
   private deal(attack: Attack, target: Target, damage: number): void {
@@ -762,17 +763,7 @@ export class Combat {
     // One shared visit set keeps the swept path and its chain branches from doubling hits.
     const visited = new Set(targets.map((t) => t.id));
     for (const target of targets) this.deal(attack, target, attack.damage);
-    let previous: Point = targets.at(-1) ?? from;
-    for (let hop = 0; hop < attack.forms.chain.hops; hop++) {
-      const next = closest(this.game.targets, previous, 1, attack.forms.chain.range, visited)[0];
-      if (!next) break;
-      visited.add(next.id);
-      const damage = attack.damage * this.game.rules.skills.chain.falloff ** (hop + 1);
-      this.effect({ ...attack, damage }, 'bolt', previous, next, 0, 0.14, false, 'chain', 1.3);
-      this.activate('chain', attack.ranks.chain);
-      previous = { x: next.x, y: next.y };
-      this.deal(attack, next, damage);
-    }
+    this.chain(attack, targets.at(-1) ?? from, visited);
     this.discharge(attack);
   }
 
@@ -808,8 +799,7 @@ export class Combat {
           for (const sibling of this.focus)
             if (sibling.group === cast.group) sibling.started = true;
           if (Number.isFinite(this.nextSkill.focus))
-            this.nextSkill.focus =
-              g.tick + (g.rules.skills.focus.periodSeconds / g.rate) * g.rules.tickRate;
+            this.nextSkill.focus = g.tick + this.interval('focus');
         }
         const attack = {
           ...cast.attack,

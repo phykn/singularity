@@ -98,9 +98,9 @@ try {
             const originalMethods = {};
             let drawingShape = false;
             for (const method of ['strokeCircle', 'arc']) {
-              const original = scene.effectGraphics[method].bind(scene.effectGraphics);
+              const original = scene.effects.graphics[method].bind(scene.effects.graphics);
               originalMethods[method] = original;
-              scene.effectGraphics[method] = (...args) => {
+              scene.effects.graphics[method] = (...args) => {
                 if (drawingShape) return original(...args);
                 aura.push({ method, args });
                 drawingShape = true;
@@ -114,7 +114,7 @@ try {
             scene.update();
             const geometry = JSON.stringify(aura);
             const sprites = () =>
-              scene.sprites.images
+              [...scene.sprites.images, ...scene.effects.sprites.images]
                 .filter((s) => s.visible)
                 .map((s) => ({
                   key: s.texture.key,
@@ -127,21 +127,22 @@ try {
                   tint: s.tintTopLeft,
                 }));
             const visible = sprites(),
-              pool = scene.sprites.images.length;
+              pool = [...scene.sprites.images, ...scene.effects.sprites.images].length;
             for (let i = 0; i < 20; i++) {
               aura.length = 0;
               scene.update();
               if (JSON.stringify(aura) !== geometry) throw Error('Paused aura moved');
             }
-            Object.assign(scene.effectGraphics, originalMethods);
+            Object.assign(scene.effects.graphics, originalMethods);
             if (JSON.stringify(sprites()) !== JSON.stringify(visible))
               throw Error('Paused visual moved');
-            if (pool !== scene.sprites.images.length) throw Error('Sprite pool grew while paused');
+            if (pool !== [...scene.sprites.images, ...scene.effects.sprites.images].length)
+              throw Error('Sprite pool grew while paused');
             return {
               aura: JSON.parse(geometry),
-              contacts: [...scene.contacts.keys()],
+              contacts: [...scene.effects.contacts.keys()],
               satellitePoints: g.combat.satellitePoints.map((p) => scene.screen(p)),
-              satelliteReturns: scene.sprites.images
+              satelliteReturns: [...scene.sprites.images, ...scene.effects.sprites.images]
                 .filter(
                   (s) => s.visible && s.texture.key === 'beams' && Number(s.frame.name) % 32 >= 28,
                 )
@@ -154,7 +155,7 @@ try {
               point: scene.screen(g.position),
               sprites: visible,
               returnEndpoint: (() => {
-                const sprite = scene.sprites.images.find(
+                const sprite = [...scene.sprites.images, ...scene.effects.sprites.images].find(
                   (s) =>
                     s.visible &&
                     s.texture.key === 'beams' &&

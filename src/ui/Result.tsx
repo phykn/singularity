@@ -7,7 +7,7 @@ import { CollapseIcon, SingularityIcon, ParticleIcon, SkillIcon } from './icons.
 import { Rank } from './controls.tsx';
 import { Dialog } from './Dialog.tsx';
 import { formatTime } from '../format.ts';
-import { beyondFrame } from '../render/beyond.ts';
+import { beyondFrame } from '../presentation/beyond.ts';
 import type { BestRecord, BeyondRecord } from '../app/storage.ts';
 import type { Game } from '../game/Game.ts';
 import { copy } from './i18n.ts';

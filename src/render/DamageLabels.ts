@@ -81,6 +81,15 @@ export class DamageLabels {
           Math.round(Math.max(12, Math.min(height - 2, y + dy))),
         );
         const bounds = text.getBounds();
+        const shiftX =
+          Math.max(0, Math.ceil(-bounds.left)) + Math.min(0, Math.floor(width - bounds.right));
+        const shiftY =
+          Math.max(0, Math.ceil(-bounds.top)) + Math.min(0, Math.floor(height - bounds.bottom));
+        if (shiftX || shiftY) {
+          text.setPosition(text.x + shiftX, text.y + shiftY);
+          bounds.x += shiftX;
+          bounds.y += shiftY;
+        }
         Phaser.Geom.Rectangle.Inflate(bounds, 1, 1);
         if (
           occupied.some((previous) => Phaser.Geom.Intersects.RectangleToRectangle(bounds, previous))

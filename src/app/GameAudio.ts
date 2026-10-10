@@ -1,6 +1,6 @@
 import type { Game } from '../game/Game.ts';
-import { endingFrame } from '../render/ending.ts';
-import { beyondFrame } from '../render/beyond.ts';
+import { endingFrame } from '../presentation/ending.ts';
+import { beyondFrame } from '../presentation/beyond.ts';
 import { KillRhythm, SoundMixer } from './sounds.ts';
 
 export class GameAudio {

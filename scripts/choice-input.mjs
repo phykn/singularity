@@ -167,6 +167,29 @@ try {
   await mouse.locator('.card').first().click();
   assert.equal(await mouse.evaluate(() => window.__gameDebug.getModel().selections.length), 1);
   checks.push({ mouse: 'appearance guard then single click' });
+  await mouse.evaluate(() => {
+    const d = window.__gameDebug;
+    d.restart(421, false);
+    d.xp(14);
+  });
+  await mouse.locator('.cards[data-ready="true"]').waitFor();
+  const held = await mouse.locator('.card').first().boundingBox();
+  await mouse.mouse.move(held.x + held.width / 2, held.y + held.height / 2);
+  await mouse.mouse.down();
+  await mouse.keyboard.press('Escape');
+  await mouse.locator('#pause-title').waitFor();
+  await mouse.keyboard.press('Escape');
+  await mouse.locator('#pause-title').waitFor({ state: 'hidden' });
+  await mouse.mouse.up();
+  assert.equal(
+    await mouse.evaluate(() => window.__gameDebug.getModel().selections.length),
+    0,
+    'An interrupted press must not select a card after resuming',
+  );
+  await mouse.locator('.cards[data-ready="true"]').waitFor();
+  await mouse.locator('.card').first().click();
+  assert.equal(await mouse.evaluate(() => window.__gameDebug.getModel().selections.length), 1);
+  checks.push({ pauseCarryover: 'rejected', freshClickAfterResume: 'selected once' });
   await mouse.close();
   assert.deepEqual(errors, []);
   writeFileSync(

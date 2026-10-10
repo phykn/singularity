@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../src/game/Game.ts';
-import { endingFrame } from '../src/render/ending.ts';
+import { endingFrame } from '../src/presentation/ending.ts';
 import { drawCollapse } from '../src/render/collapse.ts';
 import { drawSingularity, drawAccretion } from '../src/render/singularity.ts';
 import type Phaser from 'phaser';

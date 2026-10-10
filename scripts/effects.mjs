@@ -70,24 +70,25 @@ try {
       g.setHidden(true);
       scene.update();
       const visible = () =>
-        scene.sprites.images
+        [...scene.sprites.images, ...scene.effects.sprites.images]
           .filter((s) => s.visible)
           .map((s) => [s.texture.key, s.frame.name, s.x, s.y, s.alpha, s.tintTopLeft]);
       const frozen = JSON.stringify(visible()),
-        pool = scene.sprites.images.length;
+        pool = [...scene.sprites.images, ...scene.effects.sprites.images].length;
       for (let i = 0; i < 120; i++) scene.update();
       if (JSON.stringify(visible()) !== frozen) throw new Error('Paused effects keep animating');
-      if (scene.sprites.images.length !== pool) throw new Error('Effect pool grows every render');
+      if ([...scene.sprites.images, ...scene.effects.sprites.images].length !== pool)
+        throw new Error('Effect pool grows every render');
       const circles = [];
-      const originalCircle = scene.effectGraphics.strokeCircle.bind(scene.effectGraphics);
-      scene.effectGraphics.strokeCircle = (...args) => {
+      const originalCircle = scene.effects.graphics.strokeCircle.bind(scene.effects.graphics);
+      scene.effects.graphics.strokeCircle = (...args) => {
         circles.push(args);
         return originalCircle(...args);
       };
       scene.update();
-      scene.effectGraphics.strokeCircle = originalCircle;
+      scene.effects.graphics.strokeCircle = originalCircle;
       const aura = circles.slice(-2);
-      const electron = scene.sprites.images.find(
+      const electron = [...scene.sprites.images, ...scene.effects.sprites.images].find(
         (s) => s.visible && s.texture.key === 'electronSurge',
       );
       if (aura.length !== 2 || !electron) throw new Error('Surge lacks its procedural aura');
@@ -155,7 +156,9 @@ try {
         combat.angle = angle;
         Object.assign(tracked, { x: combat.position.x + dx, y: combat.position.y + dy });
         scene.update();
-        const beam = scene.sprites.images.find((s) => s.visible && s.texture.key === 'beams');
+        const beam = [...scene.sprites.images, ...scene.effects.sprites.images].find(
+          (s) => s.visible && s.texture.key === 'beams',
+        );
         if (!dx && !dy) {
           if (beam) throw new Error('Coincident endpoints must skip the beam');
           continue;
@@ -172,29 +175,50 @@ try {
           near(beam.y + (side * Math.sin(beam.rotation) * beam.displayWidth) / 2, point.y);
         }
         const frozenBeam = JSON.stringify(visible()),
-          beamPool = scene.sprites.images.length;
+          beamPool = [...scene.sprites.images, ...scene.effects.sprites.images].length;
         for (let i = 0; i < 30; i++) scene.update();
         if (JSON.stringify(visible()) !== frozenBeam)
           throw new Error('Paused beam keeps animating');
-        if (scene.sprites.images.length !== beamPool)
+        if ([...scene.sprites.images, ...scene.effects.sprites.images].length !== beamPool)
           throw new Error('Beam pool grows every render');
       }
-      // Shift pooled beam slots into particle slots; rotation and scale must reset.
+      // Particle entry cannot move the attack slots in their separate pool.
+      Object.assign(tracked, { x: combat.position.x + 50, y: combat.position.y + 20 });
+      scene.update();
+      const attackSlots = [...scene.effects.sprites.images];
+      const textureChanges = new Map();
+      const originalTextures = new Map();
+      for (const image of attackSlots) {
+        const original = image.setTexture;
+        originalTextures.set(image, original);
+        image.setTexture = function (...args) {
+          textureChanges.set(image, (textureChanges.get(image) ?? 0) + 1);
+          return original.apply(this, args);
+        };
+      }
       combat.targets.push(...Array.from({ length: 4 }, (_, i) => ({ ...tracked, id: 800 + i })));
       scene.update();
-      const particles = scene.sprites.images.filter((s) => s.visible && s.texture.key === 'muon');
+      for (const [image, original] of originalTextures) image.setTexture = original;
+      if (
+        textureChanges.size ||
+        attackSlots.some((image, i) => scene.effects.sprites.images[i] !== image)
+      )
+        throw Error('Particle entry changes effect slots or textures');
+      const particles = [...scene.sprites.images, ...scene.effects.sprites.images].filter(
+        (s) => s.visible && s.texture.key === 'muon',
+      );
       if (
         particles.some((s) => s.rotation !== 0 || s.displayWidth !== 16 || s.displayHeight !== 16)
       )
         throw new Error('Reused beam geometry leaked into native particles');
-      Object.assign(tracked, { x: combat.position.x + 50, y: combat.position.y + 20 });
-      scene.update();
       const powerFrames = [];
-      const poolBeforePowers = scene.sprites.images.length;
+      const poolBeforePowers = [...scene.sprites.images, ...scene.effects.sprites.images].length;
       for (const damage of [5, 10, 10.01, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150]) {
         combat.effects.forEach((fx) => (fx.damage = damage));
         scene.update();
-        const beam = scene.sprites.images.find((s) => s.visible && s.texture.key === 'beams');
+        const beam = [...scene.sprites.images, ...scene.effects.sprites.images].find(
+          (s) => s.visible && s.texture.key === 'beams',
+        );
         const tier = Math.max(1, Math.min(10, Math.ceil(damage / 10))) - 1;
         if (!beam || Math.floor(Number(beam.frame.name) / 32) !== tier)
           throw Error(`Focus does not render its actual ${damage} damage`);
@@ -206,7 +230,7 @@ try {
             throw Error('Unchanged damage must not thicken with skill level');
         }
       }
-      if (scene.sprites.images.length !== poolBeforePowers)
+      if ([...scene.sprites.images, ...scene.effects.sprites.images].length !== poolBeforePowers)
         throw Error('Higher damage allocates extra beam sprites');
       const strikeChecks = [];
       for (const [rank, rarity, power] of [
@@ -232,7 +256,7 @@ try {
         striker.setHidden(true);
         debug.advance(0);
         scene.update();
-        const strikes = scene.sprites.images.filter(
+        const strikes = [...scene.sprites.images, ...scene.effects.sprites.images].filter(
           (s) =>
             s.visible &&
             s.texture.key === 'beams' &&
@@ -262,13 +286,16 @@ try {
           key === 'combat' ? undefined : value,
         );
         const frozen = JSON.stringify(visible()),
-          pool = scene.sprites.images.length;
+          pool = [...scene.sprites.images, ...scene.effects.sprites.images].length;
         for (let i = 0; i < 60; i++) scene.update();
         if (
           JSON.stringify(striker, (key, value) => (key === 'combat' ? undefined : value)) !== before
         )
           throw Error('Strike rendering changes combat');
-        if (JSON.stringify(visible()) !== frozen || scene.sprites.images.length !== pool)
+        if (
+          JSON.stringify(visible()) !== frozen ||
+          [...scene.sprites.images, ...scene.effects.sprites.images].length !== pool
+        )
           throw Error('Paused strikes move or grow their pool');
         strikeChecks.push({
           rank,

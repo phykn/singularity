@@ -38,6 +38,10 @@ for (const phase of phases) {
         cfg.spawnSecondsByStage[phase.name === 'early' ? 0 : phase.name === 'middle' ? 2 : 4] *
           cfg.tickRate,
       );
+      assert.ok(
+        Number.isSafeInteger(interval) && interval > 0,
+        'The ' + phase.name + ' spawn interval must round to a positive safe tick count',
+      );
       for (let tick = 0; tick < duration * cfg.tickRate; tick += interval) {
         source.tick = phase.time * cfg.tickRate + tick;
         source.angle = -Math.PI / 2 + (source.speed * tick) / cfg.tickRate / phase.radius;
@@ -100,8 +104,7 @@ for (const phase of phases) {
             g.angle += g.speed / phase.radius / cfg.tickRate;
             g.combat.update();
             g.absorbTargets();
-            g.effects = g.effects.filter((fx) => g.seconds < fx.born + fx.life);
-            g.damageNumbers = g.damageNumbers.filter((n) => g.seconds < n.born + 0.72);
+            g.expireEffects();
             g.choice = null;
             g.pendingTicks = 0;
           }

@@ -195,6 +195,7 @@ const rarityFlow = async () => {
   assert.equal(await icon.evaluate((n) => n.getAnimations({ subtree: true }).length), 0);
   const card = page.locator('.card');
   assert.ok((await card.locator('.card-value').innerText()).length > 0);
+  await page.locator('.cards[data-ready="true"]').waitFor();
   await card.click();
   const upgraded = await snapshot(page);
   assert.equal(upgraded.ranks.multi, 2);
@@ -344,6 +345,27 @@ const audioFlow = async () => {
   report('delayed audio respects rapid toggles, newer requests, pause and actual failures', {
     requests: 6,
     savedSound: false,
+  });
+  await sound().click();
+  await settle(6);
+  await page.keyboard.press('Escape');
+  await settle(7);
+  await page.evaluate(() => {
+    window.dispatchEvent(new PageTransitionEvent('pagehide'));
+    window.dispatchEvent(new PageTransitionEvent('pageshow'));
+  });
+  await settle(8, true);
+  await page.keyboard.press('Escape');
+  await page.getByRole('dialog').getByText(copy.ko.audioFailed, { exact: true }).waitFor();
+  assert.equal(await pressed(), 'true', 'A recovery failure keeps the sound preference');
+  await page.keyboard.press('Escape');
+  await settle(9);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('.setting-notice').count(), 0);
+  assert.equal(await pressed(), 'true');
+  report('automatic audio recovery reports failure and clears the notice after retry', {
+    requests: 10,
+    savedSound: true,
   });
   await page.close();
 };

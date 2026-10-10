@@ -281,6 +281,26 @@ test('rarity roll boundaries and seeded base frequencies match published odds', 
   for (const id of rarityIds) close(counts[id] / 1000, rules.rarity[id].chance, 0.5);
 });
 
+test('automatic selection skips recovery made unavailable by mass release', () => {
+  const game = new Game(1527, { combat: false });
+  game.start();
+  game.debugSetXp(14);
+  assert.ok(game.select('vent'));
+  game.mass = 31;
+  game.debugSetXp(85);
+  assert.deepEqual(game.choice!.cards, [
+    { id: 'power', rarity: 'common' },
+    { id: 'vent', rarity: 'common' },
+    { id: 'recover', rarity: 'rare' },
+  ]);
+  game.advance(6000);
+  assert.ok(game.mass < game.rules.recovery.minMass);
+  assert.equal(game.choice, null);
+  assert.equal(game.boosts.power, 1);
+  assert.equal(game.selections.at(-1)!.id, 'power');
+  assert.equal(game.selections.at(-1)!.automatic, true);
+});
+
 test('new runs have sixteen lightning skills and always offer owned upgrades', () => {
   assert.equal(skillIds.length, 16);
   const g = fixture();

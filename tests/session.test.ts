@@ -29,8 +29,10 @@ test('browser hit history stays bounded without changing damage or absolute audi
   assert.equal(archive.eventOffset, 0);
 });
 
-function session(game = new Game(10004), saveResult = (_result: Result) => true) {
+function session(game = new Game(10004), recordResult = (_result: Result) => {}) {
   const heard: number[] = [];
+  const audioResults: boolean[] = [];
+  let unlockResult: boolean | null = true;
   let draws = 0,
     suspends = 0,
     unlocks = 0,
@@ -42,7 +44,7 @@ function session(game = new Game(10004), saveResult = (_result: Result) => true)
     },
     unlock: async () => {
       unlocks++;
-      return true;
+      return unlockResult;
     },
     suspend: () => {
       suspends++;
@@ -53,12 +55,21 @@ function session(game = new Game(10004), saveResult = (_result: Result) => true)
   };
   const run = new GameSession(game, audio, {
     sound: () => true,
-    saveResult,
+    recordResult,
+    audioUnlocked: (enabled) => audioResults.push(enabled),
     redraw: () => {
       draws++;
     },
   });
-  return { run, heard, counts: () => ({ draws, suspends, unlocks, destroys }) };
+  return {
+    run,
+    heard,
+    audioResults,
+    setUnlockResult: (result: boolean | null) => {
+      unlockResult = result;
+    },
+    counts: () => ({ draws, suspends, unlocks, destroys }),
+  };
 }
 
 test('loading gates input, frames retain catch-up ticks, and renderer recovery excludes lost time', () => {
@@ -194,10 +205,10 @@ test('audio consumes only new events and resets its cursor when the run is repla
   assert.ok(counts().draws > 0);
 });
 
-test('a failed best-result write retries until it succeeds', () => {
-  let attempts = 0;
+test('completed results are emitted once and storage retries belong to the record owner', () => {
+  const results: Result[] = [];
   const game = new Game(42, { combat: false });
-  const { run } = session(game, () => ++attempts > 1);
+  const { run } = session(game, (result) => results.push(result));
   run.setRenderReady(true, 0);
   run.begin(0);
   run.step(1000);
@@ -205,20 +216,87 @@ test('a failed best-result write retries until it succeeds', () => {
   run.advance(10000, 2000);
   assert.equal(game.phase, 'result');
   run.step(2000);
-  assert.equal(attempts, 1);
+  assert.deepEqual(results, [game.result]);
   run.step(2999);
-  assert.equal(attempts, 1);
+  assert.equal(results.length, 1);
   run.step(3000);
-  assert.equal(attempts, 2);
+  assert.equal(results.length, 1);
   run.step(10000);
-  assert.equal(attempts, 2);
+  assert.equal(results.length, 1);
   const next = new Game(42, { combat: false });
   next.start();
   next.debugSetXp(next.rules.energyGoal);
   next.advance(10000);
   run.replace(next, 10000);
   run.step(10000);
-  assert.equal(attempts, 3);
+  assert.deepEqual(results, [game.result, next.result]);
+});
+
+test('a pause request that finishes the ending cannot leave the result paused or block Beyond', () => {
+  const game = new Game(42, { combat: false });
+  game.start();
+  game.debugSetXp(game.rules.energyGoal);
+  game.advance(1000 / game.rules.tickRate);
+  game.advance(game.rules.collisionSeconds * 1000);
+  assert.equal(game.phase, 'ending');
+  game.phaseTicks = game.rules.successEndingSeconds * game.rules.tickRate - 1;
+  const { run } = session(game);
+  run.setRenderReady(true, 0);
+  const wall = 1000 / game.rules.tickRate;
+  run.pause(true, wall);
+  assert.equal(game.phase, 'result');
+  assert.equal(game.manualPaused, false);
+  assert.equal(game.result?.outcome, 'success');
+  run.continueBeyond(wall);
+  assert.equal(game.phase, 'crossing');
+  assert.equal(game.manualPaused, false);
+});
+
+test('renderer and visibility audio recovery report failures, successes and ignore cancelled unlocks', async () => {
+  const { run, audioResults, setUnlockResult } = session();
+  run.setRenderReady(true, 0);
+  run.begin(0);
+  await Promise.resolve();
+  assert.deepEqual(audioResults, [true]);
+  setUnlockResult(false);
+  run.setRenderReady(false, 0);
+  run.setRenderReady(true, 0);
+  await Promise.resolve();
+  assert.deepEqual(audioResults, [true, false]);
+  setUnlockResult(true);
+  run.setHidden(true, 0);
+  run.setHidden(false, 0);
+  await Promise.resolve();
+  assert.deepEqual(audioResults, [true, false, true]);
+  setUnlockResult(null);
+  run.setHidden(true, 0);
+  run.setHidden(false, 0);
+  await Promise.resolve();
+  assert.deepEqual(audioResults, [true, false, true]);
+  run.pause(true, 0);
+  const reports = audioResults.length;
+  run.setHidden(true, 0);
+  run.setHidden(false, 0);
+  run.setRenderReady(false, 0);
+  run.setRenderReady(true, 0);
+  await Promise.resolve();
+  assert.equal(audioResults.length, reports, 'Recovery must not unlock a manually paused run');
+});
+
+test('sound changes use session audio ownership and retain the unlock result for preference rollback', async () => {
+  const { run, audioResults, counts, setUnlockResult } = session();
+  assert.equal(await run.setSound(false), null);
+  assert.equal(counts().suspends, 1);
+  assert.equal(counts().unlocks, 0);
+  setUnlockResult(false);
+  assert.equal(await run.setSound(true), false);
+  assert.deepEqual(audioResults, [false]);
+  setUnlockResult(null);
+  assert.equal(await run.setSound(true), null);
+  assert.deepEqual(audioResults, [false]);
+  setUnlockResult(true);
+  assert.equal(await run.setSound(true), true);
+  assert.deepEqual(audioResults, [false, true]);
 });
 
 test('playback speeds advance the same simulation at 30 and 60fps without changing stats', () => {

@@ -1,7 +1,7 @@
 import type Phaser from 'phaser';
 import { AMBER, WHITE } from '../art/palette.ts';
 import { orbit } from '../game/geometry.ts';
-import type { endingFrame } from './ending.ts';
+import type { endingFrame } from '../presentation/ending.ts';
 
 export function drawCollapse(
   g: Phaser.GameObjects.Graphics,

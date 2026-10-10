@@ -150,7 +150,8 @@ function session(game = fixture()) {
   };
   const session = new GameSession(game, audio, {
     sound: () => false,
-    saveResult: () => true,
+    recordResult() {},
+    audioUnlocked() {},
     redraw() {},
   });
   session.setRenderReady(true, 0);
