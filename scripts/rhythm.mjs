@@ -102,20 +102,20 @@ try {
       };
     });
     assert.equal(result.completed, 1);
-    assert.equal(result.inputs, 1);
+    assert.equal(result.inputs, 3);
     assert.ok(result.hits > 0, 'The completed phrase must deal actual damage');
     await capture(page, `artifacts/rhythm/complete-${width}.png`);
     // Holding/releasing and the compatibility click must not create another input.
     await page.mouse.up();
-    assert.equal(await page.evaluate(() => window.__gameDebug.getModel().resonances.length), 1);
+    assert.equal(await page.evaluate(() => window.__gameDebug.getModel().resonances.length), 3);
     checks.push({ viewport: [width, height], language, speed, ...result });
 
     await prepare(page, language);
     await page.waitForSelector('.rhythm-input');
     await beat(page, 0);
     await tap(page);
-    assert.equal(await page.evaluate(() => window.__gameDebug.getRhythm().feedback), 'miss');
-    assert.equal(await page.evaluate(() => window.__gameDebug.getModel().resonances.length), 0);
+    await page.waitForFunction(() => window.__gameDebug.getRhythm().feedback === 'miss');
+    assert.equal(await page.evaluate(() => window.__gameDebug.getModel().resonances.length), 1);
 
     await prepare(page, language);
     await page.waitForSelector('.rhythm-input');
@@ -132,7 +132,14 @@ try {
     assert.equal(await page.evaluate(() => window.__gameDebug.getModel().resonances.length), 0);
     await page.locator('.card').first().click();
     await page.waitForSelector('.rhythm-input');
-    assert.ok(await page.evaluate(() => window.__gameDebug.getRhythm().age < 400));
+    const resumed = await page.evaluate(() => {
+      const r = window.__gameDebug.getRhythm();
+      return { hits: r.hits, active: r.active, remaining: r.due - r.age };
+    });
+    assert.ok(
+      resumed.active && resumed.hits === 0 && resumed.remaining > 0,
+      JSON.stringify(resumed),
+    );
     checks.push({
       viewport: [width, height],
       spam: 'rejected',
@@ -157,7 +164,7 @@ try {
   assert.equal(await page.evaluate(() => window.__gameDebug.getRhythm().hits), 1);
   await beat(page, 1, 'Enter');
   await beat(page, 2, 'Space');
-  assert.equal(await page.evaluate(() => window.__gameDebug.getModel().resonances.length), 1);
+  assert.equal(await page.evaluate(() => window.__gameDebug.getModel().resonances.length), 3);
   await prepare(page, 'zh');
   await page.waitForSelector('.rhythm-input');
   await page.getByRole('button', { name: copy.zh.pause, exact: true }).focus();

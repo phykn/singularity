@@ -24,7 +24,12 @@
   "choiceCount": 3,
   "skillSlots": 4,
   "baseHitDamage": 5,
-  "resonanceDamage": 2,
+  "resonance": {
+    "beatDamage": 0.5,
+    "finishDamage": 1.5,
+    "band": 36,
+    "maxTargets": 6
+  },
   "damagePerRank": 8,
   "attackBaseSeconds": 0.47,
   "ratePerRank": 0.35,

@@ -96,6 +96,7 @@ export class GameSession {
 
   cycleSpeed(wall: number): void {
     this.step(wall);
+    this.rhythm.cancel();
     this.playbackSpeed = this.playbackSpeed === 1 ? 1.5 : this.playbackSpeed === 1.5 ? 2 : 1;
     this.effects.redraw();
   }
@@ -117,12 +118,12 @@ export class GameSession {
 
   tapRhythm(wall: number): void {
     this.step(wall);
-    if (!this.rhythmAvailable) return;
+    if (!this.rhythmAvailable || this.game.resonances.at(-1)?.tick === this.game.elapsedTicks)
+      return;
     const result = this.rhythm.tap();
-    if (result === 'hit') this.audio.play?.('rhythm-' + this.rhythm.hits);
-    if (result === 'complete') {
-      this.game.resonate();
-      this.audio.play?.('rhythm-complete');
+    if (result === 'hit' || result === 'complete') {
+      this.game.resonate(this.rhythm.hits as 1 | 2 | 3);
+      this.audio.play?.(result === 'complete' ? 'rhythm-complete' : 'rhythm-' + this.rhythm.hits);
     }
     this.effects.redraw();
   }
@@ -155,7 +156,12 @@ export class GameSession {
         if (!game.paused) game.angle += (game.speed / game.radius) * (ms / 1000);
       } else this.advanceTime(ms, frameTickLimit);
     }
-    this.rhythm.advance(ms, available && this.rhythmAvailable);
+    this.rhythm.advance(
+      ms,
+      available && this.rhythmAvailable,
+      game.angle,
+      (game.speed / game.radius / 1000) * this.playbackSpeed,
+    );
     this.lastWall = wall;
     if (this.audio.enabled) this.audio.update(game, this.audioCursor);
     this.audioCursor = game.eventCount;

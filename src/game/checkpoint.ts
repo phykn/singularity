@@ -10,7 +10,7 @@ export type Checkpoint = {
   continuedAt: number | null;
   retired: boolean;
   choiceRemaining: number | null;
-  resonances: { tick: number; selectionCount: number }[];
+  resonances: { tick: number; selectionCount: number; beat: 1 | 2 | 3 }[];
   inputs: {
     tick: number;
     id: UpgradeId;
@@ -71,7 +71,7 @@ export function restoreCheckpoint(checkpoint: Checkpoint): Game | null {
     const applyInput = () => {
       if (input.kind === 'beyond') return game.continueBeyond();
       if (input.kind === 'resonance')
-        return input.selectionCount === game.selections.length && game.resonate();
+        return input.selectionCount === game.selections.length && game.resonate(input.beat);
       if (game.choice) game.choice.deadline = Infinity;
       return game.select(input.id, input.automatic, input.number, input.beforeCombat);
     };

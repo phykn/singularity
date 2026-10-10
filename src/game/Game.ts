@@ -70,7 +70,7 @@ export class Game {
   damageNumbers: DamageNumber[] = [];
   choice: Choice | null = null;
   selections: Selection[] = [];
-  resonances: { tick: number; selectionCount: number }[] = [];
+  resonances: { tick: number; selectionCount: number; beat: 1 | 2 | 3 }[] = [];
   waves: { time: number; angle: number }[];
   waveCount = 0;
   result: Result | null = null;
@@ -613,8 +613,9 @@ export class Game {
     this.log('cards', { number, cards });
   }
 
-  resonate(): boolean {
+  resonate(beat: 1 | 2 | 3): boolean {
     if (
+      ![1, 2, 3].includes(beat) ||
       this.phase !== 'running' ||
       this.paused ||
       this.choice ||
@@ -622,10 +623,10 @@ export class Game {
       this.resonances.at(-1)?.tick === this.elapsedTicks
     )
       return false;
-    const input = { tick: this.elapsedTicks, selectionCount: this.selections.length };
+    const input = { tick: this.elapsedTicks, selectionCount: this.selections.length, beat };
     this.resonances.push(input);
     this.log('resonance', input);
-    this.combat.resonate();
+    this.combat.resonate(beat);
     return true;
   }
 

@@ -8,7 +8,7 @@ import { fixture } from './helpers.ts';
 function advance(r: OrbitRhythm, ms: number) {
   while (ms > 0) {
     const step = Math.min(10, ms);
-    r.advance(step, true);
+    r.advance(step, true, r.angle + step * 0.001, 0.001);
     ms -= step;
   }
 }
@@ -31,6 +31,8 @@ test('three separate beats complete once; early or extra taps cannot farm reward
   assert.equal(r.completed, 1);
   advance(r, t.rest + t.lead);
   assert.equal(r.tap(), 'hit');
+  assert.equal(r.tap(), 'ignored');
+  advance(r, 260);
   assert.equal(r.tap(), 'miss');
   assert.equal(r.tap(), 'ignored');
 });
@@ -47,15 +49,40 @@ test('window edges are inclusive and missed beats end without affecting the next
   }
   const r = new OrbitRhythm();
   advance(r, t.intro + t.lead + t.window + 10);
-  assert.equal(r.active, false);
+  assert.equal(r.active, true, 'An untouched gate remains available on the next orbit');
   assert.equal(r.completed, 0);
+  assert.equal(r.feedback, null);
+  advance(r, r.due - r.age);
+  assert.equal(r.tap(), 'hit');
+  advance(r, t.interval + t.window + 10);
   assert.equal(r.feedback, 'miss');
+});
+
+test('fast orbits retain readable beat spacing and reject earlier laps and duplicate taps', () => {
+  const r = new OrbitRhythm();
+  const velocity = 0.025;
+  const step = (ms: number) => {
+    for (let elapsed = 0; elapsed < ms; elapsed += 10)
+      r.advance(10, true, r.angle + velocity * 10, velocity);
+  };
+  step(t.intro);
+  const gate = r.gateAngle;
+  step(400);
+  assert.equal(r.open, false);
+  assert.equal(r.gateAngle, gate, 'The gate stays still instead of becoming another cursor');
+  step(t.lead - 400);
+  assert.equal(r.tap(), 'hit');
+  assert.equal(r.tap(), 'ignored');
+  step(t.interval);
+  assert.equal(r.tap(), 'hit');
+  step(t.interval);
+  assert.equal(r.tap(), 'complete');
 });
 
 test('interruptions and long frames cancel without a failure, followed by a fresh lead-in', () => {
   for (const interrupt of [
-    (r: OrbitRhythm) => r.advance(10, false),
-    (r: OrbitRhythm) => r.advance(500, true),
+    (r: OrbitRhythm) => r.advance(10, false, r.angle, 0.001),
+    (r: OrbitRhythm) => r.advance(500, true, r.angle, 0.001),
   ]) {
     const r = new OrbitRhythm();
     advance(r, t.intro + t.lead);
@@ -93,29 +120,32 @@ function session(game = fixture()) {
   return session;
 }
 
-test('real-time rhythm is unchanged by playback speed and cannot consume choices or pauses', () => {
+test('the real electron enters a fixed gate at every playback speed; choices and pauses cannot consume input', () => {
   for (const speed of [1, 1.5, 2] as const) {
     const s = session();
     s.playbackSpeed = speed;
     // Battle choices are intentionally absent here; the clock must stay in real time.
     s.game.radius = 132;
     s.game.mass = 0;
-    for (let wall = 10; wall <= t.intro + t.lead; wall += 10) {
+    let wall = 0;
+    for (; wall <= 10000; wall += 10) {
       s.game.targets = [];
       s.step(wall);
+      if (s.rhythm.open) break;
     }
-    assert.equal(s.rhythm.age, t.lead);
-    s.tapRhythm(t.intro + t.lead);
+    assert.ok(wall < 10000);
+    assert.ok(Math.abs(s.game.angle - s.rhythm.gateAngle) <= s.rhythm.windowAngle);
+    s.tapRhythm(wall);
     assert.equal(s.rhythm.hits, 1);
     s.game.debugSetXp(14);
     s.pauseOnChoice = false;
-    s.tapRhythm(t.intro + t.lead + 10);
+    s.tapRhythm(wall + 10);
     assert.equal(s.rhythm.active, false);
     assert.equal(s.rhythm.feedback, null);
-    assert.equal(s.game.resonances.length, 0);
-    s.pause(true, t.intro + t.lead + 10);
-    s.tapRhythm(t.intro + t.lead + 1000);
-    assert.equal(s.game.resonances.length, 0);
+    assert.equal(s.game.resonances.length, 1);
+    s.pause(true, wall + 10);
+    s.tapRhythm(wall + 1000);
+    assert.equal(s.game.resonances.length, 1);
   }
 });
 
@@ -134,6 +164,18 @@ test('unattended rhythm does not change the automatic simulation', () => {
   assert.deepEqual(g.resonances, []);
 });
 
+test('changing playback speed cancels an in-progress phrase without a miss or reward', () => {
+  const s = session();
+  advance(s.rhythm, t.intro + 100);
+  s.game.angle = s.rhythm.angle;
+  assert.equal(s.rhythm.active, true);
+  s.cycleSpeed(0);
+  assert.equal(s.playbackSpeed, 1.5);
+  assert.equal(s.rhythm.active, false);
+  assert.equal(s.rhythm.feedback, null);
+  assert.equal(s.game.resonances.length, 0);
+});
+
 test('hidden tabs, renderer loss, new runs and endings discard an unfinished phrase', () => {
   for (const interrupt of [
     (s: GameSession) => s.setHidden(true, 0),
@@ -146,13 +188,14 @@ test('hidden tabs, renderer loss, new runs and endings discard an unfinished phr
   ]) {
     const s = session();
     advance(s.rhythm, t.intro + t.lead);
+    s.game.angle = s.rhythm.angle;
     s.tapRhythm(0);
     assert.equal(s.rhythm.hits, 1);
     interrupt(s);
     assert.equal(s.rhythm.active, false);
     assert.equal(s.rhythm.feedback, null);
     s.tapRhythm(10);
-    assert.equal(s.game.resonances.length, 0);
+    assert.equal(s.game.resonances.length, 1);
   }
   const s = session();
   advance(s.rhythm, t.intro + t.lead);

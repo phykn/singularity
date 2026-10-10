@@ -2,8 +2,8 @@ export const rhythmTiming = {
   intro: 4000,
   lead: 900,
   interval: 700,
-  window: 150,
-  rest: 12000,
+  window: 180,
+  rest: 4000,
   beats: 3,
 };
 
@@ -14,17 +14,32 @@ export class OrbitRhythm {
   completed = 0;
   feedback: 'hit' | 'miss' | 'complete' | null = null;
   feedbackAge = Infinity;
+  angle = 0;
+  gateAngle = 0;
+  hitAngle = 0;
+  private velocity = 0.001;
+  private lastHit = -Infinity;
   private wait = rhythmTiming.intro;
 
   get due(): number {
-    return rhythmTiming.lead + this.hits * rhythmTiming.interval;
+    return this.age + (this.gateAngle - this.angle) / this.velocity;
+  }
+
+  get windowAngle(): number {
+    return Math.min(Math.PI / 2, this.velocity * rhythmTiming.window);
   }
 
   get open(): boolean {
-    return this.active && Math.abs(this.age - this.due) <= rhythmTiming.window;
+    return (
+      this.active &&
+      this.age - this.lastHit >= 250 &&
+      Math.abs(this.angle - this.gateAngle) <= this.windowAngle + 1e-9
+    );
   }
 
-  advance(ms: number, available: boolean): void {
+  advance(ms: number, available: boolean, angle: number, velocity: number): void {
+    this.angle = angle;
+    this.velocity = Math.max(0.00001, velocity);
     if (!available || ms > 250) {
       this.cancel();
       return;
@@ -35,21 +50,30 @@ export class OrbitRhythm {
       if (this.wait <= 0) {
         this.active = true;
         this.age = this.hits = 0;
+        this.lastHit = -Infinity;
+        this.gateAngle = angle + this.velocity * rhythmTiming.lead;
         this.feedback = null;
       }
       return;
     }
     this.age += ms;
-    if (this.age > this.due + rhythmTiming.window) this.finish('miss');
+    if (this.angle - this.gateAngle > this.windowAngle + 1e-9) {
+      if (this.hits === 0) {
+        this.gateAngle += Math.ceil((this.angle - this.gateAngle) / (Math.PI * 2)) * Math.PI * 2;
+      } else this.finish('miss');
+    }
   }
 
   tap(): 'ignored' | 'hit' | 'complete' | 'miss' {
     if (!this.active) return 'ignored';
+    if (this.age - this.lastHit < 250) return 'ignored';
     if (!this.open) {
       this.finish('miss');
       return 'miss';
     }
     this.hits++;
+    this.hitAngle = this.gateAngle;
+    this.lastHit = this.age;
     this.feedbackAge = 0;
     if (this.hits === rhythmTiming.beats) {
       this.completed++;
@@ -57,6 +81,7 @@ export class OrbitRhythm {
       return 'complete';
     }
     this.feedback = 'hit';
+    this.gateAngle += this.velocity * rhythmTiming.interval;
     return 'hit';
   }
 

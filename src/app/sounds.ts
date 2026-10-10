@@ -14,9 +14,9 @@ const tones: Record<string, [number, number, number]> = {
   'beyond-contract': [360, 65, 0.65],
   'beyond-open': [160, 780, 0.55],
   kill: [640, 300, 0.04],
-  'rhythm-1': [660, 620, 0.065],
-  'rhythm-2': [830, 780, 0.065],
-  'rhythm-complete': [1240, 180, 0.24],
+  'rhythm-1': [660, 520, 0.09],
+  'rhythm-2': [880, 700, 0.1],
+  'rhythm-complete': [440, 65, 0.32],
 };
 
 export class SoundMixer {
@@ -44,13 +44,14 @@ export class SoundMixer {
       oscillator = ctx.createOscillator(),
       gain = ctx.createGain();
     const end = at + tone[2];
-    oscillator.type = kind === 'dense' || kind === 'wave' ? 'triangle' : 'sine';
+    oscillator.type =
+      kind === 'dense' || kind === 'wave' || kind === 'rhythm-complete' ? 'triangle' : 'sine';
     oscillator.frequency.setValueAtTime(tone[0] * pitch, at);
     oscillator.frequency.exponentialRampToValueAtTime(tone[1] * pitch, end);
     if (kind === 'kill') {
       gain.gain.setValueAtTime(0.0001, at);
       gain.gain.linearRampToValueAtTime(0.007, at + 0.004);
-    } else gain.gain.setValueAtTime(0.025, at);
+    } else gain.gain.setValueAtTime(kind.startsWith('rhythm-') ? 0.045 : 0.025, at);
     gain.gain.exponentialRampToValueAtTime(0.0001, end);
     oscillator.connect(gain).connect(ctx.destination);
     const voice = { bus, end, oscillator, gain };
