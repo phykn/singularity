@@ -10,6 +10,9 @@ export const languages: { id: Language; label: string; html: string }[] = [
 type Info = { name: string; short: string; description: string };
 
 const ko = {
+  rhythmTap: '빛날 때 탭',
+  guideRhythm:
+    '궤도의 흰빛 호가 세 구간과 만날 때 전투 화면을 탭하거나 Space·Enter를 누르면 공명 방전. 실패해도 자동 전투는 그대로 진행됩니다.',
   loading: '준비 중',
   language: '언어',
   guide: '도움말',
@@ -214,6 +217,9 @@ const ko = {
 type Copy = typeof ko;
 
 const en: Copy = {
+  rhythmTap: 'Tap on the beat',
+  guideRhythm:
+    'Tap the arena or press Space/Enter as the white arc meets each of three gates. Complete the rhythm for a resonance strike. Missing a beat leaves automatic combat unchanged.',
   loading: 'LOADING',
   language: 'Language',
   guide: 'Help',
@@ -430,6 +436,9 @@ const en: Copy = {
 };
 
 const zh: Copy = {
+  rhythmTap: '亮起时轻点',
+  guideRhythm:
+    '白色光弧与三个标记相遇时，轻点战斗区域或按Space/Enter。完成节奏即可共鸣放电，失误不影响自动战斗。',
   loading: '加载中',
   language: '语言',
   guide: '技能说明',
@@ -588,6 +597,9 @@ const zh: Copy = {
 };
 
 const ja: Copy = {
+  rhythmTap: '光ったらタップ',
+  guideRhythm:
+    '白い光の弧が3つの印と重なる瞬間、戦闘画面をタップするかSpace・Enterを押すと共鳴放電。失敗しても自動戦闘はそのまま続きます。',
   loading: '読込中',
   language: '言語',
   guide: 'スキルガイド',

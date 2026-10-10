@@ -17,6 +17,7 @@ A pixel-art survival game where a lone electron lights up the dark. The combat i
 Particles pour in. The core swells. The space around you closes in. Each run turns a quiet orbit into an electrical storm, with a singularity just beyond the chaos.
 
 - **Let the sparks fly** — Sixteen skills, from branching bolts to orbiting satellite electrons.
+- **Find your rhythm** — Catch the orbit's pulse and unleash a resonance strike.
 - **Go beyond** — Reach the singularity, then take your build into an ever-growing storm.
 - **Small pixels, big impact** — Bright electrical effects against a dark cosmic backdrop.
 - **Open a tab. Enter orbit.** — A fresh run every time, with preferences and best results saved on your device.

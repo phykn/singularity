@@ -18,6 +18,8 @@ import { BLUE, WHITE, AMBER, GOLD, VIOLET, skillColors } from '../art/palette.ts
 import { drawEffect } from './drawEffects.ts';
 import { drawWaveWarning } from './warning.ts';
 import { drawElectronField } from './electronField.ts';
+import type { OrbitRhythm } from '../app/OrbitRhythm.ts';
+import { drawRhythm } from './rhythm.ts';
 export class ElectronScene extends Phaser.Scene {
   private graphics!: Phaser.GameObjects.Graphics;
   private effectGraphics!: Phaser.GameObjects.Graphics;
@@ -35,10 +37,12 @@ export class ElectronScene extends Phaser.Scene {
   private worldScale = 1;
   private damageLabels!: DamageLabels;
   private getGame: () => Game;
+  private getRhythm: () => OrbitRhythm;
   private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  constructor(getGame: () => Game) {
+  constructor(getGame: () => Game, getRhythm: () => OrbitRhythm) {
     super('electron');
     this.getGame = getGame;
+    this.getRhythm = getRhythm;
   }
   preload(): void {
     this.load.spritesheet('effects', effectsUrl, { frameWidth: 32, frameHeight: 32 });
@@ -209,6 +213,15 @@ export class ElectronScene extends Phaser.Scene {
         scale,
       );
       this.drawElectron(position, 1, color, surging);
+      if (!game.paused && !game.choice && !game.charged)
+        drawRhythm(
+          this.effectGraphics,
+          this.getRhythm(),
+          game.radius,
+          scale,
+          position,
+          this.reducedMotion.matches,
+        );
       this.damageLabels.draw(game, width, height, this.centerY, scale);
       return;
     }

@@ -1,6 +1,6 @@
 {
   "name": "web-game",
-  "version": "0.1.27",
+  "version": "0.1.28",
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
@@ -23,6 +23,7 @@
     "check:choice-pause": "node scripts/choice-pause.mjs",
     "check:controls": "node scripts/controls.mjs",
     "check:ui": "node scripts/ui.mjs",
+    "check:rhythm": "node scripts/rhythm.mjs",
     "check:effects": "node scripts/effects.mjs",
     "check:presentation": "node scripts/presentation.mjs",
     "check:collapse": "node scripts/collapse.mjs",

@@ -14,6 +14,9 @@ const tones: Record<string, [number, number, number]> = {
   'beyond-contract': [360, 65, 0.65],
   'beyond-open': [160, 780, 0.55],
   kill: [640, 300, 0.04],
+  'rhythm-1': [660, 620, 0.065],
+  'rhythm-2': [830, 780, 0.065],
+  'rhythm-complete': [1240, 180, 0.24],
 };
 
 export class SoundMixer {

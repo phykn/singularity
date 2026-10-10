@@ -12,6 +12,7 @@ import { Guide } from '../ui/Guide.tsx';
 import { Result } from '../ui/Result.tsx';
 import { Settings } from '../ui/Settings.tsx';
 import { SkillDetails } from '../ui/SkillDetails.tsx';
+import { RhythmInput } from '../ui/RhythmInput.tsx';
 import type { SkillId } from '../game/rules.ts';
 import { Dialog } from '../ui/Dialog.tsx';
 import { LanguagePicker } from '../ui/controls.tsx';
@@ -23,6 +24,9 @@ export default function App() {
   const {
     game,
     getGame,
+    getRhythm,
+    rhythm,
+    tapRhythm,
     language,
     settings,
     best,
@@ -145,7 +149,10 @@ export default function App() {
           />
         )}
         <section className="arena" aria-label={c.arena}>
-          <GameCanvas getGame={getGame} onReady={onRenderReady} />
+          <GameCanvas getGame={getGame} getRhythm={getRhythm} onReady={onRenderReady} />
+          {!modal && renderReady && game.phase === 'running' && !game.choice && !game.paused && (
+            <RhythmInput rhythm={rhythm} language={language} onTap={tapRhythm} />
+          )}
           {!ready && !renderReady && (
             <p className="render-status" role="status">
               {c.loading}

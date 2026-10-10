@@ -298,6 +298,41 @@ svg {
   height: 100%;
   image-rendering: pixelated;
 }
+.rhythm-input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  touch-action: none;
+  user-select: none;
+}
+.rhythm-input:hover,
+.rhythm-input:active {
+  background: transparent;
+  transform: none;
+}
+.rhythm-input:focus-visible {
+  outline: 1px solid var(--blue);
+  outline-offset: -4px;
+}
+.rhythm-hint {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  width: fit-content;
+  margin: auto;
+  padding: 6px 10px;
+  background: #080a0ee8;
+  color: #e5edf3;
+  font-size: 12px;
+  pointer-events: none;
+}
 .arena-caption {
   pointer-events: none;
   position: absolute;

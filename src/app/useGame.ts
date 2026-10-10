@@ -94,6 +94,7 @@ export function useGame() {
     });
   });
   const getGame = useCallback(() => session.game, [session]);
+  const getRhythm = useCallback(() => session.rhythm, [session]);
   const onRenderReady = useCallback(
     (ready: boolean) => session.setRenderReady(ready, performance.now()),
     [session],
@@ -191,6 +192,7 @@ export function useGame() {
     if (!import.meta.env.DEV) return;
     window.__gameDebug = {
       getModel: getGame,
+      getRhythm,
       prepare: (seed: number) => {
         const game = new Game(seed);
         game.setHidden(document.hidden);
@@ -216,6 +218,9 @@ export function useGame() {
   return {
     game: session.game,
     getGame,
+    getRhythm,
+    rhythm: session.rhythm,
+    tapRhythm: () => session.tapRhythm(performance.now()),
     language,
     settings,
     best,
@@ -245,6 +250,7 @@ declare global {
   interface Window {
     __gameDebug?: {
       getModel: () => Game;
+      getRhythm: () => import('./OrbitRhythm.ts').OrbitRhythm;
       prepare: (seed: number) => void;
       advance: (ms: number) => void;
       xp: (xp: number) => void;

@@ -2,19 +2,22 @@ import { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
 import { ElectronScene } from './ElectronScene.ts';
 import type { Game } from '../game/Game.ts';
+import type { OrbitRhythm } from '../app/OrbitRhythm.ts';
 
 export function GameCanvas({
   getGame,
+  getRhythm,
   onReady,
 }: {
   getGame: () => Game;
+  getRhythm: () => OrbitRhythm;
   onReady: (ready: boolean) => void;
 }) {
   const node = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const canvas = node.current!;
     onReady(false);
-    const scene = new ElectronScene(getGame);
+    const scene = new ElectronScene(getGame, getRhythm);
     let engine: Phaser.Game | undefined,
       observer: ResizeObserver | undefined,
       disposed = false;
@@ -69,7 +72,7 @@ export function GameCanvas({
       observer?.disconnect();
       engine?.destroy(true);
     };
-  }, [getGame, onReady]);
+  }, [getGame, getRhythm, onReady]);
 
   return <div className="canvas" ref={node} />;
 }

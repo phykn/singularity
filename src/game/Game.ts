@@ -70,6 +70,7 @@ export class Game {
   damageNumbers: DamageNumber[] = [];
   choice: Choice | null = null;
   selections: Selection[] = [];
+  resonances: { tick: number; selectionCount: number }[] = [];
   waves: { time: number; angle: number }[];
   waveCount = 0;
   result: Result | null = null;
@@ -610,6 +611,22 @@ export class Game {
       deadline: (this.tick + this.rules.choiceSeconds * this.rules.tickRate) / this.rules.tickRate,
     };
     this.log('cards', { number, cards });
+  }
+
+  resonate(): boolean {
+    if (
+      this.phase !== 'running' ||
+      this.paused ||
+      this.choice ||
+      this.charged ||
+      this.resonances.at(-1)?.tick === this.elapsedTicks
+    )
+      return false;
+    const input = { tick: this.elapsedTicks, selectionCount: this.selections.length };
+    this.resonances.push(input);
+    this.log('resonance', input);
+    this.combat.resonate();
+    return true;
   }
 
   select(

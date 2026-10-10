@@ -2,6 +2,7 @@ import type { Game } from '../game/Game.ts';
 import type { UpgradeId } from '../game/rules.ts';
 import type { Result } from '../game/types.ts';
 import type { GameAudio } from './GameAudio.ts';
+import { OrbitRhythm } from './OrbitRhythm.ts';
 
 type SessionEffects = {
   sound: () => boolean;
@@ -10,13 +11,16 @@ type SessionEffects = {
 };
 
 const frameTickLimit = 8;
+type SessionAudio = Pick<GameAudio, 'enabled' | 'update' | 'unlock' | 'suspend' | 'destroy'> &
+  Partial<Pick<GameAudio, 'play'>>;
 
 export class GameSession {
   game: Game;
   renderReady = false;
   playbackSpeed: 1 | 1.5 | 2 = 1;
   pauseOnChoice = true;
-  private audio: Pick<GameAudio, 'enabled' | 'update' | 'unlock' | 'suspend' | 'destroy'>;
+  rhythm = new OrbitRhythm();
+  private audio: SessionAudio;
   private effects: SessionEffects;
   private lastWall = 0;
   private lastDraw = 0;
@@ -36,6 +40,7 @@ export class GameSession {
     this.renderReady = ready;
     this.lastWall = wall;
     if (!ready) {
+      this.rhythm.cancel();
       this.audio.suspend();
     } else if (this.effects.sound() && !this.game.paused && this.game.phase !== 'ready')
       void this.audio.unlock();
@@ -53,6 +58,7 @@ export class GameSession {
     this.game.retire();
     this.saveResults(wall);
     this.game = game;
+    this.rhythm = new OrbitRhythm();
     this.playbackSpeed = 1;
     this.pauseOnChoice = true;
     this.lastWall = wall;
@@ -65,6 +71,7 @@ export class GameSession {
     if (!this.renderReady) return;
     this.step(wall);
     if (!this.game.continueBeyond()) return;
+    this.rhythm = new OrbitRhythm();
     this.lastWall = wall;
     this.effects.redraw();
   }
@@ -73,7 +80,10 @@ export class GameSession {
     this.step(wall);
     this.game.setManualPause(paused);
     this.lastWall = wall;
-    if (paused) this.audio.suspend();
+    if (paused) {
+      this.rhythm.cancel();
+      this.audio.suspend();
+    }
     this.effects.redraw();
   }
 
@@ -98,11 +108,31 @@ export class GameSession {
     this.effects.redraw();
   }
 
+  get rhythmAvailable(): boolean {
+    const game = this.game;
+    return (
+      this.renderReady && game.phase === 'running' && !game.paused && !game.choice && !game.charged
+    );
+  }
+
+  tapRhythm(wall: number): void {
+    this.step(wall);
+    if (!this.rhythmAvailable) return;
+    const result = this.rhythm.tap();
+    if (result === 'hit') this.audio.play?.('rhythm-' + this.rhythm.hits);
+    if (result === 'complete') {
+      this.game.resonate();
+      this.audio.play?.('rhythm-complete');
+    }
+    this.effects.redraw();
+  }
+
   setHidden(hidden: boolean, wall: number): void {
     if (this.renderReady && hidden && !this.game.hiddenPaused) this.step(wall);
     this.game.setHidden(hidden);
     this.lastWall = wall;
     if (hidden) {
+      this.rhythm.cancel();
       this.audio.suspend();
     } else if (this.renderReady && this.effects.sound() && !this.game.manualPaused)
       void this.audio.unlock();
@@ -110,6 +140,7 @@ export class GameSession {
   }
 
   suspend(wall: number): void {
+    this.rhythm.cancel();
     this.game.setHidden(true);
     this.lastWall = wall;
     this.audio.suspend();
@@ -117,12 +148,14 @@ export class GameSession {
 
   step(wall: number): void {
     const game = this.game;
+    const available = this.rhythmAvailable;
+    const ms = Math.max(0, wall - this.lastWall);
     if (this.renderReady) {
-      const ms = Math.max(0, wall - this.lastWall);
       if (game.phase === 'ready') {
         if (!game.paused) game.angle += (game.speed / game.radius) * (ms / 1000);
       } else this.advanceTime(ms, frameTickLimit);
     }
+    this.rhythm.advance(ms, available && this.rhythmAvailable);
     this.lastWall = wall;
     if (this.audio.enabled) this.audio.update(game, this.audioCursor);
     this.audioCursor = game.eventCount;

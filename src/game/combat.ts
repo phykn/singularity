@@ -277,6 +277,18 @@ export class Combat {
     return selected.length > 0;
   }
 
+  resonate(): void {
+    const g = this.game,
+      attack = this.begin(undefined, g.rules.resonanceDamage);
+    attack.power *= g.rules.resonanceDamage;
+    this.volley(
+      attack,
+      g.position,
+      closest(g.targets, g.position, attack.forms.multi.count, attack.range),
+      true,
+    );
+  }
+
   fireSkill(id: TimedSkill, origin: Point = this.game.position): boolean {
     const g = this.game;
     if (!g.ranks[id]) return false;

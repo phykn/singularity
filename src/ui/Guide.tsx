@@ -30,6 +30,7 @@ export function Guide({
         <p>{c.guideEnergy}</p>
         <p>{c.guideGoal(rules.energyGoal)}</p>
         <p>{c.guideChoice}</p>
+        <p>{c.guideRhythm}</p>
         <div className="rarity-guide">
           {rarityIds.map((rarity) => (
             <span key={rarity} data-rarity={rarity}>

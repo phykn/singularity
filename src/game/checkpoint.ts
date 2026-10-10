@@ -10,6 +10,7 @@ export type Checkpoint = {
   continuedAt: number | null;
   retired: boolean;
   choiceRemaining: number | null;
+  resonances: { tick: number; selectionCount: number }[];
   inputs: {
     tick: number;
     id: UpgradeId;
@@ -29,6 +30,7 @@ export function createCheckpoint(game: Game): Checkpoint | null {
     continuedAt: game.continuedAt,
     retired: game.result?.outcome === 'retired',
     choiceRemaining: game.choice ? game.choice.deadline - game.time : null,
+    resonances: game.resonances.map((input) => ({ ...input })),
     inputs: game.selections.map((selection, i) => ({
       tick: selection.tick,
       id: selection.id,
@@ -40,14 +42,24 @@ export function createCheckpoint(game: Game): Checkpoint | null {
 }
 
 export function restoreCheckpoint(checkpoint: Checkpoint): Game | null {
+  if (!Array.isArray(checkpoint.resonances)) return null;
   const game = new Game(checkpoint.seed);
   game.start();
   const inputs = [
-    ...checkpoint.inputs.map((input) => ({ ...input, kind: 'choice' as const })),
+    ...checkpoint.inputs.map((input) => ({
+      ...input,
+      kind: 'choice' as const,
+      order: input.number * 2,
+    })),
+    ...checkpoint.resonances.map((input) => ({
+      ...input,
+      kind: 'resonance' as const,
+      order: input.selectionCount * 2 + 1,
+    })),
     ...(checkpoint.continuedAt === null
       ? []
-      : [{ tick: checkpoint.continuedAt, kind: 'beyond' as const }]),
-  ].sort((a, b) => a.tick - b.tick);
+      : [{ tick: checkpoint.continuedAt, kind: 'beyond' as const, order: Infinity }]),
+  ].sort((a, b) => a.tick - b.tick || a.order - b.order);
   for (const input of inputs) {
     const beforeCombat = input.kind === 'choice' && input.beforeCombat;
     const precedingTick = input.tick - (beforeCombat ? 1 : 0);
@@ -58,6 +70,8 @@ export function restoreCheckpoint(checkpoint: Checkpoint): Game | null {
     if (game.elapsedTicks !== precedingTick) return null;
     const applyInput = () => {
       if (input.kind === 'beyond') return game.continueBeyond();
+      if (input.kind === 'resonance')
+        return input.selectionCount === game.selections.length && game.resonate();
       if (game.choice) game.choice.deadline = Infinity;
       return game.select(input.id, input.automatic, input.number, input.beforeCombat);
     };

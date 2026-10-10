@@ -24,6 +24,7 @@
   "choiceCount": 3,
   "skillSlots": 4,
   "baseHitDamage": 5,
+  "resonanceDamage": 2,
   "damagePerRank": 8,
   "attackBaseSeconds": 0.47,
   "ratePerRank": 0.35,
