@@ -546,6 +546,16 @@ export class Game {
     this.targets = this.targets.filter((t) => !ids.has(t.id) && t.hp > 0);
   }
 
+  releaseMass(amount: number): number {
+    const removed = Math.min(this.mass, amount);
+    this.mass -= removed;
+    this.orbitRecovery = Math.min(
+      this.rules.orbitRadius - this.radius,
+      this.orbitRecovery + removed * this.rules.gravityPerMass,
+    );
+    return removed;
+  }
+
   updateOrbit(): void {
     if (this.orbitRecovery > 0) {
       const change = Math.min(
@@ -657,12 +667,7 @@ export class Game {
       this.rarities[id] =
         id === 'recover' ? card.rarity : higherRarity(this.rarities[id], card.rarity);
     if (id === 'recover') {
-      const removed = Math.min(this.mass, recoveryMass(card.rarity, this.rules));
-      this.mass -= removed;
-      this.orbitRecovery = Math.min(
-        this.rules.orbitRadius - this.radius,
-        this.orbitRecovery + removed * this.rules.gravityPerMass,
-      );
+      const removed = this.releaseMass(recoveryMass(card.rarity, this.rules));
       this.log('recover', { removed, mass: this.mass });
     } else if (isSkill(id)) this.ranks[id]++;
     else this.boosts[id]++;

@@ -71,9 +71,9 @@ test('satellite hits feed Charge and Surge; satellite kills can release Burst', 
 test('pursuit continues when a repeat finishes its wounded target, using the same jump budget', () => {
   const first = target(0, 190, 128, 100),
     second = target(1, 225, 128, 100);
-  first.hp = 13;
   second.hp = 30;
   const g = stationarySkill({ chase: 1, repeat: 1 }, [first, second]);
+  first.hp = g.damage * g.forms.chase.damage * (1 + g.forms.repeat.damage / 2);
   g.combat.fireSkill('chase');
   assert.ok(first.hp > 0);
   g.advance(150);

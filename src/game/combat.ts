@@ -297,9 +297,8 @@ export class Combat {
     const g = this.game;
     if (!g.ranks[id]) return false;
     if (id === 'vent') {
-      const removed = Math.min(g.mass, g.forms.vent.mass);
+      const removed = g.releaseMass(g.forms.vent.mass);
       if (!removed) return false;
-      g.mass -= removed;
       g.log('vent', { removed, mass: g.mass });
       this.activate(id);
       this.effect(this.begin(id), 'vent', CENTER, CENTER, g.core + 8, 0.65, false, id);
@@ -412,7 +411,7 @@ export class Combat {
     const targets =
       id === 'strike'
         ? within(s.strike.range)
-            .sort((a, b) => b.hp - a.hp || a.id - b.id)
+            .sort((a, b) => b.maxHp - a.maxHp || a.hp - b.hp || a.radius - b.radius || a.id - b.id)
             .slice(0, s.strike.count + branches - 1)
         : id === 'repel'
           ? within(s.repel.range)

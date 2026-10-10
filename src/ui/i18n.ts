@@ -134,7 +134,11 @@ const ko = {
       short: '처치 방전',
       description: '처치한 적에게서 주변으로 방전. 재발동 제한',
     },
-    strike: { name: '낙뢰', short: '낙뢰', description: '체력이 높은 적에게 강한 단일 낙뢰' },
+    strike: {
+      name: '낙뢰',
+      short: '낙뢰',
+      description: '튼튼한 적 우선 타격. 약해진 대상부터 마무리',
+    },
     repel: { name: '반발 방전', short: '반발 방전', description: '핵에 가까운 적을 번개로 밀어냄' },
     focus: {
       name: '집중 방전',
@@ -160,7 +164,7 @@ const ko = {
     vent: {
       name: '질량 환원',
       short: '질량 환원',
-      description: '8초마다 핵의 질량을 조금씩 감소. 공격속도 영향 없음',
+      description: '8초마다 핵 질량을 줄여 궤도 회복. 공격속도 영향 없음',
     },
     chase: {
       name: '추격 번개',
@@ -345,7 +349,7 @@ const en: Copy = {
     strike: {
       name: 'Thunderstrike',
       short: 'Thunderstrike',
-      description: 'A powerful single strike targets high-HP enemies',
+      description: 'Strike durable enemies, finishing wounded ones first',
     },
     repel: {
       name: 'Repulsion',
@@ -380,7 +384,7 @@ const en: Copy = {
     vent: {
       name: 'Mass Reclaim',
       short: 'Reclaim',
-      description: 'Remove core mass every 8s; unaffected by fire rate',
+      description: 'Shed core mass every 8s to restore orbital room; unaffected by fire rate',
     },
     chase: {
       name: 'Pursuit Arc',
@@ -531,7 +535,7 @@ const zh: Copy = {
     chain: { name: '连锁闪电', short: '连锁闪电', description: '跳向附近敌人，威力逐次减弱' },
     pierce: { name: '贯穿闪电', short: '贯穿闪电', description: '细长闪电贯穿目标后方的敌人' },
     burst: { name: '击杀放电', short: '击杀放电', description: '击杀后向附近放电，限制连锁触发' },
-    strike: { name: '落雷', short: '落雷', description: '对高生命敌人施加强力单体落雷' },
+    strike: { name: '落雷', short: '落雷', description: '优先攻击耐久敌人，先收割已受伤的目标' },
     repel: { name: '排斥放电', short: '排斥放电', description: '用闪电将靠近核心的敌人推向外侧' },
     focus: { name: '集中放电', short: '集中放电', description: '持续连接同一敌人时威力逐渐增强' },
     satellite: {
@@ -549,7 +553,7 @@ const zh: Copy = {
     vent: {
       name: '质量还原',
       short: '质量还原',
-      description: '每8秒减少核心质量，不受攻击速度影响',
+      description: '每8秒减少核心质量并恢复轨道，不受攻击速度影响',
     },
     chase: { name: '追击闪电', short: '追击闪电', description: '追击弱敌，击杀后跳向下个弱敌' },
     surge: {
@@ -712,7 +716,11 @@ const ja: Copy = {
       short: '撃破放電',
       description: '撃破した敵から周囲へ放電。再発動は制限',
     },
-    strike: { name: '落雷', short: '落雷', description: '体力の高い敵に強力な単体落雷' },
+    strike: {
+      name: '落雷',
+      short: '落雷',
+      description: '丈夫な敵を優先攻撃。傷ついた敵から仕留める',
+    },
     repel: { name: '反発放電', short: '反発放電', description: '核に近い敵を雷で外側へ押し戻す' },
     focus: {
       name: '集中放電',
@@ -738,7 +746,7 @@ const ja: Copy = {
     vent: {
       name: '質量還元',
       short: '質量還元',
-      description: '8秒ごとに核の質量を減少。攻撃速度の影響なし',
+      description: '8秒ごとに核質量を減らし軌道を回復。攻撃速度の影響なし',
     },
     chase: {
       name: '追撃の雷',

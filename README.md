@@ -34,12 +34,20 @@ npm run dev
 
 Play at [localhost:8081](http://localhost:8081).
 
-| Command                       | Purpose                                                |
-| ----------------------------- | ------------------------------------------------------ |
-| `npm test`                    | Test the game rules                                    |
-| `npm run build`               | Create a production build                              |
-| `npm run check:balance`       | Measure clear rate with successful QTE play            |
-| `npm run check:skill-balance` | Compare sixteen skill-priority builds on matched seeds |
+| Command                       | Purpose                                                     |
+| ----------------------------- | ----------------------------------------------------------- |
+| `npm test`                    | Test the game rules                                         |
+| `npm run build`               | Create a production build                                   |
+| `npm run check:balance`       | Measure clear rate with successful QTE play                 |
+| `npm run check:skill-balance` | Compare sixteen skill-priority builds on matched seeds      |
+| `npm run check:skill-trial`   | Compare equal-rank encounters and fourth-slot contributions |
+
+Balance references use the real session with immediate paused choices and highest-rarity selection. Targets are 15–20% with successful QTE inputs and 10–15% without QTE. These are bot references, not measured player clear rates. To compare matched seeds:
+
+```sh
+npm run check:balance -- 600 480000 artifacts/qte.json qte
+npm run check:balance -- 600 480000 artifacts/no-qte.json qte-off
+```
 
 ## Credits & license
 

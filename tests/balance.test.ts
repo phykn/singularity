@@ -43,8 +43,10 @@ test('return hits a stationary primary once without scheduling another return', 
   const p = target(0, 190, 128, 20);
   const g = stationarySkill({ return: 3 }, [p]);
   g.boosts.power = 1;
+  const hp = g.damage * (1 + g.forms.return.damage / 2);
+  p.hp = p.maxHp = hp;
   g.combat.fireBasic();
-  assert.equal(p.hp, 7);
+  close(p.hp, hp - g.damage);
   g.advance(300);
   assert.equal(p.hp, 0);
   assert.equal(g.counts.quark.killed, 1);

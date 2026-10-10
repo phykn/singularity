@@ -22,3 +22,14 @@ test('the balance reference uses successful session inputs and reproduces the re
   assert.deepEqual(again.resonances, game.resonances);
   assert.deepEqual(again.result, game.result);
 });
+
+test('the no-QTE reference uses the same session and automatic choice policy without resonance', () => {
+  const game = new Game(140005);
+  const played = playRhythm(game, undefined, false);
+  assert.ok(game.result);
+  assert.equal(played.hits, 0);
+  assert.equal(played.completed, 0);
+  assert.deepEqual(game.resonances, []);
+  const restored = restoreCheckpoint(createCheckpoint(game)!)!;
+  assert.deepEqual(restored.result, game.result);
+});

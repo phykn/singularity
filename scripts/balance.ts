@@ -8,8 +8,8 @@ import type { Card, SkillId } from '../src/game/rules.ts';
 import { playRhythm } from './rhythm-bot.ts';
 import { createHash } from 'node:crypto';
 
-// node scripts/balance.ts [count=900] [firstSeed=92000] [report] [qte|qte-guided|auto|guided] [rulesJson]
-// Tune on one seed cohort, then validate on an untouched cohort. Only qte is the 10–15% target.
+// node scripts/balance.ts [count=900] [firstSeed=92000] [report] [qte|qte-off|qte-guided|auto|guided] [rulesJson]
+// Tune on one seed cohort, then validate on an untouched cohort: qte 15–20%, qte-off 10–15%.
 
 const count = Number(process.argv[2] ?? 900),
   start = Number(process.argv[3] ?? 92000),
@@ -19,7 +19,10 @@ const policy = process.argv[5] ?? 'qte';
 assert.ok(Number.isSafeInteger(count) && count > 0, 'Count must be a positive safe integer');
 assert.ok(Number.isSafeInteger(start) && start >= 0, 'Start must be a nonnegative safe integer');
 assert.ok(start + count <= 2 ** 32, 'Seed cohort must fit the uint32 seed range');
-assert.ok(['auto', 'guided', 'qte', 'qte-guided'].includes(policy), 'Unknown play policy');
+assert.ok(
+  ['auto', 'guided', 'qte', 'qte-off', 'qte-guided'].includes(policy),
+  'Unknown play policy',
+);
 const cfg = process.argv[6]
   ? (JSON.parse(readFileSync(process.argv[6], 'utf8')) as typeof rules)
   : rules;
@@ -65,11 +68,13 @@ for (let seed = start; seed < start + count; seed++) {
   if (policy.startsWith('qte')) {
     rhythm = playRhythm(
       g,
-      policy === 'qte'
-        ? undefined
-        : (game) => game.choice!.cards.reduce((a, b) => (value(game, b) > value(game, a) ? b : a)),
+      policy === 'qte-guided'
+        ? (game) => game.choice!.cards.reduce((a, b) => (value(game, b) > value(game, a) ? b : a))
+        : undefined,
+      policy !== 'qte-off',
     );
     assert.equal(rhythm.misses, 0, 'The perfect-QTE reference bot must not miss a beat');
+    if (policy === 'qte-off') assert.equal(g.resonances.length, 0);
   } else if (policy === 'auto') {
     g.start();
     g.advance(1800000);
@@ -171,12 +176,15 @@ writeFileSync(
       simulationHash,
       policy,
       rulesOverride: process.argv[6] ?? null,
-      target: policy === 'qte' ? [0.1, 0.15] : null,
-      scope: policy.startsWith('qte')
-        ? '60 Hz real GameSession at 1x; every available QTE hit at its center, including hit stop and choice interruptions. Paused choices selected immediately; qte uses highest rarity (first on ties), qte-guided uses the visible-state heuristic. Not measured human clear rate.'
-        : policy === 'auto'
-          ? 'Automatic highest-rarity selection, first card on ties, with uncapped time and stats; human clear rates may differ.'
-          : 'Visible-state skill/stat/recovery heuristic selecting one second after opening; this is a bot, not measured human play.',
+      target: policy === 'qte' ? [0.15, 0.2] : policy === 'qte-off' ? [0.1, 0.15] : null,
+      scope:
+        policy === 'qte-off'
+          ? '60 Hz real GameSession at 1x; no QTE taps. Paused choices selected immediately using highest rarity (first on ties), matching qte. Not measured human clear rate.'
+          : policy.startsWith('qte')
+            ? '60 Hz real GameSession at 1x; every available QTE hit at its center, including hit stop and choice interruptions. Paused choices selected immediately; qte uses highest rarity (first on ties), qte-guided uses the visible-state heuristic. Not measured human clear rate.'
+            : policy === 'auto'
+              ? 'Automatic highest-rarity selection, first card on ties, with uncapped time and stats; human clear rates may differ.'
+              : 'Visible-state skill/stat/recovery heuristic selecting one second after opening; this is a bot, not measured human play.',
       validationSeeds: [start, start + count - 1],
       measurements: {
         lateStart: cfg.stageStarts.at(-1),

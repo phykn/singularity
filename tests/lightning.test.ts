@@ -90,6 +90,31 @@ test('strike selects high HP without a splash hit on a neighboring enemy', () =>
   assert.equal(g.effects.find((f) => f.kind === 'strike')!.radius, 0);
 });
 
+test('strike finishes a wounded durable enemy before switching to a fresh one', () => {
+  const wounded = target(0, 200, 128, 100),
+    fresh = target(1, 202, 128, 100),
+    light = target(2, 201, 128, 80);
+  wounded.hp = 15;
+  const g = stationarySkill({ strike: 1 }, [wounded, fresh, light]);
+  g.combat.fireSkill('strike');
+  assert.equal(wounded.hp, 0);
+  assert.equal(fresh.hp, 100);
+  assert.equal(light.hp, 80);
+  g.combat.fireSkill('strike');
+  assert.ok(fresh.hp < 100);
+  assert.equal(light.hp, 80);
+});
+
+test('strike retargets immediately when a wounded durable enemy leaves its range', () => {
+  const far = target(0, 1000, 128, 100),
+    near = target(1, 200, 128, 100);
+  far.hp = 1;
+  const g = stationarySkill({ strike: 1 }, [far, near]);
+  g.combat.fireSkill('strike');
+  assert.equal(far.hp, 1);
+  assert.ok(near.hp < 100);
+});
+
 test('focus ramps while holding a target and resets on retarget without slowing it', () => {
   const p = target(0, 210, 128, 1000),
     q = target(1, 235, 128, 1000);
@@ -221,6 +246,42 @@ test('mass vent waits for mass, never creates negative mass, and ignores fire-ra
   g.advance(9000);
   assert.equal(g.mass, 0);
   assert.equal(g.combat.status('vent').progress, 1);
+});
+
+test('mass reclaim restores fixed orbital room without charging attacks or consuming XP', () => {
+  const light = stationarySkill({ vent: 3 }, []),
+    heavy = stationarySkill({ vent: 3, charge: 3, repeat: 5 }, []);
+  light.mass = 20;
+  heavy.mass = 100;
+  heavy.xp = 10;
+  light.combat.fireSkill('vent');
+  heavy.combat.fireSkill('vent');
+  assert.equal(100 - heavy.mass, 20 - light.mass);
+  assert.equal(100 - heavy.mass, heavy.forms.vent.mass);
+  assert.equal(heavy.xp, 10);
+  assert.equal(heavy.combat.status('charge').progress, 0);
+});
+
+test('mass reclaim visibly restores a contracting orbit even above its gravity target', () => {
+  const g = stationarySkill({ vent: 3 }, []);
+  g.mass = 100;
+  g.radius = 110;
+  assert.ok(g.targetRadius < g.radius);
+  const radius = g.radius;
+  g.combat.fireSkill('vent');
+  assert.ok(g.targetRadius < radius);
+  g.advance(500);
+  assert.ok(g.radius > radius, 'Reclaim must open orbital room immediately');
+});
+
+test('passive recovery cannot hold an overloaded core open indefinitely', () => {
+  const g = stationarySkill({ vent: 5 }, []);
+  g.rarities.vent = 'legendary';
+  g.mass = 1000;
+  g.radius = 100;
+  g.combat.learn('vent', 0);
+  g.advance(120000);
+  assert.equal(g.result?.outcome, 'collapse-failure');
 });
 
 test('chase only seeks wounded enemies and does not execute healthy ones', () => {

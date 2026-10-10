@@ -1,6 +1,6 @@
 {
   "name": "web-game",
-  "version": "0.1.35",
+  "version": "0.1.36",
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
@@ -38,6 +38,7 @@
     "preview": "vite preview --host 0.0.0.0 --port 8081 --strictPort",
     "check:balance": "node scripts/balance.ts",
     "check:skill-balance": "node scripts/skill-balance.ts",
+    "check:skill-trial": "node scripts/skill-trial.ts",
     "check:beyond": "node scripts/beyond.ts",
     "check:beyond-browser": "node scripts/beyond-browser.mjs"
   },
