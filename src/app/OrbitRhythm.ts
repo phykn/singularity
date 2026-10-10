@@ -1,11 +1,22 @@
+import { Random } from '../game/random.ts';
+
 export const rhythmTiming = {
   intro: 4000,
   lead: 900,
-  interval: 700,
   window: 180,
-  rest: 4000,
+  restMin: 3200,
+  restMax: 4800,
   beats: 3,
 };
+
+const patterns = [
+  [550, 850],
+  [850, 550],
+  [650, 1000],
+  [1000, 650],
+  [550, 1000],
+  [1000, 550],
+] as const;
 
 export class OrbitRhythm {
   active = false;
@@ -21,6 +32,12 @@ export class OrbitRhythm {
   private velocity = 0.001;
   private lastHit = -Infinity;
   private wait = rhythmTiming.intro;
+  private readonly random: Random;
+  private pattern = -1;
+
+  constructor(seed = 0) {
+    this.random = new Random(seed ^ 0x72687974);
+  }
 
   get due(): number {
     return this.age + (this.gateAngle - this.angle) / this.velocity;
@@ -58,6 +75,10 @@ export class OrbitRhythm {
         this.active = true;
         this.age = this.hits = 0;
         this.lastHit = -Infinity;
+        const next = Math.floor(
+          this.random.next() * (patterns.length - (this.pattern < 0 ? 0 : 1)),
+        );
+        this.pattern = this.pattern < 0 || next < this.pattern ? next : next + 1;
         this.gateAngle = angle + this.velocity * rhythmTiming.lead;
         this.feedback = null;
       }
@@ -89,7 +110,7 @@ export class OrbitRhythm {
       return 'complete';
     }
     this.feedback = 'hit';
-    this.gateAngle += this.velocity * rhythmTiming.interval;
+    this.gateAngle += this.velocity * patterns[this.pattern][this.hits - 1];
     return 'hit';
   }
 
@@ -107,6 +128,7 @@ export class OrbitRhythm {
     this.active = false;
     this.feedback = feedback;
     this.feedbackAge = 0;
-    this.wait = rhythmTiming.rest;
+    this.wait =
+      rhythmTiming.restMin + this.random.next() * (rhythmTiming.restMax - rhythmTiming.restMin);
   }
 }

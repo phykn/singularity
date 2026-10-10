@@ -410,7 +410,16 @@ test('late assault composition increases durable and dashing enemies without inc
   assert.ok(share(a, 'neutron', 'dense') > share(b, 'neutron', 'dense'));
 });
 
-test('checkpoint replay preserves the late assault, spawned strength and recovery schedule', () => {
+test('checkpoint replay preserves the late assault, spawned strength and recovery schedule', (t) => {
+  const goal = rules.energyGoal,
+    gravity = rules.gravityPerMass;
+  t.after(() => {
+    rules.energyGoal = goal;
+    rules.gravityPerMass = gravity;
+  });
+  // Reach the late phase independently of whether this seed can win the current balance.
+  rules.energyGoal = 100000;
+  rules.gravityPerMass = 0;
   const g = new Game(107005);
   g.start();
   g.advance((rules.stageStarts.at(-1)! + 5) * 1000);

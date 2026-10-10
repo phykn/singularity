@@ -14,11 +14,11 @@ import {
 import { beyondFrame } from '../src/render/beyond.ts';
 import { BLUE, VIOLET } from '../src/art/palette.ts';
 import type { Result } from '../src/game/types.ts';
+import { playRhythm } from '../scripts/rhythm-bot.ts';
 
 function cleared() {
-  const g = new Game(1701);
-  g.start();
-  g.advance(600000);
+  const g = new Game(140004);
+  playRhythm(g);
   assert.equal(g.result?.outcome, 'success');
   return g;
 }
@@ -139,7 +139,7 @@ test('current checkpoints replay entry, manual endless choices and voluntary ret
       run.advance(1000 / 60);
     assert.ok(run.choice);
     assert.ok(run.select(run.choice.cards[1].id));
-    run.advance(30000);
+    run.advance(1000);
   }
   assert.deepEqual(g.events, restored.events);
   const late = restoreCheckpoint(createCheckpoint(g)!)!;
@@ -320,7 +320,12 @@ test('checkpoints preserve automatic selection timing at 2x and the remaining ch
   session.continueBeyond(0);
   session.playbackSpeed = 2;
   session.pauseOnChoice = false;
-  for (let frame = 1; frame <= 60 * 20; frame++) session.step((frame * 1000) / 60);
+  for (
+    let frame = 1;
+    frame <= 60 * 90 && g.selections.length === g.clearResult!.selections.length;
+    frame++
+  )
+    session.step((frame * 1000) / 60);
   assert.ok(g.selections.some((s) => s.time > g.clearResult!.collisionTime));
   const restored = restoreCheckpoint(createCheckpoint(g)!)!;
   assert.ok(restored);

@@ -13,23 +13,60 @@ function advance(r: OrbitRhythm, ms: number) {
   }
 }
 
+function phrases(r: OrbitRhythm, count = 20) {
+  const result: { gaps: number[]; rest: number }[] = [];
+  for (let i = 0; i < count; i++) {
+    let rest = 0;
+    while (!r.active) {
+      advance(r, 10);
+      rest += 10;
+    }
+    advance(r, r.due - r.age);
+    const gaps = [];
+    assert.equal(r.tap(), 'hit');
+    for (let beat = 2; beat <= 3; beat++) {
+      gaps.push(Math.round(r.due - r.age));
+      advance(r, r.due - r.age);
+      assert.equal(r.tap(), beat === 3 ? 'complete' : 'hit');
+    }
+    result.push({ gaps, rest });
+  }
+  return result;
+}
+
+test('seeded phrases vary readable short and long gaps without consecutive repeated patterns', () => {
+  const trace = phrases(new OrbitRhythm(1701));
+  assert.deepEqual(phrases(new OrbitRhythm(1701)), trace);
+  assert.notDeepEqual(phrases(new OrbitRhythm(1702)), trace);
+  assert.ok(new Set(trace.map((p) => p.gaps.join(','))).size >= 4);
+  for (const [i, phrase] of trace.entries()) {
+    assert.ok(phrase.gaps.every((gap) => gap >= 550 && gap <= 1000));
+    assert.notEqual(phrase.gaps[0], phrase.gaps[1]);
+    if (i) {
+      assert.notDeepEqual(phrase.gaps, trace[i - 1].gaps);
+      assert.ok(phrase.rest >= t.restMin && phrase.rest <= t.restMax + 10);
+    }
+  }
+});
+
 test('three separate beats complete once; early or extra taps cannot farm rewards', () => {
   const r = new OrbitRhythm();
   advance(r, t.intro + t.lead);
   assert.equal(r.tap(), 'hit');
-  advance(r, t.interval);
+  advance(r, r.due - r.age);
   assert.equal(r.tap(), 'hit');
-  advance(r, t.interval);
+  advance(r, r.due - r.age);
   assert.equal(r.tap(), 'complete');
   assert.equal(r.completed, 1);
   assert.equal(r.tap(), 'ignored');
-  advance(r, t.rest - 10);
+  advance(r, t.restMin - 10);
   assert.equal(r.active, false);
-  advance(r, 10);
+  while (!r.active) advance(r, 10);
   assert.equal(r.active, true);
   assert.equal(r.tap(), 'miss');
   assert.equal(r.completed, 1);
-  advance(r, t.rest + t.lead);
+  while (!r.active) advance(r, 10);
+  advance(r, r.due - r.age);
   assert.equal(r.tap(), 'hit');
   assert.equal(r.tap(), 'ignored');
   advance(r, 260);
@@ -42,9 +79,9 @@ test('window edges are inclusive and missed beats end without affecting the next
     const r = new OrbitRhythm();
     advance(r, t.intro + t.lead + offset);
     assert.equal(r.tap(), 'hit');
-    advance(r, t.interval);
+    advance(r, r.due - r.age + offset);
     assert.equal(r.tap(), 'hit');
-    advance(r, t.interval);
+    advance(r, r.due - r.age + offset);
     assert.equal(r.tap(), 'complete');
   }
   const r = new OrbitRhythm();
@@ -54,7 +91,7 @@ test('window edges are inclusive and missed beats end without affecting the next
   assert.equal(r.feedback, null);
   advance(r, r.due - r.age);
   assert.equal(r.tap(), 'hit');
-  advance(r, t.interval + t.window + 10);
+  advance(r, r.due - r.age + t.window + 10);
   assert.equal(r.feedback, 'miss');
 });
 
@@ -73,9 +110,9 @@ test('fast orbits retain readable beat spacing and reject earlier laps and dupli
   step(t.lead - 400);
   assert.equal(r.tap(), 'hit');
   assert.equal(r.tap(), 'ignored');
-  step(t.interval);
+  step(r.due - r.age);
   assert.equal(r.tap(), 'hit');
-  step(t.interval);
+  step(r.due - r.age);
   assert.equal(r.tap(), 'complete');
 });
 
@@ -119,6 +156,13 @@ function session(game = fixture()) {
   session.setRenderReady(true, 0);
   return session;
 }
+
+test('session construction and run replacement reset the independent rhythm seed', () => {
+  const first = session(new Game(1701));
+  assert.deepEqual(phrases(first.rhythm, 5), phrases(new OrbitRhythm(1701), 5));
+  first.replace(new Game(1702), 0);
+  assert.deepEqual(phrases(first.rhythm, 5), phrases(new OrbitRhythm(1702), 5));
+});
 
 test('the real electron enters a fixed gate at every playback speed; choices and pauses cannot consume input', () => {
   for (const speed of [1, 1.5, 2] as const) {

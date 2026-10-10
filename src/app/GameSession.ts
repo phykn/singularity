@@ -19,7 +19,7 @@ export class GameSession {
   renderReady = false;
   playbackSpeed: 1 | 1.5 | 2 = 1;
   pauseOnChoice = true;
-  rhythm = new OrbitRhythm();
+  rhythm: OrbitRhythm;
   private audio: SessionAudio;
   private effects: SessionEffects;
   private lastWall = 0;
@@ -32,6 +32,7 @@ export class GameSession {
 
   constructor(game: Game, audio: GameSession['audio'], effects: SessionEffects) {
     this.game = game;
+    this.rhythm = new OrbitRhythm(game.seed);
     this.audio = audio;
     this.effects = effects;
     this.audioCursor = game.eventCount;
@@ -59,7 +60,7 @@ export class GameSession {
     this.game.retire();
     this.saveResults(wall);
     this.game = game;
-    this.rhythm = new OrbitRhythm();
+    this.rhythm = new OrbitRhythm(game.seed);
     this.hitStop = 0;
     this.playbackSpeed = 1;
     this.pauseOnChoice = true;
@@ -73,7 +74,7 @@ export class GameSession {
     if (!this.renderReady) return;
     this.step(wall);
     if (!this.game.continueBeyond()) return;
-    this.rhythm = new OrbitRhythm();
+    this.rhythm = new OrbitRhythm(this.game.seed);
     this.hitStop = 0;
     this.lastWall = wall;
     this.effects.redraw();

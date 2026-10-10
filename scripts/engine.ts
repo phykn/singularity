@@ -9,5 +9,7 @@ export function sourceHash(): string {
     .sort()) {
     hash.update(file).update(readFileSync(new URL(file, folder)));
   }
+  for (const file of ['GameSession.ts', 'OrbitRhythm.ts'])
+    hash.update(file).update(readFileSync(new URL('../src/app/' + file, import.meta.url)));
   return hash.update(readFileSync(new URL('../design/rules.json', import.meta.url))).digest('hex');
 }

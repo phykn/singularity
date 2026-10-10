@@ -152,13 +152,16 @@ test('checkpoints and records accept a run past ten minutes and a manual choice 
   // remove gravity so this fixture can reach choice 26 and ten minutes even as
   // late enemies continue to strengthen.
   const goal = rules.energyGoal,
-    gravity = rules.gravityPerMass;
+    gravity = rules.gravityPerMass,
+    damage = rules.baseHitDamage;
   t.after(() => {
     rules.energyGoal = goal;
     rules.gravityPerMass = gravity;
+    rules.baseHitDamage = damage;
   });
   rules.energyGoal = 100000;
   rules.gravityPerMass = 0;
+  rules.baseHitDamage = 100;
   const map = new Map<string, string>();
   const storage = {
     getItem: (key: string) => map.get(key) ?? null,
@@ -177,8 +180,11 @@ test('checkpoints and records accept a run past ten minutes and a manual choice 
   const restored = restoreCheckpoint(JSON.parse(JSON.stringify(createCheckpoint(g))))!;
   assert.ok(restored);
   assert.deepEqual(createCheckpoint(restored), createCheckpoint(g));
-  restored.advance(1800000);
-  g.advance(1800000);
+  // Finish both long-lived fixtures explicitly; this checks save/record handling, not win rate.
+  for (const game of [restored, g]) {
+    game.debugSetXp(rules.energyGoal);
+    game.advance(16000);
+  }
   assert.equal(g.result?.outcome, 'success');
   assert.deepEqual(restored.result, g.result);
   const record = bestRecord(null, g.result!);

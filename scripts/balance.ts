@@ -1,17 +1,27 @@
 import assert from 'node:assert/strict';
 import { sourceHash } from './engine.ts';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Game } from '../src/game/Game.ts';
 import { rarityIds, rarityScale, rules, isSkill } from '../src/game/rules.ts';
 import type { Card, SkillId } from '../src/game/rules.ts';
+import { playRhythm } from './rhythm-bot.ts';
+import { createHash } from 'node:crypto';
+
+// node scripts/balance.ts [count=900] [firstSeed=92000] [report] [qte|qte-guided|auto|guided] [rulesJson]
+// Tune on one seed cohort, then validate on an untouched cohort. Only qte is the 10–15% target.
 
 const count = Number(process.argv[2] ?? 900),
   start = Number(process.argv[3] ?? 92000),
   output = process.argv[4] ?? 'artifacts/balance.json',
   rows = [];
-const policy = process.argv[5] ?? 'auto';
-assert.ok(['auto', 'guided'].includes(policy), 'Policy must be auto or guided');
+const policy = process.argv[5] ?? 'qte';
+assert.ok(Number.isInteger(count) && count > 0, 'Count must be a positive integer');
+assert.ok(Number.isInteger(start) && start >= 0, 'Start must be a nonnegative integer');
+assert.ok(['auto', 'guided', 'qte', 'qte-guided'].includes(policy), 'Unknown play policy');
+const cfg = process.argv[6]
+  ? (JSON.parse(readFileSync(process.argv[6], 'utf8')) as typeof rules)
+  : rules;
 // A reproducible, visible-state choice heuristic; this is not a human clear-rate estimate.
 const strength: Record<SkillId, number> = {
   multi: 10,
@@ -44,11 +54,26 @@ function value(g: Game, card: Card) {
 }
 const started = Date.now();
 const hash = sourceHash();
+const simulationHash = createHash('sha256')
+  .update(readFileSync(new URL('./balance.ts', import.meta.url)))
+  .update(readFileSync(new URL('./rhythm-bot.ts', import.meta.url)))
+  .digest('hex');
 for (let seed = start; seed < start + count; seed++) {
-  const g = new Game(seed);
-  g.start();
-  if (policy === 'auto') g.advance(1800000);
-  else
+  const g = new Game(seed, { rules: cfg });
+  let rhythm = null;
+  if (policy.startsWith('qte')) {
+    rhythm = playRhythm(
+      g,
+      policy === 'qte'
+        ? undefined
+        : (game) => game.choice!.cards.reduce((a, b) => (value(game, b) > value(game, a) ? b : a)),
+    );
+    assert.equal(rhythm.misses, 0, 'The perfect-QTE reference bot must not miss a beat');
+  } else if (policy === 'auto') {
+    g.start();
+    g.advance(1800000);
+  } else {
+    g.start();
     while (!g.result && g.seconds < 1800) {
       if (g.choice && g.time - g.choice.opened >= 1) {
         const card = g.choice.cards.reduce((a, b) => (value(g, b) > value(g, a) ? b : a));
@@ -56,6 +81,7 @@ for (let seed = start; seed < start + count; seed++) {
       }
       g.advance(250);
     }
+  }
   assert.ok(g.result);
   for (const c of Object.values(g.result.counts)) {
     assert.equal(c.generated, c.killed + c.absorbed + c.remaining);
@@ -77,6 +103,7 @@ for (let seed = start; seed < start + count; seed++) {
   });
   rows.push({
     seed,
+    rhythm,
     outcome: g.result.outcome,
     trigger: g.result.trigger,
     xp: g.xp,
@@ -140,15 +167,18 @@ writeFileSync(
   JSON.stringify(
     {
       sourceHash: hash,
+      simulationHash,
       policy,
-      target: [0.1, 0.15],
-      scope:
-        policy === 'auto'
+      rulesOverride: process.argv[6] ?? null,
+      target: policy === 'qte' ? [0.1, 0.15] : null,
+      scope: policy.startsWith('qte')
+        ? '60 Hz real GameSession at 1x; every available QTE hit at its center, including hit stop and choice interruptions. Paused choices selected immediately; qte uses highest rarity (first on ties), qte-guided uses the visible-state heuristic. Not measured human clear rate.'
+        : policy === 'auto'
           ? 'Automatic highest-rarity selection, first card on ties, with uncapped time and stats; human clear rates may differ.'
           : 'Visible-state skill/stat/recovery heuristic selecting one second after opening; this is a bot, not measured human play.',
       validationSeeds: [start, start + count - 1],
       measurements: {
-        lateStart: rules.stageStarts.at(-1),
+        lateStart: cfg.stageStarts.at(-1),
         developed:
           'All four skill slots at rank 3 or higher; a reproducible proxy, not a judgment of build quality.',
       },
@@ -156,7 +186,7 @@ writeFileSync(
       confidence95: [center - margin, center + margin],
       withLegendary: summarize(legendary),
       withoutLegendary: summarize(withoutLegendary),
-      rules,
+      rules: cfg,
       rows,
     },
     null,
