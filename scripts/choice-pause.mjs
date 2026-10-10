@@ -139,6 +139,7 @@ try {
       assert.ok(stopped.remaining < pausedAgain.remaining);
     }
     await capture(page, `artifacts/screens/choice-toggle-${width}x${height}.png`);
+    await page.locator('.cards[data-ready="true"]').waitFor();
     await page.locator('.card').first().click();
     await page.waitForFunction(
       (n) => window.__gameDebug.getModel().selections.length > n,

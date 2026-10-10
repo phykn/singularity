@@ -649,6 +649,12 @@ svg {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
 }
+.cards[data-ready='false'] .card {
+  opacity: 0.78;
+}
+.card {
+  transition: opacity 0.12s ease;
+}
 .card,
 .choice-echo {
   min-width: 0;

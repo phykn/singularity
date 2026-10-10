@@ -38,6 +38,7 @@ try {
         once: true,
       }),
     );
+    await page.locator('.cards[data-ready="true"]').waitFor();
     await page.locator('.card[data-upgrade="recover"]').tap();
     const selected = await page.evaluate(() => {
       const g = window.__gameDebug.getModel();

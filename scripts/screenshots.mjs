@@ -66,6 +66,7 @@ try {
   });
   await page.locator('.card').first().waitFor();
   await shoot(2);
+  await page.locator('.cards[data-ready="true"]').waitFor();
   await page.locator('.card.auto').click();
   await combat(240);
   await shoot(3);

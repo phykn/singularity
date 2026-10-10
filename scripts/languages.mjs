@@ -166,6 +166,7 @@ try {
       );
       await page.getByRole('button', { name: c.resume, exact: true }).click();
       const id = await page.evaluate(() => window.__gameDebug.getModel().choice.cards[1].id);
+      await page.locator('.cards[data-ready="true"]').waitFor();
       await page.locator('.card').nth(1).click();
       assert.equal(await page.evaluate(() => window.__gameDebug.getModel().selections[0].id), id);
       assert.equal(

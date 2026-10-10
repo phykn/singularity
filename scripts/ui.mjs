@@ -83,6 +83,7 @@ try {
           },
           { id, index },
         );
+        await page.locator('.cards[data-ready="true"]').waitFor();
         await page.locator(`.card[data-upgrade="${id}"]`).tap();
         const button = page.getByRole('button', {
           name: c.upgrades[id].name + ' · ' + c.skillDetails,
@@ -208,6 +209,7 @@ try {
       layout.contents.every((r) => r.top >= layout.choicesTop && r.bottom <= layout.choicesBottom),
     );
     await capture(page, `artifacts/ui/short-choice-${language}.png`);
+    await page.locator('.cards[data-ready="true"]').waitFor();
     await page.locator('.card').first().tap();
     await page.locator('.slot-inspect').first().tap();
     await page.getByRole('button', { name: c.close, exact: true }).tap();

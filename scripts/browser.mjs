@@ -153,6 +153,7 @@ const rarityFlow = async () => {
   await page.locator('.card[data-rarity="legendary"]').waitFor();
   await inspectCards(page);
   await screenshot(page, 'legendary-choice');
+  await page.locator('.cards[data-ready="true"]').waitFor();
   await page.locator('.card[data-rarity="legendary"]').click();
   const selected = await snapshot(page);
   assert.equal(selected.rarities.multi, 'legendary');
@@ -503,6 +504,7 @@ const visualFlow = async () => {
         };
         window.__gameDebug.advance(0);
       }, id);
+      await page.locator('.cards[data-ready="true"]').waitFor();
       await page.locator('.card').first().click();
       const feedback = page.locator('.upgrade-feedback');
       await feedback.waitFor();
@@ -726,6 +728,7 @@ const interfaceFlow = async () => {
   await screenshot(page, 'max-skills-stat-choice');
   await page.evaluate(() => window.__gameDebug.getModel().setHidden(false));
   const id = (await snapshot(page)).choice.cards[1].id;
+  await page.locator('.cards[data-ready="true"]').waitFor();
   await page.locator('.card').nth(1).click();
   assert.equal((await snapshot(page)).boosts[id], 7);
   report(
@@ -913,6 +916,7 @@ const qaFlow = async () => {
       window.__gameDebug.getModel().setHidden(false);
       window.__gameDebug.advance(0);
     });
+    await page.locator('.cards[data-ready="true"]').waitFor();
     await page.locator('.card').nth(2).click();
     await page.evaluate(() => {
       const g = window.__gameDebug.getModel();
@@ -1310,6 +1314,7 @@ try {
       assert.equal(await page.locator('.card').count(), 3);
       await inspectCards(page);
       const chosen = (await snapshot(page)).choice.cards[1].id;
+      await page.locator('.cards[data-ready="true"]').waitFor();
       await page.locator('.card').nth(1).click();
       assert.equal((await snapshot(page)).selections[0].id, chosen);
       await page.getByRole('button', { name: '일시정지', exact: true }).click();
@@ -1429,6 +1434,7 @@ try {
     });
     await screenshot(page, 'gravity-danger');
     const before = await snapshot(page);
+    await page.locator('.cards[data-ready="true"]').waitFor();
     await page.locator('.card').first().click();
     await advance(page, 2000);
     const recovered = await snapshot(page);

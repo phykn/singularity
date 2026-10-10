@@ -88,6 +88,7 @@ try {
     for (let i = 0; i < 120 && !window.__gameDebug.getModel().choice; i++)
       window.__gameDebug.advance(250);
   });
+  await page.locator('.cards[data-ready="true"]').waitFor();
   await page.locator('.card').nth(1).click();
   await page.getByRole('button', { name: c.pause, exact: true }).click();
   const paused = await snapshot(page);

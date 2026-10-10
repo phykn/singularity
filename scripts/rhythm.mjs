@@ -136,6 +136,7 @@ try {
     await page.locator('.choice-pause').click();
     await tap(page);
     assert.equal(await page.evaluate(() => window.__gameDebug.getModel().resonances.length), 0);
+    await page.locator('.cards[data-ready="true"]').waitFor();
     await page.locator('.card').first().click();
     await page.waitForSelector('.rhythm-input');
     const resumed = await page.evaluate(() => {
