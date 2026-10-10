@@ -141,11 +141,49 @@ test('the real electron enters a fixed gate at every playback speed; choices and
     s.pauseOnChoice = false;
     s.tapRhythm(wall + 10);
     assert.equal(s.rhythm.active, false);
-    assert.equal(s.rhythm.feedback, null);
+    assert.equal(s.rhythm.feedback, 'hit', 'A level-up must not erase the successful judgment');
     assert.equal(s.game.resonances.length, 1);
     s.pause(true, wall + 10);
     s.tapRhythm(wall + 1000);
     assert.equal(s.game.resonances.length, 1);
+  }
+});
+
+test('successful input briefly stops combat while judgment keeps animating, then resumes without catch-up', () => {
+  for (const speed of [1, 2] as const) {
+    const s = session();
+    s.playbackSpeed = speed;
+    let wall = 0;
+    while (!s.rhythm.open && wall < 10000) {
+      wall += 10;
+      s.step(wall);
+    }
+    assert.ok(s.rhythm.open);
+    s.tapRhythm(wall);
+    const tick = s.game.elapsedTicks;
+    const angle = s.game.angle;
+    s.step(wall + 20);
+    assert.equal(s.game.elapsedTicks, tick);
+    assert.equal(s.game.angle, angle);
+    assert.equal(s.rhythm.feedbackAge, 20);
+    s.step(wall + 60);
+    assert.ok(s.game.elapsedTicks > tick);
+    assert.ok(s.game.elapsedTicks - tick <= Math.ceil(0.025 * speed * s.game.rules.tickRate));
+
+    while (!s.rhythm.open && wall < 10000) {
+      wall += 10;
+      s.step(wall + 60);
+    }
+    s.tapRhythm(wall + 60);
+    assert.equal(s.rhythm.hits, 2);
+    const beforeBacklog = s.game.elapsedTicks;
+    s.game.advance(1000, 0);
+    s.step(wall + 80);
+    assert.equal(
+      s.game.elapsedTicks,
+      beforeBacklog,
+      'Retained ticks must also wait during hit stop',
+    );
   }
 });
 

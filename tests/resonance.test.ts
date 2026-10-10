@@ -13,7 +13,7 @@ test('resonance rules leave runs with no manual input unchanged', () => {
   const alternate = new Game(1701, {
     rules: {
       ...rules,
-      resonance: { beatDamage: 100, finishDamage: 100, band: 500, maxTargets: 100 },
+      resonance: { beatDamage: 100, finishDamage: 100 },
     },
   });
   for (const g of [normal, alternate]) {
@@ -62,17 +62,15 @@ test('small beats preserve Burst synergy while adding only one direct target wit
   );
 });
 
-test('third beat reaches around the real orbit, excludes distant particles and caps direct hits', () => {
+test('third beat hits every enemy once, including the core and distant particles', () => {
   const points = Array.from({ length: 10 }, (_, i) => orbit((i * Math.PI) / 5, rules.orbitRadius));
   const enemies = points.map((p, i) => target(i, p.x, p.y, 1000));
   enemies.push(target(10, 180, 260, 1000));
-  const far = orbit(0, rules.orbitRadius + rules.resonance.band + 1);
+  const far = orbit(0, 350);
   enemies.push(target(11, far.x, far.y, 1000));
   const g = stationarySkill({ multi: 5, repeat: 5, return: 5 }, enemies);
   assert.ok(g.resonate(3));
-  assert.equal(enemies.filter((t) => t.hp < 1000).length, rules.resonance.maxTargets);
-  close(enemies[10].hp, 1000);
-  close(enemies[11].hp, 1000);
+  assert.equal(enemies.filter((t) => t.hp < 1000).length, enemies.length);
   for (const enemy of enemies.filter((t) => t.hp < 1000))
     close(enemy.hp, 1000 - g.damage * rules.resonance.finishDamage);
   const damage = enemies.map((t) => t.hp);
@@ -84,7 +82,7 @@ test('third beat reaches around the real orbit, excludes distant particles and c
   assert.ok(g.effects.every((fx) => fx.kind !== 'return'));
 });
 
-test('third beat follows a contracted orbit and shares bounded Burst reactions', () => {
+test('global discharge ignores orbit contraction and does not multiply damage through Burst', () => {
   const p = orbit(0, 70),
     q = orbit(0.05, 70),
     old = orbit(0, rules.orbitRadius);
@@ -98,8 +96,8 @@ test('third beat follows a contracted orbit and shares bounded Burst reactions',
   g.radius = 70;
   assert.ok(g.resonate(3));
   assert.equal(weak.hp, 0);
-  assert.ok(survivor.hp < 1000 - g.damage * rules.resonance.finishDamage);
-  assert.equal(outside.hp, 1000);
+  close(survivor.hp, 1000 - g.damage * rules.resonance.finishDamage);
+  close(outside.hp, 1000 - g.damage * rules.resonance.finishDamage);
 });
 
 test('beat rewards add repeats without changing scheduled basic or timed attacks', () => {

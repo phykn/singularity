@@ -38,12 +38,14 @@ export function RhythmInput({
       onPointerDown={(event) => {
         if (!event.isPrimary || event.button !== 0) return;
         event.preventDefault();
+        event.currentTarget.dataset.input = 'pointer';
         event.currentTarget.focus({ preventScroll: true });
         onTap();
       }}
       onKeyDown={(event) => {
         if (!['Space', 'Enter'].includes(event.code)) return;
         event.preventDefault();
+        event.currentTarget.dataset.input = 'keyboard';
         if (!event.repeat) onTap();
       }}
       onClick={(event) => {

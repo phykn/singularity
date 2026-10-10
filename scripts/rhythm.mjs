@@ -99,11 +99,13 @@ try {
         hits: g.events.filter((e) => e.kind === 'hit').length,
         labels: g.damageNumbers.map((n) => n.value),
         phase: g.phase,
+        allHit: g.targets.every((t) => t.hp < t.maxHp),
       };
     });
     assert.equal(result.completed, 1);
     assert.equal(result.inputs, 3);
     assert.ok(result.hits > 0, 'The completed phrase must deal actual damage');
+    assert.equal(result.allHit, true, 'The final discharge must reach all particles');
     await capture(page, `artifacts/rhythm/complete-${width}.png`);
     // Holding/releasing and the compatibility click must not create another input.
     await page.mouse.up();
@@ -113,8 +115,9 @@ try {
     await prepare(page, language);
     await page.waitForSelector('.rhythm-input');
     await beat(page, 0);
-    await tap(page);
+    if (width === 390) await capture(page, 'artifacts/rhythm/hit.png');
     await page.waitForFunction(() => window.__gameDebug.getRhythm().feedback === 'miss');
+    if (width === 390) await capture(page, 'artifacts/rhythm/miss.png');
     assert.equal(await page.evaluate(() => window.__gameDebug.getModel().resonances.length), 1);
 
     await prepare(page, language);
@@ -142,13 +145,17 @@ try {
     );
     checks.push({
       viewport: [width, height],
-      spam: 'rejected',
+      partialReward: 'retained after miss',
       ui: 'isolated',
       resume: 'fresh phrase',
     });
     await page.close();
   }
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    reducedMotion: 'reduce',
+  });
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(base);
   await prepare(page, 'zh');
@@ -164,6 +171,7 @@ try {
   assert.equal(await page.evaluate(() => window.__gameDebug.getRhythm().hits), 1);
   await beat(page, 1, 'Enter');
   await beat(page, 2, 'Space');
+  await capture(page, 'artifacts/rhythm/reduced-complete.png');
   assert.equal(await page.evaluate(() => window.__gameDebug.getModel().resonances.length), 3);
   await prepare(page, 'zh');
   await page.waitForSelector('.rhythm-input');

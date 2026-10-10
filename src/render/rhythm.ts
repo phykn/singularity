@@ -13,6 +13,7 @@ export function drawRhythm(
   scale: number,
   electron: Point,
   reducedMotion: boolean,
+  extent: number,
 ): void {
   const arc = (
     r: number,
@@ -54,21 +55,38 @@ export function drawRhythm(
     }
   }
   const age = rhythm.feedbackAge / 1000;
-  if (rhythm.feedback === 'hit' && age < 0.28) {
-    const p = orbit(rhythm.hitAngle, radius);
-    g.lineStyle(2 / scale, WHITE, 1 - age / 0.28);
-    g.strokeCircle(p.x, p.y, (reducedMotion ? 10 : 6 + age * 45) / scale);
-  }
-  if (rhythm.feedback === 'complete' && age < 0.6) {
-    const fade = 1 - age / 0.6;
-    // Clear edges show the affected orbit band without covering the battle.
-    const spread = reducedMotion ? 12 : 5 + Math.min(1, age / 0.25) * 31;
-    for (const r of [radius - spread, radius + spread]) {
-      for (let i = 0; i < 6; i++) {
-        const a = rhythm.hitAngle + (i * turn) / 6;
-        arc(r, a + 0.04 + age * 0.1, a + 0.86 - age * 0.35, 1 + 3 * fade, WHITE, fade);
-      }
+  if (rhythm.feedback === 'complete' && age < 0.65) {
+    const fade = 1 - age / 0.65;
+    if (!reducedMotion) {
+      g.fillStyle(BLUE, Math.max(0, 1 - age / 0.14) * 0.065);
+      g.fillCircle(CENTER.x, CENTER.y, extent);
+      const reach = radius + (extent - radius) * Math.min(1, age / 0.24);
+      arc(reach, 0, turn, 2 + 4 * fade, WHITE, fade * 0.85);
+      arc(Math.max(0, reach - 10 / scale), 0, turn, 2, BLUE, fade * 0.65);
     }
-    arc(radius, 0, turn, 2 + 3 * fade, BLUE, fade * 0.9);
+    arc(radius, 0, turn, 2 + 3 * fade, BLUE, fade);
+  }
+  if (rhythm.feedback && age < 0.65) {
+    const p = orbit(rhythm.judgmentAngle, radius);
+    const success = rhythm.feedback !== 'miss';
+    const alpha = Math.min(1, (0.65 - age) / 0.2);
+    const size = (rhythm.feedback === 'complete' ? 15 : 12) / scale;
+    g.fillStyle(0x080a0e, 0.94 * alpha);
+    g.fillCircle(p.x, p.y, size + 3 / scale);
+    g.lineStyle(3 / scale, success ? 0x91ffe2 : 0xf27883, alpha);
+    if (success) {
+      g.beginPath();
+      g.moveTo(p.x - size * 0.65, p.y);
+      g.lineTo(p.x - size * 0.15, p.y + size * 0.5);
+      g.lineTo(p.x + size * 0.7, p.y - size * 0.6);
+      g.strokePath();
+      if (!reducedMotion) {
+        g.lineStyle(2 / scale, BLUE, alpha * Math.max(0, 1 - age / 0.3));
+        g.strokeCircle(p.x, p.y, size + (age * 60) / scale);
+      }
+    } else {
+      g.lineBetween(p.x - size * 0.5, p.y - size * 0.5, p.x + size * 0.5, p.y + size * 0.5);
+      g.lineBetween(p.x + size * 0.5, p.y - size * 0.5, p.x - size * 0.5, p.y + size * 0.5);
+    }
   }
 }

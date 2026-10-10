@@ -17,6 +17,7 @@ export class OrbitRhythm {
   angle = 0;
   gateAngle = 0;
   hitAngle = 0;
+  judgmentAngle = 0;
   private velocity = 0.001;
   private lastHit = -Infinity;
   private wait = rhythmTiming.intro;
@@ -37,14 +38,20 @@ export class OrbitRhythm {
     );
   }
 
-  advance(ms: number, available: boolean, angle: number, velocity: number): void {
+  advance(
+    ms: number,
+    available: boolean,
+    angle: number,
+    velocity: number,
+    keepFeedback = false,
+  ): void {
     this.angle = angle;
     this.velocity = Math.max(0.00001, velocity);
+    this.feedbackAge += ms;
     if (!available || ms > 250) {
-      this.cancel();
+      this.cancel(keepFeedback && ms <= 250);
       return;
     }
-    this.feedbackAge += ms;
     if (!this.active) {
       this.wait -= ms;
       if (this.wait <= 0) {
@@ -73,6 +80,7 @@ export class OrbitRhythm {
     }
     this.hits++;
     this.hitAngle = this.gateAngle;
+    this.judgmentAngle = this.gateAngle;
     this.lastHit = this.age;
     this.feedbackAge = 0;
     if (this.hits === rhythmTiming.beats) {
@@ -85,16 +93,17 @@ export class OrbitRhythm {
     return 'hit';
   }
 
-  cancel(): void {
+  cancel(keepFeedback = false): void {
     if (this.active) {
       this.active = false;
       this.wait = 1200;
       this.hits = 0;
     }
-    this.feedback = null;
+    if (!keepFeedback) this.feedback = null;
   }
 
   private finish(feedback: 'miss' | 'complete'): void {
+    this.judgmentAngle = this.gateAngle;
     this.active = false;
     this.feedback = feedback;
     this.feedbackAge = 0;

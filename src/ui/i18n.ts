@@ -12,7 +12,7 @@ type Info = { name: string; short: string; description: string };
 const ko = {
   rhythmTap: '빛날 때 탭',
   guideRhythm:
-    '전자가 밝은 구간을 지날 때 화면을 탭하거나 Space·Enter를 누르세요. 매번 추가 타격, 세 번 연속 성공하면 궤도 주변에 공명 방전. 실패해도 자동 전투는 그대로입니다.',
+    '전자가 밝은 구간을 지날 때 화면을 탭하거나 Space·Enter를 누르세요. ✓는 성공, ×는 실패. 매번 추가 타격, 세 번 연속 성공하면 모든 적에게 공명 방전. 실패해도 자동 전투는 그대로입니다.',
   loading: '준비 중',
   language: '언어',
   guide: '도움말',
@@ -219,7 +219,7 @@ type Copy = typeof ko;
 const en: Copy = {
   rhythmTap: 'Tap on the beat',
   guideRhythm:
-    'Tap the arena or press Space/Enter when the electron crosses the bright segment. Each hit fires an extra shot; three in a row discharge around the orbit. Missing a beat leaves automatic combat unchanged.',
+    'Tap the arena or press Space/Enter when the electron crosses the bright segment. ✓ means hit, × means miss. Each hit fires an extra shot; three in a row discharge against every enemy. Missing a beat leaves automatic combat unchanged.',
   loading: 'LOADING',
   language: 'Language',
   guide: 'Help',
@@ -438,7 +438,7 @@ const en: Copy = {
 const zh: Copy = {
   rhythmTap: '亮起时轻点',
   guideRhythm:
-    '电子经过明亮区域时，轻点战斗区域或按Space/Enter。每次成功都会追加攻击，连续三次成功向轨道周围共鸣放电。失误不影响自动战斗。',
+    '电子经过明亮区域时，轻点战斗区域或按Space/Enter。✓表示成功，×表示失败。每次成功追加攻击，连续三次成功向所有敌人共鸣放电。失误不影响自动战斗。',
   loading: '加载中',
   language: '语言',
   guide: '技能说明',
@@ -599,7 +599,7 @@ const zh: Copy = {
 const ja: Copy = {
   rhythmTap: '光ったらタップ',
   guideRhythm:
-    '電子が光る区間を通る瞬間に画面をタップ、またはSpace・Enter。成功ごとに追加攻撃、3回連続で軌道の周囲に共鳴放電。失敗しても自動戦闘は続きます。',
+    '電子が光る区間を通る瞬間に画面をタップ、またはSpace・Enter。✓は成功、×は失敗。成功ごとに追加攻撃、3回連続で全ての敵に共鳴放電。失敗しても自動戦闘は続きます。',
   loading: '読込中',
   language: '言語',
   guide: 'スキルガイド',

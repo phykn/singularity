@@ -17,6 +17,8 @@ const tones: Record<string, [number, number, number]> = {
   'rhythm-1': [660, 520, 0.09],
   'rhythm-2': [880, 700, 0.1],
   'rhythm-complete': [440, 65, 0.32],
+  'rhythm-crack': [1800, 240, 0.075],
+  'rhythm-miss': [150, 95, 0.09],
 };
 
 export class SoundMixer {

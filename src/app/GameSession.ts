@@ -28,6 +28,7 @@ export class GameSession {
   private processed = new WeakSet<Result>();
   private pending = new Map<Result, number>();
   private audioCursor: number;
+  private hitStop = 0;
 
   constructor(game: Game, audio: GameSession['audio'], effects: SessionEffects) {
     this.game = game;
@@ -59,6 +60,7 @@ export class GameSession {
     this.saveResults(wall);
     this.game = game;
     this.rhythm = new OrbitRhythm();
+    this.hitStop = 0;
     this.playbackSpeed = 1;
     this.pauseOnChoice = true;
     this.lastWall = wall;
@@ -72,6 +74,7 @@ export class GameSession {
     this.step(wall);
     if (!this.game.continueBeyond()) return;
     this.rhythm = new OrbitRhythm();
+    this.hitStop = 0;
     this.lastWall = wall;
     this.effects.redraw();
   }
@@ -123,8 +126,10 @@ export class GameSession {
     const result = this.rhythm.tap();
     if (result === 'hit' || result === 'complete') {
       this.game.resonate(this.rhythm.hits as 1 | 2 | 3);
+      this.hitStop = result === 'complete' ? 90 : 35;
       this.audio.play?.(result === 'complete' ? 'rhythm-complete' : 'rhythm-' + this.rhythm.hits);
-    }
+      if (result === 'complete') this.audio.play?.('rhythm-crack');
+    } else if (result === 'miss') this.audio.play?.('rhythm-miss');
     this.effects.redraw();
   }
 
@@ -151,16 +156,20 @@ export class GameSession {
     const game = this.game;
     const available = this.rhythmAvailable;
     const ms = Math.max(0, wall - this.lastWall);
+    const stopping = this.hitStop > 0;
+    const held = Math.min(ms, this.hitStop);
+    this.hitStop -= held;
     if (this.renderReady) {
       if (game.phase === 'ready') {
         if (!game.paused) game.angle += (game.speed / game.radius) * (ms / 1000);
-      } else this.advanceTime(ms, frameTickLimit);
+      } else if (!stopping || ms > held) this.advanceTime(ms - held, frameTickLimit);
     }
     this.rhythm.advance(
       ms,
       available && this.rhythmAvailable,
       game.angle,
       (game.speed / game.radius / 1000) * this.playbackSpeed,
+      !!game.choice && !game.paused,
     );
     this.lastWall = wall;
     if (this.audio.enabled) this.audio.update(game, this.audioCursor);

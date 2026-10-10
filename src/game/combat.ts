@@ -287,15 +287,10 @@ export class Combat {
       this.volley(attack, g.position, closest(g.targets, g.position, 1, attack.range), true);
       return;
     }
-    const targets = g.targets
-      .filter((t) => t.hp > 0 && Math.abs(distance(t, CENTER) - g.radius) <= cfg.band)
-      .sort((a, b) => distance(a, g.position) - distance(b, g.position) || a.id - b.id)
-      .slice(0, cfg.maxTargets);
-    attack.depth = 1;
-    for (const target of targets) {
-      const angle = Math.atan2(target.y - CENTER.y, target.x - CENTER.x);
-      this.emit({ ...attack, firstKill: undefined }, orbit(angle, g.radius), target, false);
-    }
+    // One global hit per particle; modifier cascades stay on the first two beats.
+    attack.depth = 2;
+    attack.push = false;
+    for (const target of [...g.targets]) this.deal(attack, target, attack.damage);
   }
 
   fireSkill(id: TimedSkill, origin: Point = this.game.position): boolean {

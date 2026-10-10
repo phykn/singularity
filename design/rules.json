@@ -26,9 +26,7 @@
   "baseHitDamage": 5,
   "resonance": {
     "beatDamage": 0.5,
-    "finishDamage": 1.5,
-    "band": 36,
-    "maxTargets": 6
+    "finishDamage": 1.5
   },
   "damagePerRank": 8,
   "attackBaseSeconds": 0.47,

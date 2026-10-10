@@ -213,7 +213,7 @@ export class ElectronScene extends Phaser.Scene {
         scale,
       );
       this.drawElectron(position, 1, color, surging);
-      if (!game.paused && !game.choice && !game.charged)
+      if (!game.paused && !game.charged)
         drawRhythm(
           this.effectGraphics,
           this.getRhythm(),
@@ -221,6 +221,7 @@ export class ElectronScene extends Phaser.Scene {
           scale,
           position,
           this.reducedMotion.matches,
+          Math.hypot(width / (2 * scale), Math.max(this.centerY, height - this.centerY) / scale),
         );
       this.damageLabels.draw(game, width, height, this.centerY, scale);
       return;

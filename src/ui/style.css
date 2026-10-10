@@ -320,6 +320,9 @@ svg {
   outline: 1px solid var(--blue);
   outline-offset: -4px;
 }
+.rhythm-input[data-input='pointer']:focus-visible {
+  outline: none;
+}
 .rhythm-hint {
   position: absolute;
   bottom: 20px;
