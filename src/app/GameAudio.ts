@@ -115,7 +115,7 @@ export class GameAudio {
     }
     this.stage = '';
     let kills = 0;
-    for (let i = from; i < game.events.length; i++) {
+    for (let i = Math.max(0, from - game.eventOffset); i < game.events.length; i++) {
       const event = game.events[i];
       if (game.time - event.time > 0.15) continue;
       if (event.kind === 'kill') {

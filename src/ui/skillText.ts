@@ -1,4 +1,5 @@
 import { skillValues } from '../game/skills.ts';
+import type { SkillValues } from '../game/skills.ts';
 import { numberText } from '../format.ts';
 import {
   blankRanks,
@@ -19,13 +20,11 @@ export function skillValue(
   language: Language = 'ko',
   cfg: RuleSet = rules,
   reach = 1,
+  forms?: SkillValues,
 ): string {
-  const s = skillValues(
-    { ...blankRanks(), [id]: rank },
-    { ...blankRarities(), [id]: rarity },
-    cfg,
-    reach,
-  );
+  const s =
+    forms ??
+    skillValues({ ...blankRanks(), [id]: rank }, { ...blankRarities(), [id]: rarity }, cfg, reach);
   const c = copy[language],
     m = c.metric,
     scale = rarityScale(rarity, cfg),
@@ -42,9 +41,9 @@ export function skillValue(
     case 'burst':
       return `${m.radius} ${n(s.burst.radius)} · ×${n(s.burst.damage)}`;
     case 'strike':
-      return `${m.targets(String(s.strike.count))} · ×${n(s.strike.damage)}`;
+      return `${m.targets(String(s.strike.count + s.multi.count - 1))} · ×${n(s.strike.damage)}`;
     case 'repel':
-      return `${m.targets(String(s.repel.count))} · ${m.push} ${n(s.repel.push)}`;
+      return `${m.targets(String(s.repel.count + s.multi.count - 1))} · ${m.push} ${n(s.repel.push)}`;
     case 'focus':
       return `${n(s.focus.duration)}${c.seconds} · ×${n(s.focus.damage)}`;
     case 'satellite':

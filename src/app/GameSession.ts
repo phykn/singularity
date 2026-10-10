@@ -29,7 +29,7 @@ export class GameSession {
     this.game = game;
     this.audio = audio;
     this.effects = effects;
-    this.audioCursor = game.events.length;
+    this.audioCursor = game.eventCount;
   }
 
   setRenderReady(ready: boolean, wall: number): void {
@@ -125,7 +125,7 @@ export class GameSession {
     }
     this.lastWall = wall;
     if (this.audio.enabled) this.audio.update(game, this.audioCursor);
-    this.audioCursor = game.events.length;
+    this.audioCursor = game.eventCount;
     this.saveResults(wall);
     if (
       wall - this.lastDraw > 80 &&

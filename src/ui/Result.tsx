@@ -110,7 +110,9 @@ export function Result({
                 <SkillIcon id={id} size={32} />
                 <span>{c.upgrades[id].short}</span>
                 <small>{c.rarities[game.rarities[id]]}</small>
-                <Rank value={game.rank(id)} max={rules.maxRank} />
+                <span role="img" aria-label={`${c.rank} ${game.rank(id)}/${rules.maxRank}`}>
+                  <Rank value={game.rank(id)} max={rules.maxRank} />
+                </span>
               </div>
             ))}
           </div>

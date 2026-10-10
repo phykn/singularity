@@ -61,8 +61,11 @@ export function save(storage: Storage, key: string, value: unknown): boolean {
     return false;
   }
 }
-export function bestRecord(current: BestRecord | null, result: Result): BestRecord | null {
-  if (result.endless) return current;
+export function bestRecord(
+  current: BestRecord | null,
+  result: Result | BestRecord,
+): BestRecord | null {
+  if ('endless' in result && result.endless) return current;
   const score = (record: BestRecord) => [
     Number(record.outcome === 'success'),
     record.xp,
@@ -100,10 +103,11 @@ export function readBeyondRecord(storage: Storage): BeyondRecord | null {
 
 export function bestBeyondRecord(
   current: BeyondRecord | null,
-  result: Result,
+  result: Result | BeyondRecord,
 ): BeyondRecord | null {
-  if (!result.endless) return current;
-  const next = { ...result.endless, seed: result.seed };
+  const next =
+    'endless' in result ? result.endless && { ...result.endless, seed: result.seed } : result;
+  if (!next) return current;
   return !current ||
     next.seconds > current.seconds ||
     (next.seconds === current.seconds && next.xp > current.xp)

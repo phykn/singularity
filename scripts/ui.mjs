@@ -159,6 +159,39 @@ try {
       await page.close();
     }
   }
+  // Browser chrome can leave a phone's landscape viewport shorter than 320px.
+  for (const { id: language, label } of languages) {
+    const c = copy[language];
+    const page = await browser.newPage({
+      viewport: { width: 667, height: 280 },
+      isMobile: true,
+      hasTouch: true,
+    });
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(base);
+    await page.getByRole('button', { name: label, exact: true }).tap();
+    await page.getByRole('button', { name: 'START', exact: true }).tap();
+    await page.evaluate(() => window.__gameDebug.xp(14));
+    await page.locator('.card').first().waitFor();
+    const pause = page.getByRole('button', { name: c.pause, exact: true });
+    const box = await pause.boundingBox();
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    await page.locator('#pause-title').waitFor();
+    assert.equal(await page.locator('.choice-pause').getAttribute('aria-checked'), 'true');
+    await page.getByRole('button', { name: c.resume, exact: true }).tap();
+    const layout = await page.evaluate(() => {
+      const choices = document.querySelector('.choices').getBoundingClientRect();
+      const hud = document.querySelector('.hud').getBoundingClientRect();
+      return { choicesTop: choices.top, hudBottom: hud.bottom };
+    });
+    assert.ok(layout.choicesTop >= layout.hudBottom, 'Choice cards cannot cover HUD controls');
+    await page.locator('.card').first().tap();
+    await page.locator('.slot-inspect').first().tap();
+    await page.getByRole('button', { name: c.close, exact: true }).tap();
+    checks.push({ language, width: 667, height: 280, reachablePauseControls: true });
+    await capture(page, `artifacts/ui/short-${language}.png`);
+    await page.close();
+  }
   assert.deepEqual(errors, []);
   writeFileSync('artifacts/ui.json', JSON.stringify({ checks, errors }, null, 2));
 } finally {

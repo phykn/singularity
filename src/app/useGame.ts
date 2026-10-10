@@ -63,17 +63,29 @@ export function useGame() {
   bestRef.current = best;
   const [audio] = useState(() => new GameAudio());
   const [session] = useState(() => {
-    const game = new Game(newSeed());
+    const game = new Game(newSeed(), { recordEvents: false });
     return new GameSession(game, audio, {
       sound: () => settingsRef.current.sound,
       saveResult: (result) => {
         if (result.endless) {
-          const record = bestBeyondRecord(beyondRef.current, result);
+          let record = bestBeyondRecord(beyondRef.current, result);
+          try {
+            const stored = readBeyondRecord(localStorage);
+            if (stored) record = bestBeyondRecord(record, stored);
+          } catch {
+            /* The write below reports unavailable storage. */
+          }
           beyondRef.current = record;
           setBestBeyond(record);
           return write(beyondRecordKey, record);
         }
-        const record = bestRecord(bestRef.current, result);
+        let record = bestRecord(bestRef.current, result);
+        try {
+          const stored = readRecord(localStorage);
+          if (stored) record = bestRecord(record, stored);
+        } catch {
+          /* The write below reports unavailable storage. */
+        }
         bestRef.current = record;
         setBest(record);
         return write(recordKey, record);
@@ -133,7 +145,7 @@ export function useGame() {
   }
 
   function replace() {
-    const game = new Game(newSeed(session.game.seed));
+    const game = new Game(newSeed(session.game.seed), { recordEvents: false });
     game.setHidden(document.hidden);
     session.replace(game, performance.now());
   }

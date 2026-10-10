@@ -3,6 +3,31 @@ import assert from 'node:assert/strict';
 import { GameSession } from '../src/app/GameSession.ts';
 import { Game } from '../src/game/Game.ts';
 import type { Result } from '../src/game/types.ts';
+import { target } from './helpers.ts';
+
+test('browser hit history stays bounded without changing damage or absolute audio cursors', () => {
+  const game = new Game(42, { combat: false, recordEvents: false });
+  game.start();
+  const enemy = target(1, 180, 200, 1e6);
+  game.targets = [enemy];
+  const { run, heard } = session(game);
+  run.setRenderReady(true, 0);
+  for (let i = 0; i < 100000; i++) game.damageTarget(enemy, 1);
+  assert.equal(enemy.hp, 900000);
+  assert.equal(game.eventCount, 100001);
+  assert.ok(game.events.length <= 1024);
+  assert.equal(game.damageNumbers.length, 64);
+  assert.equal(game.damageNumbers.at(-1)!.value, 1);
+  run.step(0);
+  const cursor = game.eventCount;
+  game.damageTarget(enemy, 1);
+  run.step(0);
+  assert.equal(heard.at(-1), cursor);
+  const archive = new Game(42);
+  for (let i = 0; i < 1500; i++) archive.log('hit', i);
+  assert.equal(archive.events.length, 1500, 'Simulation diagnostics retain their full trace');
+  assert.equal(archive.eventOffset, 0);
+});
 
 function session(game = new Game(10004), saveResult = (_result: Result) => true) {
   const heard: number[] = [];

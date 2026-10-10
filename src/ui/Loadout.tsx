@@ -26,7 +26,7 @@ export function Loadout({
     ? Math.min(100, (progress.current / progress.required) * 100)
     : 100;
   const value = (id: UpgradeId, rank = game.rank(id)) =>
-    skillValue(id, rank, game.rarities[id], language, rules, game.reach);
+    skillValue(id, rank, game.rarities[id], language, rules, game.reach, game.forms);
   return (
     <div className="play-footer">
       <div className="xp-status">

@@ -1183,6 +1183,9 @@ svg {
   .choices {
     left: auto;
     width: 288px;
+    max-height: calc(100% - 144px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     padding-block: 6px;
     border-radius: 0;
     box-shadow: none;

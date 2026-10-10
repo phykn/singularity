@@ -36,7 +36,7 @@ export function SkillDetails({
       <div className="dialog-body">
         <p>{c.upgrades[id].description}</p>
         <p className="skill-value">
-          {skillValue(id, rank, rarity, language, game.rules, game.reach)}
+          {skillValue(id, rank, rarity, language, game.rules, game.reach, game.forms)}
         </p>
       </div>
       <div className="dialog-actions">

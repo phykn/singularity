@@ -3,6 +3,34 @@ import assert from 'node:assert/strict';
 import { GameAudio } from '../src/app/GameAudio.ts';
 import { Game } from '../src/game/Game.ts';
 
+test('audio consumes new cues once when the recent event window rolls over', () => {
+  const game = new Game(17, { combat: false, recordEvents: false });
+  game.start();
+  const heard: string[] = [];
+  const audio = new GameAudio();
+  Object.assign(audio, {
+    enabled: true,
+    context: { state: 'running', currentTime: 10 },
+    mixer: { stop() {}, play() {} },
+    play(cue: string) {
+      heard.push(cue);
+    },
+  });
+  audio.update(game, 0);
+  const from = game.eventCount;
+  for (let i = 0; i < 1500; i++) game.log('spawn', null);
+  game.log('wave', null);
+  assert.ok(game.eventOffset > from);
+  audio.update(game, from);
+  assert.deepEqual(heard, ['wave']);
+  audio.update(game, game.eventCount);
+  assert.deepEqual(heard, ['wave'], 'Retained cues must not replay');
+  const next = game.eventCount;
+  game.log('charged', null);
+  audio.update(game, next);
+  assert.deepEqual(heard, ['wave', 'charged']);
+});
+
 test('success audio compresses, goes silent at the point and settles into a low resonance', () => {
   const game = new Game(17, { combat: false });
   game.start();

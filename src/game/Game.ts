@@ -81,6 +81,7 @@ export class Game {
     particleIds.map((id) => [id, { generated: 0, killed: 0, absorbed: 0 }]),
   ) as Record<ParticleKind, Count>;
   events: Event[] = [];
+  eventOffset = 0;
   notice: UpgradeId | '' = '';
   noticeUntil = 0;
   readonly combat: Combat;
@@ -98,9 +99,14 @@ export class Game {
   private remainder = 0;
   private orbitRecovery = 0;
   private endingOutcome: Outcome = 'collapse-failure';
+  private readonly recordEvents: boolean;
 
-  constructor(seed: number, options: { combat?: boolean; rules?: RuleSet } = {}) {
+  constructor(
+    seed: number,
+    options: { combat?: boolean; rules?: RuleSet; recordEvents?: boolean } = {},
+  ) {
     this.rules = options.rules ?? rules;
+    this.recordEvents = options.recordEvents ?? true;
     this.radius = this.rules.orbitRadius;
     this.metrics = {
       minRadius: this.radius,
@@ -124,6 +130,9 @@ export class Game {
   }
   get seconds(): number {
     return this.elapsedTicks / this.rules.tickRate;
+  }
+  get eventCount(): number {
+    return this.eventOffset + this.events.length;
   }
   get level(): number {
     return levelForXp(this.xp, this.rules);
@@ -896,5 +905,10 @@ export class Game {
   }
   log(kind: string, data: unknown): void {
     this.events.push({ time: this.time, kind, data });
+    // Browser play needs only recent sound cues; simulations retain the full trace.
+    if (!this.recordEvents && this.events.length > 1024) {
+      this.events.splice(0, 512);
+      this.eventOffset += 512;
+    }
   }
 }

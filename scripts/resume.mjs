@@ -66,6 +66,14 @@ try {
     return game.seed;
   };
   let seed = await verifyFresh();
+  const history = await page.evaluate(() => {
+    const g = window.__gameDebug.getModel();
+    for (let i = 0; i < 5000; i++) g.log('hit', { kind: 'small', damage: 1 });
+    return { retained: g.events.length, total: g.eventCount };
+  });
+  assert.ok(history.retained <= 1024);
+  assert.equal(history.total, 5000);
+  report('normal browser play bounds event history while retaining recent sound cues', history);
   for (let i = 0; i < 4; i++) {
     await page.reload();
     await page.waitForFunction(() => !!window.__gameDebug);
@@ -278,6 +286,68 @@ try {
   await failed.locator('.settings-panel .setting-notice').waitFor({ state: 'hidden' });
   report('saving another preference does not hide an unsaved settings warning', {});
   await failed.close();
+  const records = await browser.newContext();
+  const a = await records.newPage(),
+    b = await records.newPage();
+  for (const p of [a, b]) {
+    p.on('pageerror', (error) => errors.push(error.message));
+    await p.goto(base);
+    await p.waitForFunction(() => !!window.__gameDebug);
+  }
+  const finish = async (p, success, seed) => {
+    await p.bringToFront();
+    await p.evaluate(
+      ({ success, seed }) => {
+        const d = window.__gameDebug;
+        d.restart(seed, false);
+        if (success) d.xp(d.getModel().rules.energyGoal);
+        else {
+          const g = d.getModel();
+          g.mass = 1e9;
+          g.radius = g.core + g.rules.electronRadius;
+        }
+        d.advance(10000);
+      },
+      { success, seed },
+    );
+    await p.locator('#result-title').waitFor();
+  };
+  await finish(b, true, 42);
+  await b.waitForFunction(
+    () => JSON.parse(localStorage.getItem('singularity.record') ?? 'null')?.outcome === 'success',
+  );
+  const best = await b.evaluate(() => JSON.parse(localStorage.getItem('singularity.record')));
+  await finish(a, false, 43);
+  await a.waitForTimeout(150);
+  assert.deepEqual(
+    await a.evaluate(() => JSON.parse(localStorage.getItem('singularity.record'))),
+    best,
+  );
+  const retire = async (p, seconds) => {
+    await p.bringToFront();
+    await p.waitForFunction(() => !document.querySelector('.result button.primary').disabled);
+    await p.getByRole('button', { name: c.beyond, exact: true }).click();
+    await p.evaluate((seconds) => {
+      const d = window.__gameDebug,
+        g = d.getModel();
+      d.advance(g.rules.endless.entrySeconds * 1000 + seconds * 1000);
+      g.retire();
+      d.advance(0);
+    }, seconds);
+    await p.waitForFunction(() => window.__gameDebug.getModel().result?.outcome === 'retired');
+    await p.waitForTimeout(150);
+  };
+  await retire(b, 30);
+  const beyondBest = await b.evaluate(() => JSON.parse(localStorage.getItem('singularity.beyond')));
+  assert.ok(beyondBest.seconds >= 30);
+  await finish(a, true, 43);
+  await retire(a, 5);
+  assert.deepEqual(
+    await a.evaluate(() => JSON.parse(localStorage.getItem('singularity.beyond'))),
+    beyondBest,
+  );
+  report('stale tabs preserve the higher normal and endless records', { best, beyondBest });
+  await records.close();
   assert.deepEqual(errors, []);
   writeFileSync(
     'artifacts/resume.json',

@@ -162,6 +162,17 @@ try {
     assert.equal(await page.locator('.singularity-symbol').count(), 1);
     assert.equal(await page.locator('.collapse-symbol').count(), 0);
     assert.equal(await page.locator('.result-numbers > div').count(), 3);
+    const ranks = await page.evaluate(() => {
+      const g = window.__gameDebug.getModel();
+      return g.ownedSkills.map((id) => g.rank(id));
+    });
+    assert.deepEqual(
+      await page
+        .locator('.result-build [role="img"]')
+        .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('aria-label'))),
+      ranks.map((rank) => `${copy[language].rank} ${rank}/5`),
+      'The final build exposes every skill rank without extra visible copy',
+    );
     const layout = await page.evaluate(() => {
       const r = document.querySelector('#result-title').getBoundingClientRect();
       return {
