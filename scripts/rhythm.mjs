@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { base, capture, launchBrowser } from './browser-support.mjs';
+import { base, capture, launchBrowser, observeScene } from './browser-support.mjs';
 import { copy } from '../src/ui/i18n.ts';
 
 mkdirSync('artifacts/rhythm', { recursive: true });
@@ -183,8 +183,13 @@ try {
     reducedMotion: 'reduce',
   });
   page.on('pageerror', (e) => errors.push(e.message));
+  await observeScene(page);
   await page.goto(base);
   await prepare(page, 'zh');
+  await page.waitForSelector('.rhythm-input');
+  await page.getByRole('button', { name: copy.zh.pause, exact: true }).click();
+  await page.getByRole('button', { name: copy.zh.resume, exact: true }).click();
+  assert.equal(await page.evaluate(() => document.activeElement.classList.contains('arena')), true);
   await page.waitForSelector('.rhythm-input');
   await page.locator('.rhythm-input').dispatchEvent('pointerdown', {
     pointerType: 'touch',
@@ -205,11 +210,56 @@ try {
   await page.keyboard.press('Space');
   assert.equal(await page.evaluate(() => window.__gameDebug.getModel().manualPaused), true);
   assert.equal(await page.evaluate(() => window.__gameDebug.getModel().resonances.length), 0);
+  await prepare(page, 'zh');
+  await page.evaluate(() => {
+    const d = window.__gameDebug;
+    d.getModel().ranks.chain = 1;
+    d.advance(0);
+  });
+  await page.locator('.slot-inspect').first().click();
+  await page.getByRole('button', { name: copy.zh.close, exact: true }).click();
+  assert.equal(await page.evaluate(() => document.activeElement.classList.contains('arena')), true);
+  await beat(page, 0, 'Space');
+  assert.equal(await page.evaluate(() => window.__gameDebug.getModel().manualPaused), false);
+  await prepare(page, 'zh');
+  await beat(page, 0, 'Space');
+  await beat(page, 1, 'Enter');
+  await page.evaluate(() => {
+    const g = window.__gameDebug.getModel();
+    g.rules = { ...g.rules, energyGoal: 1 };
+    g.targets[0].hp = 1;
+  });
+  await beat(page, 2, 'Space');
+  const chargedFeedback = await page.evaluate(() => {
+    const g = window.__gameDebug.getModel(),
+      r = window.__gameDebug.getRhythm();
+    const scene = window.__gameScene,
+      graphics = scene.effectGraphics;
+    let markers = 0;
+    const lineStyle = graphics.lineStyle;
+    graphics.lineStyle = function (width, color, ...args) {
+      if (color === 0x91ffe2) markers++;
+      return lineStyle.call(this, width, color, ...args);
+    };
+    try {
+      scene.update();
+    } finally {
+      graphics.lineStyle = lineStyle;
+    }
+    return { charged: g.charged, feedback: r.feedback, feedbackAge: r.feedbackAge, markers };
+  });
+  assert.equal(chargedFeedback.charged, true);
+  assert.equal(chargedFeedback.feedback, 'complete');
+  assert.ok(chargedFeedback.feedbackAge < 650);
+  assert.equal(chargedFeedback.markers, 1, 'XP completion must still render QTE success feedback');
+  await capture(page, 'artifacts/rhythm/charged-complete.png');
   checks.push({
     keyboard: 'Space and Enter complete once',
     secondaryTouch: 'ignored',
     repeat: 'ignored',
     focusedControls: 'retain keyboard input',
+    resumeFocus: 'pause and skill inspection return keyboard input to gameplay',
+    chargedFeedback,
   });
   await page.close();
   assert.deepEqual(errors, []);

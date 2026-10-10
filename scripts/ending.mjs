@@ -30,9 +30,15 @@ try {
     await page.evaluate(() => document.fonts.ready);
     const collision = await page.evaluate(() => {
       const d = window.__gameDebug;
-      d.restart(1701);
+      d.restart(1701, false);
       const g = d.getModel();
-      for (let i = 0; i < 6000 && g.phase === 'running'; i++) d.advance(125);
+      g.tick = g.rules.stageStarts[2] * g.rules.tickRate;
+      g.elapsedTicks = g.tick;
+      for (let i = 0; i < 20; i++) g.spawnBatch();
+      g.ranks.chain = 3;
+      g.rarities.chain = 'epic';
+      d.xp(g.rules.energyGoal);
+      d.advance(20);
       g.setHidden(true);
       d.advance(0);
       return {

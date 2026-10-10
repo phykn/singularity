@@ -429,14 +429,16 @@ export class Combat {
         visited: new Set<number>(),
         continued: new Set<number>(),
       };
+      let fired = 0;
       for (const [i, target] of targets.entries())
-        this.pursue(
+        fired += this.pursue(
           i ? { ...attack, damage: attack.damage * s.multi.damage } : attack,
           origin,
           target,
           pursuit,
           true,
         );
+      if (fired > 1) this.activate('multi', attack.ranks.multi);
     } else this.volley(attack, origin, targets, true);
     if (targets.length) this.activate(id);
     return targets.length > 0;
@@ -460,11 +462,11 @@ export class Combat {
     target: Target,
     pursuit: Pursuit,
     anchored: Anchor = false,
-  ): void {
-    if (target.hp <= 0 || pursuit.visited.has(target.id)) return;
+  ): number {
+    if (target.hp <= 0 || pursuit.visited.has(target.id)) return 0;
     pursuit.visited.add(target.id);
     this.activate('chase', attack.ranks.chase);
-    this.volley({ ...attack, pursuit }, origin, [target], anchored);
+    return this.volley({ ...attack, pursuit }, origin, [target], anchored);
   }
 
   private continuePursuit(attack: Attack, target: Target): void {

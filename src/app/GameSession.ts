@@ -170,7 +170,7 @@ export class GameSession {
       available && this.rhythmAvailable,
       game.angle,
       (game.speed / game.radius / 1000) * this.playbackSpeed,
-      !!game.choice && !game.paused,
+      (Boolean(game.choice) || game.charged) && game.phase === 'running' && !game.paused,
     );
     this.lastWall = wall;
     if (this.audio.enabled) this.audio.update(game, this.audioCursor);

@@ -1543,6 +1543,19 @@ b {
   }
 }
 
+@media (orientation: landscape) and (max-height: 320px) {
+  .has-choice .footer {
+    visibility: hidden;
+  }
+  .choices {
+    bottom: 8px;
+    max-height: calc(100% - 64px);
+  }
+  .choice-header {
+    height: 44px;
+  }
+}
+
 .choice-receipt {
   z-index: 3;
   pointer-events: none;

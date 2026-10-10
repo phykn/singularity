@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { base, launchBrowser, observeScene, capture } from './browser-support.mjs';
+import { base, launchBrowser, observeScene, capture, showSuccess } from './browser-support.mjs';
 import { copy } from '../src/ui/i18n.ts';
 import { GOLD, WHITE } from '../src/art/palette.ts';
 import { languageKey, recordKey, beyondRecordKey } from '../src/app/storage.ts';
@@ -50,9 +50,10 @@ try {
     await page.goto(base);
     await page.waitForFunction(() => !!window.__gameDebug && !!window.__gameScene);
     await page.evaluate(() => document.fonts.ready);
+    await showSuccess(page);
+    // The result fixture disables spawns; Beyond must exercise live combat again.
     await page.evaluate(() => {
-      window.__gameDebug.restart(1701);
-      window.__gameDebug.advance(600000);
+      window.__gameDebug.getModel().combatEnabled = true;
     });
     await page.getByRole('heading', { name: c.success, exact: true }).waitFor();
     const original = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)), recordKey);
@@ -378,10 +379,7 @@ try {
     assert.equal(fresh.endless, false);
     assert.notEqual(fresh.seed, seed);
     if (language === 'en') {
-      await page.evaluate(() => {
-        window.__gameDebug.restart(1701);
-        window.__gameDebug.advance(600000);
-      });
+      await showSuccess(page);
       await page.getByRole('heading', { name: c.success, exact: true }).waitFor();
       await page.waitForFunction(() => !document.querySelector('.result button.primary').disabled);
       await page.getByRole('button', { name: c.finish, exact: true }).tap();

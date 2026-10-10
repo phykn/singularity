@@ -56,6 +56,8 @@ export class Game {
   mass = 0;
   radius: number;
   angle = -Math.PI / 2;
+  startAngle = this.angle;
+  pendingTicks = 0;
   ranks = blankRanks();
   boosts = blankBoosts();
   rarities = blankRarities();
@@ -97,7 +99,6 @@ export class Game {
   private batchCount = 0;
   private nextTargetId = 0;
   private nextDamageId = 0;
-  private remainder = 0;
   private orbitRecovery = 0;
   private endingOutcome: Outcome = 'collapse-failure';
   private readonly recordEvents: boolean;
@@ -320,6 +321,7 @@ export class Game {
 
   start(): void {
     if (this.phase !== 'ready') return;
+    this.startAngle = this.angle;
     this.phase = 'running';
     this.log('start', { seed: this.seed });
     if (this.combatEnabled) {
@@ -334,7 +336,7 @@ export class Game {
     this.result = null;
     this.phase = 'crossing';
     this.phaseTicks = 0;
-    this.remainder = 0;
+    this.pendingTicks = 0;
     this.mass = 0;
     this.radius = this.rules.orbitRadius;
     this.orbitRecovery = 0;
@@ -396,16 +398,16 @@ export class Game {
   ): void {
     if (this.paused || this.phase === 'ready' || this.phase === 'result') return;
     stopAtChoice = stopAtChoice && !this.charged;
-    this.remainder += (milliseconds * this.rules.tickRate) / 1000;
+    this.pendingTicks += (milliseconds * this.rules.tickRate) / 1000;
     const count =
-      stopAtChoice && this.choice ? 0 : Math.min(Math.floor(this.remainder + 1e-8), tickLimit);
-    this.remainder -= count;
+      stopAtChoice && this.choice ? 0 : Math.min(Math.floor(this.pendingTicks + 1e-8), tickLimit);
+    this.pendingTicks -= count;
     // Keep the unscaled choice countdown relative to the combat time actually advanced.
     if (this.choice)
       this.choice.deadline += count / this.rules.tickRate - choiceMilliseconds / 1000;
     for (let i = 0; i < count && !this.result; i++) {
       if (stopAtChoice && this.choice && !this.charged) {
-        this.remainder = 0;
+        this.pendingTicks = 0;
         break;
       }
       this.elapsedTicks++;
@@ -426,7 +428,7 @@ export class Game {
       this.effects = this.effects.filter((fx) => this.seconds < fx.born + fx.life);
       this.damageNumbers = this.damageNumbers.filter((damage) => this.seconds < damage.born + 0.72);
     }
-    if (stopAtChoice && this.choice) this.remainder = 0;
+    if (stopAtChoice && this.choice) this.pendingTicks = 0;
     if (autoSelect && this.choice && this.time + 1e-8 >= this.choice.deadline)
       this.select(this.automaticCard!.id, true);
   }

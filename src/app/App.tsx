@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { endingFrame } from '../render/ending.ts';
 import { beyondFrame } from '../render/beyond.ts';
@@ -51,6 +51,8 @@ export default function App() {
   const [inspected, setInspected] = useState<SkillId | null>(null);
   const [exitConfirm, setExitConfirm] = useState(false);
   const [homecoming, setHomecoming] = useState(false);
+  const arena = useRef<HTMLElement>(null);
+  const wasPaused = useRef(game.manualPaused);
   const ready = game.phase === 'ready';
   const crossing = beyondFrame(game);
   const hud = crossing ? 0.22 + 0.78 * crossing.expand : (endingFrame(game)?.hud ?? 1);
@@ -76,6 +78,12 @@ export default function App() {
     setInspected(null);
     pause(false);
   }
+
+  useEffect(() => {
+    if (wasPaused.current && !game.manualPaused && game.phase === 'running' && !game.choice)
+      arena.current?.focus({ preventScroll: true });
+    wasPaused.current = game.manualPaused;
+  }, [game.manualPaused, game.phase, game.choice]);
 
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
@@ -148,7 +156,7 @@ export default function App() {
             onPause={() => pause(true)}
           />
         )}
-        <section className="arena" aria-label={c.arena}>
+        <section ref={arena} className="arena" tabIndex={-1} aria-label={c.arena}>
           <GameCanvas getGame={getGame} getRhythm={getRhythm} onReady={onRenderReady} />
           {!modal && renderReady && game.phase === 'running' && !game.choice && !game.paused && (
             <RhythmInput rhythm={rhythm} language={language} onTap={tapRhythm} />

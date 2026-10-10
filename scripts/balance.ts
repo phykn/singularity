@@ -16,8 +16,9 @@ const count = Number(process.argv[2] ?? 900),
   output = process.argv[4] ?? 'artifacts/balance.json',
   rows = [];
 const policy = process.argv[5] ?? 'qte';
-assert.ok(Number.isInteger(count) && count > 0, 'Count must be a positive integer');
-assert.ok(Number.isInteger(start) && start >= 0, 'Start must be a nonnegative integer');
+assert.ok(Number.isSafeInteger(count) && count > 0, 'Count must be a positive safe integer');
+assert.ok(Number.isSafeInteger(start) && start >= 0, 'Start must be a nonnegative safe integer');
+assert.ok(start + count <= 2 ** 32, 'Seed cohort must fit the uint32 seed range');
 assert.ok(['auto', 'guided', 'qte', 'qte-guided'].includes(policy), 'Unknown play policy');
 const cfg = process.argv[6]
   ? (JSON.parse(readFileSync(process.argv[6], 'utf8')) as typeof rules)
@@ -43,7 +44,7 @@ const strength: Record<SkillId, number> = {
 };
 function value(g: Game, card: Card) {
   const { id, rarity } = card;
-  const scale = rarityScale(rarity);
+  const scale = rarityScale(rarity, g.rules);
   if (id === 'recover') return g.margin < 30 ? 30 : g.mass > 65 ? 10 : 1;
   if (id === 'power') return (g.boosts.power < 3 ? 12 : 7) * scale;
   if (id === 'rate') return (g.boosts.rate < 3 ? 9 : 5) * scale;

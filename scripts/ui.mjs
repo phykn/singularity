@@ -116,14 +116,17 @@ try {
         assert.equal(await page.getByRole('dialog').count(), 0);
         assert.equal(await page.evaluate(() => window.__gameDebug.getModel().manualPaused), false);
       }
-      // A running automatic choice must retain its countdown across inspection.
+      // Short landscape uses the dock space for cards; HUD pause remains available.
       await page.evaluate(() => window.__gameDebug.xp(100));
       await page.locator('.choice-pause').tap();
-      await page.locator('.slot-inspect').first().tap();
+      if (height > 320) await page.locator('.slot-inspect').first().tap();
+      else await page.getByRole('button', { name: c.pause, exact: true }).tap();
       const frozen = await snapshot(page);
       await page.waitForTimeout(200);
       assert.deepEqual(await snapshot(page), frozen);
-      await page.getByRole('button', { name: c.close, exact: true }).tap();
+      await page
+        .getByRole('button', { name: height > 320 ? c.close : c.resume, exact: true })
+        .tap();
       const remaining = await page.evaluate(() => {
         const g = window.__gameDebug.getModel();
         return g.choice.deadline - g.time;
@@ -180,11 +183,31 @@ try {
     assert.equal(await page.locator('.choice-pause').getAttribute('aria-checked'), 'true');
     await page.getByRole('button', { name: c.resume, exact: true }).tap();
     const layout = await page.evaluate(() => {
-      const choices = document.querySelector('.choices').getBoundingClientRect();
+      const panel = document.querySelector('.choices');
+      const choices = panel.getBoundingClientRect();
       const hud = document.querySelector('.hud').getBoundingClientRect();
-      return { choicesTop: choices.top, hudBottom: hud.bottom };
+      const contents = [...panel.querySelectorAll('.choice-header, .card')].map((node) => {
+        const r = node.getBoundingClientRect();
+        return { top: r.top, bottom: r.bottom };
+      });
+      return {
+        choicesTop: choices.top,
+        choicesBottom: choices.bottom,
+        hudBottom: hud.bottom,
+        clipped: panel.scrollHeight > panel.clientHeight,
+        contents,
+      };
     });
     assert.ok(layout.choicesTop >= layout.hudBottom, 'Choice cards cannot cover HUD controls');
+    assert.equal(
+      layout.clipped,
+      false,
+      'All card values must be readable without hiding the timer',
+    );
+    assert.ok(
+      layout.contents.every((r) => r.top >= layout.choicesTop && r.bottom <= layout.choicesBottom),
+    );
+    await capture(page, `artifacts/ui/short-choice-${language}.png`);
     await page.locator('.card').first().tap();
     await page.locator('.slot-inspect').first().tap();
     await page.getByRole('button', { name: c.close, exact: true }).tap();

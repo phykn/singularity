@@ -213,7 +213,7 @@ export class ElectronScene extends Phaser.Scene {
         scale,
       );
       this.drawElectron(position, 1, color, surging);
-      if (!game.paused && !game.charged)
+      if (!game.paused)
         drawRhythm(
           this.effectGraphics,
           this.getRhythm(),

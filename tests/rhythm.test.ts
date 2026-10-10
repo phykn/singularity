@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { OrbitRhythm, rhythmTiming as t } from '../src/app/OrbitRhythm.ts';
 import { GameSession } from '../src/app/GameSession.ts';
 import { Game } from '../src/game/Game.ts';
-import { fixture } from './helpers.ts';
+import { fixture, target } from './helpers.ts';
 
 function advance(r: OrbitRhythm, ms: number) {
   while (ms > 0) {
@@ -229,6 +229,32 @@ test('successful input briefly stops combat while judgment keeps animating, then
       'Retained ticks must also wait during hit stop',
     );
   }
+});
+
+test('a successful QTE that reaches the XP goal keeps its visible judgment through charging', () => {
+  const s = session();
+  let wall = 0;
+  for (let beat = 1; beat <= 3; beat++) {
+    while (!(s.rhythm.open && s.rhythm.due <= s.rhythm.age) && wall < 15000) {
+      wall += 5;
+      s.game.targets = [];
+      s.step(wall);
+    }
+    assert.ok(s.rhythm.open);
+    if (beat === 3) {
+      s.game.xp = s.game.rules.energyGoal - 1;
+      s.game.targets = [target(900, s.game.position.x, s.game.position.y, 1)];
+      s.game.counts.quark.generated++;
+    }
+    s.tapRhythm(wall);
+  }
+  assert.equal(s.game.charged, true);
+  s.step(wall + 5);
+  assert.equal(s.rhythm.active, false);
+  assert.equal(s.rhythm.feedback, 'complete');
+  assert.equal(s.rhythm.feedbackAge, 5);
+  s.tapRhythm(wall + 10);
+  assert.equal(s.game.resonances.length, 3);
 });
 
 test('unattended rhythm does not change the automatic simulation', () => {

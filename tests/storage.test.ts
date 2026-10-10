@@ -14,6 +14,52 @@ import {
   settingsKey,
 } from '../src/app/storage.ts';
 import { fixture, run } from './helpers.ts';
+import { GameSession } from '../src/app/GameSession.ts';
+
+test('checkpoints preserve the title orbit position used by START', () => {
+  const g = new Game(10004);
+  const session = new GameSession(
+    g,
+    {
+      enabled: false,
+      update() {},
+      suspend() {},
+      destroy() {},
+      async unlock() {
+        return true;
+      },
+    },
+    { sound: () => false, saveResult: () => true, redraw() {} },
+  );
+  session.setRenderReady(true, 0);
+  session.step(1800);
+  session.begin(1800);
+  g.advance(75000);
+  const restored = restoreCheckpoint(createCheckpoint(g)!)!;
+  assert.ok(restored);
+  assert.equal(restored.angle, g.angle);
+  assert.deepEqual(restored.targets, g.targets);
+  assert.deepEqual(restored.selections, g.selections);
+  for (const game of [g, restored]) game.advance(1000);
+  assert.deepEqual(restored.events, g.events);
+});
+
+test('checkpoints preserve fractional time and pending catch-up without processing it early', () => {
+  for (const limit of [1, Infinity]) {
+    const g = new Game(10004);
+    g.start();
+    g.advance(125, limit);
+    const checkpoint = createCheckpoint(g)!;
+    const restored = restoreCheckpoint(checkpoint)!;
+    assert.ok(restored);
+    assert.equal(restored.elapsedTicks, g.elapsedTicks);
+    assert.deepEqual(createCheckpoint(restored), checkpoint);
+    for (const game of [g, restored]) game.advance(25);
+    assert.equal(restored.elapsedTicks, g.elapsedTicks);
+    assert.deepEqual(restored.targets, g.targets);
+    assert.deepEqual(restored.events, g.events);
+  }
+});
 
 test('best records preserve settings and handle malformed or unavailable storage', () => {
   const g = fixture();

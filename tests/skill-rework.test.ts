@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { stationarySkill, target, close } from './helpers.ts';
+import { stationarySkill, target, close, choose } from './helpers.ts';
 import { rules, skillIds } from '../src/game/rules.ts';
 import { createCheckpoint, restoreCheckpoint } from '../src/game/checkpoint.ts';
 import { Game } from '../src/game/Game.ts';
@@ -48,6 +48,27 @@ test('a surviving pursuit target does not schedule bonus jumps', () => {
     ts.map((t) => t.hp),
     hp,
   );
+});
+
+test('pursuit updates multi cooldown only when multiple initial branches actually fire', () => {
+  for (const chain of [false, true]) {
+    const ts = [190, 215, 230].map((x, i) => {
+      const t = target(i, x, 128, 1000);
+      t.hp = chain && i < 2 ? i + 1 : 200;
+      return t;
+    });
+    const g = stationarySkill({}, ts);
+    choose(g, 'multi');
+    choose(g, 'chase');
+    if (chain) choose(g, 'chain');
+    g.advance(1000 / rules.tickRate);
+    assert.equal(
+      g.effects.filter((e) => e.kind === 'bolt' && e.source === 'chase').length,
+      chain ? 1 : 2,
+    );
+    assert.equal(g.combat.status('multi').fired, !chain);
+    close(g.combat.status('multi').progress, chain ? 1 : 0);
+  }
 });
 
 test('return sweeps all enemies along its route without requiring pierce or duplicate damage', () => {
