@@ -84,7 +84,7 @@ test('overlapping arcs share contact immunity; repeats do not duplicate control'
   assert.ok(10000 - enemy.hp > g.damage * g.forms.bridge.damage);
   close(enemy.radius, pushed);
   assert.equal(enemy.controlCount, 1);
-  g.advance(200);
+  g.advance(rules.skills.bridge.slowSeconds * 1000 + 20);
   assert.equal(g.combat.movementScale(enemy), 1, 'Slow must end even with a live barrier');
   g.combat.clear();
   assert.equal(g.combat.status('bridge').active, false);

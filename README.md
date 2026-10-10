@@ -34,11 +34,12 @@ npm run dev
 
 Play at [localhost:8081](http://localhost:8081).
 
-| Command                 | Purpose                                     |
-| ----------------------- | ------------------------------------------- |
-| `npm test`              | Test the game rules                         |
-| `npm run build`         | Create a production build                   |
-| `npm run check:balance` | Measure clear rate with successful QTE play |
+| Command                       | Purpose                                                |
+| ----------------------------- | ------------------------------------------------------ |
+| `npm test`                    | Test the game rules                                    |
+| `npm run build`               | Create a production build                              |
+| `npm run check:balance`       | Measure clear rate with successful QTE play            |
+| `npm run check:skill-balance` | Compare sixteen skill-priority builds on matched seeds |
 
 ## Credits & license
 

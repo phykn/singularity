@@ -212,9 +212,9 @@ test('mass vent waits for mass, never creates negative mass, and ignores fire-ra
   choose(g, 'rate');
   close(g.combat.status('vent').progress, before);
   g.advance(6000);
-  assert.equal(g.mass, 18);
+  assert.equal(g.mass, 20 - g.forms.vent.mass);
   g.advance(1100);
-  assert.equal(g.mass, 16);
+  assert.equal(g.mass, 20 - 2 * g.forms.vent.mass);
   g.mass = 1;
   g.advance(8000);
   assert.equal(g.mass, 0);
