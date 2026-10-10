@@ -95,25 +95,25 @@ test('window edges are inclusive and missed beats end without affecting the next
   assert.equal(r.feedback, 'miss');
 });
 
-test('fast orbits retain readable beat spacing and reject earlier laps and duplicate taps', () => {
-  const r = new OrbitRhythm();
-  const velocity = 0.025;
-  const step = (ms: number) => {
-    for (let elapsed = 0; elapsed < ms; elapsed += 10)
-      r.advance(10, true, r.angle + velocity * 10, velocity);
-  };
-  step(t.intro);
-  const gate = r.gateAngle;
-  step(400);
-  assert.equal(r.open, false);
-  assert.equal(r.gateAngle, gate, 'The gate stays still instead of becoming another cursor');
-  step(t.lead - 400);
-  assert.equal(r.tap(), 'hit');
-  assert.equal(r.tap(), 'ignored');
-  step(r.due - r.age);
-  assert.equal(r.tap(), 'hit');
-  step(r.due - r.age);
-  assert.equal(r.tap(), 'complete');
+test('every visible electron crossing is accepted on its first lap, even on fast orbits', () => {
+  for (const velocity of [0.001, 0.004, 0.012, 0.025, 0.05]) {
+    const r = new OrbitRhythm(421);
+    const step = () => r.advance(5, true, r.angle + velocity * 5, velocity);
+    for (let ms = 0; ms < t.intro; ms += 5) step();
+    for (let beat = 1; beat <= 3; beat++) {
+      const gate = r.gateAngle;
+      assert.equal(r.open, false, 'The next gate must not overlap the current electron');
+      const visualDistance = () =>
+        Math.abs(Math.atan2(Math.sin(r.angle - gate), Math.cos(r.angle - gate)));
+      let frames = 0;
+      while (visualDistance() > r.windowAngle + 1e-9 && frames++ < 2000) step();
+      assert.ok(frames < 2000);
+      assert.equal(r.gateAngle, gate, 'Only the electron moves, not the target');
+      assert.equal(r.open, true, `Visible crossing rejected at velocity ${velocity}, beat ${beat}`);
+      assert.equal(r.tap(), beat === 3 ? 'complete' : 'hit');
+      assert.equal(r.tap(), 'ignored', 'One input must never count twice');
+    }
+  }
 });
 
 test('interruptions and long frames cancel without a failure, followed by a fresh lead-in', () => {

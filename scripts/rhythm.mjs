@@ -16,7 +16,10 @@ async function beat(page, n, key) {
   await page.waitForFunction(
     (n) => {
       const r = window.__gameDebug.getRhythm();
-      return r.active && r.hits === n && r.age >= r.due - 140 && r.age < r.due + 70;
+      const g = window.__gameDebug.getModel();
+      const delta = Math.atan2(Math.sin(g.angle - r.gateAngle), Math.cos(g.angle - r.gateAngle));
+      // Use the visible electron crossing, never the scheduler's internal due time.
+      return r.active && r.hits === n && Math.abs(delta) < r.windowAngle * 0.4;
     },
     n,
     { polling: 'raf', timeout: 20000 },
@@ -151,6 +154,29 @@ try {
     });
     await page.close();
   }
+  const fast = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  fast.on('pageerror', (e) => errors.push(e.message));
+  await fast.goto(base);
+  await prepare(fast, 'ko');
+  await fast.evaluate(() => {
+    const g = window.__gameDebug.getModel();
+    g.mass = 100;
+    g.radius = 67;
+    g.boosts.speed = 25;
+  });
+  for (let i = 0; i < 2; i++)
+    await fast.getByRole('button', { name: new RegExp('^' + copy.ko.playbackSpeed) }).click();
+  await fast.waitForSelector('.rhythm-input');
+  await capture(fast, 'artifacts/rhythm/fast-electron.png');
+  for (let n = 0; n < 3; n++) await beat(fast, n);
+  assert.equal(await fast.evaluate(() => window.__gameDebug.getRhythm().completed), 1);
+  await capture(fast, 'artifacts/rhythm/fast-complete.png');
+  checks.push({ fastOrbit: 'visible electron crossings complete all three beats at 2x' });
+  await fast.close();
   const page = await browser.newPage({
     viewport: { width: 390, height: 844 },
     hasTouch: true,

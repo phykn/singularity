@@ -17,6 +17,7 @@ const patterns = [
   [550, 1000],
   [1000, 550],
 ] as const;
+const maxGap = Math.max(rhythmTiming.lead, ...patterns.flat());
 
 export class OrbitRhythm {
   active = false;
@@ -50,7 +51,7 @@ export class OrbitRhythm {
   get open(): boolean {
     return (
       this.active &&
-      this.age - this.lastHit >= 250 &&
+      this.age > this.lastHit &&
       Math.abs(this.angle - this.gateAngle) <= this.windowAngle + 1e-9
     );
   }
@@ -79,7 +80,7 @@ export class OrbitRhythm {
           this.random.next() * (patterns.length - (this.pattern < 0 ? 0 : 1)),
         );
         this.pattern = this.pattern < 0 || next < this.pattern ? next : next + 1;
-        this.gateAngle = angle + this.velocity * rhythmTiming.lead;
+        this.placeGate(rhythmTiming.lead, angle);
         this.feedback = null;
       }
       return;
@@ -94,7 +95,7 @@ export class OrbitRhythm {
 
   tap(): 'ignored' | 'hit' | 'complete' | 'miss' {
     if (!this.active) return 'ignored';
-    if (this.age - this.lastHit < 250) return 'ignored';
+    if (this.age === this.lastHit) return 'ignored';
     if (!this.open) {
       this.finish('miss');
       return 'miss';
@@ -110,7 +111,7 @@ export class OrbitRhythm {
       return 'complete';
     }
     this.feedback = 'hit';
-    this.gateAngle += this.velocity * patterns[this.pattern][this.hits - 1];
+    this.placeGate(patterns[this.pattern][this.hits - 1], this.gateAngle);
     return 'hit';
   }
 
@@ -121,6 +122,12 @@ export class OrbitRhythm {
       this.hits = 0;
     }
     if (!keepFeedback) this.feedback = null;
+  }
+
+  private placeGate(ms: number, from: number): void {
+    // Compress fast patterns into the next visible lap, including the window's far edge.
+    const arc = (Math.PI * 2 - this.windowAngle - 0.1) * (ms / maxGap);
+    this.gateAngle = Math.min(from + this.velocity * ms, this.angle + arc);
   }
 
   private finish(feedback: 'miss' | 'complete'): void {
