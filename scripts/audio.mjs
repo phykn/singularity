@@ -29,7 +29,7 @@ try {
     : await page.evaluate(async () => {
         const { SoundMixer } = await import('/src/app/sounds.ts');
         for (const depth of [0, 0.0625, 0.25, 0.5625, 1]) {
-          const cues = ['preview', 'hit', 'hit'].map((kind, i) => ({
+          const cues = ['preview', 'hit', 'preview'].map((kind, i) => ({
             kind,
             space: { depth, pan: (i - 1) * 0.35 },
           }));
@@ -121,6 +121,23 @@ try {
             })),
           },
           {
+            name: 'typing',
+            seconds: 8,
+            events: [1, 2, 3, 4, 16, 480]
+              .map((count, i) => ({
+                kind: 'hit',
+                count,
+                at: 0.25 + i,
+              }))
+              .concat(
+                Array.from({ length: 45 }, (_, i) => ({
+                  kind: 'hit',
+                  count: 16,
+                  at: 6.3 + i / 60,
+                })),
+              ),
+          },
+          {
             name: 'overlap',
             seconds: 6,
             events: Array.from({ length: 720 }, (_, i) => ({
@@ -141,9 +158,19 @@ try {
             ? []
             : plan.events.sort((a, b) => a.at - b.at)) {
             if (event.stop) mixer.stop(event.at);
+            else if (event.count)
+              played += mixer.playBatch(
+                Array.from({ length: event.count }, () => ({
+                  kind: event.kind,
+                })),
+                event.at,
+              );
             else if (mixer.play(event.kind, event.at, event.pitch ?? 1, event.space)) played++;
           }
-          if (played !== plan.events.filter((event) => !event.stop).length)
+          if (
+            played !==
+            plan.events.reduce((n, event) => n + (event.stop ? 0 : (event.count ?? 1)), 0)
+          )
             throw new Error(plan.name + ' discarded audio events');
           const audio = await ctx.startRendering();
           let peak = 0,
@@ -286,7 +313,7 @@ try {
   assert.equal(
     live.sources,
     1,
-    'Every hit contributes; deaths and skill shots add no duplicate sounds',
+    'Every hit contributes to the typing run; deaths and shots add no duplicate sounds',
   );
   assert.equal(live.activeAfterPause, 0);
   writeFileSync(join(dir, 'live-burst.json'), JSON.stringify(live, null, 2) + '\n');

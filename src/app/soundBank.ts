@@ -14,7 +14,7 @@ type Definition = {
 
 export const soundDefinitions = {
   preview: { bus: 'preview', recipe: 'key', duration: 0.12, gain: 0.3, color: 1, variants: 8 },
-  hit: { bus: 'hit', recipe: 'impact', duration: 0.085, gain: 0.32, color: 1.05, variants: 8 },
+  hit: { bus: 'hit', recipe: 'impact', duration: 0.065, gain: 0.32, color: 1.05, variants: 8 },
   wave: {
     bus: 'transition',
     recipe: 'pair',
@@ -77,27 +77,45 @@ export type SoundKind = keyof typeof soundDefinitions;
 export type SoundBus = Bus;
 
 const recordings = new Map<number, { press: Float32Array; release: Float32Array }>();
+const typing = new Map<string, Float32Array>();
+function decode(encoded: string) {
+  const raw = atob(encoded),
+    samples = new Float32Array(raw.length / 2);
+  for (let i = 0; i < samples.length; i++) {
+    const value = raw.charCodeAt(i * 2) | (raw.charCodeAt(i * 2 + 1) << 8);
+    samples[i] = ((value << 16) >> 16) / 32768;
+  }
+  return samples;
+}
 function recording(index: number) {
   let key = recordings.get(index);
   if (!key) {
-    const decode = (encoded: string) => {
-      const raw = atob(encoded),
-        samples = new Float32Array(raw.length / 2);
-      for (let i = 0; i < samples.length; i++) {
-        const value = raw.charCodeAt(i * 2) | (raw.charCodeAt(i * 2 + 1) << 8);
-        samples[i] = ((value << 16) >> 16) / 32768;
-      }
-      return samples;
-    };
     key = { press: decode(bank.keys[index].press), release: decode(bank.keys[index].release) };
     recordings.set(index, key);
   }
   return key;
 }
 
-export function renderSound(kind: SoundKind, sampleRate: number, variant = 0): Float32Array {
+export function renderSound(
+  kind: SoundKind,
+  sampleRate: number,
+  variant = 0,
+  contacts = 1,
+): Float32Array {
   const spec = soundDefinitions[kind];
-  const data = new Float32Array(Math.ceil(spec.duration * sampleRate));
+  let run: Float32Array | undefined;
+  if (kind === 'hit' && contacts > 1) {
+    const take = variant % bank.typing.length,
+      count = Math.min(4, contacts),
+      key = take + ':' + count;
+    run = typing.get(key);
+    if (!run) {
+      run = decode(bank.typing[take].runs[count - 2]);
+      typing.set(key, run);
+    }
+  }
+  const duration = run ? run.length / bank.sampleRate / spec.color + 0.012 : spec.duration;
+  const data = new Float32Array(Math.ceil(duration * sampleRate));
   let seed = 2166136261;
   for (const char of kind) seed = Math.imul(seed ^ char.charCodeAt(0), 16777619);
   const first = ((seed >>> 0) + variant * 5) % bank.keys.length;
@@ -166,13 +184,7 @@ export function renderSound(kind: SoundKind, sampleRate: number, variant = 0): F
       strokes(2, 1.05);
       break;
     case 'impact':
-      // Slightly stagger simultaneous contacts inside cached variants, without a queue.
-      add(
-        kind === 'hit' ? (variant % 4) * 0.006 : 0,
-        recording(first).press,
-        kind === 'rhythm-complete' ? 1.65 : 1.25,
-        color,
-      );
+      add(0, run ?? recording(first).press, kind === 'rhythm-complete' ? 1.65 : 1.25, color);
       break;
     case 'inhale':
       flow(false);

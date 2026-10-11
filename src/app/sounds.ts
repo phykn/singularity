@@ -8,12 +8,14 @@ const distanceCutoff = (depth: number) => 8000 - 4400 * depth;
 
 type Voice = {
   bus: SoundBus;
+  start: number;
   end: number;
   source: AudioBufferSourceNode;
   gain: GainNode;
   pan?: StereoPannerNode;
   tone?: BiquadFilterNode;
   level: number;
+  ducked: boolean;
 };
 
 export class SoundMixer {
@@ -54,11 +56,11 @@ export class SoundMixer {
       for (let i = 0; i < soundDefinitions[kind].variants; i++) this.buffer(kind, i);
   }
 
-  private buffer(kind: SoundKind, variant: number): AudioBuffer {
-    const key = kind + ':' + variant;
+  private buffer(kind: SoundKind, variant: number, contacts = 1): AudioBuffer {
+    const key = kind + ':' + variant + ':' + contacts;
     let buffer = this.buffers.get(key);
     if (!buffer) {
-      const data = renderSound(kind, this.context.sampleRate, variant);
+      const data = renderSound(kind, this.context.sampleRate, variant, contacts);
       buffer = this.context.createBuffer(1, data.length, this.context.sampleRate);
       buffer.getChannelData(0).set(data);
       this.buffers.set(key, buffer);
@@ -90,10 +92,11 @@ export class SoundMixer {
     const foreground = this.rhythmUntil > at;
     const level = spec.gain * (1 - depth * 0.3) * (!important && foreground ? 0.8 : 1);
     gain.gain.setValueAtTime(level, at);
+    if (bus === 'hit') this.separateHits(at);
     if (bus === 'rhythm') this.emphasize(at, end);
     pan.pan.setValueAtTime(important ? 0 : Math.max(-0.35, Math.min(0.35, space?.pan ?? 0)), at);
     source.connect(gain).connect(tone).connect(pan).connect(this.filter);
-    const voice = { bus, end, source, gain, pan, tone, level };
+    const voice = { bus, start: at, end, source, gain, pan, tone, level, ducked: false };
     this.voices.add(voice);
     source.onended = () => this.release(voice);
     source.start(at);
@@ -101,9 +104,17 @@ export class SoundMixer {
     return true;
   }
 
-  // Cues from one game frame share a start time. Sum every contribution before
-  // playback instead of building a filter/panner/source graph for every particle contact.
+  // Simultaneous hits contribute to one short typing run, rather than masking
+  // its attacks with hundreds of identical contacts. Other buses keep their cues.
   playBatch(cues: readonly SoundCue[], at = this.context.currentTime): number {
+    const hits = cues.reduce((n, cue) => n + Number(cue.kind === 'hit'), 0);
+    const contacts = Math.min(4, hits),
+      hitVariant = this.variants.hit ?? 0,
+      hitLevel = hits ? (1 + 0.22 * Math.log2(hits)) / hits : 1;
+    if (hits) {
+      this.variants.hit = (hitVariant + 1) % soundDefinitions.hit.variants;
+      this.separateHits(at);
+    }
     const layers = new Map<
       string,
       {
@@ -118,13 +129,13 @@ export class SoundMixer {
       if (!Object.hasOwn(soundDefinitions, kind)) continue;
       const id = kind as SoundKind,
         spec = soundDefinitions[id];
-      const variant = this.variants[id] ?? 0;
-      this.variants[id] = (variant + 1) % spec.variants;
+      const variant = id === 'hit' ? hitVariant : (this.variants[id] ?? 0);
+      if (id !== 'hit') this.variants[id] = (variant + 1) % spec.variants;
       const important = spec.bus === 'rhythm' || spec.bus === 'transition';
       const depth = important ? 0 : Math.max(0, Math.min(1, space?.depth ?? 0));
       const angle =
         (((important ? 0 : Math.max(-0.35, Math.min(0.35, space?.pan ?? 0))) + 1) * Math.PI) / 4;
-      const level = spec.gain * (1 - depth * 0.3);
+      const level = spec.gain * (1 - depth * 0.3) * (id === 'hit' ? hitLevel : 1);
       const left = level * Math.cos(angle),
         right = level * Math.sin(angle);
       const near = Math.floor(depth * 8),
@@ -134,12 +145,13 @@ export class SoundMixer {
         [Math.min(8, near + 1), blend],
       ]) {
         if (!weight) continue;
-        const key = id + ':' + variant + ':' + step;
+        const count = id === 'hit' ? contacts : 1;
+        const key = id + ':' + variant + ':' + step + ':' + count;
         let layer = layers.get(key);
         if (!layer) {
           layer = {
             bus: spec.bus,
-            samples: this.distanceBuffer(id, variant, step),
+            samples: this.distanceBuffer(id, variant, step, count),
             left: 0,
             right: 0,
           };
@@ -175,10 +187,11 @@ export class SoundMixer {
       source.buffer = buffer;
       const end = at + buffer.duration;
       const important = bus === 'rhythm' || bus === 'transition';
-      gain.gain.setValueAtTime(!important && this.rhythmUntil > at ? 0.8 : 1, at);
+      const level = !important && this.rhythmUntil > at ? 0.8 : 1;
+      gain.gain.setValueAtTime(level, at);
       if (bus === 'rhythm') this.emphasize(at, end);
       source.connect(gain).connect(this.filter);
-      const voice = { bus, end, source, gain, level: 1 };
+      const voice = { bus, start: at, end, source, gain, level, ducked: false };
       this.voices.add(voice);
       source.onended = () => this.release(voice);
       source.start(at);
@@ -187,11 +200,16 @@ export class SoundMixer {
     return accepted;
   }
 
-  private distanceBuffer(kind: SoundKind, variant: number, step: number): Float32Array {
-    const key = kind + ':' + variant + ':' + step;
+  private distanceBuffer(
+    kind: SoundKind,
+    variant: number,
+    step: number,
+    contacts = 1,
+  ): Float32Array {
+    const key = kind + ':' + variant + ':' + step + ':' + contacts;
     let filtered = this.filtered.get(key);
     if (filtered) return filtered;
-    const data = this.buffer(kind, variant).getChannelData(0);
+    const data = this.buffer(kind, variant, contacts).getChannelData(0);
     const omega = (2 * Math.PI * distanceCutoff(step / 8)) / this.context.sampleRate;
     const cos = Math.cos(omega),
       alpha = Math.sin(omega) / (2 * 10 ** (0.5 / 20)),
@@ -216,6 +234,16 @@ export class SoundMixer {
     }
     this.filtered.set(key, filtered);
     return filtered;
+  }
+
+  private separateHits(at: number): void {
+    for (const voice of this.voices) {
+      if (voice.bus !== 'hit' || voice.ducked || voice.start >= at || voice.end <= at) continue;
+      voice.ducked = true;
+      voice.level *= 0.4;
+      voice.gain.gain.cancelAndHoldAtTime(at);
+      voice.gain.gain.setTargetAtTime(voice.level, at, 0.004);
+    }
   }
 
   private emphasize(at: number, end: number): void {

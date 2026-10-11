@@ -247,7 +247,7 @@ test('keycap contacts stay clear and single taps leave quiet gaps instead of sta
   }
 });
 
-test('QTE is one immediate key contact and simultaneous impacts have short distinct onsets', () => {
+test('QTE and single particle hits respond immediately without extra taps', () => {
   for (let variant = 0; variant < soundDefinitions['rhythm-complete'].variants; variant++) {
     const clip = renderSound('rhythm-complete', 48000, variant);
     const energy = clip.reduce((sum, sample) => sum + sample ** 2, 0);
@@ -263,11 +263,39 @@ test('QTE is one immediate key contact and simultaneous impacts have short disti
     (_, variant) =>
       renderSound('hit', 48000, variant).findIndex((sample) => Math.abs(sample) > 0.001) / 48000,
   );
-  assert.ok(Math.max(...onsets) < 0.025, 'Particle sounds never form a delayed queue');
-  assert.ok(
-    Math.max(...onsets) - Math.min(...onsets) > 0.012,
-    'Multi-hits retain separate contacts',
-  );
+  assert.ok(Math.max(...onsets) < 0.008, 'The first contact is immediate, not staggered');
+});
+
+test('human typing runs expose separated attacks and finish within 180 ms at every sample rate', () => {
+  for (const rate of [22050, 44100, 48000]) {
+    for (let variant = 0; variant < 4; variant++) {
+      for (const count of [2, 3, 4]) {
+        const clip = renderSound('hit', rate, variant, count);
+        assert.ok(clip.length / rate < 0.18);
+        assert.equal(clip[0], 0);
+        assert.equal(clip.at(-1), 0);
+        assert.ok(clip.findIndex((sample) => Math.abs(sample) > 0.001) / rate < 0.008);
+        const step = Math.round(rate * 0.01);
+        const envelope: number[] = [];
+        for (let i = 0; i < clip.length - step; i += step) {
+          let energy = 0;
+          for (let j = i; j < i + step; j++) energy += clip[j] ** 2;
+          envelope.push(Math.sqrt(energy / step));
+        }
+        const peaks: number[] = [];
+        for (let i = 0; i < envelope.length; i++) {
+          if (
+            envelope[i] > Math.max(...envelope) * 0.4 &&
+            envelope[i] >= (envelope[i - 1] ?? 0) &&
+            envelope[i] >= (envelope[i + 1] ?? 0) &&
+            (!peaks.length || i - peaks.at(-1)! >= 2)
+          )
+            peaks.push(i);
+        }
+        assert.ok(peaks.length >= count, `Take ${variant}, ${count}: distinct contact envelopes`);
+      }
+    }
+  }
 });
 
 test('vacuum flow rises smoothly and cuts to silence without a key contact', () => {
@@ -312,7 +340,7 @@ test('audio consumes new cues once when the recent event window rolls over', () 
   assert.deepEqual(heard, ['wave', 'charged']);
 });
 
-test('a large same-frame burst keeps and plays every fresh hit and kill', () => {
+test('a large same-frame burst contributes every hit to one typing run without death duplicates', () => {
   const game = new Game(17, { combat: false, recordEvents: false });
   game.start();
   const { ctx, sources, advance } = audioContext();
@@ -329,7 +357,7 @@ test('a large same-frame burst keeps and plays every fresh hit and kill', () => 
   assert.equal(
     sources.length,
     1,
-    'All 1200 hits share one summed buffer; deaths add no duplicate sound',
+    'All 1200 hits feed one typing run; deaths add no duplicate sound',
   );
   audio.update(game, game.eventCount);
   assert.equal(sources.length, 1, 'Consumed sounds cannot replay');
@@ -338,19 +366,19 @@ test('a large same-frame burst keeps and plays every fresh hit and kill', () => 
   mixer.dispose();
 });
 
-test('batch playback sums every cue, preserving variants and stereo positions', () => {
+test('batch playback preserves individual noncombat cues and stereo positions', () => {
   const cues = Array.from({ length: 480 }, (_, i) => ({
-    kind: i % 2 ? 'hit' : 'preview',
+    kind: 'preview',
     space: { pan: Math.sin(i) * 0.35, depth: (i % 17) / 16 },
   }));
   const mixed = audioContext();
   const mixer = new SoundMixer(mixed.ctx);
   assert.equal(mixer.playBatch(cues), cues.length);
-  assert.equal(mixed.sources.length, 2);
+  assert.equal(mixed.sources.length, 1);
   const reference = audioContext();
   const singles = new SoundMixer(reference.ctx);
   for (const cue of cues) assert.equal(singles.playBatch([cue]), 1);
-  for (const [index, kind] of ['preview', 'hit'].entries()) {
+  for (const [index, kind] of ['preview'].entries()) {
     const buffer = mixed.sources[index].buffer as AudioBuffer;
     for (const channel of [0, 1]) {
       const expected = new Float64Array(buffer.length);
@@ -369,6 +397,87 @@ test('batch playback sums every cue, preserving variants and stereo positions', 
   assert.ok(mixed.sources.every((source) => source.disconnected));
   mixer.dispose();
   singles.dispose();
+});
+
+test('every simultaneous hit contributes to density, intensity and stereo placement', () => {
+  const render = (count: number, pan = 0, depth = 0) => {
+    const audio = audioContext();
+    const mixer = new SoundMixer(audio.ctx);
+    assert.equal(
+      mixer.playBatch(
+        Array.from({ length: count }, () => ({
+          kind: 'hit',
+          space: { pan, depth },
+        })),
+      ),
+      count,
+    );
+    assert.equal(audio.sources.length, 1);
+    const buffer = audio.sources[0].buffer as AudioBuffer;
+    mixer.dispose();
+    return buffer;
+  };
+  const clips = [1, 2, 3, 4, 12, 480].map((count) => render(count));
+  assert.ok(clips[1].length > clips[0].length);
+  assert.ok(clips[2].length > clips[1].length);
+  assert.ok(clips[3].length > clips[2].length);
+  const energy = (clip: AudioBuffer, ch = 0) =>
+    clip.getChannelData(ch).reduce((sum, value) => sum + value ** 2, 0);
+  assert.ok(energy(clips[4]) > energy(clips[3]));
+  assert.ok(energy(clips[5]) > energy(clips[4]), 'More hits still contribute beyond four contacts');
+  assert.ok(
+    energy(clips[5]) < energy(clips[3]) * 12,
+    'A crowd does not flatten the attack by summing hundreds of copies',
+  );
+  assert.ok(
+    clips.every((clip) => clip.duration < 0.18),
+    'No count-dependent playback queue',
+  );
+  const left = render(16, -0.35),
+    right = render(16, 0.35),
+    far = render(16, 0, 1);
+  assert.ok(energy(left, 0) > energy(left, 1));
+  assert.ok(energy(right, 1) > energy(right, 0));
+  assert.ok(energy(far) < energy(render(16)));
+
+  const mixed = audioContext(),
+    mixer = new SoundMixer(mixed.ctx);
+  const spaces = Array.from({ length: 16 }, (_, i) => ({ pan: Math.sin(i) * 0.35, depth: i / 16 }));
+  assert.equal(mixer.playBatch(spaces.map((space) => ({ kind: 'hit', space }))), 16);
+  const actual = mixed.sources[0].buffer as AudioBuffer;
+  for (const channel of [0, 1]) {
+    const expected = new Float64Array(actual.length);
+    for (const space of spaces) {
+      const clip = render(16, space.pan, space.depth).getChannelData(channel);
+      for (let i = 0; i < clip.length; i++) expected[i] += clip[i] / spaces.length;
+    }
+    for (let i = 0; i < expected.length; i++)
+      assert.ok(
+        Math.abs(expected[i] - actual.getChannelData(channel)[i]) < 0.00002,
+        'Every spatial contribution is retained',
+      );
+  }
+  mixer.dispose();
+});
+
+test('rapid new hits soften old tails once, without delaying or discarding the new run', () => {
+  const { ctx, gains, sources, advance } = audioContext();
+  const mixer = new SoundMixer(ctx);
+  const cues = Array.from({ length: 16 }, () => ({ kind: 'hit' }));
+  assert.equal(mixer.playBatch(cues), 16);
+  advance(0.017);
+  assert.equal(mixer.playBatch(cues), 16);
+  assert.equal(gains[1].gain.values.at(-1)!.value, 0.4);
+  advance(0.034);
+  assert.equal(mixer.playBatch(cues), 16);
+  assert.equal(gains[1].gain.values.filter((v) => v.method === 'target').length, 1);
+  assert.equal(sources[2].end, ctx.currentTime + sources[2].buffer!.duration);
+  mixer.stop(ctx.currentTime, true);
+  assert.ok(sources.every((source) => source.disconnected));
+  advance(1);
+  assert.equal(mixer.playBatch(cues), 16);
+  assert.equal(gains.at(-1)!.gain.values[0].value, 1, 'Resume has no old attenuation');
+  mixer.dispose();
 });
 
 test('batched distance filtering and QTE emphasis retain audible spatial detail', () => {

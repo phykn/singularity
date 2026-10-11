@@ -18,6 +18,13 @@ PAGE = "https://opengameart.org/content/keyboard-soundpack-1-typing-and-single-k
 SHA256 = "935eae2fa5c3742eacdd38c4ea0e9047f3887faa0701996498492c256db1b351"
 RATE = 22050
 KEYS = [2, 5, 8, 10, 11, 14, 24, 26]
+# Short runs retain the irregular contacts from real human typing takes.
+TYPING = [
+    (2, [5.906, 5.954, 6.002, 6.040]),
+    (8, [0.432, 0.466, 0.520, 0.556]),
+    (9, [1.122, 1.166, 1.204, 1.244]),
+    (10, [1.516, 1.550, 1.582, 1.652]),
+]
 
 
 def rms(samples):
@@ -52,6 +59,7 @@ raw = Path(sys.argv[1]).read_bytes() if len(sys.argv) > 1 else urllib.request.ur
 if hashlib.sha256(raw).hexdigest() != SHA256:
     raise ValueError("The source archive changed; inspect its provenance before rebuilding.")
 bank = []
+typing = []
 with zipfile.ZipFile(io.BytesIO(raw)) as archive:
     for key in KEYS:
         name = f"Single Keys/keypress-{key:03}.wav"
@@ -73,6 +81,24 @@ with zipfile.ZipFile(io.BytesIO(raw)) as archive:
             "press": segment(samples, down, 0.055, 0.075),
             "release": segment(samples, max(0, (up - 2) * step), 0.045, 0.055),
         })
+    for take, times in TYPING:
+        name = f"Human Typing/human_vel-{take:03}.wav"
+        with wave.open(io.BytesIO(archive.read(name))) as clip:
+            assert (clip.getnchannels(), clip.getsampwidth(), clip.getframerate()) == (1, 2, 44100)
+            pcm = array.array("h", clip.readframes(clip.getnframes()))
+            if sys.byteorder != "little":
+                pcm.byteswap()
+        samples = [x / 32768 for x in pcm]
+        start = times[0] - 0.004
+        typing.append({
+            "source": name,
+            "start": round(start, 3),
+            "onsets": [round(t - start, 3) for t in times],
+            "runs": [
+                segment(samples, round(start * 44100), times[count - 1] - start + 0.025, 0.075)
+                for count in (2, 3, 4)
+            ],
+        })
 out = ROOT / "src/audio/keycaps.json"
 out.parent.mkdir(parents=True, exist_ok=True)
 out.write_text(json.dumps({
@@ -82,5 +108,6 @@ out.write_text(json.dumps({
     "source": PAGE,
     "sourceSha256": SHA256,
     "keys": bank,
+    "typing": typing,
 }, indent=2) + "\n", encoding="utf-8")
-print(f"Built {len(bank)} recorded key pairs: {out.stat().st_size} bytes")
+print(f"Built {len(bank)} key pairs and {len(typing)} human typing takes: {out.stat().st_size} bytes")
