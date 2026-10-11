@@ -3,6 +3,17 @@ import { endingFrame } from '../presentation/ending.ts';
 import { beyondFrame } from '../presentation/beyond.ts';
 import { KillRhythm, SoundMixer } from './sounds.ts';
 
+const skillCues: Record<string, string> = {
+  strike: 'arc',
+  charge: 'charge',
+  satellite: 'spark',
+  bridge: 'field',
+  focus: 'field',
+  gather: 'field',
+  surge: 'surge',
+  vent: 'vent',
+};
+
 export class GameAudio {
   private context: AudioContext | null = null;
   private last: Record<string, number> = {};
@@ -31,6 +42,7 @@ export class GameAudio {
       }
       if (request !== this.request) return null;
       this.enabled = context.state === 'running';
+      if (this.enabled) this.mixer ??= new SoundMixer(context);
       return this.enabled;
     } catch {
       if (request !== this.request) return null;
@@ -40,7 +52,7 @@ export class GameAudio {
   }
 
   suspend(): void {
-    this.mixer?.stop();
+    this.mixer?.stop(this.context?.currentTime, true);
     this.rhythm.reset();
     this.wanted = false;
     this.request++;
@@ -56,7 +68,7 @@ export class GameAudio {
     return promise;
   }
   destroy(): void {
-    this.mixer?.stop();
+    this.mixer?.dispose();
     this.mixer = null;
     this.rhythm.reset();
     this.model = null;
@@ -114,16 +126,23 @@ export class GameAudio {
       return;
     }
     this.stage = '';
-    let kills = 0;
+    let kills = 0,
+      hits = false,
+      dense = false;
     for (let i = Math.max(0, from - game.eventOffset); i < game.events.length; i++) {
       const event = game.events[i];
       if (game.time - event.time > 0.15) continue;
       if (event.kind === 'kill') {
         kills++;
       } else if (event.kind === 'hit') {
-        this.play((event.data as { kind: string }).kind === 'dense' ? 'dense' : 'hit');
+        hits = true;
+        dense ||= (event.data as { kind: string }).kind === 'dense';
+      } else if (event.kind === 'skill-effect') {
+        const cue = skillCues[(event.data as { id: string }).id];
+        if (cue) this.play(cue);
       } else if (['level', 'wave', 'charged'].includes(event.kind)) this.play(event.kind);
     }
+    if (hits && !kills) this.play(dense ? 'dense' : 'hit');
     if (kills) this.rhythm.add(kills, ctx.currentTime);
     const pulse = this.rhythm.update(ctx.currentTime);
     if (pulse !== null) this.mixer.play('kill', ctx.currentTime, pulse);

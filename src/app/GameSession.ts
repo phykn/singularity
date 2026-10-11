@@ -147,7 +147,6 @@ export class GameSession {
       this.game.resonate(this.rhythm.hits as 1 | 2 | 3);
       this.hitStop = result === 'complete' ? 90 : 35;
       this.audio.play?.(result === 'complete' ? 'rhythm-complete' : 'rhythm-' + this.rhythm.hits);
-      if (result === 'complete') this.audio.play?.('rhythm-crack');
     } else if (result === 'miss') this.audio.play?.('rhythm-miss');
     this.effects.redraw();
   }

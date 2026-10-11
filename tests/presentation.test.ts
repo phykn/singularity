@@ -6,6 +6,7 @@ import { drawCollapse } from '../src/render/collapse.ts';
 import { drawSingularity, drawAccretion } from '../src/render/singularity.ts';
 import type Phaser from 'phaser';
 import { KillRhythm, SoundMixer } from '../src/app/sounds.ts';
+import { audioContext } from './audioContext.ts';
 
 test('singularity disk is compact, occluded and quiet after its one-time light sweep', () => {
   for (const scale of [0.65, 1, 1.75]) {
@@ -73,51 +74,20 @@ test('kill rhythm increases with kills, caps its rate and never drains a backlog
 });
 
 test('sound voices stay bounded and their nodes disconnect after playback or mute', () => {
-  const nodes: { end: number; onended: () => void; disconnected: boolean }[] = [];
-  const param = () => ({
-    setValueAtTime() {},
-    exponentialRampToValueAtTime() {},
-    linearRampToValueAtTime() {},
-    cancelScheduledValues() {},
-    setTargetAtTime() {},
-  });
-  const context = {
-    currentTime: 0,
-    destination: {},
-    createOscillator() {
-      const node = {
-        end: 0,
-        onended: () => {},
-        disconnected: false,
-        frequency: param(),
-        type: '',
-        start() {},
-        stop(end: number) {
-          this.end = end;
-        },
-        connect(gain: unknown) {
-          return gain;
-        },
-        disconnect() {
-          this.disconnected = true;
-        },
-      };
-      nodes.push(node);
-      return node;
-    },
-    createGain() {
-      return { gain: param(), connect() {}, disconnect() {} };
-    },
-  };
-  const mixer = new SoundMixer(context as unknown as BaseAudioContext);
+  const { ctx, sources, gains, graph, advance } = audioContext();
+  const mixer = new SoundMixer(ctx);
   for (let i = 0; i < 100; i++)
     for (const kind of ['hit', 'dense', 'kill', 'wave', 'charged', 'level']) mixer.play(kind);
-  assert.equal(nodes.length, 8);
+  assert.ok(sources.length > 0 && sources.length <= 8);
   mixer.stop();
-  assert.ok(nodes.every((node) => node.end <= 0.008));
-  nodes.forEach((node) => node.onended());
-  assert.ok(nodes.every((node) => node.disconnected));
+  assert.ok(sources.every((node) => node.end <= 0.008));
+  advance(0.008);
+  assert.ok(sources.every((node) => node.disconnected));
   assert.ok(mixer.play('hit'), 'Muted voices cannot occupy the next playback budget');
+  mixer.dispose();
+  advance(1);
+  assert.ok(gains.every((node) => node.disconnected));
+  assert.ok(graph.every((node) => node.disconnected));
 });
 
 for (const success of [true, false]) {

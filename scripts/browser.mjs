@@ -360,6 +360,7 @@ const audioFlow = async () => {
   assert.equal(await pressed(), 'true', 'A recovery failure keeps the sound preference');
   await page.keyboard.press('Escape');
   await settle(9);
+  await page.locator('.setting-notice').waitFor({ state: 'hidden' });
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('.setting-notice').count(), 0);
   assert.equal(await pressed(), 'true');

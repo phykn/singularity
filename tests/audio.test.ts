@@ -2,6 +2,148 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GameAudio } from '../src/app/GameAudio.ts';
 import { Game } from '../src/game/Game.ts';
+import { KillRhythm, SoundMixer } from '../src/app/sounds.ts';
+import { soundDefinitions, synthesizeSound } from '../src/app/soundBank.ts';
+import type { SoundKind } from '../src/app/soundBank.ts';
+import { audioContext } from './audioContext.ts';
+
+test('all original textures are finite, bounded and fade to silent sample boundaries', () => {
+  for (const rate of [22050, 44100, 48000]) {
+    for (const kind of Object.keys(soundDefinitions) as SoundKind[]) {
+      const data = synthesizeSound(kind, rate);
+      assert.equal(data[0], 0, kind);
+      assert.equal(data.at(-1), 0, kind);
+      let energy = 0;
+      for (const sample of data) {
+        assert.ok(Number.isFinite(sample) && Math.abs(sample) <= 0.8, kind);
+        energy += sample ** 2;
+      }
+      assert.ok(energy / data.length > 0.0001, kind + ' must be audible');
+    }
+  }
+});
+
+test('kill variants vary the texture without changing its loudness dramatically', () => {
+  const clips = Array.from({ length: soundDefinitions.kill.variants }, (_, i) =>
+    synthesizeSound('kill', 48000, i),
+  );
+  const energy = clips.map((clip) => clip.reduce((sum, sample) => sum + sample ** 2, 0));
+  for (let i = 1; i < clips.length; i++) assert.notDeepEqual(clips[0], clips[i]);
+  assert.ok(Math.max(...energy) / Math.min(...energy) < 2);
+});
+
+test('a consumed kill burst cannot replay, and a fresh burst after quiet plays immediately', () => {
+  const rhythm = new KillRhythm();
+  rhythm.add(200, 0);
+  assert.notEqual(rhythm.update(0), null);
+  assert.equal(rhythm.update(0.1), null);
+  assert.equal(rhythm.update(0.2), null);
+  rhythm.reset();
+  rhythm.add(1, 0);
+  rhythm.update(0);
+  rhythm.add(1, 0.3);
+  assert.notEqual(rhythm.update(0.3), null);
+});
+
+test('dense overlap keeps eight live voices at most and reuses a bounded sample bank', () => {
+  const { ctx, sources, buffers, advance } = audioContext();
+  const mixer = new SoundMixer(ctx);
+  const kinds = Object.keys(soundDefinitions) as SoundKind[];
+  let max = 0;
+  for (let i = 0; i < 3000; i++) {
+    advance(i / 400);
+    mixer.play(kinds[i % kinds.length]);
+    max = Math.max(max, sources.filter((source) => !source.disconnected).length);
+  }
+  assert.ok(max > 1 && max <= 8);
+  assert.ok(
+    buffers.length <= Object.values(soundDefinitions).reduce((n, spec) => n + spec.variants, 0),
+  );
+  assert.ok(!mixer.play('unknown'));
+  advance(20);
+  assert.ok(sources.every((source) => source.disconnected));
+  mixer.dispose();
+});
+
+test('QTE has reserved voices and lowers existing combat sounds without making any louder', () => {
+  const { ctx, sources, gains, advance } = audioContext();
+  const mixer = new SoundMixer(ctx);
+  assert.ok(mixer.play('field'));
+  assert.ok(mixer.play('wave'));
+  advance(0.13);
+  assert.ok(mixer.play('level'));
+  advance(0.14);
+  assert.ok(mixer.play('dense'));
+  advance(0.21);
+  assert.ok(mixer.play('hit'));
+  assert.ok(mixer.play('kill'));
+  assert.equal(sources.filter((source) => !source.disconnected).length, 6);
+  assert.ok(mixer.play('rhythm-1'));
+  advance(0.27);
+  assert.ok(mixer.play('rhythm-2'));
+  assert.ok(!mixer.play('spark'), 'Combat cannot take the QTE reserve');
+  for (const gain of gains) {
+    const initial = gain.gain.values.find((value) => value.method === 'set');
+    for (const target of gain.gain.values.filter((value) => value.method === 'target'))
+      assert.ok(initial && target.value < initial.value);
+  }
+  mixer.dispose();
+});
+
+test('suspension releases live nodes before the audio clock freezes', () => {
+  const { ctx, sources, gains, graph } = audioContext();
+  const mixer = new SoundMixer(ctx);
+  mixer.play('field');
+  mixer.play('kill');
+  mixer.stop(ctx.currentTime, true);
+  assert.ok(sources.every((source) => source.disconnected && source.end === ctx.currentTime));
+  assert.ok(gains.slice(1).every((gain) => gain.disconnected));
+  assert.ok(mixer.play('kill'), 'Resume does not retain old voice or rate limits');
+  mixer.dispose();
+  assert.ok(sources.every((source) => source.disconnected));
+  assert.ok(graph.every((node) => node.disconnected));
+});
+
+test('a wave warning remains audible when growth happens in the same frame', () => {
+  const { ctx } = audioContext();
+  const mixer = new SoundMixer(ctx);
+  assert.ok(mixer.play('level'));
+  assert.ok(mixer.play('wave'));
+  mixer.dispose();
+});
+
+test('kill groups replace duplicate hit sounds and current skill activations have accents', () => {
+  const game = new Game(17, { combat: false });
+  game.start();
+  const played: string[] = [];
+  const context = { state: 'running', currentTime: 10 };
+  const audio = new GameAudio();
+  Object.assign(audio, {
+    enabled: true,
+    context,
+    mixer: {
+      stop() {},
+      play(kind: string) {
+        played.push(kind);
+      },
+    },
+    play(kind: string) {
+      played.push(kind);
+    },
+  });
+  game.log('hit', { kind: 'small' });
+  game.log('kill', { kind: 'small' });
+  game.log('skill-effect', { id: 'strike', rank: 1 });
+  audio.update(game, 0);
+  assert.deepEqual(played, ['arc', 'kill']);
+  context.currentTime = 10.1;
+  audio.update(game, game.eventCount);
+  assert.deepEqual(played, ['arc', 'kill'], 'No repeated texture after the kill');
+  const from = game.eventCount;
+  game.log('hit', { kind: 'dense' });
+  audio.update(game, from);
+  assert.equal(played.at(-1), 'dense');
+});
 
 test('audio consumes new cues once when the recent event window rolls over', () => {
   const game = new Game(17, { combat: false, recordEvents: false });
@@ -73,6 +215,7 @@ test('a pending suspension finishes before the newest audio unlock resumes', asy
     state = 'suspended';
     release!: () => void;
     constructor() {
+      Object.assign(this, audioContext().ctx);
       ctx = this;
     }
     async resume() {
@@ -107,6 +250,7 @@ test('audio can unlock again after a browser effect cleanup closes the previous 
   class Context {
     state = 'suspended';
     constructor() {
+      Object.assign(this, audioContext().ctx);
       contexts.push(this);
     }
     async resume() {
@@ -141,6 +285,7 @@ test('a delayed audio resume cannot undo suspension or affect a replacement cont
     release!: () => void;
     reject!: (error: Error) => void;
     constructor() {
+      Object.assign(this, audioContext().ctx);
       contexts.push(this);
     }
     async resume() {

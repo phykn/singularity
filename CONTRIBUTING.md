@@ -13,7 +13,7 @@ Use Node.js 24 or later. Start from the [README](README.md) for local setup.
 | Saved preferences and best results            | `src/app/storage.ts` owns keys, validation and record ranking; `ResultRecords.ts` merges best results and retries at most one record per mode                                        |
 | Drawing                                       | `src/render/ElectronScene.ts` draws particles, electron and phases; `EffectRenderer.ts` owns effect graphics and its own sprite pool; `DamageLabels.ts` places integer damage labels |
 | Transition timelines                          | `src/presentation/ending.ts` and `beyond.ts` calculate the shared visual, HUD and sound stages without owning any of those consumers                                                 |
-| Sound                                         | `src/app/GameAudio.ts` owns the audio graph; session audio activation reports failure back to the UI                                                                                 |
+| Sound                                         | `src/app/GameAudio.ts` consumes game cues; `sounds.ts` mixes bounded sample voices; `soundBank.ts` synthesizes the original textures; session activation reports failures to the UI  |
 | Art and translations                          | `src/art/skills.ts` maps the current atlas; `scripts/art.mjs` builds it; `src/ui/i18n.ts` and `skillText.ts` own player text                                                         |
 
 The browser starts a fresh seeded run on reload or restart. It stores settings, language and best results, not an active run. `src/game/checkpoint.ts` replays model inputs for diagnostics and tests; it does not restore session QTE windows, playback speed or choice-pause preferences.
@@ -45,6 +45,8 @@ npm run check:effects
 ```
 
 Use the matching `check:*` command in `package.json` for a changed surface. Development checks use local debug fixtures; only `npm run check:browser -- --production` supports the public production app. Screenshots and reports go to ignored `artifacts/`. Keep the current README images and `scripts/screenshots.mjs`.
+
+For audio, run `npm run check:audio` to render WAV previews of combat, QTE, the singularity and heavy overlap to `artifacts/audio/`, with peak/RMS measurements. Listen to the previews and a live run when tuning sound; sample measurements detect clipping, not enjoyment. `npm run check:browser -- --audio` covers sound activation, mute, pause and recovery. Sounds are synthesized once per cached variant, with no external audio assets or playback backlog. Pause stops voices; QTE ducks combat; shared ending timelines retain their quiet stages.
 
 ## Balance diagnostics
 
