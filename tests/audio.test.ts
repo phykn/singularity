@@ -7,8 +7,9 @@ import { soundDefinitions, renderSound } from '../src/app/soundBank.ts';
 import type { SoundKind } from '../src/app/soundBank.ts';
 import type { SoundCue } from '../src/app/sounds.ts';
 import { audioContext } from './audioContext.ts';
+import { target } from './helpers.ts';
 
-test('all recorded keycap cues are finite, bounded and fade to silent sample boundaries', () => {
+test('all current cues are finite, bounded and fade to silent sample boundaries', () => {
   for (const rate of [22050, 44100, 48000]) {
     for (const kind of Object.keys(soundDefinitions) as SoundKind[]) {
       const data = renderSound(kind, rate);
@@ -24,9 +25,9 @@ test('all recorded keycap cues are finite, bounded and fade to silent sample bou
   }
 });
 
-test('kill variants vary the texture without changing its loudness dramatically', () => {
-  const clips = Array.from({ length: soundDefinitions.kill.variants }, (_, i) =>
-    renderSound('kill', 48000, i),
+test('impact variants vary the texture without changing its loudness dramatically', () => {
+  const clips = Array.from({ length: soundDefinitions.hit.variants }, (_, i) =>
+    renderSound('hit', 48000, i),
   );
   const energy = clips.map((clip) => clip.reduce((sum, sample) => sum + sample ** 2, 0));
   for (let i = 1; i < clips.length; i++) assert.notDeepEqual(clips[0], clips[i]);
@@ -57,20 +58,17 @@ test('dense overlap plays every voice and reuses a bounded sample bank', () => {
 test('QTE and combat all play together with gentle foreground emphasis', () => {
   const { ctx, sources, gains, advance } = audioContext();
   const mixer = new SoundMixer(ctx);
-  assert.ok(mixer.play('field'));
-  assert.ok(mixer.play('wave'));
-  advance(0.13);
-  assert.ok(mixer.play('charge'));
-  advance(0.14);
-  assert.ok(mixer.play('dense'));
-  advance(0.21);
   assert.ok(mixer.play('hit'));
-  assert.ok(mixer.play('kill'));
+  assert.ok(mixer.play('wave'));
+  assert.ok(mixer.play('hit'));
+  assert.ok(mixer.play('hit'));
+  assert.ok(mixer.play('hit'));
+  assert.ok(mixer.play('hit'));
   assert.equal(sources.filter((source) => !source.disconnected).length, 6);
   assert.ok(mixer.play('rhythm-complete'));
-  advance(0.27);
+  advance(0.01);
   assert.ok(mixer.play('rhythm-complete'));
-  assert.ok(mixer.play('spark'), 'Combat remains audible during QTE');
+  assert.ok(mixer.play('hit'), 'Particle contacts remain audible during QTE');
   for (const gain of gains) {
     const initial = gain.gain.values.find((value) => value.method === 'set');
     for (const target of gain.gain.values.filter((value) => value.method === 'target'))
@@ -82,12 +80,12 @@ test('QTE and combat all play together with gentle foreground emphasis', () => {
 test('suspension releases live nodes before the audio clock freezes', () => {
   const { ctx, sources, gains, graph } = audioContext();
   const mixer = new SoundMixer(ctx);
-  mixer.play('field');
-  mixer.play('kill');
+  mixer.play('preview');
+  mixer.play('hit');
   mixer.stop(ctx.currentTime, true);
   assert.ok(sources.every((source) => source.disconnected && source.end === ctx.currentTime));
   assert.ok(gains.slice(1).every((gain) => gain.disconnected));
-  assert.ok(mixer.play('kill'), 'Resume does not retain old voice or rate limits');
+  assert.ok(mixer.play('hit'), 'Resume does not retain old voice or rate limits');
   mixer.dispose();
   assert.ok(sources.every((source) => source.disconnected));
   assert.ok(graph.every((node) => node.disconnected));
@@ -110,7 +108,7 @@ test('a wave warning remains audible when growth happens in the same frame', () 
   mixer.dispose();
 });
 
-test('every hit, kill and skill activation plays once, including simultaneous bursts', () => {
+test('each actual particle contact creates a sound, including multi-hits and fatal hits', () => {
   const game = new Game(17, { combat: false });
   game.start();
   const played: string[] = [];
@@ -133,22 +131,38 @@ test('every hit, kill and skill activation plays once, including simultaneous bu
   game.log('kill', { kind: 'small', x: 220, y: 260 });
   game.log('skill-effect', { id: 'strike', rank: 1 });
   audio.update(game, 0);
-  assert.deepEqual(played, ['hit', 'kill', 'arc']);
+  assert.deepEqual(played, ['hit']);
   context.currentTime = 10.1;
   audio.update(game, game.eventCount);
-  assert.deepEqual(played, ['hit', 'kill', 'arc'], 'No repeated texture after the kill');
+  assert.deepEqual(
+    played,
+    ['hit'],
+    'A fatal hit produces one sound, not separate hit and kill sounds',
+  );
   const from = game.eventCount;
   game.log('hit', { kind: 'dense', x: 220, y: 260 });
   audio.update(game, from);
-  assert.equal(played.at(-1), 'dense');
+  assert.deepEqual(played, ['hit', 'hit'], 'Nonfatal contact also produces a sound');
+  const victims = [target(1, 190, 250, 1), target(2, 220, 270, 1), target(3, 140, 260, 1)];
+  game.targets = [...victims, target(4, 180, 240, 100)];
+  const burst = game.eventCount;
+  for (const victim of [...game.targets]) game.damageTarget(victim, 2);
+  game.damageTarget(victims[0], 2);
+  audio.update(game, burst);
+  assert.deepEqual(
+    played,
+    Array(6).fill('hit'),
+    'Each damaged particle plays once, including the surviving target',
+  );
+  assert.equal(game.targets.length, 1);
 });
 
 test('distance softens combat without burying its texture, while QTE stays centered', () => {
   const { ctx, gains, graph, pans, filters, advance } = audioContext();
   const mixer = new SoundMixer(ctx);
-  mixer.play('kill', 0, 1, { pan: -0.3, depth: 0 });
+  mixer.play('hit', 0, 1, { pan: -0.3, depth: 0 });
   advance(0.3);
-  mixer.play('kill', 0.3, 1, { pan: 0.3, depth: 1 });
+  mixer.play('hit', 0.3, 1, { pan: 0.3, depth: 1 });
   const levels = gains.slice(1).map((node) => node.gain.values[0].value);
   assert.ok(levels[1] < levels[0]);
   assert.ok(filters[2].frequency.values[0].value < filters[1].frequency.values[0].value);
@@ -180,19 +194,19 @@ test('each simultaneous impact keeps its own position, including removed targets
     },
   });
   const point = { x: game.position.x + 15, y: game.position.y };
-  game.log('kill', { kind: 'small', x: point.x + 300, y: point.y });
-  game.log('kill', { kind: 'small', ...point });
+  game.log('hit', { kind: 'small', x: point.x + 300, y: point.y });
+  game.log('hit', { kind: 'small', ...point });
   audio.update(game, 0);
   assert.equal(cues.length, 2);
   assert.deepEqual(cues[0], {
-    kind: 'kill',
+    kind: 'hit',
     space: { pan: (point.x + 300 - 180) / 520, depth: 1 },
   });
-  assert.deepEqual(cues[1], { kind: 'kill', space: { pan: (point.x - 180) / 520, depth: 0.05 } });
+  assert.deepEqual(cues[1], { kind: 'hit', space: { pan: (point.x - 180) / 520, depth: 0.05 } });
 });
 
 test('keycap contacts stay clear and single taps leave quiet gaps instead of static', () => {
-  for (const kind of ['hit', 'dense', 'kill', 'arc', 'rhythm-complete'] as const) {
+  for (const kind of ['preview', 'hit', 'rhythm-complete'] as const) {
     for (let variant = 0; variant < soundDefinitions[kind].variants; variant++) {
       const clip = renderSound(kind, 48000, variant);
       const energy = clip.reduce((sum, sample) => sum + sample ** 2, 0);
@@ -211,7 +225,7 @@ test('keycap contacts stay clear and single taps leave quiet gaps instead of sta
       assert.ok(fraction(6000, true) < 0.15, kind + ' should not become sharp hiss');
       const early = clip.slice(0, 48000 * 0.04).reduce((sum, sample) => sum + sample ** 2, 0);
       assert.ok(early / energy > 0.08, kind + ' must respond promptly');
-      if (kind === 'hit' || kind === 'dense') {
+      if (kind === 'preview') {
         const gap = clip.slice(48000 * 0.035, 48000 * 0.045);
         assert.ok(
           gap.reduce((sum, sample) => sum + sample ** 2, 0) / energy < 0.03,
@@ -231,6 +245,40 @@ test('keycap contacts stay clear and single taps leave quiet gaps instead of sta
       );
     }
   }
+});
+
+test('QTE is one immediate key contact and simultaneous impacts have short distinct onsets', () => {
+  for (let variant = 0; variant < soundDefinitions['rhythm-complete'].variants; variant++) {
+    const clip = renderSound('rhythm-complete', 48000, variant);
+    const energy = clip.reduce((sum, sample) => sum + sample ** 2, 0);
+    const early = clip.slice(0, 48000 * 0.04).reduce((sum, sample) => sum + sample ** 2, 0);
+    assert.ok(early / energy > 0.9, 'QTE must respond with one contact');
+    assert.ok(
+      clip.slice(48000 * 0.065).every((sample) => sample === 0),
+      'No return tap or repeated keys',
+    );
+  }
+  const onsets = Array.from(
+    { length: soundDefinitions.hit.variants },
+    (_, variant) =>
+      renderSound('hit', 48000, variant).findIndex((sample) => Math.abs(sample) > 0.001) / 48000,
+  );
+  assert.ok(Math.max(...onsets) < 0.025, 'Particle sounds never form a delayed queue');
+  assert.ok(
+    Math.max(...onsets) - Math.min(...onsets) > 0.012,
+    'Multi-hits retain separate contacts',
+  );
+});
+
+test('vacuum flow rises smoothly and cuts to silence without a key contact', () => {
+  const clip = renderSound('singularity', 48000);
+  const energy = (start: number, end: number) =>
+    clip.slice(start * 48000, end * 48000).reduce((sum, sample) => sum + sample ** 2, 0);
+  assert.ok(energy(0.9, 1.2) > energy(0.1, 0.4) * 2, 'Suction tightens toward the point');
+  assert.ok(
+    clip.slice(0, 48000 * 0.01).every((sample) => Math.abs(sample) < 0.01),
+    'No impact at the start',
+  );
 });
 
 test('audio consumes new cues once when the recent event window rolls over', () => {
@@ -278,9 +326,13 @@ test('a large same-frame burst keeps and plays every fresh hit and kill', () => 
   }
   assert.equal(game.eventCount - game.eventOffset - from, 2400);
   audio.update(game, from);
-  assert.equal(sources.length, 2, 'All simultaneous hits and kills share two summed buffers');
+  assert.equal(
+    sources.length,
+    1,
+    'All 1200 hits share one summed buffer; deaths add no duplicate sound',
+  );
   audio.update(game, game.eventCount);
-  assert.equal(sources.length, 2, 'Consumed sounds cannot replay');
+  assert.equal(sources.length, 1, 'Consumed sounds cannot replay');
   advance(1);
   assert.ok(sources.every((source) => source.disconnected));
   mixer.dispose();
@@ -288,7 +340,7 @@ test('a large same-frame burst keeps and plays every fresh hit and kill', () => 
 
 test('batch playback sums every cue, preserving variants and stereo positions', () => {
   const cues = Array.from({ length: 480 }, (_, i) => ({
-    kind: i % 2 ? 'kill' : 'hit',
+    kind: i % 2 ? 'hit' : 'preview',
     space: { pan: Math.sin(i) * 0.35, depth: (i % 17) / 16 },
   }));
   const mixed = audioContext();
@@ -298,7 +350,7 @@ test('batch playback sums every cue, preserving variants and stereo positions', 
   const reference = audioContext();
   const singles = new SoundMixer(reference.ctx);
   for (const cue of cues) assert.equal(singles.playBatch([cue]), 1);
-  for (const [index, kind] of ['hit', 'kill'].entries()) {
+  for (const [index, kind] of ['preview', 'hit'].entries()) {
     const buffer = mixed.sources[index].buffer as AudioBuffer;
     for (const channel of [0, 1]) {
       const expected = new Float64Array(buffer.length);
@@ -326,8 +378,8 @@ test('batched distance filtering and QTE emphasis retain audible spatial detail'
     mixer.playBatch([{ kind, space: { pan, depth } }]);
     return sources.at(-1)!.buffer as AudioBuffer;
   };
-  const near = render('kill', -0.35, 0);
-  const far = render('kill', 0.35, 1);
+  const near = render('hit', -0.35, 0);
+  const far = render('hit', 0.35, 1);
   const energy = (buffer: AudioBuffer, channel: number) =>
     buffer.getChannelData(channel).reduce((sum, value) => sum + value ** 2, 0);
   assert.ok(energy(near, 0) > energy(near, 1));
@@ -346,7 +398,7 @@ test('batched distance filtering and QTE emphasis retain audible spatial detail'
   mixer.dispose();
 });
 
-test('success audio gathers, goes silent at the point and settles quietly', () => {
+test('success uses one continuous vacuum cue and stays silent from the point through results', () => {
   const game = new Game(17, { combat: false });
   game.start();
   game.debugSetXp(game.rules.energyGoal);
@@ -366,18 +418,23 @@ test('success audio gathers, goes silent at the point and settles quietly', () =
     },
   });
   audio.update(game, 0);
+  assert.equal(cues.at(-1), 'singularity');
+  const count = cues.length;
   game.advance(600);
   audio.update(game, 0);
-  assert.equal(cues.at(-1), 'ending-compress');
+  assert.equal(cues.length, count, 'Compression continues the same sound');
   game.phaseTicks = Math.round((game.rules.collisionSeconds - 0.1) * game.rules.tickRate);
   audio.update(game, 0);
   assert.equal(cues.at(-1), 'silence');
   game.advance(150);
   audio.update(game, 0);
-  assert.equal(cues.at(-1), 'ending');
+  assert.equal(cues.at(-1), 'silence');
   game.advance(450);
   audio.update(game, 0);
-  assert.equal(cues.at(-1), 'ending-resonance');
+  assert.equal(cues.at(-1), 'silence');
+  game.advance(4000);
+  audio.update(game, 0);
+  assert.equal(cues.filter((cue) => cue !== 'silence').length, 1);
   assert.ok(!cues.includes('level'));
 });
 

@@ -1,7 +1,8 @@
 import bank from '../audio/keycaps.json' with { type: 'json' };
+import { rules } from '../game/rules.ts';
 
-type Bus = 'hit' | 'kill' | 'skill' | 'rhythm' | 'transition';
-type Recipe = 'key' | 'pair' | 'roll' | 'gather' | 'release' | 'settle';
+type Bus = 'preview' | 'hit' | 'rhythm' | 'transition';
+type Recipe = 'key' | 'impact' | 'pair' | 'inhale' | 'exhale';
 type Definition = {
   bus: Bus;
   recipe: Recipe;
@@ -11,17 +12,9 @@ type Definition = {
   variants: number;
 };
 
-// Recorded downstrokes and return contacts keep the same keycap material across cues.
 export const soundDefinitions = {
-  hit: { bus: 'hit', recipe: 'key', duration: 0.12, gain: 0.3, color: 1, variants: 8 },
-  dense: { bus: 'hit', recipe: 'key', duration: 0.14, gain: 0.3, color: 0.92, variants: 6 },
-  kill: { bus: 'kill', recipe: 'pair', duration: 0.16, gain: 0.32, color: 1.05, variants: 10 },
-  spark: { bus: 'skill', recipe: 'pair', duration: 0.11, gain: 0.11, color: 1.15, variants: 4 },
-  arc: { bus: 'skill', recipe: 'pair', duration: 0.26, gain: 0.27, color: 0.94, variants: 4 },
-  field: { bus: 'skill', recipe: 'roll', duration: 0.3, gain: 0.14, color: 0.94, variants: 3 },
-  charge: { bus: 'skill', recipe: 'gather', duration: 0.32, gain: 0.16, color: 1, variants: 3 },
-  surge: { bus: 'skill', recipe: 'key', duration: 0.3, gain: 0.22, color: 0.94, variants: 3 },
-  vent: { bus: 'skill', recipe: 'release', duration: 0.3, gain: 0.18, color: 0.85, variants: 3 },
+  preview: { bus: 'preview', recipe: 'key', duration: 0.12, gain: 0.3, color: 1, variants: 8 },
+  hit: { bus: 'hit', recipe: 'impact', duration: 0.085, gain: 0.32, color: 1.05, variants: 8 },
   wave: {
     bus: 'transition',
     recipe: 'pair',
@@ -32,7 +25,7 @@ export const soundDefinitions = {
   },
   charged: {
     bus: 'transition',
-    recipe: 'gather',
+    recipe: 'inhale',
     duration: 0.72,
     gain: 0.24,
     color: 0.9,
@@ -40,39 +33,23 @@ export const soundDefinitions = {
   },
   collision: {
     bus: 'transition',
-    recipe: 'pair',
-    duration: 0.48,
+    recipe: 'impact',
+    duration: 0.12,
     gain: 0.34,
     color: 0.94,
     variants: 1,
   },
-  ending: {
+  singularity: {
     bus: 'transition',
-    recipe: 'release',
-    duration: 0.4,
-    gain: 0.43,
-    color: 0.65,
-    variants: 1,
-  },
-  'ending-compress': {
-    bus: 'transition',
-    recipe: 'gather',
-    duration: 1.05,
-    gain: 0.3,
-    color: 0.94,
-    variants: 1,
-  },
-  'ending-resonance': {
-    bus: 'transition',
-    recipe: 'settle',
-    duration: 1.55,
-    gain: 0.26,
-    color: 0.94,
+    recipe: 'inhale',
+    duration: rules.collisionSeconds - 0.15,
+    gain: 0.46,
+    color: 1,
     variants: 1,
   },
   'beyond-contract': {
     bus: 'transition',
-    recipe: 'gather',
+    recipe: 'inhale',
     duration: 0.55,
     gain: 0.25,
     color: 0.94,
@@ -80,7 +57,7 @@ export const soundDefinitions = {
   },
   'beyond-open': {
     bus: 'transition',
-    recipe: 'release',
+    recipe: 'exhale',
     duration: 0.55,
     gain: 0.35,
     color: 0.85,
@@ -88,8 +65,8 @@ export const soundDefinitions = {
   },
   'rhythm-complete': {
     bus: 'rhythm',
-    recipe: 'release',
-    duration: 0.32,
+    recipe: 'impact',
+    duration: 0.09,
     gain: 0.47,
     color: 0.95,
     variants: 4,
@@ -149,12 +126,36 @@ export function renderSound(kind: SoundKind, sampleRate: number, variant = 0): F
     add(at, source.press, amp, pitch);
     add(at + 0.046 + random() * 0.006, source.release, amp * 0.28, pitch * 1.04);
   };
-  const strokes = (count: number, amp: number, gather = false) => {
+  const strokes = (count: number, amp: number) => {
     const span = Math.max(0, spec.duration - 0.105);
     for (let i = 0; i < count; i++) {
       const p = i / Math.max(1, count - 1);
-      const at = span * (gather ? 1 - (1 - p) ** 1.6 : p);
-      key(at, first + i * 3, amp * (gather ? 0.6 + p * 0.4 : 1 - p * 0.3));
+      key(span * p, first + i * 3, amp * (1 - p * 0.3));
+    }
+  };
+  const flow = (opening: boolean) => {
+    let low = 0,
+      smooth = 0,
+      body = 0,
+      phase = 0,
+      airPhase = 0;
+    const base = 1 - Math.exp((-2 * Math.PI * 180) / sampleRate);
+    for (let i = 0; i < data.length; i++) {
+      const t = i / sampleRate,
+        p = i / (data.length - 1),
+        q = opening ? 1 - p : p;
+      const rise = q * q;
+      const alpha = 1 - Math.exp((-2 * Math.PI * (350 + 1800 * rise)) / sampleRate);
+      low += alpha * (random() * 2 - 1 - low);
+      smooth += alpha * (low - smooth);
+      body += base * (smooth - body);
+      phase += (2 * Math.PI * (82 + 86 * rise) * color) / sampleRate;
+      airPhase += (2 * Math.PI * (420 + 1400 * rise) * color) / sampleRate;
+      const pressure = Math.sin(phase) * 0.12 + Math.sin(phase * 1.497) * 0.045;
+      const air = (smooth - body) * 1.7 + Math.sin(airPhase) * 0.018;
+      const envelope =
+        Math.min(1, t / 0.08, (spec.duration - t) / 0.018) * (0.24 + 0.76 * q ** 1.2);
+      data[i] = (pressure * (1 - q * 0.3) + air) * envelope;
     }
   };
   switch (spec.recipe) {
@@ -164,17 +165,20 @@ export function renderSound(kind: SoundKind, sampleRate: number, variant = 0): F
     case 'pair':
       strokes(2, 1.05);
       break;
-    case 'roll':
-      strokes(4, 0.7);
+    case 'impact':
+      // Slightly stagger simultaneous contacts inside cached variants, without a queue.
+      add(
+        kind === 'hit' ? (variant % 4) * 0.006 : 0,
+        recording(first).press,
+        kind === 'rhythm-complete' ? 1.65 : 1.25,
+        color,
+      );
       break;
-    case 'gather':
-      strokes(7, 0.8, true);
+    case 'inhale':
+      flow(false);
       break;
-    case 'release':
-      strokes(4, 0.85);
-      break;
-    case 'settle':
-      strokes(4, 0.5);
+    case 'exhale':
+      flow(true);
       break;
   }
   const fade = Math.max(1, Math.round(sampleRate * 0.001));

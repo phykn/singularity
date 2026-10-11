@@ -50,7 +50,7 @@ export class SoundMixer {
       .connect(this.saturation)
       .connect(this.master)
       .connect(context.destination);
-    for (const kind of ['hit', 'kill', 'dense'] as const)
+    for (const kind of ['preview', 'hit'] as const)
       for (let i = 0; i < soundDefinitions[kind].variants; i++) this.buffer(kind, i);
   }
 
@@ -102,7 +102,7 @@ export class SoundMixer {
   }
 
   // Cues from one game frame share a start time. Sum every contribution before
-  // playback instead of building a filter/panner/source graph for every hit.
+  // playback instead of building a filter/panner/source graph for every particle contact.
   playBatch(cues: readonly SoundCue[], at = this.context.currentTime): number {
     const layers = new Map<
       string,
@@ -120,7 +120,7 @@ export class SoundMixer {
         spec = soundDefinitions[id];
       const variant = this.variants[id] ?? 0;
       this.variants[id] = (variant + 1) % spec.variants;
-      const important = !['hit', 'kill', 'skill'].includes(spec.bus);
+      const important = spec.bus === 'rhythm' || spec.bus === 'transition';
       const depth = important ? 0 : Math.max(0, Math.min(1, space?.depth ?? 0));
       const angle =
         (((important ? 0 : Math.max(-0.35, Math.min(0.35, space?.pan ?? 0))) + 1) * Math.PI) / 4;
@@ -174,7 +174,7 @@ export class SoundMixer {
         gain = ctx.createGain();
       source.buffer = buffer;
       const end = at + buffer.duration;
-      const important = !['hit', 'kill', 'skill'].includes(bus);
+      const important = bus === 'rhythm' || bus === 'transition';
       gain.gain.setValueAtTime(!important && this.rhythmUntil > at ? 0.8 : 1, at);
       if (bus === 'rhythm') this.emphasize(at, end);
       source.connect(gain).connect(this.filter);
@@ -221,7 +221,7 @@ export class SoundMixer {
   private emphasize(at: number, end: number): void {
     this.rhythmUntil = Math.max(this.rhythmUntil, end);
     for (const voice of this.voices) {
-      if (voice.end <= at || !['hit', 'kill', 'skill'].includes(voice.bus)) continue;
+      if (voice.end <= at || !['preview', 'hit'].includes(voice.bus)) continue;
       voice.gain.gain.cancelAndHoldAtTime(at);
       voice.gain.gain.setTargetAtTime(voice.level * 0.8, at, 0.006);
     }

@@ -10,17 +10,6 @@ function soundSpace(point: Point, listener: Point): SoundSpace {
   return { pan: (point.x - CENTER.x) / 520, depth: Math.min(1, distance(point, listener) / 300) };
 }
 
-const skillCues: Record<string, string> = {
-  strike: 'arc',
-  charge: 'charge',
-  satellite: 'spark',
-  bridge: 'field',
-  focus: 'field',
-  gather: 'field',
-  surge: 'surge',
-  vent: 'vent',
-};
-
 export class GameAudio {
   private context: AudioContext | null = null;
   private mixer: SoundMixer | null = null;
@@ -108,18 +97,19 @@ export class GameAudio {
     }
     const ending = endingFrame(game);
     if (ending) {
+      if (ending.success) {
+        const stage = game.phase === 'collapse' && !ending.quiet ? 'singularity' : 'silence';
+        if (this.stage !== stage) {
+          this.stage = stage;
+          this.mixer.stop();
+          if (stage === 'singularity') this.play('singularity');
+        }
+        return;
+      }
       if (this.stage !== ending.stage) {
         this.stage = ending.stage;
         this.mixer.stop();
-        const cues: Record<string, string> = {
-          accelerate: 'charged',
-          compress: 'ending-compress',
-          formation: 'ending',
-          settle: 'ending-resonance',
-          impact: 'collision',
-        };
-        const cue = cues[ending.stage];
-        if (cue) this.play(cue);
+        if (ending.stage === 'impact') this.play('collision');
       }
       return;
     }
@@ -128,15 +118,12 @@ export class GameAudio {
     const listener = game.position;
     for (let i = Math.max(0, from - game.eventOffset); i < game.events.length; i++) {
       const event = game.events[i];
-      if (event.kind === 'kill' || event.kind === 'hit') {
-        const point = event.data as Point & { kind: string };
+      if (event.kind === 'hit') {
+        const point = event.data as Point;
         cues.push({
-          kind: event.kind === 'kill' ? 'kill' : point.kind === 'dense' ? 'dense' : 'hit',
+          kind: 'hit',
           space: soundSpace(point, listener),
         });
-      } else if (event.kind === 'skill-effect') {
-        const cue = skillCues[(event.data as { id: string }).id];
-        if (cue) cues.push({ kind: cue });
       } else if (['wave', 'charged'].includes(event.kind)) cues.push({ kind: event.kind });
     }
     this.mixer.playBatch(cues, ctx.currentTime);

@@ -99,7 +99,7 @@ try {
           game.nextSpawn = 60 * game.rules.tickRate;
           const log = game.log;
           game.log = function (kind, ...args) {
-            if (kind === 'hit' || kind === 'kill') stats.hits++;
+            if (kind === 'hit') stats.hits++;
             return log.call(this, kind, ...args);
           };
           game.setHidden(false);
@@ -182,7 +182,8 @@ try {
       assert.equal(row.rate, 10);
       assert.equal(row.phase, 'running');
       assert.ok(row.events > 0);
-      if (sound) assert.equal(row.cues, row.hits, 'Every hit must remain audible');
+      if (sound)
+        assert.equal(row.cues, row.hits, 'Every actual particle contact creates one sound');
       assert.deepEqual(errors, []);
       rows.push({ count, sound, ...row });
       console.log(JSON.stringify(rows.at(-1)));

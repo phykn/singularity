@@ -50,13 +50,14 @@ test('all simultaneous sound nodes disconnect after playback or mute', () => {
   const { ctx, sources, gains, graph, advance } = audioContext();
   const mixer = new SoundMixer(ctx);
   for (let i = 0; i < 100; i++)
-    for (const kind of ['hit', 'dense', 'kill', 'wave', 'charged', 'charge']) mixer.play(kind);
+    for (const kind of ['preview', 'hit', 'wave', 'charged', 'singularity', 'rhythm-complete'])
+      mixer.play(kind);
   assert.equal(sources.length, 600);
   mixer.stop();
   assert.ok(sources.every((node) => node.end <= 0.008));
   advance(0.008);
   assert.ok(sources.every((node) => node.disconnected));
-  assert.ok(mixer.play('hit'), 'Playback can resume immediately after mute');
+  assert.ok(mixer.play('preview'), 'Playback can resume immediately after mute');
   mixer.dispose();
   advance(1);
   assert.ok(gains.every((node) => node.disconnected));

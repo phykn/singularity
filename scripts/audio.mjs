@@ -29,7 +29,7 @@ try {
     : await page.evaluate(async () => {
         const { SoundMixer } = await import('/src/app/sounds.ts');
         for (const depth of [0, 0.0625, 0.25, 0.5625, 1]) {
-          const cues = ['hit', 'dense', 'kill'].map((kind, i) => ({
+          const cues = ['preview', 'hit', 'hit'].map((kind, i) => ({
             kind,
             space: { depth, pan: (i - 1) * 0.35 },
           }));
@@ -64,10 +64,7 @@ try {
               const at = 0.3 + i * 0.115 + Math.sin(i * 1.7) * 0.015;
               return [
                 { kind: 'hit', at },
-                { kind: 'kill', at: at + 0.018, pitch: 0.96 + (i % 7) * 0.014 },
-                ...(i % 9 === 0 ? [{ kind: 'dense', at: at + 0.035 }] : []),
                 ...(i % 18 === 0 ? [{ kind: 'wave', at: at + 0.05 }] : []),
-                ...(i % 7 === 0 ? [{ kind: 'arc', at: at + 0.04 }] : []),
               ];
             }).flat(),
           },
@@ -78,24 +75,18 @@ try {
           },
           {
             name: 'textures',
-            seconds: 8,
-            events: [
-              'hit',
-              'dense',
-              'kill',
-              'spark',
-              'field',
-              'charge',
-              'vent',
-              'rhythm-complete',
-            ].map((kind, i) => ({ kind, at: 0.25 + i * 0.9 })),
+            seconds: 5,
+            events: ['preview', 'hit', 'hit', 'hit', 'rhythm-complete'].map((kind, i) => ({
+              kind,
+              at: 0.25 + i * 0.9,
+            })),
           },
           {
             name: 'distance',
             seconds: 3,
             events: [
-              { kind: 'kill', at: 0.25, space: { pan: -0.3, depth: 0 } },
-              { kind: 'kill', at: 1.25, space: { pan: 0.3, depth: 1 } },
+              { kind: 'hit', at: 0.25, space: { pan: -0.3, depth: 0 } },
+              { kind: 'hit', at: 1.25, space: { pan: 0.3, depth: 1 } },
               { kind: 'rhythm-complete', at: 2.25, space: { pan: 0.3, depth: 1 } },
             ],
           },
@@ -103,14 +94,8 @@ try {
             name: 'singularity',
             seconds: 7,
             events: [
-              { kind: 'charged', at: 0.2 },
-              { stop: true, at: 0.99 },
-              { kind: 'ending-compress', at: 1 },
-              { stop: true, at: 2 },
-              { kind: 'ending', at: 2.1 },
-              { stop: true, at: 2.5 },
-              { kind: 'ending-resonance', at: 2.5 },
-              { stop: true, at: 4.05 },
+              { kind: 'singularity', at: 0.25 },
+              { stop: true, at: 1.7 },
               { kind: 'beyond-contract', at: 4.1 },
               { stop: true, at: 4.65 },
               { kind: 'beyond-open', at: 4.8 },
@@ -120,27 +105,26 @@ try {
             name: 'pause',
             seconds: 2,
             events: [
-              { kind: 'field', at: 0.2 },
-              { kind: 'kill', at: 0.21 },
+              { kind: 'hit', at: 0.2 },
+              { kind: 'hit', at: 0.21 },
               { stop: true, at: 0.23 },
-              { kind: 'kill', at: 1.2 },
+              { kind: 'hit', at: 1.2 },
             ],
           },
           {
             name: 'burst',
             seconds: 2,
-            events: Array.from({ length: 240 }, (_, i) => [
-              { kind: 'hit', at: 0.2, space: { pan: Math.sin(i) * 0.3, depth: 0 } },
-              { kind: 'kill', at: 0.2, space: { pan: Math.cos(i) * 0.3, depth: 0 } },
-            ]).flat(),
+            events: Array.from({ length: 480 }, (_, i) => ({
+              kind: 'hit',
+              at: 0.2,
+              space: { pan: Math.sin(i) * 0.3, depth: 0 },
+            })),
           },
           {
             name: 'overlap',
             seconds: 6,
             events: Array.from({ length: 720 }, (_, i) => ({
-              kind: ['hit', 'dense', 'kill', 'arc', 'field', 'surge', 'rhythm-complete', 'charge'][
-                i % 8
-              ],
+              kind: ['hit', 'hit', 'hit', 'hit', 'wave', 'rhythm-complete'][i % 6],
               at: 0.2 + i / 160,
             })),
           },
@@ -177,13 +161,17 @@ try {
           });
           const quiet =
             plan.name === 'singularity'
-              ? [2.04, 2.09]
+              ? [
+                  [1.74, 4.09],
+                  [4.69, 4.79],
+                  [5.45, 6.95],
+                ]
               : plan.name === 'pause'
-                ? [0.28, 1.15]
-                : null;
-          if (quiet) {
+                ? [[0.28, 1.15]]
+                : [];
+          for (const [start, end] of quiet) {
             for (const ch of channels)
-              for (let i = Math.ceil(quiet[0] * 48000); i < quiet[1] * 48000; i++)
+              for (let i = Math.ceil(start * 48000); i < end * 48000; i++)
                 if (Math.abs(ch[i]) > 0.00001) throw new Error(plan.name + ' must go silent');
           }
           results.push({
@@ -276,10 +264,11 @@ try {
   );
   await page.evaluate(() => {
     const game = window.__gameDebug.getModel();
-    for (let i = 0; i < 240; i++) {
+    for (let i = 0; i < 480; i++) {
       const point = { kind: 'small', x: 180 + Math.sin(i) * 100, y: 260 + Math.cos(i) * 100 };
       game.log('hit', point);
       game.log('kill', point);
+      game.log('skill-effect', { id: 'strike', rank: 1 });
     }
   });
   await page.waitForFunction(() => window.audioBurst.accepted === 480);
@@ -294,7 +283,11 @@ try {
     activeAfterPause: window.audioBurst.active,
   }));
   assert.equal(live.events, 480);
-  assert.equal(live.sources, 2, 'Every hit and kill contributes to the two stereo buffers');
+  assert.equal(
+    live.sources,
+    1,
+    'Every hit contributes; deaths and skill shots add no duplicate sounds',
+  );
   assert.equal(live.activeAfterPause, 0);
   writeFileSync(join(dir, 'live-burst.json'), JSON.stringify(live, null, 2) + '\n');
   console.log(JSON.stringify({ liveBurst: live }));

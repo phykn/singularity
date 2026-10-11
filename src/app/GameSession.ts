@@ -103,7 +103,7 @@ export class GameSession {
     const enabled = await this.unlockAudio();
     if (enabled && this.effects.sound() && this.game.phase === 'ready') {
       this.audio.update(this.game, this.audioCursor);
-      this.audio.play?.('hit');
+      this.audio.play?.('preview');
     }
     return enabled;
   }
