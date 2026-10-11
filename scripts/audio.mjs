@@ -35,7 +35,7 @@ try {
           }));
           const render = async (batch) => {
             const ctx = new OfflineAudioContext(2, 24000, 48000);
-            const mixer = new SoundMixer(ctx);
+            const mixer = new SoundMixer(ctx, 1701);
             if (batch) mixer.playBatch(cues, 0.1);
             else for (const cue of cues) mixer.play(cue.kind, 0.1, 1, cue.space);
             return ctx.startRendering();
@@ -121,7 +121,7 @@ try {
             })),
           },
           {
-            name: 'typing',
+            name: 'contacts',
             seconds: 8,
             events: [1, 2, 3, 4, 16, 480]
               .map((count, i) => ({
@@ -136,6 +136,15 @@ try {
                   at: 6.3 + i / 60,
                 })),
               ),
+          },
+          {
+            name: 'variation',
+            seconds: 7,
+            events: Array.from({ length: 16 }, (_, i) => ({
+              kind: 'hit',
+              count: 4,
+              at: 0.25 + i * 0.4,
+            })),
           },
           {
             name: 'overlap',
@@ -313,7 +322,7 @@ try {
   assert.equal(
     live.sources,
     1,
-    'Every hit contributes to the typing run; deaths and shots add no duplicate sounds',
+    'Every hit adds a single contact to the live mix; deaths and shots add no duplicate sounds',
   );
   assert.equal(live.activeAfterPause, 0);
   writeFileSync(join(dir, 'live-burst.json'), JSON.stringify(live, null, 2) + '\n');

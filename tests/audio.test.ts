@@ -266,36 +266,53 @@ test('QTE and single particle hits respond immediately without extra taps', () =
   assert.ok(Math.max(...onsets) < 0.008, 'The first contact is immediate, not staggered');
 });
 
-test('human typing runs expose separated attacks and finish within 180 ms at every sample rate', () => {
-  for (const rate of [22050, 44100, 48000]) {
-    for (let variant = 0; variant < 4; variant++) {
-      for (const count of [2, 3, 4]) {
-        const clip = renderSound('hit', rate, variant, count);
-        assert.ok(clip.length / rate < 0.18);
-        assert.equal(clip[0], 0);
-        assert.equal(clip.at(-1), 0);
-        assert.ok(clip.findIndex((sample) => Math.abs(sample) > 0.001) / rate < 0.008);
-        const step = Math.round(rate * 0.01);
-        const envelope: number[] = [];
-        for (let i = 0; i < clip.length - step; i += step) {
-          let energy = 0;
-          for (let j = i; j < i + step; j++) energy += clip[j] ** 2;
-          envelope.push(Math.sqrt(energy / step));
-        }
-        const peaks: number[] = [];
-        for (let i = 0; i < envelope.length; i++) {
-          if (
-            envelope[i] > Math.max(...envelope) * 0.4 &&
-            envelope[i] >= (envelope[i - 1] ?? 0) &&
-            envelope[i] >= (envelope[i + 1] ?? 0) &&
-            (!peaks.length || i - peaks.at(-1)! >= 2)
-          )
-            peaks.push(i);
-        }
-        assert.ok(peaks.length >= count, `Take ${variant}, ${count}: distinct contact envelopes`);
-      }
-    }
+test('single keycaps shuffle without recent repeats, including across pool boundaries', () => {
+  const { ctx, sources, advance } = audioContext();
+  const mixer = new SoundMixer(ctx, 1701);
+  const heard: unknown[] = [];
+  for (let i = 0; i < 80; i++) {
+    advance(i * 0.2);
+    mixer.play('hit');
+    const clip = sources.at(-1)!.buffer;
+    assert.ok(!heard.slice(-4).includes(clip), 'No repeat of the last four keycaps');
+    heard.push(clip);
   }
+  assert.equal(new Set(heard).size, 16);
+  assert.notDeepEqual(heard.slice(0, 16), heard.slice(16, 32), 'No fixed round-robin cycle');
+  mixer.dispose();
+});
+
+test('live contact arrangements vary and have separated transients instead of recorded phrases', () => {
+  const { ctx, sources, advance } = audioContext();
+  const mixer = new SoundMixer(ctx, 1701);
+  const shapes = new Set<string>();
+  for (let i = 0; i < 32; i++) {
+    advance(i * 0.3);
+    assert.equal(mixer.playBatch(Array.from({ length: 3 }, () => ({ kind: 'hit' }))), 3);
+    const buffer = sources.at(-1)!.buffer as AudioBuffer;
+    const clip = buffer.getChannelData(0);
+    assert.ok(buffer.duration < 0.14);
+    assert.ok(clip.findIndex((sample) => Math.abs(sample) > 0.001) / ctx.sampleRate < 0.008);
+    const step = Math.round(ctx.sampleRate * 0.005);
+    const envelope: number[] = [];
+    for (let j = 0; j < clip.length - step; j += step)
+      envelope.push(
+        Math.sqrt(clip.slice(j, j + step).reduce((sum, value) => sum + value ** 2, 0) / step),
+      );
+    shapes.add(envelope.map((value) => Math.round(value * 10000)).join(','));
+    const peaks: number[] = [];
+    for (let j = 0; j < envelope.length; j++)
+      if (
+        envelope[j] > Math.max(...envelope) * 0.35 &&
+        envelope[j] >= (envelope[j - 1] ?? 0) &&
+        envelope[j] >= (envelope[j + 1] ?? 0) &&
+        (!peaks.length || j - peaks.at(-1)! >= 3)
+      )
+        peaks.push(j);
+    assert.ok(peaks.length >= 3, 'Each of three hits retains a distinct contact envelope');
+  }
+  assert.equal(shapes.size, 32, 'Repeated hit counts do not select a small set of whole phrases');
+  mixer.dispose();
 });
 
 test('vacuum flow rises smoothly and cuts to silence without a key contact', () => {
@@ -340,7 +357,7 @@ test('audio consumes new cues once when the recent event window rolls over', () 
   assert.deepEqual(heard, ['wave', 'charged']);
 });
 
-test('a large same-frame burst contributes every hit to one typing run without death duplicates', () => {
+test('a large same-frame burst contributes every hit to one live mix without death duplicates', () => {
   const game = new Game(17, { combat: false, recordEvents: false });
   game.start();
   const { ctx, sources, advance } = audioContext();
@@ -354,11 +371,7 @@ test('a large same-frame burst contributes every hit to one typing run without d
   }
   assert.equal(game.eventCount - game.eventOffset - from, 2400);
   audio.update(game, from);
-  assert.equal(
-    sources.length,
-    1,
-    'All 1200 hits feed one typing run; deaths add no duplicate sound',
-  );
+  assert.equal(sources.length, 1, 'All 1200 hits feed one live mix; deaths add no duplicate sound');
   audio.update(game, game.eventCount);
   assert.equal(sources.length, 1, 'Consumed sounds cannot replay');
   advance(1);
@@ -400,14 +413,14 @@ test('batch playback preserves individual noncombat cues and stereo positions', 
 });
 
 test('every simultaneous hit contributes to density, intensity and stereo placement', () => {
-  const render = (count: number, pan = 0, depth = 0) => {
+  const render = (count: number, pan = 0, depth = 0, only?: number) => {
     const audio = audioContext();
-    const mixer = new SoundMixer(audio.ctx);
+    const mixer = new SoundMixer(audio.ctx, 1701);
     assert.equal(
       mixer.playBatch(
-        Array.from({ length: count }, () => ({
+        Array.from({ length: count }, (_, i) => ({
           kind: 'hit',
-          space: { pan, depth },
+          space: only === undefined || i === only ? { pan, depth } : { pan: 0, depth: 0 },
         })),
       ),
       count,
@@ -420,7 +433,6 @@ test('every simultaneous hit contributes to density, intensity and stereo placem
   const clips = [1, 2, 3, 4, 12, 480].map((count) => render(count));
   assert.ok(clips[1].length > clips[0].length);
   assert.ok(clips[2].length > clips[1].length);
-  assert.ok(clips[3].length > clips[2].length);
   const energy = (clip: AudioBuffer, ch = 0) =>
     clip.getChannelData(ch).reduce((sum, value) => sum + value ** 2, 0);
   assert.ok(energy(clips[4]) > energy(clips[3]));
@@ -430,7 +442,7 @@ test('every simultaneous hit contributes to density, intensity and stereo placem
     'A crowd does not flatten the attack by summing hundreds of copies',
   );
   assert.ok(
-    clips.every((clip) => clip.duration < 0.18),
+    clips.every((clip) => clip.duration < 0.14),
     'No count-dependent playback queue',
   );
   const left = render(16, -0.35),
@@ -440,37 +452,34 @@ test('every simultaneous hit contributes to density, intensity and stereo placem
   assert.ok(energy(right, 1) > energy(right, 0));
   assert.ok(energy(far) < energy(render(16)));
 
-  const mixed = audioContext(),
-    mixer = new SoundMixer(mixed.ctx);
-  const spaces = Array.from({ length: 16 }, (_, i) => ({ pan: Math.sin(i) * 0.35, depth: i / 16 }));
-  assert.equal(mixer.playBatch(spaces.map((space) => ({ kind: 'hit', space }))), 16);
-  const actual = mixed.sources[0].buffer as AudioBuffer;
-  for (const channel of [0, 1]) {
-    const expected = new Float64Array(actual.length);
-    for (const space of spaces) {
-      const clip = render(16, space.pan, space.depth).getChannelData(channel);
-      for (let i = 0; i < clip.length; i++) expected[i] += clip[i] / spaces.length;
+  for (const count of [16, 480]) {
+    const indices = count === 16 ? Array.from({ length: 16 }, (_, i) => i) : [0, 1, 15, 239, 479];
+    for (const index of indices) {
+      const clip = render(count, 0.35, 0, index);
+      const l = clip.getChannelData(0),
+        r = clip.getChannelData(1);
+      const difference = l.reduce((sum, value, i) => sum + (value - r[i]) ** 2, 0);
+      assert.ok(difference > 1e-12, `Hit ${index} of ${count} contributes its own stereo position`);
     }
-    for (let i = 0; i < expected.length; i++)
-      assert.ok(
-        Math.abs(expected[i] - actual.getChannelData(channel)[i]) < 0.00002,
-        'Every spatial contribution is retained',
-      );
   }
-  mixer.dispose();
 });
 
 test('rapid new hits soften old tails once, without delaying or discarding the new run', () => {
   const { ctx, gains, sources, advance } = audioContext();
-  const mixer = new SoundMixer(ctx);
+  const mixer = new SoundMixer(ctx, 1701);
   const cues = Array.from({ length: 16 }, () => ({ kind: 'hit' }));
   assert.equal(mixer.playBatch(cues), 16);
   advance(0.017);
   assert.equal(mixer.playBatch(cues), 16);
   assert.equal(gains[1].gain.values.at(-1)!.value, 0.4);
+  const scheduled = gains[1].gain.values.length;
+  assert.ok(
+    gains[1].gain.values.some((v) => v.method === 'target' && v.at > 0.017 && v.value === 1),
+    'Future contacts remain at full level while their intervening tails are softened',
+  );
   advance(0.034);
   assert.equal(mixer.playBatch(cues), 16);
-  assert.equal(gains[1].gain.values.filter((v) => v.method === 'target').length, 1);
+  assert.equal(gains[1].gain.values.length, scheduled, 'Older tails are not repeatedly attenuated');
   assert.equal(sources[2].end, ctx.currentTime + sources[2].buffer!.duration);
   mixer.stop(ctx.currentTime, true);
   assert.ok(sources.every((source) => source.disconnected));
@@ -480,9 +489,50 @@ test('rapid new hits soften old tails once, without delaying or discarding the n
   mixer.dispose();
 });
 
+test('tail separation and QTE emphasis preserve contact attacks that are already scheduled', () => {
+  const { ctx, gains, advance } = audioContext();
+  const mixer = new SoundMixer(ctx, 1701);
+  mixer.playBatch(Array.from({ length: 3 }, () => ({ kind: 'hit' })));
+  advance(0.005);
+  mixer.playBatch([{ kind: 'hit' }]);
+  const first = gains[1].gain.values;
+  assert.ok(
+    first.filter((v) => v.method === 'target' && v.value === 0.4).every((v) => v.at >= 0.014),
+    'A new hit never clips the first contact before its attack ends',
+  );
+  advance(0.017);
+  mixer.play('rhythm-complete');
+  assert.ok(
+    first.some((v) => v.method === 'target' && v.at > 0.017 && v.value === 0.8),
+    'QTE emphasis rebuilds protection for future contacts instead of cancelling their attacks',
+  );
+  mixer.stop(ctx.currentTime, true);
+  mixer.dispose();
+});
+
+test('time spent constructing a live mix cannot truncate its remaining contacts', () => {
+  const { ctx, gains, sources, advance } = audioContext();
+  const mixer = new SoundMixer(ctx, 1701);
+  const createBuffer = ctx.createBuffer.bind(ctx);
+  ctx.createBuffer = (...args: Parameters<typeof createBuffer>) => {
+    const buffer = createBuffer(...args);
+    advance(ctx.currentTime + 0.02);
+    return buffer;
+  };
+  mixer.playBatch(
+    Array.from({ length: 3 }, () => ({ kind: 'hit' })),
+    0,
+  );
+  assert.equal(gains.at(-1)!.gain.values[0].at, ctx.currentTime);
+  assert.equal(sources[0].end, ctx.currentTime + sources[0].buffer!.duration);
+  mixer.play('singularity', 0);
+  assert.equal(sources[1].end, ctx.currentTime + sources[1].buffer!.duration);
+  mixer.dispose();
+});
+
 test('batched distance filtering and QTE emphasis retain audible spatial detail', () => {
   const { ctx, sources, gains, advance } = audioContext();
-  const mixer = new SoundMixer(ctx);
+  const mixer = new SoundMixer(ctx, 1701);
   const render = (kind: string, pan: number, depth: number) => {
     mixer.playBatch([{ kind, space: { pan, depth } }]);
     return sources.at(-1)!.buffer as AudioBuffer;

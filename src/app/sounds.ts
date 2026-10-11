@@ -16,6 +16,7 @@ type Voice = {
   tone?: BiquadFilterNode;
   level: number;
   ducked: boolean;
+  attacks: number[];
 };
 
 export class SoundMixer {
@@ -24,13 +25,17 @@ export class SoundMixer {
   private filtered = new Map<string, Float32Array>();
   private variants: Partial<Record<SoundKind, number>> = {};
   private rhythmUntil = 0;
+  private seed: number;
+  private hitPool: number[] = [];
+  private recentHits: number[] = [];
   private filter: BiquadFilterNode;
   private compressor: DynamicsCompressorNode;
   private saturation: WaveShaperNode;
   private master: GainNode;
   private context: BaseAudioContext;
-  constructor(context: BaseAudioContext) {
+  constructor(context: BaseAudioContext, seed = Math.floor(Math.random() * 4294967296)) {
     this.context = context;
+    this.seed = seed >>> 0 || 0x9e3779b9;
     this.filter = context.createBiquadFilter();
     this.filter.type = 'lowpass';
     this.filter.frequency.value = 9000;
@@ -56,11 +61,11 @@ export class SoundMixer {
       for (let i = 0; i < soundDefinitions[kind].variants; i++) this.buffer(kind, i);
   }
 
-  private buffer(kind: SoundKind, variant: number, contacts = 1): AudioBuffer {
-    const key = kind + ':' + variant + ':' + contacts;
+  private buffer(kind: SoundKind, variant: number): AudioBuffer {
+    const key = kind + ':' + variant;
     let buffer = this.buffers.get(key);
     if (!buffer) {
-      const data = renderSound(kind, this.context.sampleRate, variant, contacts);
+      const data = renderSound(kind, this.context.sampleRate, variant);
       buffer = this.context.createBuffer(1, data.length, this.context.sampleRate);
       buffer.getChannelData(0).set(data);
       this.buffers.set(key, buffer);
@@ -74,8 +79,8 @@ export class SoundMixer {
       spec = soundDefinitions[id],
       bus = spec.bus;
     const important = bus === 'rhythm' || bus === 'transition';
-    const variant = this.variants[id] ?? 0;
-    this.variants[id] = (variant + 1) % spec.variants;
+    const variant = id === 'hit' ? this.nextHit() : (this.variants[id] ?? 0);
+    if (id !== 'hit') this.variants[id] = (variant + 1) % spec.variants;
     const ctx = this.context,
       source = ctx.createBufferSource(),
       gain = ctx.createGain();
@@ -85,73 +90,114 @@ export class SoundMixer {
       depth = important ? 0 : Math.max(0, Math.min(1, space?.depth ?? 0));
     tone.type = 'lowpass';
     tone.Q.value = 0.5;
-    tone.frequency.setValueAtTime(distanceCutoff(depth), at);
     source.buffer = this.buffer(id, variant);
-    source.playbackRate.setValueAtTime(rate, at);
-    const end = at + source.buffer.duration / rate;
-    const foreground = this.rhythmUntil > at;
-    const level = spec.gain * (1 - depth * 0.3) * (!important && foreground ? 0.8 : 1);
-    gain.gain.setValueAtTime(level, at);
-    if (bus === 'hit') this.separateHits(at);
-    if (bus === 'rhythm') this.emphasize(at, end);
-    pan.pan.setValueAtTime(important ? 0 : Math.max(-0.35, Math.min(0.35, space?.pan ?? 0)), at);
+    const start = Math.max(at, ctx.currentTime);
+    tone.frequency.setValueAtTime(distanceCutoff(depth), start);
+    source.playbackRate.setValueAtTime(rate, start);
+    const end = start + source.buffer.duration / rate;
+    const foreground = this.rhythmUntil > start;
+    const level = spec.gain * (1 - depth * 0.3);
+    gain.gain.setValueAtTime(level * (!important && foreground ? 0.8 : 1), start);
+    if (bus === 'hit') this.separateHits(start);
+    if (bus === 'rhythm') this.emphasize(start, end);
+    pan.pan.setValueAtTime(important ? 0 : Math.max(-0.35, Math.min(0.35, space?.pan ?? 0)), start);
     source.connect(gain).connect(tone).connect(pan).connect(this.filter);
-    const voice = { bus, start: at, end, source, gain, pan, tone, level, ducked: false };
+    const voice = {
+      bus,
+      start,
+      end,
+      source,
+      gain,
+      pan,
+      tone,
+      level,
+      ducked: false,
+      attacks: [start],
+    };
     this.voices.add(voice);
     source.onended = () => this.release(voice);
-    source.start(at);
+    source.start(start);
     source.stop(end);
     return true;
   }
 
-  // Simultaneous hits contribute to one short typing run, rather than masking
-  // its attacks with hundreds of identical contacts. Other buses keep their cues.
+  // Assemble single downstrokes inside a short window. Dense contacts share
+  // cached layers, but every hit contributes; no recorded phrase or delayed queue.
   playBatch(cues: readonly SoundCue[], at = this.context.currentTime): number {
+    if (!cues.length) return 0;
     const hits = cues.reduce((n, cue) => n + Number(cue.kind === 'hit'), 0);
-    const contacts = Math.min(4, hits),
-      hitVariant = this.variants.hit ?? 0,
-      hitLevel = hits ? (1 + 0.22 * Math.log2(hits)) / hits : 1;
-    if (hits) {
-      this.variants.hit = (hitVariant + 1) % soundDefinitions.hit.variants;
-      this.separateHits(at);
+    const offsets = [0];
+    while (offsets.length < hits) {
+      const next = offsets.at(-1)! + 0.018 + this.random() * 0.014;
+      if (next > 0.07) break;
+      offsets.push(next);
     }
+    const counts = offsets.map(() => 0);
+    const positions = new Uint8Array(hits);
+    for (let i = 0; i < hits; i++) {
+      const slot = i < offsets.length ? i : Math.floor(this.random() * offsets.length);
+      const micro = i < offsets.length ? 0 : 1 + Math.floor(this.random() * 2);
+      counts[slot]++;
+      positions[i] = slot * 3 + micro;
+    }
+    const variants = new Int8Array(offsets.length * 3).fill(-1);
+    const delays = Array.from({ length: variants.length }, (_, i) =>
+      Math.round((offsets[Math.floor(i / 3)] + (i % 3) * 0.002) * this.context.sampleRate),
+    );
+    const levels = counts.map((count) => 1 + 0.32 * Math.log2(Math.max(1, count)));
+    const leads = counts.map((count, i) => levels[i] * (count === 1 ? 1 : 0.65));
+    const support = counts.map((count, i) => (count > 1 ? (levels[i] * 0.35) / (count - 1) : 0));
     const layers = new Map<
-      string,
+      string | number,
       {
         bus: SoundBus;
         samples: Float32Array;
+        offset: number;
         left: number;
         right: number;
       }
     >();
     let accepted = 0;
+    let hitIndex = 0;
     for (const { kind, space } of cues) {
       if (!Object.hasOwn(soundDefinitions, kind)) continue;
       const id = kind as SoundKind,
         spec = soundDefinitions[id];
-      const variant = id === 'hit' ? hitVariant : (this.variants[id] ?? 0);
+      let variant = this.variants[id] ?? 0,
+        offset = 0,
+        weight = 1;
+      if (id === 'hit') {
+        const position = positions[hitIndex],
+          slot = Math.floor(position / 3);
+        if (variants[position] < 0) variants[position] = this.nextHit();
+        variant = variants[position];
+        offset = delays[position];
+        weight = hitIndex++ < offsets.length ? leads[slot] : support[slot];
+      }
       if (id !== 'hit') this.variants[id] = (variant + 1) % spec.variants;
       const important = spec.bus === 'rhythm' || spec.bus === 'transition';
       const depth = important ? 0 : Math.max(0, Math.min(1, space?.depth ?? 0));
       const angle =
         (((important ? 0 : Math.max(-0.35, Math.min(0.35, space?.pan ?? 0))) + 1) * Math.PI) / 4;
-      const level = spec.gain * (1 - depth * 0.3) * (id === 'hit' ? hitLevel : 1);
+      const level = spec.gain * (1 - depth * 0.3) * weight;
       const left = level * Math.cos(angle),
         right = level * Math.sin(angle);
       const near = Math.floor(depth * 8),
         blend = depth * 8 - near;
-      for (const [step, weight] of [
-        [near, 1 - blend],
-        [Math.min(8, near + 1), blend],
-      ]) {
+      for (let i = 0; i < 2; i++) {
+        const step = near + i,
+          weight = i ? blend : 1 - blend;
         if (!weight) continue;
-        const count = id === 'hit' ? contacts : 1;
-        const key = id + ':' + variant + ':' + step + ':' + count;
+        const key =
+          id === 'hit'
+            ? (offset * soundDefinitions.hit.variants + variant) * 9 + step
+            : id + ':' + variant + ':' + step;
         let layer = layers.get(key);
         if (!layer) {
           layer = {
             bus: spec.bus,
-            samples: this.distanceBuffer(id, variant, step, count),
+            samples: this.distanceBuffer(id, variant, step),
+            offset,
             left: 0,
             right: 0,
           };
@@ -162,22 +208,21 @@ export class SoundMixer {
       }
       accepted++;
     }
-    const buses = new Map<SoundBus, AudioBuffer>();
+    const lengths = new Map<SoundBus, number>();
     for (const layer of layers.values()) {
-      const buffer = buses.get(layer.bus);
-      if (!buffer || buffer.length < layer.samples.length)
-        buses.set(
-          layer.bus,
-          this.context.createBuffer(2, layer.samples.length, this.context.sampleRate),
-        );
+      const length = layer.samples.length + layer.offset;
+      lengths.set(layer.bus, Math.max(lengths.get(layer.bus) ?? 0, length));
     }
-    for (const { bus, samples, left, right } of layers.values()) {
+    const buses = new Map<SoundBus, AudioBuffer>();
+    for (const [bus, length] of lengths)
+      buses.set(bus, this.context.createBuffer(2, length, this.context.sampleRate));
+    for (const { bus, samples, offset, left, right } of layers.values()) {
       const buffer = buses.get(bus)!;
       const l = buffer.getChannelData(0),
         r = buffer.getChannelData(1);
       for (let i = 0; i < samples.length; i++) {
-        l[i] += samples[i] * left;
-        r[i] += samples[i] * right;
+        l[i + offset] += samples[i] * left;
+        r[i + offset] += samples[i] * right;
       }
     }
     for (const [bus, buffer] of buses) {
@@ -185,31 +230,59 @@ export class SoundMixer {
         source = ctx.createBufferSource(),
         gain = ctx.createGain();
       source.buffer = buffer;
-      const end = at + buffer.duration;
+      const start = Math.max(at, ctx.currentTime),
+        end = start + buffer.duration;
       const important = bus === 'rhythm' || bus === 'transition';
-      const level = !important && this.rhythmUntil > at ? 0.8 : 1;
-      gain.gain.setValueAtTime(level, at);
-      if (bus === 'rhythm') this.emphasize(at, end);
+      gain.gain.setValueAtTime(!important && this.rhythmUntil > start ? 0.8 : 1, start);
+      if (bus === 'hit') this.separateHits(start);
+      if (bus === 'rhythm') this.emphasize(start, end);
       source.connect(gain).connect(this.filter);
-      const voice = { bus, start: at, end, source, gain, level, ducked: false };
+      const voice = {
+        bus,
+        start,
+        end,
+        source,
+        gain,
+        level: 1,
+        ducked: false,
+        attacks: bus === 'hit' ? offsets.map((offset) => start + offset) : [],
+      };
       this.voices.add(voice);
       source.onended = () => this.release(voice);
-      source.start(at);
+      source.start(start);
       source.stop(end);
     }
     return accepted;
   }
 
-  private distanceBuffer(
-    kind: SoundKind,
-    variant: number,
-    step: number,
-    contacts = 1,
-  ): Float32Array {
-    const key = kind + ':' + variant + ':' + step + ':' + contacts;
+  private random(): number {
+    this.seed ^= this.seed << 13;
+    this.seed ^= this.seed >>> 17;
+    this.seed ^= this.seed << 5;
+    return (this.seed >>> 0) / 4294967296;
+  }
+
+  private nextHit(): number {
+    if (!this.hitPool.length) {
+      this.hitPool = Array.from({ length: soundDefinitions.hit.variants }, (_, i) => i);
+      for (let i = this.hitPool.length - 1; i > 0; i--) {
+        const j = Math.floor(this.random() * (i + 1));
+        [this.hitPool[i], this.hitPool[j]] = [this.hitPool[j], this.hitPool[i]];
+      }
+    }
+    let index = this.hitPool.length - 1;
+    while (index > 0 && this.recentHits.includes(this.hitPool[index])) index--;
+    const variant = this.hitPool.splice(index, 1)[0];
+    this.recentHits.push(variant);
+    if (this.recentHits.length > 4) this.recentHits.shift();
+    return variant;
+  }
+
+  private distanceBuffer(kind: SoundKind, variant: number, step: number): Float32Array {
+    const key = kind + ':' + variant + ':' + step;
     let filtered = this.filtered.get(key);
     if (filtered) return filtered;
-    const data = this.buffer(kind, variant, contacts).getChannelData(0);
+    const data = this.buffer(kind, variant).getChannelData(0);
     const omega = (2 * Math.PI * distanceCutoff(step / 8)) / this.context.sampleRate;
     const cos = Math.cos(omega),
       alpha = Math.sin(omega) / (2 * 10 ** (0.5 / 20)),
@@ -240,9 +313,25 @@ export class SoundMixer {
     for (const voice of this.voices) {
       if (voice.bus !== 'hit' || voice.ducked || voice.start >= at || voice.end <= at) continue;
       voice.ducked = true;
-      voice.level *= 0.4;
-      voice.gain.gain.cancelAndHoldAtTime(at);
-      voice.gain.gain.setTargetAtTime(voice.level, at, 0.004);
+      this.hitGain(voice, at, voice.level * (this.rhythmUntil > at ? 0.8 : 1));
+    }
+  }
+
+  private hitGain(voice: Voice, at: number, level: number): void {
+    const gain = voice.gain.gain;
+    gain.cancelAndHoldAtTime(at);
+    if (!voice.ducked) {
+      gain.setTargetAtTime(level, at, 0.003);
+      return;
+    }
+    let tailAt = at;
+    for (const attack of voice.attacks)
+      if (attack <= at && attack + 0.014 > at) tailAt = Math.max(tailAt, attack + 0.014);
+    gain.setTargetAtTime(level * 0.4, tailAt, 0.003);
+    for (const attack of voice.attacks) {
+      if (attack <= at) continue;
+      gain.setTargetAtTime(level, attack, 0.0008);
+      gain.setTargetAtTime(level * 0.4, attack + 0.014, 0.003);
     }
   }
 
@@ -250,6 +339,10 @@ export class SoundMixer {
     this.rhythmUntil = Math.max(this.rhythmUntil, end);
     for (const voice of this.voices) {
       if (voice.end <= at || !['preview', 'hit'].includes(voice.bus)) continue;
+      if (voice.bus === 'hit') {
+        this.hitGain(voice, at, voice.level * 0.8);
+        continue;
+      }
       voice.gain.gain.cancelAndHoldAtTime(at);
       voice.gain.gain.setTargetAtTime(voice.level * 0.8, at, 0.006);
     }
