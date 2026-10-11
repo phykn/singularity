@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Choice } from '../game/types.ts';
 import type { Rarity, UpgradeId } from '../game/rules.ts';
 import { isSkill } from '../game/rules.ts';
@@ -46,7 +46,7 @@ export function Choices({
       cards.current?.querySelector<HTMLButtonElement>('button')
     )?.focus({ preventScroll: true });
   }, [choice?.number, game, interactive]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const old = previous.current;
     if (
       old &&

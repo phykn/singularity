@@ -54,11 +54,35 @@ async function checkChoiceLayout(page) {
       'Choice cards must not cover gameplay in portrait or landscape',
     );
   }
+  await page.evaluate(() => {
+    window.choiceLayoutFrames = [];
+    window.sampleChoiceLayout = true;
+    const sample = () => {
+      if (!window.sampleChoiceLayout) return;
+      window.choiceLayoutFrames.push({
+        loadoutVisible:
+          getComputedStyle(document.querySelector('.play-footer')).visibility === 'visible',
+        receipt: !!document.querySelector('.choice-receipt'),
+      });
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
   await page.locator('.card').first().click();
   await page.locator('.choice-receipt').waitFor();
   assert.equal(await page.locator('.play-footer').isVisible(), false);
   assert.deepEqual((await layout(page)).arena, before.arena);
   await page.locator('.choice-receipt').waitFor({ state: 'hidden' });
+  const frames = await page.evaluate(() => {
+    window.sampleChoiceLayout = false;
+    return window.choiceLayoutFrames;
+  });
+  const firstReceipt = frames.findIndex((frame) => frame.receipt);
+  assert.ok(firstReceipt >= 0, 'Selection feedback must be painted');
+  assert.ok(
+    frames.slice(0, firstReceipt).every((frame) => !frame.loadoutVisible),
+    'The loadout must not flash before selection feedback appears',
+  );
   assert.equal(await page.locator('.play-footer').isVisible(), true);
   assert.equal(await page.locator('.slot-inspect').first().isVisible(), true);
   const restored = await layout(page);
@@ -105,11 +129,12 @@ try {
     let p = await open();
     await tap(p);
     assert.equal(await selections(), 0, 'The touch burst that opens choices must not pick a card');
+    // Leave room for native touch dispatch to synchronize with browser frames.
     for (let i = 0; i < 8; i++) {
-      await page.waitForTimeout(100);
+      await page.waitForTimeout(60);
       await tap(p);
-      assert.equal(await selections(), 0);
     }
+    assert.equal(await selections(), 0, 'Continued rapid taps must not select a card');
     await page.locator('.cards[data-ready="true"]').waitFor();
     await tap(p);
     assert.equal(await selections(), 1, 'One fresh tap after a quiet interval must select once');
