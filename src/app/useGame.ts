@@ -4,8 +4,7 @@ import { GameAudio } from './GameAudio.ts';
 import { GameSession } from './GameSession.ts';
 import { ResultRecords } from './ResultRecords.ts';
 import { newSeed } from './seed.ts';
-import { readLanguage, readSettings, languageKey, save, settingsKey } from './storage.ts';
-import type { Settings } from './storage.ts';
+import { readLanguage, languageKey, save } from './storage.ts';
 import type { UpgradeId } from '../game/rules.ts';
 import { languages } from '../ui/i18n.ts';
 import type { Language } from '../ui/i18n.ts';
@@ -18,13 +17,7 @@ export function useGame() {
       return 'ko';
     }
   });
-  const [settings, setSettings] = useState<Settings>(() => {
-    try {
-      return readSettings(localStorage);
-    } catch {
-      return { sound: false };
-    }
-  });
+  const [settings, setSettings] = useState({ sound: false });
   const [storageOk, setStorageOk] = useState(true);
   const failedSaves = useRef(new Set<string>());
   const [audioUnavailable, setAudioUnavailable] = useState(false);
@@ -50,14 +43,10 @@ export function useGame() {
     [reportSave],
   );
 
-  const changeSettings = useCallback(
-    (next: Settings) => {
-      settingsRef.current = next;
-      setSettings(next);
-      write(settingsKey, next);
-    },
-    [write],
-  );
+  const changeSettings = useCallback((next: { sound: boolean }) => {
+    settingsRef.current = next;
+    setSettings(next);
+  }, []);
 
   const changeLanguage = useCallback(
     (next: Language) => {

@@ -17,6 +17,7 @@ import { BLUE, WHITE, AMBER, GOLD, VIOLET, skillColors } from '../art/palette.ts
 import { drawWaveWarning } from './warning.ts';
 import type { OrbitRhythm } from '../app/OrbitRhythm.ts';
 import { drawRhythm } from './rhythm.ts';
+import { arenaViewport } from '../presentation/viewport.ts';
 export class ElectronScene extends Phaser.Scene {
   private graphics!: Phaser.GameObjects.Graphics;
   private effects!: EffectRenderer;
@@ -61,12 +62,12 @@ export class ElectronScene extends Phaser.Scene {
     const game = this.getGame();
     const width = this.scale.width,
       height = this.scale.height,
-      scale = Math.min(width, height) / 360;
+      { scale, centerY } = arenaViewport(width, height);
     if (game.phase !== 'running') this.damageLabels.hide();
     g.clear();
     this.width = width;
     this.worldScale = scale;
-    this.centerY = height > width ? Math.max(170 * scale + 8, height * 0.42) : height / 2;
+    this.centerY = centerY;
     if (this.lastModel !== game) {
       this.returnAt =
         game.phase === 'ready' && this.lastModel?.result?.outcome === 'success'

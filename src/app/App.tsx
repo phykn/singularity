@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { endingFrame } from '../presentation/ending.ts';
 import { beyondFrame } from '../presentation/beyond.ts';
+import { arenaViewport } from '../presentation/viewport.ts';
 import { ControlIcon, SoundIcon } from '../ui/icons.tsx';
 import { GameCanvas } from '../render/GameCanvas.tsx';
 import { Hud } from '../ui/Hud.tsx';
@@ -52,11 +53,34 @@ export default function App() {
   const [exitConfirm, setExitConfirm] = useState(false);
   const [homecoming, setHomecoming] = useState(false);
   const arena = useRef<HTMLElement>(null);
+  const caption = useRef<HTMLDivElement>(null);
+  const github = useRef<HTMLAnchorElement>(null);
   const wasPaused = useRef(game.manualPaused);
   const ready = game.phase === 'ready';
   const crossing = beyondFrame(game);
   const hud = crossing ? 0.22 + 0.78 * crossing.expand : (endingFrame(game)?.hud ?? 1);
   const modal = panel !== null || game.manualPaused || game.phase === 'result';
+
+  useLayoutEffect(() => {
+    if (!ready || !arena.current || !caption.current || !github.current) return;
+    const surface = arena.current,
+      title = caption.current,
+      link = github.current,
+      layout = surface.parentElement!;
+    const position = () => {
+      const bounds = surface.getBoundingClientRect();
+      const viewport = arenaViewport(Math.round(bounds.width), Math.round(bounds.height));
+      const orbitTop = bounds.top + viewport.centerY - game.rules.orbitRadius * viewport.scale;
+      const center = (link.getBoundingClientRect().bottom + orbitTop) / 2;
+      title.style.setProperty('--title-center', `${center - layout.getBoundingClientRect().top}px`);
+    };
+    position();
+    const observer = new ResizeObserver(position);
+    observer.observe(layout);
+    observer.observe(surface);
+    observer.observe(link);
+    return () => observer.disconnect();
+  }, [ready, game.rules.orbitRadius]);
 
   function replace() {
     setHomecoming(game.result?.outcome === 'success');
@@ -119,6 +143,7 @@ export default function App() {
         {ready ? (
           <header className="topbar">
             <a
+              ref={github}
               className="github-link"
               href="https://github.com/phykn/singularity"
               target="_blank"
@@ -157,7 +182,7 @@ export default function App() {
           />
         )}
         {ready && (
-          <div className="arena-caption">
+          <div ref={caption} className="arena-caption">
             <h1 lang="en">SINGULARITY</h1>
           </div>
         )}

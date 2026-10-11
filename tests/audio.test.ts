@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GameAudio } from '../src/app/GameAudio.ts';
 import { Game } from '../src/game/Game.ts';
-import { KillRhythm, SoundMixer } from '../src/app/sounds.ts';
+import { SoundMixer } from '../src/app/sounds.ts';
 import { soundDefinitions, synthesizeSound } from '../src/app/soundBank.ts';
 import type { SoundKind } from '../src/app/soundBank.ts';
 import { audioContext } from './audioContext.ts';
@@ -32,30 +32,18 @@ test('kill variants vary the texture without changing its loudness dramatically'
   assert.ok(Math.max(...energy) / Math.min(...energy) < 2);
 });
 
-test('a consumed kill burst cannot replay, and a fresh burst after quiet plays immediately', () => {
-  const rhythm = new KillRhythm();
-  rhythm.add(200, 0);
-  assert.notEqual(rhythm.update(0), null);
-  assert.equal(rhythm.update(0.1), null);
-  assert.equal(rhythm.update(0.2), null);
-  rhythm.reset();
-  rhythm.add(1, 0);
-  rhythm.update(0);
-  rhythm.add(1, 0.3);
-  assert.notEqual(rhythm.update(0.3), null);
-});
-
-test('dense overlap keeps eight live voices at most and reuses a bounded sample bank', () => {
+test('dense overlap plays every voice and reuses a bounded sample bank', () => {
   const { ctx, sources, buffers, advance } = audioContext();
   const mixer = new SoundMixer(ctx);
   const kinds = Object.keys(soundDefinitions) as SoundKind[];
   let max = 0;
   for (let i = 0; i < 3000; i++) {
     advance(i / 400);
-    mixer.play(kinds[i % kinds.length]);
+    assert.ok(mixer.play(kinds[i % kinds.length]), 'No voice is discarded during overlap');
     max = Math.max(max, sources.filter((source) => !source.disconnected).length);
   }
-  assert.ok(max > 1 && max <= 8);
+  assert.ok(max > 8);
+  assert.equal(sources.filter((source) => source.started).length, 3000);
   assert.ok(
     buffers.length <= Object.values(soundDefinitions).reduce((n, spec) => n + spec.variants, 0),
   );
@@ -65,7 +53,7 @@ test('dense overlap keeps eight live voices at most and reuses a bounded sample 
   mixer.dispose();
 });
 
-test('QTE has reserved voices and lowers existing combat sounds without making any louder', () => {
+test('QTE and combat all play together with gentle foreground emphasis', () => {
   const { ctx, sources, gains, advance } = audioContext();
   const mixer = new SoundMixer(ctx);
   assert.ok(mixer.play('field'));
@@ -81,7 +69,7 @@ test('QTE has reserved voices and lowers existing combat sounds without making a
   assert.ok(mixer.play('rhythm-1'));
   advance(0.27);
   assert.ok(mixer.play('rhythm-2'));
-  assert.ok(!mixer.play('spark'), 'Combat cannot take the QTE reserve');
+  assert.ok(mixer.play('spark'), 'Combat remains audible during QTE');
   for (const gain of gains) {
     const initial = gain.gain.values.find((value) => value.method === 'set');
     for (const target of gain.gain.values.filter((value) => value.method === 'target'))
@@ -112,7 +100,7 @@ test('a wave warning remains audible when growth happens in the same frame', () 
   mixer.dispose();
 });
 
-test('kill groups replace duplicate hit sounds and current skill activations have accents', () => {
+test('every hit, kill and skill activation plays once, including simultaneous bursts', () => {
   const game = new Game(17, { combat: false });
   game.start();
   const played: string[] = [];
@@ -135,10 +123,10 @@ test('kill groups replace duplicate hit sounds and current skill activations hav
   game.log('kill', { kind: 'small', x: 220, y: 260 });
   game.log('skill-effect', { id: 'strike', rank: 1 });
   audio.update(game, 0);
-  assert.deepEqual(played, ['arc', 'kill']);
+  assert.deepEqual(played, ['hit', 'kill', 'arc']);
   context.currentTime = 10.1;
   audio.update(game, game.eventCount);
-  assert.deepEqual(played, ['arc', 'kill'], 'No repeated texture after the kill');
+  assert.deepEqual(played, ['hit', 'kill', 'arc'], 'No repeated texture after the kill');
   const from = game.eventCount;
   game.log('hit', { kind: 'dense', x: 220, y: 260 });
   audio.update(game, from);
@@ -165,7 +153,7 @@ test('distant combat is quieter and muffled, while QTE stays centered and clear'
   assert.ok(graph.every((node) => node.disconnected));
 });
 
-test('combat sound location follows the nearest fresh impact, including removed targets', () => {
+test('each simultaneous impact keeps its own position, including removed targets', () => {
   const game = new Game(17, { combat: false });
   game.start();
   const cues: { kind: string; space: unknown }[] = [];
@@ -184,8 +172,12 @@ test('combat sound location follows the nearest fresh impact, including removed 
   game.log('kill', { kind: 'small', x: point.x + 300, y: point.y });
   game.log('kill', { kind: 'small', ...point });
   audio.update(game, 0);
-  assert.equal(cues.length, 1);
-  assert.deepEqual(cues[0], { kind: 'kill', space: { pan: (point.x - 180) / 520, depth: 0.05 } });
+  assert.equal(cues.length, 2);
+  assert.deepEqual(cues[0], {
+    kind: 'kill',
+    space: { pan: (point.x + 300 - 180) / 520, depth: 1 },
+  });
+  assert.deepEqual(cues[1], { kind: 'kill', space: { pan: (point.x - 180) / 520, depth: 0.05 } });
 });
 
 test('frequent hits and QTE share a damped low body instead of sharp pitched pings', () => {
@@ -225,6 +217,7 @@ test('audio consumes new cues once when the recent event window rolls over', () 
   audio.update(game, 0);
   const from = game.eventCount;
   for (let i = 0; i < 1500; i++) game.log('spawn', null);
+  game.advance(1000);
   game.log('wave', null);
   assert.ok(game.eventOffset > from);
   audio.update(game, from);
@@ -235,6 +228,28 @@ test('audio consumes new cues once when the recent event window rolls over', () 
   game.log('charged', null);
   audio.update(game, next);
   assert.deepEqual(heard, ['wave', 'charged']);
+});
+
+test('a large same-frame burst keeps and plays every fresh hit and kill', () => {
+  const game = new Game(17, { combat: false, recordEvents: false });
+  game.start();
+  const { ctx, sources, advance } = audioContext();
+  const mixer = new SoundMixer(ctx);
+  const audio = new GameAudio();
+  Object.assign(audio, { enabled: true, context: { ...ctx, state: 'running' }, mixer });
+  const from = game.eventCount;
+  for (let i = 0; i < 1200; i++) {
+    game.log('hit', { kind: 'small', x: 200, y: 200 });
+    game.log('kill', { kind: 'small', x: 200, y: 200 });
+  }
+  assert.equal(game.eventCount - game.eventOffset - from, 2400);
+  audio.update(game, from);
+  assert.equal(sources.length, 2400);
+  audio.update(game, game.eventCount);
+  assert.equal(sources.length, 2400, 'Consumed sounds cannot replay');
+  advance(1);
+  assert.ok(sources.every((source) => source.disconnected));
+  mixer.dispose();
 });
 
 test('success audio compresses, goes silent at the point and settles into a low resonance', () => {

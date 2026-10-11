@@ -5,7 +5,7 @@ import { Game } from '../src/game/Game.ts';
 import type { Result } from '../src/game/types.ts';
 import { target } from './helpers.ts';
 
-test('browser hit history stays bounded without changing damage or absolute audio cursors', () => {
+test('browser hit history preserves fresh bursts and trims old cues without changing damage or audio cursors', () => {
   const game = new Game(42, { combat: false, recordEvents: false });
   game.start();
   const enemy = target(1, 180, 200, 1e6);
@@ -15,7 +15,7 @@ test('browser hit history stays bounded without changing damage or absolute audi
   for (let i = 0; i < 100000; i++) game.damageTarget(enemy, 1);
   assert.equal(enemy.hp, 900000);
   assert.equal(game.eventCount, 100001);
-  assert.ok(game.events.length <= 1024);
+  assert.equal(game.events.length, 100001, 'Every hit in the same-frame burst remains available');
   assert.equal(game.damageNumbers.length, 64);
   assert.equal(game.damageNumbers.at(-1)!.value, 1);
   run.step(0);
@@ -23,6 +23,14 @@ test('browser hit history stays bounded without changing damage or absolute audi
   game.damageTarget(enemy, 1);
   run.step(0);
   assert.equal(heard.at(-1), cursor);
+  game.advance(500);
+  const next = game.eventCount;
+  game.damageTarget(enemy, 1);
+  assert.ok(game.events.length <= 1024, 'Old history is trimmed once the burst is no longer fresh');
+  assert.ok(game.eventOffset > 0);
+  run.step(500);
+  assert.equal(heard.at(-1), cursor + 1);
+  assert.equal(game.eventCount, next + 1);
   const archive = new Game(42);
   for (let i = 0; i < 1500; i++) archive.log('hit', i);
   assert.equal(archive.events.length, 1500, 'Simulation diagnostics retain their full trace');

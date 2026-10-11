@@ -12,30 +12,14 @@ type Voice = {
   tone: BiquadFilterNode;
   level: number;
 };
-const limits: Record<SoundBus, number> = {
-  hit: 2,
-  kill: 3,
-  skill: 1,
-  reward: 2,
-  rhythm: 2,
-  transition: 2,
-};
-const spacing: Record<SoundBus, number> = {
-  hit: 0.065,
-  kill: 0.1,
-  skill: 0.24,
-  reward: 0.12,
-  rhythm: 0.055,
-  transition: 0.03,
-};
 
 export class SoundMixer {
   private voices: Voice[] = [];
   private buffers = new Map<string, AudioBuffer>();
   private variants: Partial<Record<SoundKind, number>> = {};
-  private next: Partial<Record<SoundBus, number>> = {};
   private filter: BiquadFilterNode;
   private compressor: DynamicsCompressorNode;
+  private saturation: WaveShaperNode;
   private master: GainNode;
   private context: BaseAudioContext;
   constructor(context: BaseAudioContext) {
@@ -50,9 +34,17 @@ export class SoundMixer {
     this.compressor.ratio.value = 4;
     this.compressor.attack.value = 0.004;
     this.compressor.release.value = 0.12;
+    this.saturation = context.createWaveShaper();
+    const curve = new Float32Array(4097);
+    for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh((i / (curve.length - 1)) * 2 - 1);
+    this.saturation.curve = curve;
     this.master = context.createGain();
     this.master.gain.value = 0.78;
-    this.filter.connect(this.compressor).connect(this.master).connect(context.destination);
+    this.filter
+      .connect(this.compressor)
+      .connect(this.saturation)
+      .connect(this.master)
+      .connect(context.destination);
     for (const kind of ['hit', 'kill', 'dense'] as const)
       for (let i = 0; i < soundDefinitions[kind].variants; i++) this.buffer(kind, i);
   }
@@ -76,16 +68,8 @@ export class SoundMixer {
       bus = spec.bus;
     this.voices = this.voices.filter((voice) => voice.end > at);
     const important = bus === 'rhythm' || bus === 'transition' || bus === 'reward';
-    // Reserve two voices for taps and transitions, including during reward sounds.
-    if (
-      at + 1e-8 < (this.next[bus] ?? -Infinity) ||
-      this.voices.length >= (bus === 'rhythm' || bus === 'transition' ? 8 : 6) ||
-      this.voices.filter((voice) => voice.bus === bus).length >= limits[bus]
-    )
-      return false;
     const variant = this.variants[id] ?? 0;
     this.variants[id] = (variant + 1) % spec.variants;
-    this.next[bus] = at + spacing[bus];
     const ctx = this.context,
       source = ctx.createBufferSource(),
       gain = ctx.createGain();
@@ -99,20 +83,15 @@ export class SoundMixer {
     source.buffer = this.buffer(id, variant);
     source.playbackRate.setValueAtTime(rate, at);
     const end = at + source.buffer.duration / rate;
-    const crowded = this.voices.filter((voice) =>
-      ['hit', 'kill', 'skill'].includes(voice.bus),
-    ).length;
     const foreground = this.voices.some((voice) => voice.bus === 'rhythm');
-    const level =
-      ((spec.gain * (1 - depth * 0.3)) / Math.sqrt(1 + crowded * 0.35)) *
-      (!important && foreground ? 0.55 : 1);
+    const level = spec.gain * (1 - depth * 0.3) * (!important && foreground ? 0.8 : 1);
     gain.gain.setValueAtTime(level, at);
     if (bus === 'rhythm') {
       for (const voice of this.voices.filter((voice) =>
         ['hit', 'kill', 'skill'].includes(voice.bus),
       )) {
         voice.gain.gain.cancelAndHoldAtTime(at);
-        voice.gain.gain.setTargetAtTime(voice.level * 0.3, at, 0.006);
+        voice.gain.gain.setTargetAtTime(voice.level * 0.8, at, 0.006);
       }
     }
     pan.pan.setValueAtTime(important ? 0 : Math.max(-0.35, Math.min(0.35, space?.pan ?? 0)), at);
@@ -144,59 +123,14 @@ export class SoundMixer {
       voice.source.stop(Math.min(voice.end, at + (immediate ? 0 : 0.008)));
       if (immediate) this.release(voice);
     }
-    this.next = {};
   }
 
   dispose(): void {
     this.stop(this.context.currentTime, true);
     this.filter.disconnect();
     this.compressor.disconnect();
+    this.saturation.disconnect();
     this.master.disconnect();
     this.buffers.clear();
-  }
-}
-
-// Fixed buckets and no catch-up queue: bursts become one texture, never late kills.
-export class KillRhythm {
-  private buckets = Array.from({ length: 10 }, () => ({ tick: -Infinity, count: 0 }));
-  private next = 0;
-  private lastKill = -Infinity;
-  private pending = 0;
-  private pulse = 0;
-  add(count: number, time: number): void {
-    if (count <= 0) return;
-    if (time - this.lastKill > 0.24) this.next = time;
-    const tick = Math.floor(time * 10),
-      bucket = this.buckets[tick % 10];
-    if (bucket.tick !== tick) {
-      bucket.tick = tick;
-      bucket.count = 0;
-    }
-    bucket.count = Math.min(200, bucket.count + count);
-    this.pending = Math.min(200, this.pending + count);
-    this.lastKill = time;
-  }
-  update(time: number): number | null {
-    if (time - this.lastKill > 0.24) {
-      this.pending = 0;
-      return null;
-    }
-    if (!this.pending || time + 1e-8 < this.next) return null;
-    const tick = Math.floor(time * 10);
-    const rate = this.buckets.reduce((sum, b) => sum + (tick - b.tick < 10 ? b.count : 0), 0);
-    this.next = time + 1 / Math.min(10, Math.max(4, rate));
-    this.pending = 0;
-    this.pulse++;
-    return 0.98 + Math.sin(this.pulse * 2.399) * 0.025;
-  }
-  reset(): void {
-    for (const b of this.buckets) {
-      b.tick = -Infinity;
-      b.count = 0;
-    }
-    this.next = 0;
-    this.lastKill = -Infinity;
-    this.pending = 0;
-    this.pulse = 0;
   }
 }

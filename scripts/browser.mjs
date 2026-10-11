@@ -337,14 +337,10 @@ const audioFlow = async () => {
   await settle(5, true);
   assert.equal(await pressed(), 'false');
   await page.getByRole('dialog').getByText(copy.ko.audioFailed, { exact: true }).waitFor();
-  assert.equal(
-    await page.evaluate(() => JSON.parse(localStorage.getItem('singularity.settings')).sound),
-    false,
-  );
   await screenshot(page, 'audio-recovery');
   report('delayed audio respects rapid toggles, newer requests, pause and actual failures', {
     requests: 6,
-    savedSound: false,
+    currentSound: false,
   });
   await sound().click();
   await settle(6);
@@ -366,7 +362,7 @@ const audioFlow = async () => {
   assert.equal(await pressed(), 'true');
   report('automatic audio recovery reports failure and clears the notice after retry', {
     requests: 10,
-    savedSound: true,
+    currentSound: true,
   });
   await page.close();
 };
@@ -1566,7 +1562,7 @@ try {
     await settings.reload();
     await settings.waitForSelector('canvas');
     await settings.getByRole('button', { name: '설정', exact: true }).click();
-    await settings.getByRole('button', { name: '사운드 켬', exact: true }).waitFor();
+    await settings.getByRole('button', { name: '사운드 끔', exact: true }).waitFor();
     await settings.getByRole('button', { name: '닫기', exact: true }).click();
     await settings.getByRole('button', { name: 'START' }).click();
     await firstChoice(settings);
@@ -1575,7 +1571,7 @@ try {
       .evaluateAll((nodes) => nodes.every((n) => getComputedStyle(n).animationName === 'none'));
     assert.equal(animations, true);
     await screenshot(settings, 'settings-play');
-    report('sound persists and card icons stay static', { cardIconAnimations: false });
+    report('reload starts muted and card icons stay static', { cardIconAnimations: false });
     await settings.close();
 
     const blocked = await browser.newPage({ viewport: { width: 375, height: 812 } });
@@ -1592,8 +1588,10 @@ try {
     await blocked.waitForSelector('canvas');
     await blocked.getByRole('button', { name: '설정', exact: true }).click();
     await blocked.getByRole('button', { name: '사운드 끔', exact: true }).click();
-    await blocked.getByRole('dialog').getByText(copy.ko.storageFailed).waitFor();
-    await blocked.getByRole('button', { name: '닫기', exact: true }).click();
+    assert.equal(await blocked.locator('.setting-notice').count(), 0);
+    await blocked.getByRole('button', { name: 'ENG', exact: true }).click();
+    await blocked.getByRole('dialog').getByText(copy.en.storageFailed).waitFor();
+    await blocked.getByRole('button', { name: 'Close', exact: true }).click();
     await blocked.getByRole('button', { name: 'START' }).click();
     await firstChoice(blocked);
     report('storage unavailable still plays', { phase: (await snapshot(blocked)).phase });

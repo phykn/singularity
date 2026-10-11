@@ -3,149 +3,165 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { base, launchBrowser } from './browser-support.mjs';
 
-const dir = process.argv[2] ?? 'artifacts/audio';
+const dir = process.argv.slice(2).find((arg) => !arg.startsWith('--')) ?? 'artifacts/audio';
 mkdirSync(dir, { recursive: true });
 const browser = await launchBrowser();
 try {
   const page = await browser.newPage();
   await page.goto(base);
-  const clips = await page.evaluate(async () => {
-    const { SoundMixer } = await import('/src/app/sounds.ts');
-    const plans = [
-      {
-        name: 'combat',
-        seconds: 12,
-        events: Array.from({ length: 90 }, (_, i) => {
-          const at = 0.3 + i * 0.115 + Math.sin(i * 1.7) * 0.015;
-          return [
-            { kind: 'hit', at },
-            { kind: 'kill', at: at + 0.018, pitch: 0.96 + (i % 7) * 0.014 },
-            ...(i % 9 === 0 ? [{ kind: 'dense', at: at + 0.035 }] : []),
-            ...(i % 18 === 0 ? [{ kind: 'wave', at: at + 0.05 }] : []),
-            ...(i % 16 === 0 ? [{ kind: 'level', at: at + 0.06 }] : []),
-            ...(i % 7 === 0 ? [{ kind: 'arc', at: at + 0.04 }] : []),
-          ];
-        }).flat(),
-      },
-      {
-        name: 'qte',
-        seconds: 4,
-        events: [
-          { kind: 'rhythm-1', at: 0.3 },
-          { kind: 'rhythm-2', at: 0.8 },
-          { kind: 'rhythm-complete', at: 1.5 },
-          { kind: 'rhythm-miss', at: 3 },
-        ],
-      },
-      {
-        name: 'textures',
-        seconds: 8,
-        events: [
-          'hit',
-          'dense',
-          'kill',
-          'spark',
-          'field',
-          'rhythm-1',
-          'rhythm-2',
-          'rhythm-complete',
-        ].map((kind, i) => ({ kind, at: 0.25 + i * 0.9 })),
-      },
-      {
-        name: 'distance',
-        seconds: 3,
-        events: [
-          { kind: 'kill', at: 0.25, space: { pan: -0.3, depth: 0 } },
-          { kind: 'kill', at: 1.25, space: { pan: 0.3, depth: 1 } },
-          { kind: 'rhythm-1', at: 2.25, space: { pan: 0.3, depth: 1 } },
-        ],
-      },
-      {
-        name: 'singularity',
-        seconds: 7,
-        events: [
-          { kind: 'charged', at: 0.2 },
-          { stop: true, at: 0.99 },
-          { kind: 'ending-compress', at: 1 },
-          { stop: true, at: 2 },
-          { kind: 'ending', at: 2.1 },
-          { stop: true, at: 2.5 },
-          { kind: 'ending-resonance', at: 2.5 },
-          { stop: true, at: 4.05 },
-          { kind: 'beyond-contract', at: 4.1 },
-          { stop: true, at: 4.65 },
-          { kind: 'beyond-open', at: 4.8 },
-        ],
-      },
-      {
-        name: 'pause',
-        seconds: 2,
-        events: [
-          { kind: 'field', at: 0.2 },
-          { kind: 'kill', at: 0.21 },
-          { stop: true, at: 0.23 },
-          { kind: 'kill', at: 1.2 },
-        ],
-      },
-      {
-        name: 'overlap',
-        seconds: 6,
-        events: Array.from({ length: 720 }, (_, i) => ({
-          kind: ['hit', 'dense', 'kill', 'arc', 'field', 'surge', 'rhythm-complete', 'level'][
-            i % 8
-          ],
-          at: 0.2 + i / 160,
-        })),
-      },
-    ];
-    const results = [];
-    for (const plan of plans) {
-      const ctx = new OfflineAudioContext(2, plan.seconds * 48000, 48000);
-      const start = performance.now();
-      const mixer = new SoundMixer(ctx);
-      const initMs = performance.now() - start;
-      let played = 0;
-      for (const event of plan.events.sort((a, b) => a.at - b.at)) {
-        if (event.stop) mixer.stop(event.at);
-        else if (mixer.play(event.kind, event.at, event.pitch ?? 1, event.space)) played++;
-      }
-      const audio = await ctx.startRendering();
-      let peak = 0,
-        sum = 0,
-        edge = 0;
-      const channels = Array.from({ length: audio.numberOfChannels }, (_, ch) => {
-        const data = audio.getChannelData(ch);
-        for (let i = 0; i < data.length; i++) {
-          assertFinite(data[i]);
-          peak = Math.max(peak, Math.abs(data[i]));
-          sum += data[i] ** 2;
-          if (i) edge = Math.max(edge, Math.abs(data[i] - data[i - 1]));
+  const clips = process.argv.includes('--live-only')
+    ? []
+    : await page.evaluate(async () => {
+        const { SoundMixer } = await import('/src/app/sounds.ts');
+        const plans = [
+          {
+            name: 'combat',
+            seconds: 12,
+            events: Array.from({ length: 90 }, (_, i) => {
+              const at = 0.3 + i * 0.115 + Math.sin(i * 1.7) * 0.015;
+              return [
+                { kind: 'hit', at },
+                { kind: 'kill', at: at + 0.018, pitch: 0.96 + (i % 7) * 0.014 },
+                ...(i % 9 === 0 ? [{ kind: 'dense', at: at + 0.035 }] : []),
+                ...(i % 18 === 0 ? [{ kind: 'wave', at: at + 0.05 }] : []),
+                ...(i % 16 === 0 ? [{ kind: 'level', at: at + 0.06 }] : []),
+                ...(i % 7 === 0 ? [{ kind: 'arc', at: at + 0.04 }] : []),
+              ];
+            }).flat(),
+          },
+          {
+            name: 'qte',
+            seconds: 4,
+            events: [
+              { kind: 'rhythm-1', at: 0.3 },
+              { kind: 'rhythm-2', at: 0.8 },
+              { kind: 'rhythm-complete', at: 1.5 },
+              { kind: 'rhythm-miss', at: 3 },
+            ],
+          },
+          {
+            name: 'textures',
+            seconds: 8,
+            events: [
+              'hit',
+              'dense',
+              'kill',
+              'spark',
+              'field',
+              'rhythm-1',
+              'rhythm-2',
+              'rhythm-complete',
+            ].map((kind, i) => ({ kind, at: 0.25 + i * 0.9 })),
+          },
+          {
+            name: 'distance',
+            seconds: 3,
+            events: [
+              { kind: 'kill', at: 0.25, space: { pan: -0.3, depth: 0 } },
+              { kind: 'kill', at: 1.25, space: { pan: 0.3, depth: 1 } },
+              { kind: 'rhythm-1', at: 2.25, space: { pan: 0.3, depth: 1 } },
+            ],
+          },
+          {
+            name: 'singularity',
+            seconds: 7,
+            events: [
+              { kind: 'charged', at: 0.2 },
+              { stop: true, at: 0.99 },
+              { kind: 'ending-compress', at: 1 },
+              { stop: true, at: 2 },
+              { kind: 'ending', at: 2.1 },
+              { stop: true, at: 2.5 },
+              { kind: 'ending-resonance', at: 2.5 },
+              { stop: true, at: 4.05 },
+              { kind: 'beyond-contract', at: 4.1 },
+              { stop: true, at: 4.65 },
+              { kind: 'beyond-open', at: 4.8 },
+            ],
+          },
+          {
+            name: 'pause',
+            seconds: 2,
+            events: [
+              { kind: 'field', at: 0.2 },
+              { kind: 'kill', at: 0.21 },
+              { stop: true, at: 0.23 },
+              { kind: 'kill', at: 1.2 },
+            ],
+          },
+          {
+            name: 'burst',
+            seconds: 2,
+            events: Array.from({ length: 240 }, (_, i) => [
+              { kind: 'hit', at: 0.2, space: { pan: Math.sin(i) * 0.3, depth: 0 } },
+              { kind: 'kill', at: 0.2, space: { pan: Math.cos(i) * 0.3, depth: 0 } },
+            ]).flat(),
+          },
+          {
+            name: 'overlap',
+            seconds: 6,
+            events: Array.from({ length: 720 }, (_, i) => ({
+              kind: ['hit', 'dense', 'kill', 'arc', 'field', 'surge', 'rhythm-complete', 'level'][
+                i % 8
+              ],
+              at: 0.2 + i / 160,
+            })),
+          },
+        ];
+        const results = [];
+        for (const plan of plans) {
+          const ctx = new OfflineAudioContext(2, plan.seconds * 48000, 48000);
+          const start = performance.now();
+          const mixer = new SoundMixer(ctx);
+          const initMs = performance.now() - start;
+          let played = 0;
+          for (const event of plan.events.sort((a, b) => a.at - b.at)) {
+            if (event.stop) mixer.stop(event.at);
+            else if (mixer.play(event.kind, event.at, event.pitch ?? 1, event.space)) played++;
+          }
+          if (played !== plan.events.filter((event) => !event.stop).length)
+            throw new Error(plan.name + ' discarded audio events');
+          const audio = await ctx.startRendering();
+          let peak = 0,
+            sum = 0,
+            edge = 0;
+          const channels = Array.from({ length: audio.numberOfChannels }, (_, ch) => {
+            const data = audio.getChannelData(ch);
+            for (let i = 0; i < data.length; i++) {
+              assertFinite(data[i]);
+              peak = Math.max(peak, Math.abs(data[i]));
+              sum += data[i] ** 2;
+              if (i) edge = Math.max(edge, Math.abs(data[i] - data[i - 1]));
+            }
+            return Array.from(data);
+          });
+          const quiet =
+            plan.name === 'singularity'
+              ? [2.04, 2.09]
+              : plan.name === 'pause'
+                ? [0.28, 1.15]
+                : null;
+          if (quiet) {
+            for (const ch of channels)
+              for (let i = Math.ceil(quiet[0] * 48000); i < quiet[1] * 48000; i++)
+                if (Math.abs(ch[i]) > 0.00001) throw new Error(plan.name + ' must go silent');
+          }
+          results.push({
+            name: plan.name,
+            seconds: plan.seconds,
+            played,
+            initMs,
+            peak,
+            rms: Math.sqrt(sum / (audio.length * audio.numberOfChannels)),
+            edge,
+            channels,
+          });
         }
-        return Array.from(data);
+        function assertFinite(value) {
+          if (!Number.isFinite(value)) throw new Error('Non-finite audio sample');
+        }
+        return results;
       });
-      const quiet =
-        plan.name === 'singularity' ? [2.04, 2.09] : plan.name === 'pause' ? [0.28, 1.15] : null;
-      if (quiet) {
-        for (const ch of channels)
-          for (let i = Math.ceil(quiet[0] * 48000); i < quiet[1] * 48000; i++)
-            if (Math.abs(ch[i]) > 0.00001) throw new Error(plan.name + ' must go silent');
-      }
-      results.push({
-        name: plan.name,
-        seconds: plan.seconds,
-        played,
-        initMs,
-        peak,
-        rms: Math.sqrt(sum / (audio.length * audio.numberOfChannels)),
-        edge,
-        channels,
-      });
-    }
-    function assertFinite(value) {
-      if (!Number.isFinite(value)) throw new Error('Non-finite audio sample');
-    }
-    return results;
-  });
   for (const clip of clips) {
     assert.ok(clip.played > 0);
     assert.ok(clip.peak > 0 && clip.peak < 0.95, `${clip.name} has no clipping headroom`);
@@ -170,8 +186,79 @@ try {
     writeFileSync(join(dir, `${clip.name}.wav`), wav);
   }
   const report = clips.map(({ channels, ...result }) => result);
-  writeFileSync(join(dir, 'report.json'), JSON.stringify(report, null, 2) + '\n');
-  console.log(JSON.stringify(report));
+  if (report.length) {
+    writeFileSync(join(dir, 'report.json'), JSON.stringify(report, null, 2) + '\n');
+    console.log(JSON.stringify(report));
+  }
+
+  await page.evaluate(() => {
+    const Native = AudioContext;
+    window.audioBurst = { contexts: [], started: 0, active: 0, max: 0 };
+    window.AudioContext = class extends Native {
+      constructor(...args) {
+        super(...args);
+        window.audioBurst.contexts.push(this);
+      }
+      createBufferSource() {
+        const source = super.createBufferSource(),
+          start = source.start.bind(source),
+          disconnect = source.disconnect.bind(source);
+        let live = false;
+        const release = () => {
+          if (live) window.audioBurst.active--;
+          live = false;
+        };
+        source.disconnect = (...args) => {
+          release();
+          return disconnect(...args);
+        };
+        source.start = (...args) => {
+          const probe = window.audioBurst;
+          probe.started++;
+          probe.active++;
+          live = true;
+          probe.max = Math.max(probe.max, probe.active);
+          source.addEventListener('ended', release, { once: true });
+          return start(...args);
+        };
+        return source;
+      }
+    };
+  });
+  await page.locator('.title-sound').click();
+  await page.waitForFunction(
+    () => window.audioBurst.started === 1 && window.audioBurst.active === 0,
+  );
+  await page.evaluate(() => window.__gameDebug.restart(17, false));
+  await page.waitForFunction(
+    () =>
+      window.__gameDebug.getModel().time > 0 && window.audioBurst.contexts[0].state === 'running',
+  );
+  const started = await page.evaluate(() => window.audioBurst.started);
+  await page.evaluate(() => {
+    const game = window.__gameDebug.getModel();
+    for (let i = 0; i < 240; i++) {
+      const point = { kind: 'small', x: 180 + Math.sin(i) * 100, y: 260 + Math.cos(i) * 100 };
+      game.log('hit', point);
+      game.log('kill', point);
+    }
+  });
+  await page.waitForFunction((started) => window.audioBurst.started >= started + 480, started);
+  assert.equal(await page.evaluate(() => window.audioBurst.started - 1), 480);
+  await page.getByRole('button', { name: '일시정지', exact: true }).click();
+  await page.waitForFunction(
+    () => window.audioBurst.active === 0 && window.audioBurst.contexts[0].state === 'suspended',
+  );
+  const live = await page.evaluate(() => ({
+    events: window.audioBurst.started - 1,
+    maxSimultaneous: window.audioBurst.max,
+    activeAfterPause: window.audioBurst.active,
+  }));
+  assert.equal(live.events, 480);
+  assert.ok(live.maxSimultaneous > 8);
+  assert.equal(live.activeAfterPause, 0);
+  writeFileSync(join(dir, 'live-burst.json'), JSON.stringify(live, null, 2) + '\n');
+  console.log(JSON.stringify({ liveBurst: live }));
 } finally {
   await browser.close();
 }

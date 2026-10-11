@@ -944,10 +944,13 @@ export class Game {
   }
   log(kind: string, data: unknown): void {
     this.events.push({ time: this.time, kind, data });
-    // Browser play needs only recent sound cues; simulations retain the full trace.
+    // Keep every fresh cue, including a large burst; simulations retain the full trace.
     if (!this.recordEvents && this.events.length > 1024) {
-      this.events.splice(0, 512);
-      this.eventOffset += 512;
+      const discard = this.events.findIndex((event) => event.time >= this.time - 0.25);
+      if (discard > 0) {
+        this.events.splice(0, discard);
+        this.eventOffset += discard;
+      }
     }
   }
 }

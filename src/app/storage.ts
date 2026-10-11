@@ -2,12 +2,10 @@ import type { Result } from '../game/types.ts';
 import { rules } from '../game/rules.ts';
 import type { Language } from '../ui/i18n.ts';
 
-export type Settings = { sound: boolean };
 export type BestRecord = Pick<
   Result,
   'outcome' | 'xp' | 'level' | 'speed' | 'seed' | 'collisionTime'
 >;
-export const settingsKey = 'singularity.settings';
 export const recordKey = 'singularity.record';
 export const beyondRecordKey = 'singularity.beyond';
 export type BeyondRecord = { seconds: number; xp: number; seed: number };
@@ -23,15 +21,6 @@ export function readLanguage(storage: Storage): Language {
   return 'ko';
 }
 
-export function readSettings(storage: Storage): Settings {
-  try {
-    const value = JSON.parse(storage.getItem(settingsKey) ?? 'null');
-    if (typeof value?.sound === 'boolean') return { sound: value.sound };
-  } catch {
-    /* Storage can be disabled by the browser. */
-  }
-  return { sound: false };
-}
 export function readRecord(storage: Storage): BestRecord | null {
   try {
     const value = JSON.parse(storage.getItem(recordKey) ?? 'null');

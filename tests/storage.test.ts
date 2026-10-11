@@ -7,11 +7,9 @@ import {
   bestRecord,
   readLanguage,
   readRecord,
-  readSettings,
   languageKey,
   recordKey,
   save,
-  settingsKey,
 } from '../src/app/storage.ts';
 import { fixture, run } from './helpers.ts';
 import { GameSession } from '../src/app/GameSession.ts';
@@ -61,7 +59,7 @@ test('checkpoints preserve fractional time and pending catch-up without processi
   }
 });
 
-test('best records preserve settings and handle malformed or unavailable storage', () => {
+test('best records handle malformed or unavailable storage', () => {
   const g = fixture();
   g.debugSetXp(rules.energyGoal);
   g.advance(610000);
@@ -79,9 +77,7 @@ test('best records preserve settings and handle malformed or unavailable storage
     getItem: (key: string) => map.get(key) ?? null,
     setItem: (key: string, value: string) => map.set(key, value),
   } as Storage;
-  map.set(settingsKey, JSON.stringify({ sound: true }));
   assert.equal(readRecord(storage), null);
-  assert.deepEqual(readSettings(storage), { sound: true });
   assert.ok(save(storage, recordKey, success));
   assert.deepEqual(readRecord(storage), success);
   map.set(recordKey, JSON.stringify({ ...success, xp: -1 }));
@@ -98,7 +94,6 @@ test('best records preserve settings and handle malformed or unavailable storage
   } as unknown as Storage;
   assert.equal(save(blocked, recordKey, success), false);
   assert.equal(readRecord(blocked), null);
-  assert.deepEqual(readSettings(blocked), { sound: false });
 });
 
 test('language preferences persist, invalid or unavailable storage falls back to Korean', () => {

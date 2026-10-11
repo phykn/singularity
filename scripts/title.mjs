@@ -60,6 +60,10 @@ try {
       const meta = document.querySelector('.title-meta').getBoundingClientRect();
       const sound = document.querySelector('.title-sound').getBoundingClientRect();
       const arena = document.querySelector('.arena').getBoundingClientRect();
+      const github = document.querySelector('.github-link').getBoundingClientRect();
+      const scene = window.__gameScene;
+      const orbitTop =
+        arena.top + scene.centerY - window.__gameDebug.getModel().radius * scene.worldScale;
       caption.style.pointerEvents = 'auto';
       const titleVisible = caption.contains(
         document.elementFromPoint((title.left + title.right) / 2, (title.top + title.bottom) / 2),
@@ -67,6 +71,8 @@ try {
       caption.style.pointerEvents = '';
       return {
         titleVisible,
+        orbitTop,
+        githubBottom: github.bottom,
         title: { left: title.left, right: title.right, top: title.top, bottom: title.bottom },
         start: { top: start.top },
         height: document.documentElement.scrollHeight,
@@ -90,12 +96,23 @@ try {
     assert.equal(layout.height, height);
     assert.ok(layout.title.bottom <= layout.meta.top || layout.title.right <= layout.meta.left);
     assert.ok(layout.title.top < layout.arena.top + layout.arena.height * 0.25);
+    if (!(height <= 600 && width > height)) {
+      assert.ok(layout.title.top > layout.githubBottom, 'The title must clear the GitHub link');
+      assert.ok(layout.title.bottom < layout.orbitTop, 'The title must clear the orbit');
+      assert.ok(
+        Math.abs(
+          (layout.title.top + layout.title.bottom - layout.githubBottom - layout.orbitTop) / 2,
+        ) < 1,
+        'The title must be centered between GitHub and the actual rendered orbit',
+      );
+    }
     assert.ok(layout.sound.left >= 0 && layout.sound.right <= width);
     assert.ok(layout.sound.top >= 48 && layout.sound.height >= 44);
     assert.ok(layout.sound.bottom < layout.start.top);
     assert.equal(layout.clipped, false);
     const soundButton = page.locator('.title-sound');
     assert.equal(await soundButton.getAttribute('aria-pressed'), 'false');
+    assert.equal(await page.evaluate(() => window.titleAudio.contexts.length), 0);
     await soundButton.tap();
     await page.waitForFunction(() => window.titleAudio.started === 1);
     assert.equal(await soundButton.getAttribute('aria-pressed'), 'true');
@@ -115,6 +132,30 @@ try {
     await page.waitForFunction(() => window.titleAudio.contexts[0].state === 'suspended');
     assert.equal(await soundButton.getAttribute('aria-pressed'), 'false');
     assert.equal(await page.evaluate(() => window.__gameDebug.getModel().elapsedTicks), 0);
+    await soundButton.tap();
+    await page.waitForFunction(() => window.titleAudio.started === 2);
+    await page
+      .getByRole('button', {
+        name: languages.find((entry) => entry.id === 'en').label,
+        exact: true,
+      })
+      .click();
+    await page.reload();
+    await page.waitForFunction(
+      () => window.__gameScene && !document.querySelector('.start')?.disabled,
+    );
+    assert.equal(
+      await soundButton.getAttribute('aria-pressed'),
+      'false',
+      'Reload starts muted after enabling sound',
+    );
+    assert.equal(await page.evaluate(() => window.titleAudio.contexts.length), 0);
+    assert.equal(
+      await page.evaluate(() => document.documentElement.lang),
+      'en',
+      'Language remains saved',
+    );
+    await page.getByRole('button', { name: '한국어', exact: true }).click();
     for (const language of languages) {
       await page.getByRole('button', { name: language.label, exact: true }).click();
       assert.equal(

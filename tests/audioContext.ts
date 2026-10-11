@@ -87,6 +87,11 @@ export function audioContext() {
       graph.push(n);
       return n;
     },
+    createWaveShaper() {
+      const n = { ...node(), curve: null as Float32Array | null };
+      graph.push(n);
+      return n;
+    },
   };
   const advance = (time: number) => {
     ctx.currentTime = time;

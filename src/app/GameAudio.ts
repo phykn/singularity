@@ -1,7 +1,7 @@
 import type { Game } from '../game/Game.ts';
 import { endingFrame } from '../presentation/ending.ts';
 import { beyondFrame } from '../presentation/beyond.ts';
-import { KillRhythm, SoundMixer } from './sounds.ts';
+import { SoundMixer } from './sounds.ts';
 import type { SoundSpace } from './sounds.ts';
 import { CENTER, distance } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
@@ -23,10 +23,7 @@ const skillCues: Record<string, string> = {
 
 export class GameAudio {
   private context: AudioContext | null = null;
-  private last: Record<string, number> = {};
   private mixer: SoundMixer | null = null;
-  private rhythm = new KillRhythm();
-  private killSpace?: SoundSpace;
   private model: Game | null = null;
   private stage = '';
   private wanted = false;
@@ -61,8 +58,6 @@ export class GameAudio {
 
   suspend(): void {
     this.mixer?.stop(this.context?.currentTime, true);
-    this.rhythm.reset();
-    this.killSpace = undefined;
     this.wanted = false;
     this.request++;
     this.enabled = false;
@@ -79,8 +74,6 @@ export class GameAudio {
   destroy(): void {
     this.mixer?.dispose();
     this.mixer = null;
-    this.rhythm.reset();
-    this.killSpace = undefined;
     this.model = null;
     this.stage = '';
     const context = this.context;
@@ -89,7 +82,6 @@ export class GameAudio {
     this.enabled = false;
     this.wanted = false;
     this.request++;
-    this.last = {};
     void context?.close().catch(() => {});
   }
 
@@ -99,8 +91,6 @@ export class GameAudio {
     this.mixer ??= new SoundMixer(ctx);
     if (this.model !== game) {
       this.mixer.stop();
-      this.rhythm.reset();
-      this.last = {};
       this.stage = '';
       this.model = game;
     }
@@ -111,7 +101,6 @@ export class GameAudio {
       if (this.stage !== stage) {
         this.stage = stage;
         this.mixer.stop();
-        this.rhythm.reset();
         if (crossing.stage === 'contract') this.play('beyond-contract');
         if (crossing.stage === 'open') this.play('beyond-open');
       }
@@ -122,7 +111,6 @@ export class GameAudio {
       if (this.stage !== ending.stage) {
         this.stage = ending.stage;
         this.mixer.stop();
-        this.rhythm.reset();
         const cues: Record<string, string> = {
           accelerate: 'charged',
           compress: 'ending-compress',
@@ -136,50 +124,25 @@ export class GameAudio {
       return;
     }
     this.stage = '';
-    let kills = 0,
-      hits = false,
-      dense = false;
-    let hitPoint: Point | undefined, killPoint: Point | undefined;
     for (let i = Math.max(0, from - game.eventOffset); i < game.events.length; i++) {
       const event = game.events[i];
-      if (game.time - event.time > 0.15) continue;
-      if (event.kind === 'kill') {
-        kills++;
-        const point = event.data as Point;
-        if (!killPoint || distance(point, game.position) < distance(killPoint, game.position))
-          killPoint = point;
-      } else if (event.kind === 'hit') {
-        hits = true;
-        dense ||= (event.data as { kind: string }).kind === 'dense';
-        const point = event.data as Point;
-        if (!hitPoint || distance(point, game.position) < distance(hitPoint, game.position))
-          hitPoint = point;
+      if (event.kind === 'kill' || event.kind === 'hit') {
+        const point = event.data as Point & { kind: string };
+        this.play(
+          event.kind === 'kill' ? 'kill' : point.kind === 'dense' ? 'dense' : 'hit',
+          soundSpace(point, game.position),
+        );
       } else if (event.kind === 'skill-effect') {
         const cue = skillCues[(event.data as { id: string }).id];
         if (cue) this.play(cue);
       } else if (['level', 'wave', 'charged'].includes(event.kind)) this.play(event.kind);
     }
-    if (hits && !kills)
-      this.play(
-        dense ? 'dense' : 'hit',
-        hitPoint ? soundSpace(hitPoint, game.position) : undefined,
-      );
-    if (kills) {
-      this.killSpace = killPoint ? soundSpace(killPoint, game.position) : undefined;
-      this.rhythm.add(kills, ctx.currentTime);
-    }
-    const pulse = this.rhythm.update(ctx.currentTime);
-    if (pulse !== null) this.mixer.play('kill', ctx.currentTime, pulse, this.killSpace);
   }
 
   play(kind: string, space?: SoundSpace): void {
     const ctx = this.context;
     if (!this.enabled || !ctx || ctx.state !== 'running') return;
-    const now = ctx.currentTime;
-    const interval = kind === 'hit' ? 0.1 : 0.07;
-    if (now - (this.last[kind] ?? -Infinity) < interval) return;
-    this.last[kind] = now;
     this.mixer ??= new SoundMixer(ctx);
-    this.mixer.play(kind, now, 1, space);
+    this.mixer.play(kind, ctx.currentTime, 1, space);
   }
 }

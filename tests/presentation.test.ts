@@ -5,7 +5,7 @@ import { endingFrame } from '../src/presentation/ending.ts';
 import { drawCollapse } from '../src/render/collapse.ts';
 import { drawSingularity, drawAccretion } from '../src/render/singularity.ts';
 import type Phaser from 'phaser';
-import { KillRhythm, SoundMixer } from '../src/app/sounds.ts';
+import { SoundMixer } from '../src/app/sounds.ts';
 import { audioContext } from './audioContext.ts';
 
 test('singularity disk is compact, occluded and quiet after its one-time light sweep', () => {
@@ -46,44 +46,17 @@ test('singularity disk is compact, occluded and quiet after its one-time light s
   }
 });
 
-test('kill rhythm increases with kills, caps its rate and never drains a backlog', () => {
-  const run = (killsPerSecond: number) => {
-    const rhythm = new KillRhythm();
-    const pulses: number[] = [];
-    let kills = 0;
-    for (let frame = 0; frame < 1200; frame++) {
-      const time = frame / 120;
-      const total = Math.floor(time * killsPerSecond);
-      rhythm.add(total - kills, time);
-      kills = total;
-      if (rhythm.update(time) !== null) pulses.push(time);
-    }
-    assert.equal(rhythm.update(10.3), null, 'No stale sound after combat stops');
-    for (let i = 1; i < pulses.length; i++) assert.ok(pulses[i] - pulses[i - 1] >= 1 / 12 - 1e-8);
-    return pulses.length;
-  };
-  const counts = [1, 6, 20, 200].map(run);
-  assert.ok(counts[0] < counts[1] && counts[1] < counts[2]);
-  assert.ok(counts[3] <= 120);
-  const rhythm = new KillRhythm();
-  rhythm.add(10000, 0);
-  assert.notEqual(rhythm.update(0), null);
-  assert.equal(rhythm.update(0.25), null);
-  rhythm.reset();
-  assert.equal(rhythm.update(0.26), null);
-});
-
-test('sound voices stay bounded and their nodes disconnect after playback or mute', () => {
+test('all simultaneous sound nodes disconnect after playback or mute', () => {
   const { ctx, sources, gains, graph, advance } = audioContext();
   const mixer = new SoundMixer(ctx);
   for (let i = 0; i < 100; i++)
     for (const kind of ['hit', 'dense', 'kill', 'wave', 'charged', 'level']) mixer.play(kind);
-  assert.ok(sources.length > 0 && sources.length <= 8);
+  assert.equal(sources.length, 600);
   mixer.stop();
   assert.ok(sources.every((node) => node.end <= 0.008));
   advance(0.008);
   assert.ok(sources.every((node) => node.disconnected));
-  assert.ok(mixer.play('hit'), 'Muted voices cannot occupy the next playback budget');
+  assert.ok(mixer.play('hit'), 'Playback can resume immediately after mute');
   mixer.dispose();
   advance(1);
   assert.ok(gains.every((node) => node.disconnected));

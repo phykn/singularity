@@ -1,4 +1,3 @@
-import type { Settings as Preferences } from '../app/storage.ts';
 import { copy } from './i18n.ts';
 import type { Language } from './i18n.ts';
 export function Settings({
@@ -6,7 +5,7 @@ export function Settings({
   language,
   toggleSound,
 }: {
-  settings: Preferences;
+  settings: { sound: boolean };
   language: Language;
   toggleSound: () => Promise<void>;
 }) {
