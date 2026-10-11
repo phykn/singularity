@@ -76,6 +76,19 @@ export function CollapseIcon() {
   );
 }
 
+export function SoundIcon({ enabled }: { enabled: boolean }) {
+  return (
+    <svg width={24} height={24} viewBox="0 0 16 16" shapeRendering="crispEdges" aria-hidden="true">
+      <path d="M2 6H5V5H6V4H8V12H6V11H5V10H2Z" fill="currentColor" />
+      {enabled ? (
+        <path d="M10 6H11V10H10 M12 4H13V5H14V11H13V12H12" fill="none" stroke="currentColor" />
+      ) : (
+        <path d="M10 6L14 10 M14 6L10 10" fill="none" stroke="currentColor" />
+      )}
+    </svg>
+  );
+}
+
 export function SingularityIcon() {
   return (
     <svg

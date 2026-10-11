@@ -804,7 +804,7 @@ export class Game {
     target.hp -= damage;
     if (target.hp < 1e-8) target.hp = 0;
     target.hitAt = this.time;
-    this.log('hit', { id: target.id, kind: target.kind, damage });
+    this.log('hit', { id: target.id, kind: target.kind, damage, x: target.x, y: target.y });
     this.damageNumbers.push({
       id: this.nextDamageId++,
       x: target.x,
@@ -854,7 +854,7 @@ export class Game {
             this.tick + this.rules.rush.spawnSecondsByStage[this.stage] * this.rules.tickRate,
           );
       }
-      this.log('kill', { id: target.id, kind: target.kind, xp: this.xp });
+      this.log('kill', { id: target.id, kind: target.kind, xp: this.xp, x: target.x, y: target.y });
       if (!before && this.charged) this.log('charged', { xp: this.xp });
     }
   }

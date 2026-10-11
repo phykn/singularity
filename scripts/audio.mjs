@@ -38,6 +38,29 @@ try {
         ],
       },
       {
+        name: 'textures',
+        seconds: 8,
+        events: [
+          'hit',
+          'dense',
+          'kill',
+          'spark',
+          'field',
+          'rhythm-1',
+          'rhythm-2',
+          'rhythm-complete',
+        ].map((kind, i) => ({ kind, at: 0.25 + i * 0.9 })),
+      },
+      {
+        name: 'distance',
+        seconds: 3,
+        events: [
+          { kind: 'kill', at: 0.25, space: { pan: -0.3, depth: 0 } },
+          { kind: 'kill', at: 1.25, space: { pan: 0.3, depth: 1 } },
+          { kind: 'rhythm-1', at: 2.25, space: { pan: 0.3, depth: 1 } },
+        ],
+      },
+      {
         name: 'singularity',
         seconds: 7,
         events: [
@@ -84,7 +107,7 @@ try {
       let played = 0;
       for (const event of plan.events.sort((a, b) => a.at - b.at)) {
         if (event.stop) mixer.stop(event.at);
-        else if (mixer.play(event.kind, event.at, event.pitch ?? 1)) played++;
+        else if (mixer.play(event.kind, event.at, event.pitch ?? 1, event.space)) played++;
       }
       const audio = await ctx.startRendering();
       let peak = 0,

@@ -36,6 +36,12 @@ export function audioContext() {
   const sources: ReturnType<typeof source>[] = [];
   const gains: (ReturnType<typeof node> & { gain: ReturnType<typeof param> })[] = [];
   const graph: ReturnType<typeof node>[] = [];
+  const pans: (ReturnType<typeof node> & { pan: ReturnType<typeof param> })[] = [];
+  const filters: (ReturnType<typeof node> & {
+    type: string;
+    frequency: ReturnType<typeof param>;
+    Q: ReturnType<typeof param>;
+  })[] = [];
   const buffers: { duration: number; getChannelData: (_channel: number) => Float32Array }[] = [];
   const ctx = {
     currentTime: 0,
@@ -60,11 +66,13 @@ export function audioContext() {
     createStereoPanner() {
       const n = { ...node(), pan: param() };
       graph.push(n);
+      pans.push(n);
       return n;
     },
     createBiquadFilter() {
       const n = { ...node(), type: '', frequency: param(), Q: param() };
       graph.push(n);
+      filters.push(n);
       return n;
     },
     createDynamicsCompressor() {
@@ -84,5 +92,14 @@ export function audioContext() {
     ctx.currentTime = time;
     for (const s of sources.filter((s) => !s.disconnected && s.end <= time)) s.onended();
   };
-  return { ctx: ctx as unknown as BaseAudioContext, sources, gains, graph, buffers, advance };
+  return {
+    ctx: ctx as unknown as BaseAudioContext,
+    sources,
+    gains,
+    graph,
+    pans,
+    filters,
+    buffers,
+    advance,
+  };
 }

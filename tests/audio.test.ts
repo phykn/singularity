@@ -131,8 +131,8 @@ test('kill groups replace duplicate hit sounds and current skill activations hav
       played.push(kind);
     },
   });
-  game.log('hit', { kind: 'small' });
-  game.log('kill', { kind: 'small' });
+  game.log('hit', { kind: 'small', x: 220, y: 260 });
+  game.log('kill', { kind: 'small', x: 220, y: 260 });
   game.log('skill-effect', { id: 'strike', rank: 1 });
   audio.update(game, 0);
   assert.deepEqual(played, ['arc', 'kill']);
@@ -140,9 +140,73 @@ test('kill groups replace duplicate hit sounds and current skill activations hav
   audio.update(game, game.eventCount);
   assert.deepEqual(played, ['arc', 'kill'], 'No repeated texture after the kill');
   const from = game.eventCount;
-  game.log('hit', { kind: 'dense' });
+  game.log('hit', { kind: 'dense', x: 220, y: 260 });
   audio.update(game, from);
   assert.equal(played.at(-1), 'dense');
+});
+
+test('distant combat is quieter and muffled, while QTE stays centered and clear', () => {
+  const { ctx, gains, graph, pans, filters, advance } = audioContext();
+  const mixer = new SoundMixer(ctx);
+  mixer.play('kill', 0, 1, { pan: -0.3, depth: 0 });
+  advance(0.3);
+  mixer.play('kill', 0.3, 1, { pan: 0.3, depth: 1 });
+  const levels = gains.slice(1).map((node) => node.gain.values[0].value);
+  assert.ok(levels[1] < levels[0]);
+  assert.ok(filters[2].frequency.values[0].value < filters[1].frequency.values[0].value);
+  advance(0.6);
+  mixer.play('rhythm-1', 0.6, 1, { pan: -1, depth: 1 });
+  assert.deepEqual(
+    pans.map((node) => node.pan.values[0].value),
+    [-0.3, 0.3, 0],
+  );
+  assert.equal(filters[1].frequency.values[0].value, filters[3].frequency.values[0].value);
+  mixer.dispose();
+  assert.ok(graph.every((node) => node.disconnected));
+});
+
+test('combat sound location follows the nearest fresh impact, including removed targets', () => {
+  const game = new Game(17, { combat: false });
+  game.start();
+  const cues: { kind: string; space: unknown }[] = [];
+  const audio = new GameAudio();
+  Object.assign(audio, {
+    enabled: true,
+    context: { state: 'running', currentTime: 10 },
+    mixer: {
+      stop() {},
+      play(kind: string, _at: number, _pitch: number, space: unknown) {
+        cues.push({ kind, space });
+      },
+    },
+  });
+  const point = { x: game.position.x + 15, y: game.position.y };
+  game.log('kill', { kind: 'small', x: point.x + 300, y: point.y });
+  game.log('kill', { kind: 'small', ...point });
+  audio.update(game, 0);
+  assert.equal(cues.length, 1);
+  assert.deepEqual(cues[0], { kind: 'kill', space: { pan: (point.x - 180) / 520, depth: 0.05 } });
+});
+
+test('frequent hits and QTE share a damped low body instead of sharp pitched pings', () => {
+  for (const kind of ['hit', 'dense', 'kill', 'rhythm-1', 'rhythm-2', 'rhythm-complete'] as const) {
+    const clip = synthesizeSound(kind, 48000);
+    const alpha = 1 - Math.exp((-2 * Math.PI * 900) / 48000);
+    let low = 0,
+      total = 0,
+      bass = 0;
+    for (const sample of clip) {
+      low += alpha * (sample - low);
+      total += sample ** 2;
+      bass += low ** 2;
+    }
+    assert.ok(bass / total > 0.65, kind + ' should keep most energy in the soft body');
+    const tail = clip.slice(Math.floor(clip.length * 0.8));
+    assert.ok(
+      tail.reduce((sum, sample) => sum + sample ** 2, 0) / total < 0.03,
+      kind + ' should not leave a ringing tail',
+    );
+  }
 });
 
 test('audio consumes new cues once when the recent event window rolls over', () => {

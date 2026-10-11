@@ -100,7 +100,12 @@ export class GameSession {
       this.audio.suspend();
       return null;
     }
-    return this.unlockAudio();
+    const enabled = await this.unlockAudio();
+    if (enabled && this.effects.sound() && this.game.phase === 'ready') {
+      this.audio.update(this.game, this.audioCursor);
+      this.audio.play?.('rhythm-1');
+    }
+    return enabled;
   }
 
   private async unlockAudio(): Promise<boolean | null> {

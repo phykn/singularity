@@ -339,7 +339,8 @@ svg {
 .arena-caption {
   pointer-events: none;
   position: absolute;
-  bottom: 48px;
+  z-index: 1;
+  top: 64px;
   left: var(--gutter);
   right: var(--gutter);
   text-align: center;
@@ -373,6 +374,49 @@ svg {
 }
 .preparation {
   padding: 0;
+}
+.title-sound {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  margin-bottom: 12px;
+  padding: 8px 14px;
+  border: 1px solid #2b3e49;
+  background: linear-gradient(100deg, #14222b, #0d141b);
+  color: #9db7c4;
+  text-align: left;
+}
+.title-sound > svg {
+  width: 24px;
+  height: 24px;
+}
+.title-sound-label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1;
+}
+.sound-recommendation {
+  padding: 3px 5px;
+  border: 1px solid #335160;
+  color: #aad9e1;
+  background: #192d37;
+  font-size: 10px;
+  line-height: 14px;
+}
+.title-sound-state {
+  font-size: 10px;
+  color: #81929e;
+}
+.title-sound[aria-pressed='true'] {
+  border-color: #537887;
+  color: #b9edf6;
+}
+.title-sound[aria-pressed='true'] .title-sound-state {
+  color: #b9edf6;
 }
 .title-meta {
   position: absolute;
@@ -930,10 +974,12 @@ svg {
   background: #a7b1bf;
   border-radius: 0;
 }
-.setting-row[aria-pressed='true'] .switch {
+.setting-row[aria-pressed='true'] .switch,
+.title-sound[aria-pressed='true'] .switch {
   background: var(--blue);
 }
-.setting-row[aria-pressed='true'] .switch::before {
+.setting-row[aria-pressed='true'] .switch::before,
+.title-sound[aria-pressed='true'] .switch::before {
   transform: translateX(12px);
   background: #10252c;
 }
@@ -1265,11 +1311,11 @@ svg {
     grid-row: 1 / -1;
   }
   .is-ready .footer {
-    position: relative;
-    bottom: auto;
-    grid-column: 2;
-    grid-row: 2;
-    align-self: center;
+    position: absolute;
+    bottom: 24px;
+    left: auto;
+    width: 320px;
+    right: 0;
   }
   .is-ready {
     --gutter: 20px;
@@ -1281,14 +1327,21 @@ svg {
     min-height: 48px;
   }
   .arena-caption {
-    bottom: 12px;
-    left: 12px;
-    right: 12px;
+    top: 56px;
+    left: calc(100% - 300px);
+    right: 20px;
   }
   .arena-caption h1 {
-    font-size: 36px;
+    font-size: 28px;
     letter-spacing: 0;
     text-indent: 0;
+  }
+  .title-sound {
+    min-height: 48px;
+    margin-bottom: 8px;
+  }
+  .is-ready .language-picker {
+    margin-top: 8px;
   }
   .dialog {
     max-width: 600px;

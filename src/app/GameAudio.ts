@@ -2,6 +2,13 @@ import type { Game } from '../game/Game.ts';
 import { endingFrame } from '../presentation/ending.ts';
 import { beyondFrame } from '../presentation/beyond.ts';
 import { KillRhythm, SoundMixer } from './sounds.ts';
+import type { SoundSpace } from './sounds.ts';
+import { CENTER, distance } from '../game/geometry.ts';
+import type { Point } from '../game/geometry.ts';
+
+function soundSpace(point: Point, listener: Point): SoundSpace {
+  return { pan: (point.x - CENTER.x) / 520, depth: Math.min(1, distance(point, listener) / 300) };
+}
 
 const skillCues: Record<string, string> = {
   strike: 'arc',
@@ -19,6 +26,7 @@ export class GameAudio {
   private last: Record<string, number> = {};
   private mixer: SoundMixer | null = null;
   private rhythm = new KillRhythm();
+  private killSpace?: SoundSpace;
   private model: Game | null = null;
   private stage = '';
   private wanted = false;
@@ -54,6 +62,7 @@ export class GameAudio {
   suspend(): void {
     this.mixer?.stop(this.context?.currentTime, true);
     this.rhythm.reset();
+    this.killSpace = undefined;
     this.wanted = false;
     this.request++;
     this.enabled = false;
@@ -71,6 +80,7 @@ export class GameAudio {
     this.mixer?.dispose();
     this.mixer = null;
     this.rhythm.reset();
+    this.killSpace = undefined;
     this.model = null;
     this.stage = '';
     const context = this.context;
@@ -129,26 +139,40 @@ export class GameAudio {
     let kills = 0,
       hits = false,
       dense = false;
+    let hitPoint: Point | undefined, killPoint: Point | undefined;
     for (let i = Math.max(0, from - game.eventOffset); i < game.events.length; i++) {
       const event = game.events[i];
       if (game.time - event.time > 0.15) continue;
       if (event.kind === 'kill') {
         kills++;
+        const point = event.data as Point;
+        if (!killPoint || distance(point, game.position) < distance(killPoint, game.position))
+          killPoint = point;
       } else if (event.kind === 'hit') {
         hits = true;
         dense ||= (event.data as { kind: string }).kind === 'dense';
+        const point = event.data as Point;
+        if (!hitPoint || distance(point, game.position) < distance(hitPoint, game.position))
+          hitPoint = point;
       } else if (event.kind === 'skill-effect') {
         const cue = skillCues[(event.data as { id: string }).id];
         if (cue) this.play(cue);
       } else if (['level', 'wave', 'charged'].includes(event.kind)) this.play(event.kind);
     }
-    if (hits && !kills) this.play(dense ? 'dense' : 'hit');
-    if (kills) this.rhythm.add(kills, ctx.currentTime);
+    if (hits && !kills)
+      this.play(
+        dense ? 'dense' : 'hit',
+        hitPoint ? soundSpace(hitPoint, game.position) : undefined,
+      );
+    if (kills) {
+      this.killSpace = killPoint ? soundSpace(killPoint, game.position) : undefined;
+      this.rhythm.add(kills, ctx.currentTime);
+    }
     const pulse = this.rhythm.update(ctx.currentTime);
-    if (pulse !== null) this.mixer.play('kill', ctx.currentTime, pulse);
+    if (pulse !== null) this.mixer.play('kill', ctx.currentTime, pulse, this.killSpace);
   }
 
-  play(kind: string): void {
+  play(kind: string, space?: SoundSpace): void {
     const ctx = this.context;
     if (!this.enabled || !ctx || ctx.state !== 'running') return;
     const now = ctx.currentTime;
@@ -156,6 +180,6 @@ export class GameAudio {
     if (now - (this.last[kind] ?? -Infinity) < interval) return;
     this.last[kind] = now;
     this.mixer ??= new SoundMixer(ctx);
-    this.mixer.play(kind);
+    this.mixer.play(kind, now, 1, space);
   }
 }

@@ -1,5 +1,6 @@
 type Bus = 'hit' | 'kill' | 'skill' | 'reward' | 'rhythm' | 'transition';
-type Recipe = 'pop' | 'crunch' | 'spark' | 'field' | 'rise' | 'sink' | 'bloom' | 'resonance';
+type Recipe =
+  'press' | 'wet' | 'thock' | 'crumble' | 'flow' | 'compress' | 'release' | 'swell' | 'resonance';
 type Definition = {
   bus: Bus;
   recipe: Recipe;
@@ -9,42 +10,49 @@ type Definition = {
   variants: number;
 };
 
-// Original, dry textures: a soft body under small, rounded shell fragments.
+// Original tactile textures share a soft pressure body, with wet or solid surfaces.
 export const soundDefinitions = {
-  hit: { bus: 'hit', recipe: 'pop', duration: 0.075, gain: 0.14, color: 0.85, variants: 6 },
-  dense: { bus: 'hit', recipe: 'crunch', duration: 0.14, gain: 0.2, color: 0.72, variants: 4 },
-  kill: { bus: 'kill', recipe: 'crunch', duration: 0.115, gain: 0.27, color: 1, variants: 8 },
-  spark: { bus: 'skill', recipe: 'spark', duration: 0.095, gain: 0.1, color: 1, variants: 4 },
-  arc: { bus: 'skill', recipe: 'crunch', duration: 0.21, gain: 0.22, color: 0.65, variants: 4 },
-  field: { bus: 'skill', recipe: 'field', duration: 0.29, gain: 0.15, color: 1, variants: 3 },
-  charge: { bus: 'skill', recipe: 'spark', duration: 0.22, gain: 0.17, color: 0.8, variants: 3 },
-  surge: { bus: 'skill', recipe: 'crunch', duration: 0.25, gain: 0.18, color: 0.85, variants: 3 },
-  vent: { bus: 'skill', recipe: 'field', duration: 0.24, gain: 0.17, color: 0.65, variants: 3 },
-  level: { bus: 'reward', recipe: 'bloom', duration: 0.36, gain: 0.22, color: 1.7, variants: 3 },
-  wave: { bus: 'transition', recipe: 'sink', duration: 0.4, gain: 0.19, color: 0.8, variants: 2 },
-  charged: { bus: 'transition', recipe: 'rise', duration: 0.72, gain: 0.24, color: 1, variants: 1 },
+  hit: { bus: 'hit', recipe: 'press', duration: 0.14, gain: 0.2, color: 1, variants: 6 },
+  dense: { bus: 'hit', recipe: 'thock', duration: 0.18, gain: 0.25, color: 0.78, variants: 4 },
+  kill: { bus: 'kill', recipe: 'wet', duration: 0.18, gain: 0.32, color: 1, variants: 8 },
+  spark: { bus: 'skill', recipe: 'crumble', duration: 0.11, gain: 0.11, color: 1.15, variants: 4 },
+  arc: { bus: 'skill', recipe: 'thock', duration: 0.26, gain: 0.27, color: 0.65, variants: 4 },
+  field: { bus: 'skill', recipe: 'flow', duration: 0.3, gain: 0.14, color: 0.8, variants: 3 },
+  charge: { bus: 'skill', recipe: 'flow', duration: 0.26, gain: 0.16, color: 1, variants: 3 },
+  surge: { bus: 'skill', recipe: 'press', duration: 0.3, gain: 0.22, color: 0.7, variants: 3 },
+  vent: { bus: 'skill', recipe: 'release', duration: 0.3, gain: 0.18, color: 0.85, variants: 3 },
+  level: { bus: 'reward', recipe: 'swell', duration: 0.36, gain: 0.25, color: 1.2, variants: 3 },
+  wave: { bus: 'transition', recipe: 'thock', duration: 0.4, gain: 0.24, color: 0.62, variants: 2 },
+  charged: {
+    bus: 'transition',
+    recipe: 'compress',
+    duration: 0.72,
+    gain: 0.24,
+    color: 0.9,
+    variants: 1,
+  },
   collision: {
     bus: 'transition',
-    recipe: 'crunch',
+    recipe: 'crumble',
     duration: 0.48,
     gain: 0.34,
-    color: 0.45,
+    color: 0.55,
     variants: 1,
   },
   ending: {
     bus: 'transition',
-    recipe: 'bloom',
+    recipe: 'release',
     duration: 0.4,
-    gain: 0.4,
-    color: 0.35,
+    gain: 0.43,
+    color: 0.65,
     variants: 1,
   },
   'ending-compress': {
     bus: 'transition',
-    recipe: 'rise',
+    recipe: 'compress',
     duration: 1.05,
-    gain: 0.29,
-    color: 0.65,
+    gain: 0.3,
+    color: 0.7,
     variants: 1,
   },
   'ending-resonance': {
@@ -52,48 +60,48 @@ export const soundDefinitions = {
     recipe: 'resonance',
     duration: 1.55,
     gain: 0.26,
-    color: 0.6,
+    color: 0.75,
     variants: 1,
   },
   'beyond-contract': {
     bus: 'transition',
-    recipe: 'sink',
+    recipe: 'compress',
     duration: 0.55,
-    gain: 0.27,
-    color: 0.6,
+    gain: 0.25,
+    color: 0.8,
     variants: 1,
   },
   'beyond-open': {
     bus: 'transition',
-    recipe: 'bloom',
+    recipe: 'release',
     duration: 0.55,
-    gain: 0.3,
-    color: 0.75,
+    gain: 0.35,
+    color: 0.85,
     variants: 1,
   },
   'rhythm-1': {
     bus: 'rhythm',
-    recipe: 'pop',
-    duration: 0.13,
-    gain: 0.32,
-    color: 1.15,
-    variants: 3,
+    recipe: 'thock',
+    duration: 0.17,
+    gain: 0.36,
+    color: 1,
+    variants: 4,
   },
-  'rhythm-2': { bus: 'rhythm', recipe: 'pop', duration: 0.16, gain: 0.34, color: 1.3, variants: 3 },
+  'rhythm-2': { bus: 'rhythm', recipe: 'thock', duration: 0.2, gain: 0.4, color: 0.9, variants: 4 },
   'rhythm-complete': {
     bus: 'rhythm',
-    recipe: 'bloom',
-    duration: 0.37,
-    gain: 0.4,
-    color: 1.05,
+    recipe: 'release',
+    duration: 0.32,
+    gain: 0.47,
+    color: 0.95,
     variants: 4,
   },
   'rhythm-miss': {
     bus: 'rhythm',
-    recipe: 'pop',
-    duration: 0.085,
-    gain: 0.1,
-    color: 0.55,
+    recipe: 'press',
+    duration: 0.1,
+    gain: 0.12,
+    color: 0.7,
     variants: 2,
   },
 } satisfies Record<string, Definition>;
@@ -120,115 +128,162 @@ export function synthesizeSound(kind: SoundKind, sampleRate: number, variant = 0
     for (let i = 0; i < count && start + i < data.length; i++)
       data[start + i] += sample(i / sampleRate, i / count);
   };
-  const body = (at: number, duration: number, freq: number, amp: number) => {
-    let phase = 0;
-    add(at, duration, (t, p) => {
-      phase += (Math.PI * 2 * freq * (0.64 + 0.36 * Math.exp(-t * 65))) / sampleRate;
-      const env = (1 - Math.exp(-t * 1200)) * Math.exp(-p * 5.5) * (1 - p) ** 2;
-      return (Math.sin(phase) + Math.sin(phase * 1.98) * 0.12) * env * amp;
+  const cavity = (at: number, duration: number, freq: number, amp: number, wet = false) => {
+    let phase = 0,
+      attack = 1,
+      decay = 1,
+      fall = 1,
+      mid = 1,
+      high = 1;
+    const a = Math.exp(-(wet ? 700 : 220) / sampleRate),
+      d = Math.exp(-3.6 / Math.ceil(duration * sampleRate)),
+      f = Math.exp(-30 / sampleRate),
+      m = Math.exp(-45 / sampleRate),
+      h = Math.exp(-110 / sampleRate),
+      step = (Math.PI * 2 * freq) / sampleRate;
+    add(at, duration, (_t, p) => {
+      phase += step * (wet ? 0.65 + p * 0.9 : 0.82 + 0.18 * fall);
+      const env = (1 - attack) * decay * (1 - p) ** 2;
+      const value =
+        (Math.sin(phase) +
+          Math.sin(phase * 2.07) * 0.25 * mid +
+          Math.sin(phase * 4.31) * 0.12 * high) *
+        env *
+        amp;
+      attack *= a;
+      decay *= d;
+      fall *= f;
+      mid *= m;
+      high *= h;
+      return value;
     });
   };
-  const grain = (at: number, duration: number, cutoff: number, amp: number) => {
+  const rub = (at: number, duration: number, cutoff: number, amp: number, swell = false) => {
     let low = 0,
-      smooth = 0;
-    const alpha = 1 - Math.exp((-2 * Math.PI * cutoff) / sampleRate);
+      smooth = 0,
+      bass = 0,
+      attack = 1,
+      decay = 1;
+    const base = 1 - Math.exp((-2 * Math.PI * 70) / sampleRate),
+      fast = 1 - Math.exp((-2 * Math.PI * cutoff) / sampleRate),
+      slow = 1 - Math.exp((-2 * Math.PI * cutoff * 0.4) / sampleRate),
+      a = Math.exp(-650 / sampleRate),
+      d = Math.exp(-3 / Math.ceil(duration * sampleRate));
+    const wobble = random() * Math.PI * 2;
     add(at, duration, (t, p) => {
+      const alpha = fast * (1 - p) + slow * p;
       low += alpha * (random() * 2 - 1 - low);
       smooth += alpha * (low - smooth);
-      return smooth * (1 - Math.exp(-t * 4500)) * Math.exp(-p * 7) * (1 - p) ** 2 * amp;
+      bass += base * (smooth - bass);
+      const env = swell ? (4 * p * (1 - p)) ** 1.2 : (1 - attack) * decay * (1 - p) ** 2;
+      attack *= a;
+      decay *= d;
+      return (
+        (smooth - bass) *
+        env *
+        (0.72 + 0.16 * Math.sin(t * 190 + wobble) + 0.12 * Math.sin(t * 310 + wobble)) *
+        amp
+      );
     });
   };
-  const fragments = (count: number, span: number, amp: number) => {
+  const press = (at: number, duration: number, amp: number) => {
+    cavity(at, duration, 145 * color, amp);
+    rub(at + 0.003, duration * 0.8, 750 * color, amp * 0.65);
+  };
+  const bubbles = (count: number, span: number, amp: number) => {
     for (let i = 0; i < count; i++) {
-      const at = 0.003 + (i / count) ** 1.4 * span + random() * 0.004;
-      grain(
+      const at = 0.012 + (i / count) ** 1.3 * span + random() * 0.006,
+        duration = 0.028 + random() * 0.022;
+      cavity(
         at,
-        0.006 + random() * 0.013,
-        (1700 + random() * 2100) * color,
-        amp * (0.5 + random() * 0.5) * (1 - i / (count * 1.3)),
+        duration,
+        (380 + random() * 260) * color,
+        (amp * (0.75 + random() * 0.25)) / (1 + i * 0.3),
+        true,
       );
+      rub(at, duration, 1400 * color, amp * 0.25);
     }
   };
-  const air = (reverse: boolean, amp: number) => {
-    let low = 0,
-      smooth = 0;
-    add(0, spec.duration, (t, p) => {
-      const q = reverse ? 1 - p : p;
-      const alpha = 1 - Math.exp((-2 * Math.PI * (350 + q * 2300) * color) / sampleRate);
-      low += alpha * (random() * 2 - 1 - low);
-      smooth += alpha * (low - smooth);
-      return smooth * Math.sin(Math.PI * p) ** 1.5 * (0.8 + 0.2 * Math.sin(t * 28)) * amp;
-    });
+  const crumble = (count: number, span: number, amp: number) => {
+    for (let i = 0; i < count; i++)
+      rub(
+        0.002 + (i / count) ** 1.4 * span + random() * 0.005,
+        0.014 + random() * 0.018,
+        (1300 + random() * 1700) * color,
+        (amp * (0.7 + random() * 0.3)) / (1 + i * 0.15),
+      );
   };
   const resonance = (freq: number, amp: number) => {
     add(0, spec.duration, (t, p) => {
       const env = (1 - Math.exp(-t * 100)) * Math.exp(-p * 3) * (1 - p) ** 2;
       return (
         (Math.sin(t * Math.PI * 2 * freq) * 0.65 +
-          Math.sin(t * Math.PI * 2 * freq * 1.501) * 0.23 +
-          Math.sin(t * Math.PI * 2 * freq * 2.003) * 0.12) *
+          Math.sin(t * Math.PI * 2 * freq * 2.01) * 0.23 +
+          Math.sin(t * Math.PI * 2 * freq * 3.07) * 0.12) *
         env *
         amp
       );
     });
   };
   switch (spec.recipe) {
-    case 'pop':
-      body(0, spec.duration, 360 * color, 0.7);
-      grain(0.001, 0.012, 2300 * color, 0.6);
-      fragments(3, 0.028, 0.35);
+    case 'press':
+      press(0, spec.duration, 1);
+      rub(0.005, spec.duration * 0.75, 1000 * color, 0.7);
       break;
-    case 'crunch':
-      body(0, spec.duration, 240 * color, 0.65);
-      grain(0, 0.02, 3100 * color, 1.15);
-      fragments(kind === 'kill' ? 9 : 13, spec.duration * 0.65, 1.05);
-      if (spec.duration > 0.2) resonance(100 * color, 0.3);
+    case 'wet':
+      press(0, spec.duration, 0.85);
+      rub(0.004, spec.duration * 0.72, 1350 * color, 1.35);
+      bubbles(3, spec.duration * 0.38, 0.5);
       break;
-    case 'spark':
-      body(0, spec.duration, 310 * color, 0.35);
-      fragments(12, spec.duration * 0.8, 0.9);
+    case 'thock':
+      press(0, spec.duration, 1.05);
+      cavity(0.002, 0.045, 510 * color, 0.35);
+      rub(0, 0.032, 1900 * color, 1.4);
+      rub(0.035, 0.035, 900 * color, 0.4);
       break;
-    case 'field':
-      body(0, spec.duration, 165 * color, 0.45);
-      air(true, 0.55);
-      fragments(5, spec.duration * 0.5, 0.35);
+    case 'crumble':
+      press(0, spec.duration, 0.8);
+      crumble(8, spec.duration * 0.65, 1.3);
       break;
-    case 'rise':
-      air(false, 1.1);
-      resonance(155 * color, 0.28);
-      // Accelerating grains suggest compression without an arcade pitch sweep.
-      for (let i = 0; i < 22; i++)
-        grain(
-          spec.duration * (1 - (1 - i / 24) ** 1.9),
-          0.016,
-          (900 + i * 55) * color,
-          0.3 + i * 0.015,
-        );
+    case 'flow':
+      press(0, spec.duration, 0.4);
+      rub(0, spec.duration, 850 * color, 1.8, true);
+      bubbles(3, spec.duration * 0.55, 0.3);
       break;
-    case 'sink':
-      air(true, 0.7);
-      body(0, spec.duration, 190 * color, 0.65);
-      resonance(120 * color, 0.2);
+    case 'compress':
+      rub(0, spec.duration, 650 * color, 1.65, true);
+      for (let i = 0; i < 7; i++)
+        press(spec.duration * (1 - (1 - i / 8) ** 1.6), spec.duration * 0.18, 0.3 + i * 0.06);
+      resonance(95 * color, 0.25);
       break;
-    case 'bloom':
-      body(0, spec.duration, 210 * color, 0.8);
-      grain(0, 0.032, 2400 * color, 1.2);
-      fragments(16, 0.11, 0.8);
-      resonance(165 * color, 0.42);
-      air(true, 0.2);
+    case 'release':
+      press(0, spec.duration, 1.15);
+      rub(0, spec.duration * 0.6, 1150 * color, 1.6);
+      bubbles(4, Math.min(0.11, spec.duration * 0.4), 0.6);
+      crumble(5, 0.08, 0.55);
+      resonance(110 * color, 0.2);
+      break;
+    case 'swell':
+      press(0, spec.duration, 0.8);
+      bubbles(5, 0.14, 0.55);
+      rub(0, spec.duration, 1100 * color, 0.5, true);
       break;
     case 'resonance':
-      resonance(110 * color, 0.7);
-      air(true, 0.18);
+      resonance(95 * color, 0.8);
+      rub(0, spec.duration, 420 * color, 0.45, true);
       break;
   }
   // Rounded transients and silent boundaries even at altered playback speeds.
   let dc = 0;
   for (const sample of data) dc += sample / data.length;
   const fade = Math.max(1, Math.round(sampleRate * 0.003));
+  const alpha = 1 - Math.exp((-2 * Math.PI * 55) / sampleRate);
+  let low = 0;
   for (let i = 0; i < data.length; i++) {
     const envelope = Math.min(1, i / fade, (data.length - 1 - i) / fade);
-    data[i] = Math.tanh((data[i] - dc) * 1.2) * 0.8 * envelope;
+    const sample = data[i] - dc;
+    low += alpha * (sample - low);
+    data[i] = Math.tanh((sample - low) * 1.2) * 0.8 * envelope;
   }
   data[0] = 0;
   data[data.length - 1] = 0;

@@ -68,7 +68,7 @@ try {
   let seed = await verifyFresh();
   const history = await page.evaluate(() => {
     const g = window.__gameDebug.getModel();
-    for (let i = 0; i < 5000; i++) g.log('hit', { kind: 'small', damage: 1 });
+    for (let i = 0; i < 5000; i++) g.log('hit', { kind: 'small', damage: 1, x: 180, y: 260 });
     return { retained: g.events.length, total: g.eventCount };
   });
   assert.ok(history.retained <= 1024);

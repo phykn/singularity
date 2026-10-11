@@ -1,12 +1,15 @@
 import { soundDefinitions, synthesizeSound } from './soundBank.ts';
 import type { SoundBus, SoundKind } from './soundBank.ts';
 
+export type SoundSpace = { pan: number; depth: number };
+
 type Voice = {
   bus: SoundBus;
   end: number;
   source: AudioBufferSourceNode;
   gain: GainNode;
   pan: StereoPannerNode;
+  tone: BiquadFilterNode;
   level: number;
 };
 const limits: Record<SoundBus, number> = {
@@ -19,7 +22,7 @@ const limits: Record<SoundBus, number> = {
 };
 const spacing: Record<SoundBus, number> = {
   hit: 0.065,
-  kill: 1 / 12,
+  kill: 0.1,
   skill: 0.24,
   reward: 0.12,
   rhythm: 0.055,
@@ -66,7 +69,7 @@ export class SoundMixer {
     return buffer;
   }
 
-  play(kind: string, at = this.context.currentTime, pitch = 1): boolean {
+  play(kind: string, at = this.context.currentTime, pitch = 1, space?: SoundSpace): boolean {
     if (!Object.hasOwn(soundDefinitions, kind)) return false;
     const id = kind as SoundKind,
       spec = soundDefinitions[id],
@@ -87,7 +90,12 @@ export class SoundMixer {
       source = ctx.createBufferSource(),
       gain = ctx.createGain();
     const pan = ctx.createStereoPanner(),
-      rate = Math.max(0.85, Math.min(1.15, pitch));
+      tone = ctx.createBiquadFilter(),
+      rate = Math.max(0.85, Math.min(1.15, pitch)),
+      depth = important ? 0 : Math.max(0, Math.min(1, space?.depth ?? 0));
+    tone.type = 'lowpass';
+    tone.Q.value = 0.5;
+    tone.frequency.setValueAtTime(5200 * (1 - depth) + 1400 * depth, at);
     source.buffer = this.buffer(id, variant);
     source.playbackRate.setValueAtTime(rate, at);
     const end = at + source.buffer.duration / rate;
@@ -96,7 +104,8 @@ export class SoundMixer {
     ).length;
     const foreground = this.voices.some((voice) => voice.bus === 'rhythm');
     const level =
-      (spec.gain / Math.sqrt(1 + crowded * 0.22)) * (!important && foreground ? 0.55 : 1);
+      ((spec.gain * (1 - depth * 0.3)) / Math.sqrt(1 + crowded * 0.35)) *
+      (!important && foreground ? 0.55 : 1);
     gain.gain.setValueAtTime(level, at);
     if (bus === 'rhythm') {
       for (const voice of this.voices.filter((voice) =>
@@ -106,9 +115,9 @@ export class SoundMixer {
         voice.gain.gain.setTargetAtTime(voice.level * 0.3, at, 0.006);
       }
     }
-    pan.pan.setValueAtTime(important ? 0 : Math.sin(variant * 2.399 + kind.length) * 0.16, at);
-    source.connect(gain).connect(pan).connect(this.filter);
-    const voice = { bus, end, source, gain, pan, level };
+    pan.pan.setValueAtTime(important ? 0 : Math.max(-0.35, Math.min(0.35, space?.pan ?? 0)), at);
+    source.connect(gain).connect(tone).connect(pan).connect(this.filter);
+    const voice = { bus, end, source, gain, pan, tone, level };
     this.voices.push(voice);
     source.onended = () => this.release(voice);
     source.start(at);
@@ -121,6 +130,7 @@ export class SoundMixer {
     voice.source.disconnect();
     voice.gain.disconnect();
     voice.pan.disconnect();
+    voice.tone.disconnect();
     const index = this.voices.indexOf(voice);
     if (index >= 0) this.voices.splice(index, 1);
   }
@@ -174,7 +184,7 @@ export class KillRhythm {
     if (!this.pending || time + 1e-8 < this.next) return null;
     const tick = Math.floor(time * 10);
     const rate = this.buckets.reduce((sum, b) => sum + (tick - b.tick < 10 ? b.count : 0), 0);
-    this.next = time + 1 / Math.min(12, Math.max(4, rate));
+    this.next = time + 1 / Math.min(10, Math.max(4, rate));
     this.pending = 0;
     this.pulse++;
     return 0.98 + Math.sin(this.pulse * 2.399) * 0.025;

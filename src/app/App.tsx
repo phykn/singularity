@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { endingFrame } from '../presentation/ending.ts';
 import { beyondFrame } from '../presentation/beyond.ts';
-import { ControlIcon } from '../ui/icons.tsx';
+import { ControlIcon, SoundIcon } from '../ui/icons.tsx';
 import { GameCanvas } from '../render/GameCanvas.tsx';
 import { Hud } from '../ui/Hud.tsx';
 import { Loadout } from '../ui/Loadout.tsx';
@@ -156,6 +156,11 @@ export default function App() {
             onPause={() => pause(true)}
           />
         )}
+        {ready && (
+          <div className="arena-caption">
+            <h1 lang="en">SINGULARITY</h1>
+          </div>
+        )}
         <section ref={arena} className="arena" tabIndex={-1} aria-label={c.arena}>
           <GameCanvas getGame={getGame} getRhythm={getRhythm} onReady={onRenderReady} />
           {!modal && renderReady && game.phase === 'running' && !game.choice && !game.paused && (
@@ -171,11 +176,7 @@ export default function App() {
               {c.storageFailed}
             </p>
           )}
-          {ready ? (
-            <div className="arena-caption">
-              <h1 lang="en">SINGULARITY</h1>
-            </div>
-          ) : (
+          {!ready && (
             <>
               {game.phase === 'running' &&
                 !game.charged &&
@@ -206,6 +207,23 @@ export default function App() {
         <section className="footer" aria-label={ready ? 'START' : c.loadout}>
           {ready ? (
             <div className="preparation">
+              <button
+                className="title-sound"
+                onClick={() => void toggleSound()}
+                aria-label={c.sound + ' ' + (settings.sound ? c.on : c.off)}
+                aria-pressed={settings.sound}
+                aria-describedby="sound-recommendation"
+              >
+                <SoundIcon enabled={settings.sound} />
+                <span className="title-sound-label">
+                  <span>{c.sound}</span>
+                  <span className="sound-recommendation" id="sound-recommendation">
+                    {c.soundRecommended}
+                  </span>
+                </span>
+                <span className="title-sound-state">{settings.sound ? c.on : c.off}</span>
+                <i className="switch" aria-hidden="true" />
+              </button>
               <button className="primary start" onClick={begin} disabled={!renderReady}>
                 <span>{renderReady ? 'START' : c.loading}</span>
                 <ControlIcon id="next" />

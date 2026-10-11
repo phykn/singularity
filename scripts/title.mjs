@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { base, launchBrowser, observeScene, capture } from './browser-support.mjs';
+import { copy, languages } from '../src/ui/i18n.ts';
 
 const browser = await launchBrowser();
 const checks = [],
@@ -18,6 +19,34 @@ try {
       hasTouch: true,
     });
     page.on('pageerror', (error) => errors.push(error.message));
+    await page.addInitScript(() => {
+      window.titleAudio = { contexts: [], started: 0, previews: [] };
+      const Native = AudioContext;
+      window.AudioContext = class extends Native {
+        constructor(...args) {
+          super(...args);
+          window.titleAudio.contexts.push(this);
+        }
+        createBufferSource() {
+          const source = super.createBufferSource(),
+            start = source.start.bind(source);
+          source.start = (...args) => {
+            window.titleAudio.started++;
+            const preview = {
+              at: this.currentTime,
+              expected: source.buffer.duration / source.playbackRate.value,
+              duration: null,
+            };
+            window.titleAudio.previews.push(preview);
+            source.addEventListener('ended', () => {
+              preview.duration = this.currentTime - preview.at;
+            });
+            return start(...args);
+          };
+          return source;
+        }
+      };
+    });
     await observeScene(page);
     await page.goto(base);
     await page.waitForFunction(
@@ -25,20 +54,100 @@ try {
     );
     await page.evaluate(() => document.fonts.ready);
     const layout = await page.evaluate(() => {
+      const caption = document.querySelector('.arena-caption');
       const title = document.querySelector('.arena-caption h1').getBoundingClientRect();
       const start = document.querySelector('.start').getBoundingClientRect();
       const meta = document.querySelector('.title-meta').getBoundingClientRect();
+      const sound = document.querySelector('.title-sound').getBoundingClientRect();
+      const arena = document.querySelector('.arena').getBoundingClientRect();
+      caption.style.pointerEvents = 'auto';
+      const titleVisible = caption.contains(
+        document.elementFromPoint((title.left + title.right) / 2, (title.top + title.bottom) / 2),
+      );
+      caption.style.pointerEvents = '';
       return {
-        title: { left: title.left, right: title.right, bottom: title.bottom },
+        titleVisible,
+        title: { left: title.left, right: title.right, top: title.top, bottom: title.bottom },
         start: { top: start.top },
         height: document.documentElement.scrollHeight,
         meta: { left: meta.left, right: meta.right, top: meta.top },
+        sound: {
+          left: sound.left,
+          right: sound.right,
+          top: sound.top,
+          bottom: sound.bottom,
+          height: sound.height,
+        },
+        arena: { top: arena.top, height: arena.height },
+        clipped: [...document.querySelectorAll('.arena-caption h1, .title-sound-label')].some(
+          (node) => node.scrollWidth > node.clientWidth + 1,
+        ),
       };
     });
     assert.ok(layout.title.left >= 0 && layout.title.right <= width);
+    assert.equal(layout.titleVisible, true, 'The canvas must not cover the title');
     if (height > width) assert.ok(layout.title.bottom <= layout.start.top);
     assert.equal(layout.height, height);
     assert.ok(layout.title.bottom <= layout.meta.top || layout.title.right <= layout.meta.left);
+    assert.ok(layout.title.top < layout.arena.top + layout.arena.height * 0.25);
+    assert.ok(layout.sound.left >= 0 && layout.sound.right <= width);
+    assert.ok(layout.sound.top >= 48 && layout.sound.height >= 44);
+    assert.ok(layout.sound.bottom < layout.start.top);
+    assert.equal(layout.clipped, false);
+    const soundButton = page.locator('.title-sound');
+    assert.equal(await soundButton.getAttribute('aria-pressed'), 'false');
+    await soundButton.tap();
+    await page.waitForFunction(() => window.titleAudio.started === 1);
+    assert.equal(await soundButton.getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.evaluate(() => window.titleAudio.contexts[0].state), 'running');
+    await page.waitForFunction(() => window.titleAudio.previews[0].duration !== null);
+    assert.ok(
+      await page.evaluate(
+        () =>
+          window.titleAudio.previews[0].duration >= window.titleAudio.previews[0].expected - 0.025,
+      ),
+      'The title preview must not be cut off by the next ready frame',
+    );
+    await page.getByRole('button', { name: '설정', exact: true }).click();
+    assert.equal(await page.locator('.setting-row').getAttribute('aria-pressed'), 'true');
+    await page.getByRole('button', { name: '닫기', exact: true }).click();
+    await soundButton.tap();
+    await page.waitForFunction(() => window.titleAudio.contexts[0].state === 'suspended');
+    assert.equal(await soundButton.getAttribute('aria-pressed'), 'false');
+    assert.equal(await page.evaluate(() => window.__gameDebug.getModel().elapsedTicks), 0);
+    for (const language of languages) {
+      await page.getByRole('button', { name: language.label, exact: true }).click();
+      assert.equal(
+        await page.locator('.sound-recommendation').innerText(),
+        copy[language.id].soundRecommended,
+      );
+      await page.evaluate(() => document.fonts.ready);
+      assert.deepEqual(
+        await page.evaluate(() =>
+          [
+            ...document.querySelectorAll(
+              '.title-sound, .title-sound-label, .sound-recommendation, .arena-caption h1',
+            ),
+          ]
+            .filter((node) => {
+              const r = node.getBoundingClientRect();
+              return (
+                node.scrollWidth > node.clientWidth + 1 ||
+                r.left < 0 ||
+                r.right > innerWidth ||
+                r.top < 0 ||
+                r.bottom > innerHeight
+              );
+            })
+            .map((node) => node.textContent),
+        ),
+        [],
+        'Localized title controls must remain readable',
+      );
+      if (language.id === 'en' && width === 375)
+        await capture(page, 'artifacts/title-polish/title-en.png');
+    }
+    await page.getByRole('button', { name: '한국어', exact: true }).click();
     const idle = await page.evaluate(() => ({
       angle: window.__gameDebug.getModel().angle,
       tick: window.__gameDebug.getModel().elapsedTicks,
