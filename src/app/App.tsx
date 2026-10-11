@@ -137,7 +137,7 @@ export default function App() {
   return (
     <main
       style={{ '--scene-hud': hud } as CSSProperties}
-      className={`app ${game.charged ? 'is-charged' : ''} ${game.endless ? 'is-beyond' : ''} ${ready ? 'is-ready' : ''} ${ready && homecoming ? 'is-homecoming' : ''} ${game.choice ? 'has-choice' : ''}`}
+      className={`app ${game.charged ? 'is-charged' : ''} ${game.endless ? 'is-beyond' : ''} ${ready ? 'is-ready' : ''} ${ready && homecoming ? 'is-homecoming' : ''}`}
     >
       <div className="play-layout" inert={modal || (!ready && !renderReady)}>
         {ready ? (
@@ -229,7 +229,10 @@ export default function App() {
             </>
           )}
         </section>
-        <section className="footer" aria-label={ready ? 'START' : c.loadout}>
+        <section
+          className="footer"
+          aria-label={ready ? 'START' : game.choice ? c.choices : c.loadout}
+        >
           {ready ? (
             <div className="preparation">
               <button
@@ -259,17 +262,17 @@ export default function App() {
           ) : (
             <Loadout game={game} language={language} onInspect={inspectSkill} />
           )}
+          {!ready && (
+            <Choices
+              game={game}
+              language={language}
+              onSelect={select}
+              pauseOnChoice={pauseOnChoice}
+              onTogglePause={toggleChoicePause}
+              interactive={renderReady && !game.paused && game.phase === 'running'}
+            />
+          )}
         </section>
-        {!ready && (
-          <Choices
-            game={game}
-            language={language}
-            onSelect={select}
-            pauseOnChoice={pauseOnChoice}
-            onTogglePause={toggleChoicePause}
-            interactive={renderReady && !game.paused && game.phase === 'running'}
-          />
-        )}
       </div>
 
       {ready && (

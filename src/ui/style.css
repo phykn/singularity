@@ -110,7 +110,7 @@ svg {
   position: relative;
   height: 100%;
   display: grid;
-  grid-template-rows: 48px minmax(0, 1fr) 88px;
+  grid-template-rows: 48px minmax(0, 1fr) 176px;
 }
 .is-ready {
   --gutter: 24px;
@@ -365,7 +365,14 @@ svg {
   white-space: nowrap;
 }
 .footer {
+  position: relative;
+  display: grid;
+  align-items: end;
+  min-height: 0;
   padding: 0 var(--gutter);
+}
+.footer:has(.choices) .play-footer {
+  visibility: hidden;
 }
 .is-ready .footer {
   position: absolute;
@@ -618,10 +625,8 @@ svg {
 .choices {
   position: absolute;
   z-index: 2;
-  left: 0;
-  right: 0;
-  bottom: 88px;
-  padding: 8px var(--gutter);
+  inset: 0;
+  padding: 6px var(--gutter);
   background: #0b141d;
   border-radius: 0;
   animation: enter 0.12s steps(3, end);
@@ -703,11 +708,11 @@ svg {
 .card,
 .choice-echo {
   min-width: 0;
-  height: 138px;
+  height: 116px;
   display: grid;
-  grid-template-rows: 16px 32px 16px 16px 32px;
-  gap: 2px;
-  padding: 8px 6px;
+  grid-template-rows: 14px 32px 16px 16px 28px;
+  gap: 0;
+  padding: 4px 6px;
   background: #101e2a;
   border-radius: 0;
   text-align: center;
@@ -721,7 +726,7 @@ svg {
   color: #9ca6b3;
   font-size: 12px;
   text-align: right;
-  line-height: 16px;
+  line-height: 14px;
 }
 .card.auto .card-label {
   color: var(--blue);
@@ -737,7 +742,7 @@ svg {
 .card-value {
   color: #aab6c2;
   font-size: 12px;
-  line-height: 16px;
+  line-height: 14px;
   white-space: normal;
   word-break: keep-all;
   letter-spacing: 0;
@@ -764,7 +769,7 @@ svg {
   box-shadow: 0 2px var(--rarity);
 }
 .choice-track {
-  margin-top: 8px;
+  margin-top: 4px;
   height: 2px;
 }
 .choice-track i {
@@ -1257,7 +1262,7 @@ svg {
   }
   .play-layout {
     grid-template-columns: minmax(0, 1fr) 320px;
-    grid-template-rows: 48px minmax(0, 1fr) 88px;
+    grid-template-rows: 48px minmax(0, 1fr) 176px;
   }
   .hud {
     grid-column: 2;
@@ -1271,16 +1276,6 @@ svg {
     grid-column: 2;
     grid-row: 3;
   }
-  .choices {
-    left: auto;
-    width: 288px;
-    max-height: calc(100% - 144px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding-block: 6px;
-    border-radius: 0;
-    box-shadow: none;
-  }
   .choice-header {
     margin-bottom: 8px;
     height: 32px;
@@ -1290,15 +1285,6 @@ svg {
   }
   .choice-header > span {
     font-size: 12px;
-  }
-  .card,
-  .choice-echo {
-    height: 130px;
-    padding: 6px 5px;
-    grid-template-rows: 16px 32px 16px 16px 28px;
-  }
-  .card-value {
-    line-height: 14px;
   }
   .loadout {
     gap: 4px;
@@ -1604,16 +1590,10 @@ b {
   }
 }
 
-@media (orientation: landscape) and (max-height: 320px) {
-  .has-choice .footer {
-    visibility: hidden;
-  }
-  .choices {
-    bottom: 8px;
-    max-height: calc(100% - 64px);
-  }
-  .choice-header {
-    height: 44px;
+@media (orientation: portrait) and (max-height: 600px) and (max-width: 519px) {
+  .arena-caption h1 {
+    font-size: 32px;
+    line-height: 1;
   }
 }
 

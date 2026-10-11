@@ -6,6 +6,67 @@ mkdirSync('artifacts/choice-input', { recursive: true });
 const browser = await launchBrowser();
 const errors = [],
   checks = [];
+
+async function layout(page) {
+  return page.evaluate(() => {
+    const bounds = (node) => {
+      const r = node.getBoundingClientRect();
+      return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+    };
+    return {
+      arena: bounds(document.querySelector('.arena')),
+      canvas: bounds(document.querySelector('.arena canvas')),
+      footer: bounds(document.querySelector('.footer')),
+      choices: [...document.querySelectorAll('.choices:not(.choice-receipt), .card')].map(bounds),
+    };
+  });
+}
+
+async function checkChoiceLayout(page) {
+  await page.evaluate(() => {
+    const d = window.__gameDebug;
+    d.restart(421, false);
+    const g = d.getModel();
+    g.ranks.multi = 1;
+    g.rarities.multi = 'common';
+    d.advance(0);
+  });
+  await page.locator('.slot-inspect').waitFor();
+  const inspectionLabel = await page.locator('.slot-inspect').getAttribute('aria-label');
+  const before = await layout(page);
+  await page.evaluate(() => window.__gameDebug.xp(14));
+  await page.locator('.cards[data-ready="true"]').waitFor();
+  const offered = await layout(page);
+  assert.deepEqual(offered.arena, before.arena, 'Choices must not move or resize the arena');
+  assert.deepEqual(offered.canvas, before.canvas, 'Choices must preserve the rendered orbit');
+  assert.equal(await page.locator('.play-footer').isVisible(), false);
+  assert.equal(await page.getByRole('button', { name: inspectionLabel, exact: true }).count(), 0);
+  for (const r of offered.choices) {
+    assert.ok(
+      r.left >= offered.footer.left &&
+        r.top >= offered.footer.top &&
+        r.right <= offered.footer.right &&
+        r.bottom <= offered.footer.bottom,
+      'Choice cards must fit inside the fixed footer',
+    );
+    assert.ok(
+      r.top >= offered.arena.bottom || r.left >= offered.arena.right,
+      'Choice cards must not cover gameplay in portrait or landscape',
+    );
+  }
+  await page.locator('.card').first().click();
+  await page.locator('.choice-receipt').waitFor();
+  assert.equal(await page.locator('.play-footer').isVisible(), false);
+  assert.deepEqual((await layout(page)).arena, before.arena);
+  await page.locator('.choice-receipt').waitFor({ state: 'hidden' });
+  assert.equal(await page.locator('.play-footer').isVisible(), true);
+  assert.equal(await page.locator('.slot-inspect').first().isVisible(), true);
+  const restored = await layout(page);
+  assert.deepEqual(restored.arena, before.arena);
+  assert.deepEqual(restored.canvas, before.canvas);
+  checks.push({ choiceLayout: 'fixed footer, no gameplay overlap, loadout restored', ...offered });
+}
+
 try {
   for (const [width, height] of process.argv.includes('--mouse-only')
     ? []
@@ -22,6 +83,7 @@ try {
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(base);
     await page.getByRole('button', { name: 'START', exact: true }).click();
+    await checkChoiceLayout(page);
     const touch = await page.context().newCDPSession(page);
     const send = (type, points) =>
       touch.send('Input.dispatchTouchEvent', { type, touchPoints: points });
@@ -156,6 +218,7 @@ try {
   mouse.on('pageerror', (e) => errors.push(e.message));
   await mouse.goto(base);
   await mouse.getByRole('button', { name: 'START', exact: true }).click();
+  await checkChoiceLayout(mouse);
   await mouse.evaluate(() => {
     const d = window.__gameDebug;
     d.restart(421, false);
