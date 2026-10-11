@@ -1,4 +1,4 @@
-import bank from '../audio/keycaps.json' with { type: 'json' };
+import bank from './keycaps.json' with { type: 'json' };
 import { rules } from '../game/rules.ts';
 
 type Bus = 'preview' | 'hit' | 'rhythm' | 'transition';

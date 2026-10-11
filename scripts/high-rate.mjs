@@ -20,7 +20,7 @@ try {
       const errors = [];
       page.on('pageerror', (error) => errors.push(error.message));
       await observeScene(page);
-      await page.route('**/src/app/sounds.ts*', async (route) => {
+      await page.route('**/src/audio/SoundMixer.ts*', async (route) => {
         const response = await route.fetch();
         await route.fulfill({
           response,

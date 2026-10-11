@@ -1,8 +1,8 @@
 import type { Game } from '../game/Game.ts';
 import { endingFrame } from '../presentation/ending.ts';
 import { beyondFrame } from '../presentation/beyond.ts';
-import { SoundMixer } from './sounds.ts';
-import type { SoundCue, SoundSpace } from './sounds.ts';
+import { SoundMixer } from '../audio/SoundMixer.ts';
+import type { SoundCue, SoundSpace } from '../audio/SoundComposer.ts';
 import { CENTER, distance } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
 

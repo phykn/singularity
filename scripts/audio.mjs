@@ -8,7 +8,7 @@ mkdirSync(dir, { recursive: true });
 const browser = await launchBrowser();
 try {
   const page = await browser.newPage();
-  await page.route('**/src/app/sounds.ts*', async (route) => {
+  await page.route('**/src/audio/SoundMixer.ts*', async (route) => {
     const response = await route.fetch();
     await route.fulfill({
       response,
@@ -27,7 +27,7 @@ try {
   const clips = process.argv.includes('--live-only')
     ? []
     : await page.evaluate(async () => {
-        const { SoundMixer } = await import('/src/app/sounds.ts');
+        const { SoundMixer } = await import('/src/audio/SoundMixer.ts');
         for (const depth of [0, 0.0625, 0.25, 0.5625, 1]) {
           const cues = ['preview', 'hit', 'preview'].map((kind, i) => ({
             kind,

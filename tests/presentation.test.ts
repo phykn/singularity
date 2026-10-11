@@ -5,7 +5,7 @@ import { endingFrame } from '../src/presentation/ending.ts';
 import { drawCollapse } from '../src/render/collapse.ts';
 import { drawSingularity, drawAccretion } from '../src/render/singularity.ts';
 import type Phaser from 'phaser';
-import { SoundMixer } from '../src/app/sounds.ts';
+import { SoundMixer } from '../src/audio/SoundMixer.ts';
 import { audioContext } from './audioContext.ts';
 
 test('singularity disk is compact, occluded and quiet after its one-time light sweep', () => {

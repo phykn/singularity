@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GameAudio } from '../src/app/GameAudio.ts';
 import { Game } from '../src/game/Game.ts';
-import { SoundMixer } from '../src/app/sounds.ts';
-import { soundDefinitions, renderSound } from '../src/app/soundBank.ts';
-import type { SoundKind } from '../src/app/soundBank.ts';
-import type { SoundCue } from '../src/app/sounds.ts';
+import { SoundMixer } from '../src/audio/SoundMixer.ts';
+import { soundDefinitions, renderSound } from '../src/audio/samples.ts';
+import type { SoundKind } from '../src/audio/samples.ts';
+import type { SoundCue } from '../src/audio/SoundComposer.ts';
 import { audioContext } from './audioContext.ts';
 import { target } from './helpers.ts';
 
@@ -89,6 +89,33 @@ test('suspension releases live nodes before the audio clock freezes', () => {
   mixer.dispose();
   assert.ok(sources.every((source) => source.disconnected));
   assert.ok(graph.every((node) => node.disconnected));
+});
+
+test('immediate stop and disposal also release voices already fading out', () => {
+  for (const finish of ['stop', 'dispose'] as const) {
+    const { ctx, sources, gains, advance } = audioContext();
+    const mixer = new SoundMixer(ctx, 1701);
+    mixer.playBatch(Array.from({ length: 3 }, () => ({ kind: 'hit' })));
+    mixer.stop();
+    assert.equal(sources[0].disconnected, false, 'A soft stop allows its short fade');
+    const fade = gains[1].gain.values.length;
+    advance(0.002);
+    mixer.playBatch([{ kind: 'hit' }]);
+    mixer.play('rhythm-complete');
+    mixer.play('preview');
+    assert.equal(gains[1].gain.values.length, fade, 'New cues cannot restore a stopped attack');
+    if (finish === 'stop') mixer.stop(ctx.currentTime, true);
+    else mixer.dispose();
+    assert.ok(
+      sources.every((source) => source.disconnected),
+      finish,
+    );
+    assert.ok(
+      gains.slice(1).every((gain) => gain.disconnected),
+      finish,
+    );
+    mixer.dispose();
+  }
 });
 
 test('a wave warning remains audible when growth happens in the same frame', () => {
