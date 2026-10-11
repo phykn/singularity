@@ -3,15 +3,15 @@ import assert from 'node:assert/strict';
 import { GameAudio } from '../src/app/GameAudio.ts';
 import { Game } from '../src/game/Game.ts';
 import { SoundMixer } from '../src/app/sounds.ts';
-import { soundDefinitions, synthesizeSound } from '../src/app/soundBank.ts';
+import { soundDefinitions, renderSound } from '../src/app/soundBank.ts';
 import type { SoundKind } from '../src/app/soundBank.ts';
 import type { SoundCue } from '../src/app/sounds.ts';
 import { audioContext } from './audioContext.ts';
 
-test('all original textures are finite, bounded and fade to silent sample boundaries', () => {
+test('all recorded keycap cues are finite, bounded and fade to silent sample boundaries', () => {
   for (const rate of [22050, 44100, 48000]) {
     for (const kind of Object.keys(soundDefinitions) as SoundKind[]) {
-      const data = synthesizeSound(kind, rate);
+      const data = renderSound(kind, rate);
       assert.equal(data[0], 0, kind);
       assert.equal(data.at(-1), 0, kind);
       let energy = 0;
@@ -26,7 +26,7 @@ test('all original textures are finite, bounded and fade to silent sample bounda
 
 test('kill variants vary the texture without changing its loudness dramatically', () => {
   const clips = Array.from({ length: soundDefinitions.kill.variants }, (_, i) =>
-    synthesizeSound('kill', 48000, i),
+    renderSound('kill', 48000, i),
   );
   const energy = clips.map((clip) => clip.reduce((sum, sample) => sum + sample ** 2, 0));
   for (let i = 1; i < clips.length; i++) assert.notDeepEqual(clips[0], clips[i]);
@@ -191,10 +191,10 @@ test('each simultaneous impact keeps its own position, including removed targets
   assert.deepEqual(cues[1], { kind: 'kill', space: { pan: (point.x - 180) / 520, depth: 0.05 } });
 });
 
-test('paper cues spread their texture across folds instead of an opening blast', () => {
+test('keycap contacts stay clear and single taps leave quiet gaps instead of static', () => {
   for (const kind of ['hit', 'dense', 'kill', 'arc', 'rhythm-complete'] as const) {
     for (let variant = 0; variant < soundDefinitions[kind].variants; variant++) {
-      const clip = synthesizeSound(kind, 48000, variant);
+      const clip = renderSound(kind, 48000, variant);
       const energy = clip.reduce((sum, sample) => sum + sample ** 2, 0);
       const fraction = (cutoff: number, high = false) => {
         const alpha = 1 - Math.exp((-2 * Math.PI * cutoff) / 48000);
@@ -210,8 +210,20 @@ test('paper cues spread their texture across folds instead of an opening blast',
       assert.ok(fraction(900, true) > 0.25, kind + ' must expose the contact texture');
       assert.ok(fraction(6000, true) < 0.15, kind + ' should not become sharp hiss');
       const early = clip.slice(0, 48000 * 0.04).reduce((sum, sample) => sum + sample ** 2, 0);
-      assert.ok(early / energy < 0.65, kind + ' must leave texture after the initial contact');
       assert.ok(early / energy > 0.08, kind + ' must respond promptly');
+      if (kind === 'hit' || kind === 'dense') {
+        const gap = clip.slice(48000 * 0.035, 48000 * 0.045);
+        assert.ok(
+          gap.reduce((sum, sample) => sum + sample ** 2, 0) / energy < 0.03,
+          kind + ' must not fill the contact gap with a noise bed',
+        );
+        const rest = clip.slice(48000 * 0.11);
+        assert.equal(
+          rest.reduce((sum, sample) => sum + sample ** 2, 0),
+          0,
+          'No hiss after release',
+        );
+      }
       const tail = clip.slice(Math.floor(clip.length * 0.8));
       assert.ok(
         tail.reduce((sum, sample) => sum + sample ** 2, 0) / energy < 0.03,

@@ -1,4 +1,4 @@
-import { soundDefinitions, synthesizeSound } from './soundBank.ts';
+import { soundDefinitions, renderSound } from './soundBank.ts';
 import type { SoundBus, SoundKind } from './soundBank.ts';
 
 export type SoundSpace = { pan: number; depth: number };
@@ -58,7 +58,7 @@ export class SoundMixer {
     const key = kind + ':' + variant;
     let buffer = this.buffers.get(key);
     if (!buffer) {
-      const data = synthesizeSound(kind, this.context.sampleRate, variant);
+      const data = renderSound(kind, this.context.sampleRate, variant);
       buffer = this.context.createBuffer(1, data.length, this.context.sampleRate);
       buffer.getChannelData(0).set(data);
       this.buffers.set(key, buffer);
