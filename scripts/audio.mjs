@@ -74,12 +74,7 @@ try {
           {
             name: 'qte',
             seconds: 4,
-            events: [
-              { kind: 'rhythm-1', at: 0.3 },
-              { kind: 'rhythm-2', at: 0.8 },
-              { kind: 'rhythm-complete', at: 1.5 },
-              { kind: 'rhythm-miss', at: 3 },
-            ],
+            events: [{ kind: 'rhythm-complete', at: 1.5 }],
           },
           {
             name: 'textures',
@@ -90,8 +85,8 @@ try {
               'kill',
               'spark',
               'field',
-              'rhythm-1',
-              'rhythm-2',
+              'charge',
+              'vent',
               'rhythm-complete',
             ].map((kind, i) => ({ kind, at: 0.25 + i * 0.9 })),
           },
@@ -101,7 +96,7 @@ try {
             events: [
               { kind: 'kill', at: 0.25, space: { pan: -0.3, depth: 0 } },
               { kind: 'kill', at: 1.25, space: { pan: 0.3, depth: 1 } },
-              { kind: 'rhythm-1', at: 2.25, space: { pan: 0.3, depth: 1 } },
+              { kind: 'rhythm-complete', at: 2.25, space: { pan: 0.3, depth: 1 } },
             ],
           },
           {

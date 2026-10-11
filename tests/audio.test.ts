@@ -67,9 +67,9 @@ test('QTE and combat all play together with gentle foreground emphasis', () => {
   assert.ok(mixer.play('hit'));
   assert.ok(mixer.play('kill'));
   assert.equal(sources.filter((source) => !source.disconnected).length, 6);
-  assert.ok(mixer.play('rhythm-1'));
+  assert.ok(mixer.play('rhythm-complete'));
   advance(0.27);
-  assert.ok(mixer.play('rhythm-2'));
+  assert.ok(mixer.play('rhythm-complete'));
   assert.ok(mixer.play('spark'), 'Combat remains audible during QTE');
   for (const gain of gains) {
     const initial = gain.gain.values.find((value) => value.method === 'set');
@@ -154,7 +154,7 @@ test('distance softens combat without burying its texture, while QTE stays cente
   assert.ok(filters[2].frequency.values[0].value < filters[1].frequency.values[0].value);
   assert.ok(filters[2].frequency.values[0].value >= 3500, 'Far impacts keep their presence');
   advance(0.6);
-  mixer.play('rhythm-1', 0.6, 1, { pan: -1, depth: 1 });
+  mixer.play('rhythm-complete', 0.6, 1, { pan: -1, depth: 1 });
   assert.deepEqual(
     pans.map((node) => node.pan.values[0].value),
     [-0.3, 0.3, 0],
@@ -191,16 +191,8 @@ test('each simultaneous impact keeps its own position, including removed targets
   assert.deepEqual(cues[1], { kind: 'kill', space: { pan: (point.x - 180) / 520, depth: 0.05 } });
 });
 
-test('combat and QTE have clear surface texture without boomy or ringing tails', () => {
-  for (const kind of [
-    'hit',
-    'dense',
-    'kill',
-    'arc',
-    'rhythm-1',
-    'rhythm-2',
-    'rhythm-complete',
-  ] as const) {
+test('paper cues spread their texture across folds instead of an opening blast', () => {
+  for (const kind of ['hit', 'dense', 'kill', 'arc', 'rhythm-complete'] as const) {
     for (let variant = 0; variant < soundDefinitions[kind].variants; variant++) {
       const clip = synthesizeSound(kind, 48000, variant);
       const energy = clip.reduce((sum, sample) => sum + sample ** 2, 0);
@@ -217,6 +209,9 @@ test('combat and QTE have clear surface texture without boomy or ringing tails',
       assert.ok(fraction(250) < 0.45, kind + ' should not be dominated by a bass tone');
       assert.ok(fraction(900, true) > 0.25, kind + ' must expose the contact texture');
       assert.ok(fraction(6000, true) < 0.15, kind + ' should not become sharp hiss');
+      const early = clip.slice(0, 48000 * 0.04).reduce((sum, sample) => sum + sample ** 2, 0);
+      assert.ok(early / energy < 0.65, kind + ' must leave texture after the initial contact');
+      assert.ok(early / energy > 0.08, kind + ' must respond promptly');
       const tail = clip.slice(Math.floor(clip.length * 0.8));
       assert.ok(
         tail.reduce((sum, sample) => sum + sample ** 2, 0) / energy < 0.03,
@@ -326,8 +321,8 @@ test('batched distance filtering and QTE emphasis retain audible spatial detail'
   assert.ok(energy(near, 0) > energy(near, 1));
   assert.ok(energy(far, 1) > energy(far, 0));
   assert.ok(energy(far, 0) + energy(far, 1) < energy(near, 0) + energy(near, 1));
-  mixer.play('rhythm-1');
-  const qte = render('rhythm-2', 0.35, 1);
+  mixer.play('rhythm-complete');
+  const qte = render('rhythm-complete', 0.35, 1);
   assert.deepEqual(qte.getChannelData(0), qte.getChannelData(1), 'QTE stays centered');
   render('hit', 0, 0.5);
   assert.equal(gains.at(-1)!.gain.values[0].value, 0.8);
@@ -339,7 +334,7 @@ test('batched distance filtering and QTE emphasis retain audible spatial detail'
   mixer.dispose();
 });
 
-test('success audio compresses, goes silent at the point and settles into a low resonance', () => {
+test('success audio gathers, goes silent at the point and settles quietly', () => {
   const game = new Game(17, { combat: false });
   game.start();
   game.debugSetXp(game.rules.energyGoal);

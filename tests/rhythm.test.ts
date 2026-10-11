@@ -137,7 +137,7 @@ test('interruptions and long frames cancel without a failure, followed by a fres
   }
 });
 
-function session(game = fixture()) {
+function session(game = fixture(), cues: string[] = []) {
   const audio = {
     enabled: false,
     update() {},
@@ -146,7 +146,9 @@ function session(game = fixture()) {
     async unlock() {
       return true;
     },
-    play() {},
+    play(kind: string) {
+      cues.push(kind);
+    },
   };
   const session = new GameSession(game, audio, {
     sound: () => false,
@@ -163,6 +165,36 @@ test('session construction and run replacement reset the independent rhythm seed
   assert.deepEqual(phrases(first.rhythm, 5), phrases(new OrbitRhythm(1701), 5));
   first.replace(new Game(1702), 0);
   assert.deepEqual(phrases(first.rhythm, 5), phrases(new OrbitRhythm(1702), 5));
+});
+
+test('QTE plays only its final burst, while hits and misses retain visual feedback', () => {
+  const cues: string[] = [];
+  const s = session(fixture(), cues);
+  let wall = 0;
+  for (let beat = 1; beat <= 3; beat++) {
+    while (!(s.rhythm.open && s.rhythm.due <= s.rhythm.age) && wall < 15000) {
+      wall += 5;
+      s.game.targets = [];
+      s.step(wall);
+    }
+    assert.ok(s.rhythm.open);
+    s.tapRhythm(wall);
+    assert.equal(s.rhythm.feedback, beat === 3 ? 'complete' : 'hit');
+    assert.deepEqual(cues, beat === 3 ? ['rhythm-complete'] : []);
+  }
+  s.tapRhythm(wall + 10);
+  assert.deepEqual(cues, ['rhythm-complete'], 'Repeated input cannot replay the burst');
+  const miss = session(fixture(), cues);
+  wall = 0;
+  while (!miss.rhythm.active && wall < 5000) {
+    wall += 5;
+    miss.game.targets = [];
+    miss.step(wall);
+  }
+  assert.ok(miss.rhythm.active && !miss.rhythm.open);
+  miss.tapRhythm(wall);
+  assert.equal(miss.rhythm.feedback, 'miss');
+  assert.deepEqual(cues, ['rhythm-complete'], 'A miss adds no sound');
 });
 
 test('the real electron enters a fixed gate at every playback speed; choices and pauses cannot consume input', () => {

@@ -103,7 +103,7 @@ export class GameSession {
     const enabled = await this.unlockAudio();
     if (enabled && this.effects.sound() && this.game.phase === 'ready') {
       this.audio.update(this.game, this.audioCursor);
-      this.audio.play?.('rhythm-1');
+      this.audio.play?.('hit');
     }
     return enabled;
   }
@@ -151,8 +151,8 @@ export class GameSession {
     if (result === 'hit' || result === 'complete') {
       this.game.resonate(this.rhythm.hits as 1 | 2 | 3);
       this.hitStop = result === 'complete' ? 90 : 35;
-      this.audio.play?.(result === 'complete' ? 'rhythm-complete' : 'rhythm-' + this.rhythm.hits);
-    } else if (result === 'miss') this.audio.play?.('rhythm-miss');
+      if (result === 'complete') this.audio.play?.('rhythm-complete');
+    }
     this.effects.redraw();
   }
 
