@@ -9,13 +9,15 @@ export function closest(
   visited?: Set<number>,
 ): Target[] {
   const found: { target: Target; distance: number }[] = [];
+  let limit = range;
   for (const target of targets) {
-    if (target.hp <= 0 || visited?.has(target.id)) continue;
+    if (target.hp <= 0) continue;
     const dx = target.x - point.x,
       dy = target.y - point.y;
-    if (Math.abs(dx) > range || Math.abs(dy) > range) continue;
+    if (Math.abs(dx) > limit || Math.abs(dy) > limit) continue;
+    if (visited?.has(target.id)) continue;
     const distance = Math.hypot(dx, dy);
-    if (distance > range) continue;
+    if (distance > limit) continue;
     let i = found.length;
     while (
       i > 0 &&
@@ -26,6 +28,7 @@ export function closest(
     if (i >= count) continue;
     found.splice(i, 0, { target, distance });
     if (found.length > count) found.pop();
+    if (found.length === count) limit = found[found.length - 1].distance;
   }
   return found.map((entry) => entry.target);
 }

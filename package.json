@@ -1,6 +1,6 @@
 {
   "name": "web-game",
-  "version": "0.1.40",
+  "version": "0.1.41",
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
@@ -33,6 +33,7 @@
     "check:electric": "node scripts/electric.mjs",
     "check:barrier": "node scripts/orbit-barrier.mjs",
     "check:performance": "node scripts/performance.mjs",
+    "check:high-rate": "node scripts/high-rate.mjs",
     "screenshots": "node scripts/screenshots.mjs",
     "build": "tsc --noEmit && vite build",
     "build:art": "node scripts/art.mjs",

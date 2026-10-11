@@ -2,18 +2,20 @@ import Phaser from 'phaser';
 import type { Game } from '../game/Game.ts';
 import { maxDamageNumbers } from '../game/rules.ts';
 import { clamp } from '../game/geometry.ts';
+import { createDamageFont, damageFonts } from './damageFont.ts';
 
 export class DamageLabels {
-  readonly texts: Phaser.GameObjects.Text[] = [];
-  private labels = new Map<number, Phaser.GameObjects.Text>();
+  readonly texts: Phaser.GameObjects.BitmapText[] = [];
+  private labels = new Map<number, Phaser.GameObjects.BitmapText>();
   private offsets = new Map<number, readonly number[]>();
   private lastGame: Game | null = null;
   private viewport = '';
-  private free: Phaser.GameObjects.Text[] = [];
+  private free: Phaser.GameObjects.BitmapText[] = [];
   private add: Phaser.GameObjects.GameObjectFactory;
 
-  constructor(add: Phaser.GameObjects.GameObjectFactory) {
-    this.add = add;
+  constructor(scene: Phaser.Scene) {
+    this.add = scene.add;
+    createDamageFont(scene);
   }
 
   hide(): void {
@@ -36,7 +38,7 @@ export class DamageLabels {
       this.offsets.delete(id);
       this.free.push(text);
     }
-    const shown = new Set<Phaser.GameObjects.Text>();
+    const shown = new Set<Phaser.GameObjects.BitmapText>();
     const occupied: Phaser.Geom.Rectangle[] = [],
       limit = 24;
     for (const damage of numbers) {
@@ -47,16 +49,9 @@ export class DamageLabels {
         text = this.free.pop();
         if (!text) {
           text = this.add
-            .text(0, 0, '', {
-              fontFamily: 'Singularity Pixel, monospace',
-              fontSize: '12px',
-              color: '#ecfbff',
-              stroke: '#080a0e',
-              strokeThickness: 2,
-            })
+            .bitmapText(0, 0, damageFonts.normal, '', 12)
             .setOrigin(0.5, 1)
-            .setDepth(3)
-            .setResolution(1);
+            .setDepth(3);
           this.texts.push(text);
         }
         this.labels.set(damage.id, text);
@@ -104,8 +99,13 @@ export class DamageLabels {
       shown.add(text);
       if (!text.active) text.setActive(true);
       if (!text.visible) text.setVisible(true);
-      const color = damage.value >= 5 ? '#ffda96' : damage.value > 2 ? '#f1fcff' : '#b8eefb';
-      if (text.style.color !== color) text.setColor(color);
+      const font =
+        damage.value >= 5
+          ? damageFonts.high
+          : damage.value > 2
+            ? damageFonts.normal
+            : damageFonts.low;
+      if (text.font !== font) text.setFont(font);
       text.setAlpha(1 - clamp((age - 0.35) / 0.37));
     }
     for (const text of this.texts)

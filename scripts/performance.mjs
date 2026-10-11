@@ -79,24 +79,20 @@ try {
         return sorted[Math.floor((sorted.length - 1) * fraction)];
       };
       for (let i = 0; i < 20; i++) scene.update();
-      let textUpdates = 0;
-      const texts = scene.damageLabels.texts;
-      const originals = texts.map((text) => text.updateText);
-      texts.forEach((text) => {
-        const update = text.updateText;
-        text.updateText = function (...args) {
-          textUpdates++;
-          return update.apply(this, args);
-        };
-      });
+      const gl = scene.sys.game.renderer.gl;
+      const upload = gl.texImage2D;
+      let textureUploads = 0;
+      gl.texImage2D = function (...args) {
+        textureUploads++;
+        return upload.apply(this, args);
+      };
       const draws = [];
       for (let i = 0; i < 120; i++) {
         const start = performance.now();
         scene.update();
         draws.push(performance.now() - start);
       }
-      texts.forEach((text, i) => (text.updateText = originals[i]));
-      const gl = scene.sys.game.renderer.gl;
+      gl.texImage2D = upload;
       const drawArrays = gl.drawArrays,
         drawElements = gl.drawElements;
       let drawCalls = 0;
@@ -135,7 +131,7 @@ try {
         damageNumbers: game.damageNumbers.length,
         sceneMedianMs: quantile(draws, 0.5),
         sceneP95Ms: quantile(draws, 0.95),
-        textUpdatesPerFrame: textUpdates / draws.length,
+        textureUploadsPerFrame: textureUploads / draws.length,
         drawCallsPerFrame: drawCalls / frames.length,
         renderMedianMs: quantile(renderTimes, 0.5),
         renderP95Ms: quantile(renderTimes, 0.95),
@@ -148,7 +144,11 @@ try {
       writeFileSync(`${output}/cpu-${count}.json`, JSON.stringify(profile));
     }
     assert.equal(row.targets, count);
-    assert.equal(row.textUpdatesPerFrame, 0, 'Frozen damage values must retain cached textures');
+    assert.equal(
+      row.textureUploadsPerFrame,
+      0,
+      'Drawing must reuse the shared damage digit texture',
+    );
     const screenshot = await capture(page, `${output}/crowd-${count}.png`);
     rows.push({ ...row, screenshot });
     console.log(JSON.stringify(row));

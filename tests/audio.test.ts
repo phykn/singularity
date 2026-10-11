@@ -5,6 +5,7 @@ import { Game } from '../src/game/Game.ts';
 import { SoundMixer } from '../src/app/sounds.ts';
 import { soundDefinitions, synthesizeSound } from '../src/app/soundBank.ts';
 import type { SoundKind } from '../src/app/soundBank.ts';
+import type { SoundCue } from '../src/app/sounds.ts';
 import { audioContext } from './audioContext.ts';
 
 test('all original textures are finite, bounded and fade to silent sample boundaries', () => {
@@ -111,8 +112,8 @@ test('every hit, kill and skill activation plays once, including simultaneous bu
     context,
     mixer: {
       stop() {},
-      play(kind: string) {
-        played.push(kind);
+      playBatch(cues: SoundCue[]) {
+        played.push(...cues.map((cue) => cue.kind));
       },
     },
     play(kind: string) {
@@ -163,8 +164,8 @@ test('each simultaneous impact keeps its own position, including removed targets
     context: { state: 'running', currentTime: 10 },
     mixer: {
       stop() {},
-      play(kind: string, _at: number, _pitch: number, space: unknown) {
-        cues.push({ kind, space });
+      playBatch(batch: SoundCue[]) {
+        for (const { kind, space } of batch) cues.push({ kind, space });
       },
     },
   });
@@ -209,9 +210,11 @@ test('audio consumes new cues once when the recent event window rolls over', () 
   Object.assign(audio, {
     enabled: true,
     context: { state: 'running', currentTime: 10 },
-    mixer: { stop() {}, play() {} },
-    play(cue: string) {
-      heard.push(cue);
+    mixer: {
+      stop() {},
+      playBatch(cues: SoundCue[]) {
+        heard.push(...cues.map((cue) => cue.kind));
+      },
     },
   });
   audio.update(game, 0);
@@ -244,11 +247,71 @@ test('a large same-frame burst keeps and plays every fresh hit and kill', () => 
   }
   assert.equal(game.eventCount - game.eventOffset - from, 2400);
   audio.update(game, from);
-  assert.equal(sources.length, 2400);
+  assert.equal(sources.length, 2, 'All simultaneous hits and kills share two summed buffers');
   audio.update(game, game.eventCount);
-  assert.equal(sources.length, 2400, 'Consumed sounds cannot replay');
+  assert.equal(sources.length, 2, 'Consumed sounds cannot replay');
   advance(1);
   assert.ok(sources.every((source) => source.disconnected));
+  mixer.dispose();
+});
+
+test('batch playback sums every cue, preserving variants and stereo positions', () => {
+  const cues = Array.from({ length: 480 }, (_, i) => ({
+    kind: i % 2 ? 'kill' : 'hit',
+    space: { pan: Math.sin(i) * 0.35, depth: (i % 17) / 16 },
+  }));
+  const mixed = audioContext();
+  const mixer = new SoundMixer(mixed.ctx);
+  assert.equal(mixer.playBatch(cues), cues.length);
+  assert.equal(mixed.sources.length, 2);
+  const reference = audioContext();
+  const singles = new SoundMixer(reference.ctx);
+  for (const cue of cues) assert.equal(singles.playBatch([cue]), 1);
+  for (const [index, kind] of ['hit', 'kill'].entries()) {
+    const buffer = mixed.sources[index].buffer as AudioBuffer;
+    for (const channel of [0, 1]) {
+      const expected = new Float64Array(buffer.length);
+      for (let i = 0; i < cues.length; i++) {
+        if (cues[i].kind !== kind) continue;
+        const data = (reference.sources[i].buffer as AudioBuffer).getChannelData(channel);
+        for (let j = 0; j < data.length; j++) expected[j] += data[j];
+      }
+      const actual = buffer.getChannelData(channel);
+      for (let i = 0; i < actual.length; i++)
+        assert.ok(Math.abs(actual[i] - expected[i]) < 0.00002, 'No contribution is skipped');
+    }
+  }
+  assert.equal(mixer.playBatch([{ kind: 'unknown' }]), 0);
+  mixed.advance(1);
+  assert.ok(mixed.sources.every((source) => source.disconnected));
+  mixer.dispose();
+  singles.dispose();
+});
+
+test('batched distance filtering and QTE emphasis retain audible spatial detail', () => {
+  const { ctx, sources, gains, advance } = audioContext();
+  const mixer = new SoundMixer(ctx);
+  const render = (kind: string, pan: number, depth: number) => {
+    mixer.playBatch([{ kind, space: { pan, depth } }]);
+    return sources.at(-1)!.buffer as AudioBuffer;
+  };
+  const near = render('kill', -0.35, 0);
+  const far = render('kill', 0.35, 1);
+  const energy = (buffer: AudioBuffer, channel: number) =>
+    buffer.getChannelData(channel).reduce((sum, value) => sum + value ** 2, 0);
+  assert.ok(energy(near, 0) > energy(near, 1));
+  assert.ok(energy(far, 1) > energy(far, 0));
+  assert.ok(energy(far, 0) + energy(far, 1) < energy(near, 0) + energy(near, 1));
+  mixer.play('rhythm-1');
+  const qte = render('rhythm-2', 0.35, 1);
+  assert.deepEqual(qte.getChannelData(0), qte.getChannelData(1), 'QTE stays centered');
+  render('hit', 0, 0.5);
+  assert.equal(gains.at(-1)!.gain.values[0].value, 0.8);
+  mixer.stop(ctx.currentTime, true);
+  assert.ok(sources.every((source) => source.disconnected));
+  render('hit', 0, 0.5);
+  assert.equal(gains.at(-1)!.gain.values[0].value, 1, 'Resume retains no old QTE attenuation');
+  advance(1);
   mixer.dispose();
 });
 

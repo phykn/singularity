@@ -8,11 +8,54 @@ mkdirSync(dir, { recursive: true });
 const browser = await launchBrowser();
 try {
   const page = await browser.newPage();
+  await page.route('**/src/app/sounds.ts*', async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      body:
+        (await response.text()) +
+        `
+      const batch = SoundMixer.prototype.playBatch;
+      SoundMixer.prototype.playBatch = function(...args) {
+        const accepted = batch.apply(this, args);
+        if (window.audioBurst) window.audioBurst.accepted += accepted;
+        return accepted;
+      };`,
+    });
+  });
   await page.goto(base);
   const clips = process.argv.includes('--live-only')
     ? []
     : await page.evaluate(async () => {
         const { SoundMixer } = await import('/src/app/sounds.ts');
+        for (const depth of [0, 0.0625, 0.25, 0.5625, 1]) {
+          const cues = ['hit', 'dense', 'kill'].map((kind, i) => ({
+            kind,
+            space: { depth, pan: (i - 1) * 0.35 },
+          }));
+          const render = async (batch) => {
+            const ctx = new OfflineAudioContext(2, 24000, 48000);
+            const mixer = new SoundMixer(ctx);
+            if (batch) mixer.playBatch(cues, 0.1);
+            else for (const cue of cues) mixer.play(cue.kind, 0.1, 1, cue.space);
+            return ctx.startRendering();
+          };
+          const reference = await render(false),
+            mixed = await render(true);
+          let difference = 0,
+            energy = 0;
+          for (const channel of [0, 1]) {
+            const a = reference.getChannelData(channel),
+              b = mixed.getChannelData(channel);
+            for (let i = 0; i < a.length; i++) {
+              difference += (a[i] - b[i]) ** 2;
+              energy += a[i] ** 2;
+            }
+          }
+          const error = Math.sqrt(difference / energy);
+          if (error > 0.02)
+            throw new Error(`Batched audio changed the original waveform: ${depth}, ${error}`);
+        }
         const plans = [
           {
             name: 'combat',
@@ -115,7 +158,10 @@ try {
           const mixer = new SoundMixer(ctx);
           const initMs = performance.now() - start;
           let played = 0;
-          for (const event of plan.events.sort((a, b) => a.at - b.at)) {
+          if (plan.name === 'burst') played = mixer.playBatch(plan.events, 0.2);
+          for (const event of plan.name === 'burst'
+            ? []
+            : plan.events.sort((a, b) => a.at - b.at)) {
             if (event.stop) mixer.stop(event.at);
             else if (mixer.play(event.kind, event.at, event.pitch ?? 1, event.space)) played++;
           }
@@ -193,7 +239,7 @@ try {
 
   await page.evaluate(() => {
     const Native = AudioContext;
-    window.audioBurst = { contexts: [], started: 0, active: 0, max: 0 };
+    window.audioBurst = { contexts: [], accepted: 0, started: 0, active: 0, max: 0 };
     window.AudioContext = class extends Native {
       constructor(...args) {
         super(...args);
@@ -234,7 +280,6 @@ try {
     () =>
       window.__gameDebug.getModel().time > 0 && window.audioBurst.contexts[0].state === 'running',
   );
-  const started = await page.evaluate(() => window.audioBurst.started);
   await page.evaluate(() => {
     const game = window.__gameDebug.getModel();
     for (let i = 0; i < 240; i++) {
@@ -243,19 +288,19 @@ try {
       game.log('kill', point);
     }
   });
-  await page.waitForFunction((started) => window.audioBurst.started >= started + 480, started);
-  assert.equal(await page.evaluate(() => window.audioBurst.started - 1), 480);
+  await page.waitForFunction(() => window.audioBurst.accepted === 480);
   await page.getByRole('button', { name: '일시정지', exact: true }).click();
   await page.waitForFunction(
     () => window.audioBurst.active === 0 && window.audioBurst.contexts[0].state === 'suspended',
   );
   const live = await page.evaluate(() => ({
-    events: window.audioBurst.started - 1,
+    events: window.audioBurst.accepted,
+    sources: window.audioBurst.started - 1,
     maxSimultaneous: window.audioBurst.max,
     activeAfterPause: window.audioBurst.active,
   }));
   assert.equal(live.events, 480);
-  assert.ok(live.maxSimultaneous > 8);
+  assert.equal(live.sources, 2, 'Every hit and kill contributes to the two stereo buffers');
   assert.equal(live.activeAfterPause, 0);
   writeFileSync(join(dir, 'live-burst.json'), JSON.stringify(live, null, 2) + '\n');
   console.log(JSON.stringify({ liveBurst: live }));

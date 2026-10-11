@@ -2,7 +2,7 @@ import type { Game } from '../game/Game.ts';
 import { endingFrame } from '../presentation/ending.ts';
 import { beyondFrame } from '../presentation/beyond.ts';
 import { SoundMixer } from './sounds.ts';
-import type { SoundSpace } from './sounds.ts';
+import type { SoundCue, SoundSpace } from './sounds.ts';
 import { CENTER, distance } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
 
@@ -124,19 +124,22 @@ export class GameAudio {
       return;
     }
     this.stage = '';
+    const cues: SoundCue[] = [];
+    const listener = game.position;
     for (let i = Math.max(0, from - game.eventOffset); i < game.events.length; i++) {
       const event = game.events[i];
       if (event.kind === 'kill' || event.kind === 'hit') {
         const point = event.data as Point & { kind: string };
-        this.play(
-          event.kind === 'kill' ? 'kill' : point.kind === 'dense' ? 'dense' : 'hit',
-          soundSpace(point, game.position),
-        );
+        cues.push({
+          kind: event.kind === 'kill' ? 'kill' : point.kind === 'dense' ? 'dense' : 'hit',
+          space: soundSpace(point, listener),
+        });
       } else if (event.kind === 'skill-effect') {
         const cue = skillCues[(event.data as { id: string }).id];
-        if (cue) this.play(cue);
-      } else if (['level', 'wave', 'charged'].includes(event.kind)) this.play(event.kind);
+        if (cue) cues.push({ kind: cue });
+      } else if (['level', 'wave', 'charged'].includes(event.kind)) cues.push({ kind: event.kind });
     }
+    this.mixer.playBatch(cues, ctx.currentTime);
   }
 
   play(kind: string, space?: SoundSpace): void {

@@ -47,9 +47,13 @@ export function audioContext() {
     currentTime: 0,
     sampleRate: 24000,
     destination: {},
-    createBuffer(_channels: number, length: number, sampleRate: number) {
-      const data = new Float32Array(length);
-      const buffer = { duration: length / sampleRate, getChannelData: (_channel: number) => data };
+    createBuffer(channels: number, length: number, sampleRate: number) {
+      const data = Array.from({ length: channels }, () => new Float32Array(length));
+      const buffer = {
+        length,
+        duration: length / sampleRate,
+        getChannelData: (channel: number) => data[channel],
+      };
       buffers.push(buffer);
       return buffer;
     },

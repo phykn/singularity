@@ -47,7 +47,7 @@ export class ElectronScene extends Phaser.Scene {
     this.effects = new EffectRenderer(this.add, (point) => this.screen(point));
     createParticleTextures(this);
     this.sprites = new SpritePool(this.add);
-    this.damageLabels = new DamageLabels(this.add);
+    this.damageLabels = new DamageLabels(this);
   }
   update(): void {
     if (!this.graphics) return;
