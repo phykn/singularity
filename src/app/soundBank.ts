@@ -1,6 +1,5 @@
-type Bus = 'hit' | 'kill' | 'skill' | 'reward' | 'rhythm' | 'transition';
-type Recipe =
-  'press' | 'wet' | 'thock' | 'crumble' | 'flow' | 'compress' | 'release' | 'swell' | 'resonance';
+type Bus = 'hit' | 'kill' | 'skill' | 'rhythm' | 'transition';
+type Recipe = 'press' | 'wet' | 'thock' | 'crumble' | 'flow' | 'compress' | 'release' | 'resonance';
 type Definition = {
   bus: Bus;
   recipe: Recipe;
@@ -10,7 +9,7 @@ type Definition = {
   variants: number;
 };
 
-// Original tactile textures share a soft pressure body, with wet or solid surfaces.
+// Short contact bodies leave room for the clear wet or solid surface texture.
 export const soundDefinitions = {
   hit: { bus: 'hit', recipe: 'press', duration: 0.14, gain: 0.2, color: 1, variants: 6 },
   dense: { bus: 'hit', recipe: 'thock', duration: 0.18, gain: 0.25, color: 0.78, variants: 4 },
@@ -21,7 +20,6 @@ export const soundDefinitions = {
   charge: { bus: 'skill', recipe: 'flow', duration: 0.26, gain: 0.16, color: 1, variants: 3 },
   surge: { bus: 'skill', recipe: 'press', duration: 0.3, gain: 0.22, color: 0.7, variants: 3 },
   vent: { bus: 'skill', recipe: 'release', duration: 0.3, gain: 0.18, color: 0.85, variants: 3 },
-  level: { bus: 'reward', recipe: 'swell', duration: 0.36, gain: 0.25, color: 1.2, variants: 3 },
   wave: { bus: 'transition', recipe: 'thock', duration: 0.4, gain: 0.24, color: 0.62, variants: 2 },
   charged: {
     bus: 'transition',
@@ -164,22 +162,23 @@ export function synthesizeSound(kind: SoundKind, sampleRate: number, variant = 0
       bass = 0,
       attack = 1,
       decay = 1;
-    const base = 1 - Math.exp((-2 * Math.PI * 70) / sampleRate),
+    const base = 1 - Math.exp((-2 * Math.PI * 180) / sampleRate),
       fast = 1 - Math.exp((-2 * Math.PI * cutoff) / sampleRate),
-      slow = 1 - Math.exp((-2 * Math.PI * cutoff * 0.4) / sampleRate),
-      a = Math.exp(-650 / sampleRate),
+      slow = 1 - Math.exp((-2 * Math.PI * cutoff * 0.65) / sampleRate),
+      a = Math.exp(-1200 / sampleRate),
       d = Math.exp(-3 / Math.ceil(duration * sampleRate));
     const wobble = random() * Math.PI * 2;
     add(at, duration, (t, p) => {
       const alpha = fast * (1 - p) + slow * p;
       low += alpha * (random() * 2 - 1 - low);
       smooth += alpha * (low - smooth);
-      bass += base * (smooth - bass);
+      const surface = low * 0.35 + smooth * 0.65;
+      bass += base * (surface - bass);
       const env = swell ? (4 * p * (1 - p)) ** 1.2 : (1 - attack) * decay * (1 - p) ** 2;
       attack *= a;
       decay *= d;
       return (
-        (smooth - bass) *
+        (surface - bass) *
         env *
         (0.72 + 0.16 * Math.sin(t * 190 + wobble) + 0.12 * Math.sin(t * 310 + wobble)) *
         amp
@@ -187,8 +186,8 @@ export function synthesizeSound(kind: SoundKind, sampleRate: number, variant = 0
     });
   };
   const press = (at: number, duration: number, amp: number) => {
-    cavity(at, duration, 145 * color, amp);
-    rub(at + 0.003, duration * 0.8, 750 * color, amp * 0.65);
+    cavity(at, Math.min(0.07, duration * 0.55), 185 * color, amp * 0.4);
+    rub(at + 0.003, duration * 0.65, 3000 * color, amp * 2.1);
   };
   const bubbles = (count: number, span: number, amp: number) => {
     for (let i = 0; i < count; i++) {
@@ -201,7 +200,7 @@ export function synthesizeSound(kind: SoundKind, sampleRate: number, variant = 0
         (amp * (0.75 + random() * 0.25)) / (1 + i * 0.3),
         true,
       );
-      rub(at, duration, 1400 * color, amp * 0.25);
+      rub(at, duration, 2600 * color, amp * 0.4);
     }
   };
   const crumble = (count: number, span: number, amp: number) => {
@@ -228,18 +227,18 @@ export function synthesizeSound(kind: SoundKind, sampleRate: number, variant = 0
   switch (spec.recipe) {
     case 'press':
       press(0, spec.duration, 1);
-      rub(0.005, spec.duration * 0.75, 1000 * color, 0.7);
+      rub(0.005, spec.duration * 0.65, 2600 * color, 1.4);
       break;
     case 'wet':
       press(0, spec.duration, 0.85);
-      rub(0.004, spec.duration * 0.72, 1350 * color, 1.35);
-      bubbles(3, spec.duration * 0.38, 0.5);
+      rub(0.004, spec.duration * 0.65, 3200 * color, 2.1);
+      bubbles(3, spec.duration * 0.38, 0.4);
       break;
     case 'thock':
       press(0, spec.duration, 1.05);
-      cavity(0.002, 0.045, 510 * color, 0.35);
-      rub(0, 0.032, 1900 * color, 1.4);
-      rub(0.035, 0.035, 900 * color, 0.4);
+      cavity(0.002, 0.022, 510 * color, 0.18);
+      rub(0, 0.032, 3600 * color, 2.4);
+      rub(0.035, 0.035, 1800 * color, 0.4);
       break;
     case 'crumble':
       press(0, spec.duration, 0.8);
@@ -247,30 +246,25 @@ export function synthesizeSound(kind: SoundKind, sampleRate: number, variant = 0
       break;
     case 'flow':
       press(0, spec.duration, 0.4);
-      rub(0, spec.duration, 850 * color, 1.8, true);
+      rub(0, spec.duration, 2200 * color, 1.8, true);
       bubbles(3, spec.duration * 0.55, 0.3);
       break;
     case 'compress':
-      rub(0, spec.duration, 650 * color, 1.65, true);
+      rub(0, spec.duration, 1900 * color, 1.65, true);
       for (let i = 0; i < 7; i++)
         press(spec.duration * (1 - (1 - i / 8) ** 1.6), spec.duration * 0.18, 0.3 + i * 0.06);
-      resonance(95 * color, 0.25);
+      resonance(145 * color, 0.1);
       break;
     case 'release':
-      press(0, spec.duration, 1.15);
-      rub(0, spec.duration * 0.6, 1150 * color, 1.6);
-      bubbles(4, Math.min(0.11, spec.duration * 0.4), 0.6);
+      press(0, spec.duration, 0.85);
+      rub(0, spec.duration * 0.6, 2800 * color, 2.3);
+      bubbles(4, Math.min(0.11, spec.duration * 0.4), 0.4);
       crumble(5, 0.08, 0.55);
-      resonance(110 * color, 0.2);
-      break;
-    case 'swell':
-      press(0, spec.duration, 0.8);
-      bubbles(5, 0.14, 0.55);
-      rub(0, spec.duration, 1100 * color, 0.5, true);
+      resonance(150 * color, 0.08);
       break;
     case 'resonance':
-      resonance(95 * color, 0.8);
-      rub(0, spec.duration, 420 * color, 0.45, true);
+      resonance(145 * color, 0.35);
+      rub(0, spec.duration, 1500 * color, 0.8, true);
       break;
   }
   // Rounded transients and silent boundaries even at altered playback speeds.

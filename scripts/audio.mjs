@@ -67,7 +67,6 @@ try {
                 { kind: 'kill', at: at + 0.018, pitch: 0.96 + (i % 7) * 0.014 },
                 ...(i % 9 === 0 ? [{ kind: 'dense', at: at + 0.035 }] : []),
                 ...(i % 18 === 0 ? [{ kind: 'wave', at: at + 0.05 }] : []),
-                ...(i % 16 === 0 ? [{ kind: 'level', at: at + 0.06 }] : []),
                 ...(i % 7 === 0 ? [{ kind: 'arc', at: at + 0.04 }] : []),
               ];
             }).flat(),
@@ -144,7 +143,7 @@ try {
             name: 'overlap',
             seconds: 6,
             events: Array.from({ length: 720 }, (_, i) => ({
-              kind: ['hit', 'dense', 'kill', 'arc', 'field', 'surge', 'rhythm-complete', 'level'][
+              kind: ['hit', 'dense', 'kill', 'arc', 'field', 'surge', 'rhythm-complete', 'charge'][
                 i % 8
               ],
               at: 0.2 + i / 160,

@@ -60,7 +60,7 @@ test('QTE and combat all play together with gentle foreground emphasis', () => {
   assert.ok(mixer.play('field'));
   assert.ok(mixer.play('wave'));
   advance(0.13);
-  assert.ok(mixer.play('level'));
+  assert.ok(mixer.play('charge'));
   advance(0.14);
   assert.ok(mixer.play('dense'));
   advance(0.21);
@@ -94,10 +94,19 @@ test('suspension releases live nodes before the audio clock freezes', () => {
 });
 
 test('a wave warning remains audible when growth happens in the same frame', () => {
-  const { ctx } = audioContext();
+  const game = new Game(17, { combat: false });
+  game.start();
+  const { ctx, sources } = audioContext();
   const mixer = new SoundMixer(ctx);
-  assert.ok(mixer.play('level'));
-  assert.ok(mixer.play('wave'));
+  const audio = new GameAudio();
+  Object.assign(audio, { enabled: true, context: { ...ctx, state: 'running' }, mixer });
+  const from = game.eventCount;
+  game.log('level', null);
+  audio.update(game, from);
+  assert.equal(sources.length, 0, 'Level-up adds no pop or burst');
+  game.log('wave', null);
+  audio.update(game, from);
+  assert.equal(sources.length, 1, 'Growth does not suppress the wave warning');
   mixer.dispose();
 });
 
@@ -134,7 +143,7 @@ test('every hit, kill and skill activation plays once, including simultaneous bu
   assert.equal(played.at(-1), 'dense');
 });
 
-test('distant combat is quieter and muffled, while QTE stays centered and clear', () => {
+test('distance softens combat without burying its texture, while QTE stays centered', () => {
   const { ctx, gains, graph, pans, filters, advance } = audioContext();
   const mixer = new SoundMixer(ctx);
   mixer.play('kill', 0, 1, { pan: -0.3, depth: 0 });
@@ -143,6 +152,7 @@ test('distant combat is quieter and muffled, while QTE stays centered and clear'
   const levels = gains.slice(1).map((node) => node.gain.values[0].value);
   assert.ok(levels[1] < levels[0]);
   assert.ok(filters[2].frequency.values[0].value < filters[1].frequency.values[0].value);
+  assert.ok(filters[2].frequency.values[0].value >= 3500, 'Far impacts keep their presence');
   advance(0.6);
   mixer.play('rhythm-1', 0.6, 1, { pan: -1, depth: 1 });
   assert.deepEqual(
@@ -181,24 +191,38 @@ test('each simultaneous impact keeps its own position, including removed targets
   assert.deepEqual(cues[1], { kind: 'kill', space: { pan: (point.x - 180) / 520, depth: 0.05 } });
 });
 
-test('frequent hits and QTE share a damped low body instead of sharp pitched pings', () => {
-  for (const kind of ['hit', 'dense', 'kill', 'rhythm-1', 'rhythm-2', 'rhythm-complete'] as const) {
-    const clip = synthesizeSound(kind, 48000);
-    const alpha = 1 - Math.exp((-2 * Math.PI * 900) / 48000);
-    let low = 0,
-      total = 0,
-      bass = 0;
-    for (const sample of clip) {
-      low += alpha * (sample - low);
-      total += sample ** 2;
-      bass += low ** 2;
+test('combat and QTE have clear surface texture without boomy or ringing tails', () => {
+  for (const kind of [
+    'hit',
+    'dense',
+    'kill',
+    'arc',
+    'rhythm-1',
+    'rhythm-2',
+    'rhythm-complete',
+  ] as const) {
+    for (let variant = 0; variant < soundDefinitions[kind].variants; variant++) {
+      const clip = synthesizeSound(kind, 48000, variant);
+      const energy = clip.reduce((sum, sample) => sum + sample ** 2, 0);
+      const fraction = (cutoff: number, high = false) => {
+        const alpha = 1 - Math.exp((-2 * Math.PI * cutoff) / 48000);
+        let low = 0,
+          sum = 0;
+        for (const sample of clip) {
+          low += alpha * (sample - low);
+          sum += (high ? sample - low : low) ** 2;
+        }
+        return sum / energy;
+      };
+      assert.ok(fraction(250) < 0.45, kind + ' should not be dominated by a bass tone');
+      assert.ok(fraction(900, true) > 0.25, kind + ' must expose the contact texture');
+      assert.ok(fraction(6000, true) < 0.15, kind + ' should not become sharp hiss');
+      const tail = clip.slice(Math.floor(clip.length * 0.8));
+      assert.ok(
+        tail.reduce((sum, sample) => sum + sample ** 2, 0) / energy < 0.03,
+        kind + ' should not leave a ringing tail',
+      );
     }
-    assert.ok(bass / total > 0.65, kind + ' should keep most energy in the soft body');
-    const tail = clip.slice(Math.floor(clip.length * 0.8));
-    assert.ok(
-      tail.reduce((sum, sample) => sum + sample ** 2, 0) / total < 0.03,
-      kind + ' should not leave a ringing tail',
-    );
   }
 });
 

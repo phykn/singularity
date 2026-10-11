@@ -137,7 +137,7 @@ export class GameAudio {
       } else if (event.kind === 'skill-effect') {
         const cue = skillCues[(event.data as { id: string }).id];
         if (cue) cues.push({ kind: cue });
-      } else if (['level', 'wave', 'charged'].includes(event.kind)) cues.push({ kind: event.kind });
+      } else if (['wave', 'charged'].includes(event.kind)) cues.push({ kind: event.kind });
     }
     this.mixer.playBatch(cues, ctx.currentTime);
   }

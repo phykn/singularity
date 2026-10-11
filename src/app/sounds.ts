@@ -4,6 +4,8 @@ import type { SoundBus, SoundKind } from './soundBank.ts';
 export type SoundSpace = { pan: number; depth: number };
 export type SoundCue = { kind: string; space?: SoundSpace };
 
+const distanceCutoff = (depth: number) => 8000 - 4400 * depth;
+
 type Voice = {
   bus: SoundBus;
   end: number;
@@ -29,7 +31,7 @@ export class SoundMixer {
     this.context = context;
     this.filter = context.createBiquadFilter();
     this.filter.type = 'lowpass';
-    this.filter.frequency.value = 6200;
+    this.filter.frequency.value = 9000;
     this.filter.Q.value = 0.7;
     this.compressor = context.createDynamicsCompressor();
     this.compressor.threshold.value = -18;
@@ -69,7 +71,7 @@ export class SoundMixer {
     const id = kind as SoundKind,
       spec = soundDefinitions[id],
       bus = spec.bus;
-    const important = bus === 'rhythm' || bus === 'transition' || bus === 'reward';
+    const important = bus === 'rhythm' || bus === 'transition';
     const variant = this.variants[id] ?? 0;
     this.variants[id] = (variant + 1) % spec.variants;
     const ctx = this.context,
@@ -81,7 +83,7 @@ export class SoundMixer {
       depth = important ? 0 : Math.max(0, Math.min(1, space?.depth ?? 0));
     tone.type = 'lowpass';
     tone.Q.value = 0.5;
-    tone.frequency.setValueAtTime(5200 * (1 - depth) + 1400 * depth, at);
+    tone.frequency.setValueAtTime(distanceCutoff(depth), at);
     source.buffer = this.buffer(id, variant);
     source.playbackRate.setValueAtTime(rate, at);
     const end = at + source.buffer.duration / rate;
@@ -190,7 +192,7 @@ export class SoundMixer {
     let filtered = this.filtered.get(key);
     if (filtered) return filtered;
     const data = this.buffer(kind, variant).getChannelData(0);
-    const omega = (2 * Math.PI * (5200 - (3800 * step) / 8)) / this.context.sampleRate;
+    const omega = (2 * Math.PI * distanceCutoff(step / 8)) / this.context.sampleRate;
     const cos = Math.cos(omega),
       alpha = Math.sin(omega) / (2 * 10 ** (0.5 / 20)),
       a0 = 1 + alpha;
