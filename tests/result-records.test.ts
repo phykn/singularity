@@ -106,6 +106,36 @@ test('sequential stale owners merge normal and endless best records before write
   assert.equal(JSON.parse(store.values.get(beyondRecordKey)!).seconds, 400);
 });
 
+test('stored record metadata cannot change normal ranking or leak into endless records', () => {
+  const store = memory();
+  const records = new ResultRecords(
+    () => store.storage,
+    () => {},
+    () => {},
+  );
+  store.values.set(recordKey, JSON.stringify({ ...normal(200, 2), endless: true }));
+  store.values.set(
+    beyondRecordKey,
+    JSON.stringify({ seconds: 200, xp: 20, seed: 3, selections: ['unexpected'] }),
+  );
+  records.record(normal(100, 4), 0);
+  records.record(endless(100, 10, 5), 0);
+  assert.equal(records.best?.xp, 200);
+  assert.equal(records.best?.seed, 2);
+  assert.equal(records.beyond?.seed, 3);
+  assert.deepEqual(Object.keys(records.best!).sort(), [
+    'collisionTime',
+    'level',
+    'outcome',
+    'seed',
+    'speed',
+    'xp',
+  ]);
+  assert.deepEqual(Object.keys(records.beyond!).sort(), ['seconds', 'seed', 'xp']);
+  assert.deepEqual(JSON.parse(store.values.get(recordKey)!), records.best);
+  assert.deepEqual(JSON.parse(store.values.get(beyondRecordKey)!), records.beyond);
+});
+
 test('storage access failures retain records in memory and recover through retry', () => {
   const store = memory();
   let accessible = false;

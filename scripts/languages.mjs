@@ -33,7 +33,11 @@ const inspect = async (page) => {
     for (const node of document.querySelectorAll(
       '.card-label, .card strong, .card-value, .card-stage, .arena-caption h1, .upgrade-feedback',
     )) {
-      if (node.scrollWidth > node.clientWidth + 1 || node.scrollHeight > node.clientHeight + 1)
+      const css = getComputedStyle(node);
+      if (
+        node.scrollWidth > node.clientWidth + 1 ||
+        (css.overflowY !== 'visible' && node.scrollHeight > node.clientHeight + 1)
+      )
         issues.push('Clipped: ' + node.textContent);
     }
     for (const node of document.querySelectorAll(

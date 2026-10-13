@@ -47,6 +47,7 @@ export class GameAudio {
 
   suspend(): void {
     this.mixer?.stop(this.context?.currentTime, true);
+    this.stage = '';
     this.wanted = false;
     this.request++;
     this.enabled = false;

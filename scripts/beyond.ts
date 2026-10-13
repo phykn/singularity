@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Game } from '../src/game/Game.ts';
 import { sourceHash } from './engine.ts';
@@ -8,6 +9,12 @@ import { rules } from '../src/game/rules.ts';
 const count = Number(process.argv[2] ?? 300);
 const start = Number(process.argv[3] ?? 108000);
 const output = process.argv[4] ?? 'artifacts/beyond.json';
+assert.ok(Number.isSafeInteger(count) && count > 0, 'Count must be a positive safe integer');
+assert.ok(Number.isSafeInteger(start) && start >= 0, 'Start must be a nonnegative safe integer');
+assert.ok(start + count <= 2 ** 32, 'Seed cohort must fit the uint32 seed range');
+const simulationHash = createHash('sha256')
+  .update(readFileSync(new URL(import.meta.url)))
+  .digest('hex');
 const rows = [];
 for (let seed = start; seed < start + count; seed++) {
   const g = new Game(seed);
@@ -54,6 +61,7 @@ writeFileSync(
   JSON.stringify(
     {
       sourceHash: sourceHash(),
+      simulationHash,
       scope:
         'Highest-rarity automatic selection in normal and continued play; not a human survival estimate.',
       seeds: [start, start + count - 1],

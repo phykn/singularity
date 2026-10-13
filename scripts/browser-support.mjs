@@ -9,6 +9,10 @@ export const screenshotsDir = join(
 );
 let screenshotCount = 0;
 
+export function reportDirectory(fallback, args = process.argv.slice(2)) {
+  return args.find((arg) => !arg.startsWith('--')) ?? fallback;
+}
+
 export async function capture(page, path) {
   mkdirSync(screenshotsDir, { recursive: true });
   mkdirSync(dirname(path), { recursive: true });

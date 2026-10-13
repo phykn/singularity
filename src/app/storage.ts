@@ -37,7 +37,8 @@ export function readRecord(storage: Storage): BestRecord | null {
     )
       return null;
     if (value.level < 1 || value.seed > 0xffffffff) return null;
-    return value;
+    const { outcome, xp, level, speed, seed, collisionTime } = value;
+    return { outcome, xp, level, speed, seed, collisionTime };
   } catch {
     return null;
   }
@@ -82,8 +83,10 @@ export function readBeyondRecord(storage: Storage): BeyondRecord | null {
       Number.isSafeInteger(record.seed) &&
       record.seed >= 0 &&
       record.seed <= 0xffffffff
-    )
-      return record;
+    ) {
+      const { seconds, xp, seed } = record;
+      return { seconds, xp, seed };
+    }
   } catch {
     /* Storage can be disabled by the browser. */
   }

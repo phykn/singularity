@@ -341,9 +341,16 @@ export class Combat {
       let fired = 0;
       const reserved = new Set<number>();
       for (const [index, point] of this.satellitePoints.entries()) {
-        const targets = closest(g.targets, point, g.targets.length, s.satellite.range)
-          .sort((a, b) => Number(reserved.has(a.id)) - Number(reserved.has(b.id)))
-          .slice(0, branches);
+        const targets = closest(g.targets, point, branches, s.satellite.range, reserved);
+        if (targets.length < branches)
+          targets.push(
+            ...closest(
+              g.targets.filter((target) => reserved.has(target.id)),
+              point,
+              branches - targets.length,
+              s.satellite.range,
+            ),
+          );
         targets.forEach((target) => reserved.add(target.id));
         fired += this.volley(
           { ...attack, satellite: index, range: s.satellite.range },

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { base, launchBrowser, observeScene, capture } from './browser-support.mjs';
+import { base, launchBrowser, observeScene, capture, reportDirectory } from './browser-support.mjs';
 
-const output = process.argv[2] ?? 'artifacts/electric/after';
+const output = reportDirectory('artifacts/electric/after');
 const baseline = process.argv.includes('--baseline');
 mkdirSync(output, { recursive: true });
 const browser = await launchBrowser();

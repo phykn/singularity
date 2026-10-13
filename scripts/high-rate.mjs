@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { base, launchBrowser, observeScene } from './browser-support.mjs';
+import { base, launchBrowser, observeScene, reportDirectory } from './browser-support.mjs';
 
-const output =
-  process.argv.find((arg, i) => i > 1 && !arg.startsWith('--')) ??
-  'artifacts/performance/high-rate';
+const output = reportDirectory('artifacts/performance/high-rate');
 const slowdown = Number(process.env.CPU_SLOWDOWN ?? 4);
 mkdirSync(output, { recursive: true });
 const browser = await launchBrowser();

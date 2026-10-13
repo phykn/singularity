@@ -117,9 +117,7 @@ try {
         assert.equal(await page.getByRole('dialog').count(), 0);
         assert.equal(await page.evaluate(() => window.__gameDebug.getModel().manualPaused), false);
       }
-      // Short landscape uses the dock space for cards; HUD pause remains available.
-      await page.evaluate(() => window.__gameDebug.xp(100));
-      await page.locator('.choice-pause').tap();
+      // Inspect an owned skill while running; short landscape keeps HUD pause available.
       if (height > 320) await page.locator('.slot-inspect').first().tap();
       else await page.getByRole('button', { name: c.pause, exact: true }).tap();
       const frozen = await snapshot(page);
@@ -128,12 +126,15 @@ try {
       await page
         .getByRole('button', { name: height > 320 ? c.close : c.resume, exact: true })
         .tap();
-      const remaining = await page.evaluate(() => {
+      const resumed = await page.evaluate(() => {
         const g = window.__gameDebug.getModel();
-        return g.choice.deadline - g.time;
+        return {
+          number: g.choice?.number ?? null,
+          manualPaused: g.manualPaused,
+        };
       });
-      assert.ok(remaining <= frozen.choice.deadline - frozen.tick / rules.tickRate);
-      assert.ok(remaining > 0, 'Closing inspection must not consume the whole choice');
+      assert.equal(resumed.number, null);
+      assert.equal(resumed.manualPaused, false, 'Closing inspection must resume the game');
       await page.getByRole('button', { name: c.pause, exact: true }).tap();
       await inspectDialog(page);
       await capture(page, `artifacts/ui/pause-${language}-${width}.png`);

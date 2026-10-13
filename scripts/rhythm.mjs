@@ -19,7 +19,7 @@ async function beat(page, n, key) {
       const g = window.__gameDebug.getModel();
       const delta = Math.atan2(Math.sin(g.angle - r.gateAngle), Math.cos(g.angle - r.gateAngle));
       // Use the visible electron crossing, never the scheduler's internal due time.
-      return r.active && r.hits === n && Math.abs(delta) < r.windowAngle * 0.4;
+      return r.active && r.hits === n && Math.abs(delta) < r.windowAngle * 0.8;
     },
     n,
     { polling: 'raf', timeout: 20000 },

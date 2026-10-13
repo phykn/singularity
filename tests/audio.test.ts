@@ -624,6 +624,65 @@ test('success uses one continuous vacuum cue and stays silent from the point thr
   assert.ok(!cues.includes('level'));
 });
 
+test('audio recovery restarts the current transition cue and preserves silent stages', async () => {
+  for (const stage of [
+    'singularity',
+    'beyond-contract',
+    'beyond-open',
+    'collision',
+    'silence',
+  ] as const) {
+    const game = new Game(17, { combat: false });
+    game.start();
+    if (stage === 'collision') game.radius = game.core;
+    else game.debugSetXp(game.rules.energyGoal);
+    game.advance(1000 / game.rules.tickRate);
+    if (stage === 'collision') {
+      game.advance(game.rules.collisionSeconds * 1000);
+      assert.equal(game.phase, 'ending');
+      assert.equal(game.successfulEnding, false);
+    } else if (stage.startsWith('beyond-')) {
+      game.advance(10000);
+      assert.ok(game.continueBeyond());
+      game.phaseTicks = game.rules.tickRate * (stage === 'beyond-contract' ? 0.3 : 1);
+    } else if (stage === 'silence') {
+      game.phaseTicks = Math.round((game.rules.collisionSeconds - 0.1) * game.rules.tickRate);
+    }
+    const cues: string[] = [];
+    const audio = new GameAudio();
+    const context = {
+      state: 'running',
+      currentTime: 10,
+      async suspend() {
+        this.state = 'suspended';
+      },
+      async resume() {
+        this.state = 'running';
+      },
+    };
+    Object.assign(audio, {
+      enabled: true,
+      context,
+      mixer: {
+        stop() {},
+        play(cue: string) {
+          cues.push(cue);
+        },
+      },
+    });
+    audio.update(game, 0);
+    assert.deepEqual(cues, stage === 'silence' ? [] : [stage]);
+    audio.suspend();
+    audio.update(game, 0);
+    assert.deepEqual(cues, stage === 'silence' ? [] : [stage], 'Suspended audio stays silent');
+    assert.equal(await audio.unlock(), true);
+    audio.update(game, 0);
+    assert.deepEqual(cues, stage === 'silence' ? [] : [stage, stage]);
+    audio.update(game, 0);
+    assert.deepEqual(cues, stage === 'silence' ? [] : [stage, stage], 'Recovery plays once');
+  }
+});
+
 test('a pending suspension finishes before the newest audio unlock resumes', async (t) => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext');
   let ctx: Context;

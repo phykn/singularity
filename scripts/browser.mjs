@@ -287,8 +287,16 @@ const audioFlow = async () => {
       async resume() {
         // Keep the native call inside the click gesture; defer only completion.
         const resumed = super.resume();
-        await new Promise((resolve, reject) => trial.requests.push({ resolve, reject }));
-        return resumed;
+        let request;
+        try {
+          await new Promise((resolve, reject) => {
+            request = { resolve, reject, completed: false };
+            trial.requests.push(request);
+          });
+          return await resumed;
+        } finally {
+          request.completed = true;
+        }
       }
     };
   });
@@ -305,6 +313,7 @@ const audioFlow = async () => {
       },
       { index, fail },
     );
+    await page.waitForFunction((index) => window.audioTrial.requests[index].completed, index);
     await page.waitForTimeout(100);
   };
   await sound().click();
@@ -356,8 +365,9 @@ const audioFlow = async () => {
   assert.equal(await pressed(), 'true', 'A recovery failure keeps the sound preference');
   await page.keyboard.press('Escape');
   await settle(9);
-  await page.locator('.setting-notice').waitFor({ state: 'hidden' });
   await page.keyboard.press('Escape');
+  await page.getByRole('dialog').waitFor();
+  await page.locator('.setting-notice').waitFor({ state: 'hidden' });
   assert.equal(await page.locator('.setting-notice').count(), 0);
   assert.equal(await pressed(), 'true');
   report('automatic audio recovery reports failure and clears the notice after retry', {
@@ -538,7 +548,17 @@ const visualFlow = async () => {
           id === 'recover' ? copy.ko.instant : `${rank - 1} → ${rank}`,
         ),
       );
-      if (id === 'chain') assert.equal(await page.locator('.slot-max').innerText(), 'MAX');
+      if (id === 'chain') {
+        const max = page.locator('.slot[data-skill="chain"] .slot-max');
+        await max.waitFor();
+        const label = await max.evaluate((node) => ({
+          text: node.textContent,
+          width: node.getBoundingClientRect().width,
+          visibility: getComputedStyle(node).visibility,
+        }));
+        assert.equal(label.text.trim(), 'MAX');
+        assert.ok(label.width > 0 && label.visibility === 'visible', JSON.stringify(label));
+      }
       const box = await feedback.boundingBox();
       assert.ok(
         box.x >= 0 && box.x + box.width <= width && box.y >= 0 && box.y + box.height <= height,
@@ -1325,7 +1345,15 @@ try {
       await page.getByRole('button', { name: 'START' }).click();
       const playing = await inspect(page);
       assert.equal(await page.locator('.choices').count(), 0);
-      if (height > width) assert.ok(playing.canvas.h / height >= 0.7);
+      if (height > width) {
+        // The 176px footer reserves the choice cards even before a choice opens.
+        // The canvas must fill the remaining flexible row without excess gaps.
+        const minimum = height - 48 - 176;
+        assert.ok(
+          playing.canvas.h >= minimum - 1,
+          JSON.stringify({ viewport: name, canvas: playing.canvas, minimum }),
+        );
+      }
       await firstChoice(page);
       await screenshot(page, 'cards-' + name);
       const cards = await inspect(page);
@@ -1556,13 +1584,22 @@ try {
     await settings.keyboard.press('Tab');
     assert.equal(await settings.locator(':focus').textContent(), '닫기');
     assert.equal(await settings.getByRole('button', { name: /시각 효과/ }).count(), 0);
-    await settings.getByRole('button', { name: '사운드 끔', exact: true }).click();
-    await settings.getByRole('button', { name: '사운드 켬', exact: true }).waitFor();
+    const sound = settings
+      .getByRole('dialog')
+      .getByRole('button', { name: '사운드 끔', exact: true });
+    await sound.click();
+    await settings
+      .getByRole('dialog')
+      .getByRole('button', { name: '사운드 켬', exact: true })
+      .waitFor();
     await settings.getByRole('button', { name: '닫기', exact: true }).click();
     await settings.reload();
     await settings.waitForSelector('canvas');
     await settings.getByRole('button', { name: '설정', exact: true }).click();
-    await settings.getByRole('button', { name: '사운드 끔', exact: true }).waitFor();
+    await settings
+      .getByRole('dialog')
+      .getByRole('button', { name: '사운드 끔', exact: true })
+      .waitFor();
     await settings.getByRole('button', { name: '닫기', exact: true }).click();
     await settings.getByRole('button', { name: 'START' }).click();
     await firstChoice(settings);
@@ -1587,9 +1624,12 @@ try {
     await blocked.goto(base);
     await blocked.waitForSelector('canvas');
     await blocked.getByRole('button', { name: '설정', exact: true }).click();
-    await blocked.getByRole('button', { name: '사운드 끔', exact: true }).click();
+    await blocked
+      .getByRole('dialog')
+      .getByRole('button', { name: '사운드 끔', exact: true })
+      .click();
     assert.equal(await blocked.locator('.setting-notice').count(), 0);
-    await blocked.getByRole('button', { name: 'ENG', exact: true }).click();
+    await blocked.getByRole('dialog').getByRole('button', { name: 'ENG', exact: true }).click();
     await blocked.getByRole('dialog').getByText(copy.en.storageFailed).waitFor();
     await blocked.getByRole('button', { name: 'Close', exact: true }).click();
     await blocked.getByRole('button', { name: 'START' }).click();

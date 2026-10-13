@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { base, capture, launchBrowser, observeScene } from './browser-support.mjs';
+import { base, capture, launchBrowser, observeScene, reportDirectory } from './browser-support.mjs';
 
 // Frozen crowds isolate drawing; live crowds also exercise movement and attacks.
 // CPU throttling approximates a slower processor, not a particular phone.
-const output = process.argv[2] ?? 'artifacts/performance/latest';
+const output = reportDirectory('artifacts/performance/latest');
 const slowdown = Number(process.env.CPU_SLOWDOWN ?? 4);
 mkdirSync(output, { recursive: true });
 const browser = await launchBrowser();

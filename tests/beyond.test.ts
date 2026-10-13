@@ -16,8 +16,8 @@ import { BLUE, VIOLET } from '../src/art/palette.ts';
 import type { Result } from '../src/game/types.ts';
 import { playRhythm } from '../scripts/rhythm-bot.ts';
 
-function cleared() {
-  const g = new Game(360011);
+function cleared(recordEvents = true) {
+  const g = new Game(360011, { recordEvents });
   playRhythm(g, undefined, false);
   assert.equal(g.result?.outcome, 'success');
   return g;
@@ -254,7 +254,7 @@ test('the singularity contracts completely to a point before the orbit grows fro
 });
 
 test('the result clears before contraction, and trail and dust join the opening smoothly', () => {
-  const g = cleared();
+  const g = cleared(false);
   g.continueBeyond();
   let trail = 0;
   for (let tick = 0; tick <= g.rules.tickRate * g.rules.endless.entrySeconds; tick++) {

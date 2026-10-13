@@ -69,10 +69,17 @@ try {
   const history = await page.evaluate(() => {
     const g = window.__gameDebug.getModel();
     for (let i = 0; i < 5000; i++) g.log('hit', { kind: 'small', damage: 1, x: 180, y: 260 });
-    return { retained: g.events.length, total: g.eventCount };
+    const burst = { retained: g.events.length, total: g.eventCount };
+    g.tick += g.rules.tickRate;
+    g.elapsedTicks += g.rules.tickRate;
+    g.log('retention-check', {});
+    return { burst, retained: g.events.length, total: g.eventCount, offset: g.eventOffset };
   });
+  assert.equal(history.burst.retained, 5000, 'Every fresh hit must remain available to audio');
+  assert.equal(history.burst.total, 5000);
   assert.ok(history.retained <= 1024);
-  assert.equal(history.total, 5000);
+  assert.equal(history.total, 5001);
+  assert.equal(history.offset, 5000, 'Only the aged burst is discarded');
   report('normal browser play bounds event history while retaining recent sound cues', history);
   for (let i = 0; i < 4; i++) {
     await page.reload();
@@ -137,7 +144,6 @@ try {
 
   await page.evaluate(() => {
     localStorage.setItem('singularity.language', JSON.stringify('en'));
-    localStorage.setItem('singularity.settings', JSON.stringify({ sound: true }));
   });
   const record = await page.evaluate(() => localStorage.getItem('singularity.record'));
   await page.reload();
@@ -147,12 +153,12 @@ try {
   await page.getByRole('button', { name: copy.en.settings, exact: true }).click();
   assert.equal(
     await page.locator('.settings-panel .setting-row').first().getAttribute('aria-pressed'),
-    'true',
+    'false',
   );
   assert.equal(await page.evaluate(() => localStorage.getItem('singularity.record')), record);
   await page.getByRole('button', { name: copy.en.close, exact: true }).click();
   await page.getByRole('button', { name: '한국어', exact: true }).click();
-  report('fresh runs preserve language, sound preferences and best results', {});
+  report('fresh runs preserve language and best results while sound starts off', {});
 
   await page.getByRole('button', { name: 'START' }).click();
   await page.evaluate(() => window.__gameDebug.advance(10000));
@@ -270,20 +276,19 @@ try {
       Storage.prototype.setItem = write;
     };
     Storage.prototype.setItem = function (key, value) {
-      if (key === 'singularity.settings') throw new Error('settings write blocked');
+      if (key === 'singularity.language') throw new Error('language write blocked');
       return write.call(this, key, value);
     };
   });
-  await failed.locator('.settings-panel .setting-row').first().click();
-  await failed.locator('.settings-panel .setting-notice').waitFor();
   await failed.locator('.settings-panel .language-picker button').first().click();
+  await failed.locator('.settings-panel .setting-notice').waitFor();
   await failed.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
   assert.equal(
     await failed.locator('.settings-panel .setting-notice').innerText(),
     c.storageFailed,
   );
   await failed.evaluate(() => window.restoreWrites());
-  await failed.locator('.settings-panel .setting-row').first().click();
+  await failed.locator('.settings-panel .language-picker button').first().click();
   await failed.locator('.settings-panel .setting-notice').waitFor({ state: 'hidden' });
   report('saving another preference does not hide an unsaved settings warning', {});
   await failed.close();

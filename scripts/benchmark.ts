@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { sourceHash } from './engine.ts';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { Game } from '../src/game/Game.ts';
 import { isSkill, rules, xpForLevel } from '../src/game/rules.ts';
 
@@ -81,6 +82,9 @@ writeFileSync(
   JSON.stringify(
     {
       sourceHash: sourceHash(),
+      simulationHash: createHash('sha256')
+        .update(readFileSync(new URL(import.meta.url)))
+        .digest('hex'),
       rules,
       seeds: [1701, 1730],
       runs: rows.length,

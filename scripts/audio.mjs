@@ -4,10 +4,130 @@ import { join } from 'node:path';
 import { base, launchBrowser } from './browser-support.mjs';
 
 const dir = process.argv.slice(2).find((arg) => !arg.startsWith('--')) ?? 'artifacts/audio';
+const plans = [
+  {
+    name: 'combat',
+    seconds: 12,
+    events: Array.from({ length: 90 }, (_, i) => {
+      const at = 0.3 + i * 0.115 + Math.sin(i * 1.7) * 0.015;
+      return [{ kind: 'hit', at }, ...(i % 18 === 0 ? [{ kind: 'wave', at: at + 0.05 }] : [])];
+    }).flat(),
+  },
+  {
+    name: 'qte',
+    seconds: 4,
+    events: [{ kind: 'rhythm-complete', at: 1.5 }],
+  },
+  {
+    name: 'textures',
+    seconds: 5,
+    events: ['preview', 'hit', 'hit', 'hit', 'rhythm-complete'].map((kind, i) => ({
+      kind,
+      at: 0.25 + i * 0.9,
+    })),
+  },
+  {
+    name: 'distance',
+    seconds: 3,
+    events: [
+      { kind: 'hit', at: 0.25, space: { pan: -0.3, depth: 0 } },
+      { kind: 'hit', at: 1.25, space: { pan: 0.3, depth: 1 } },
+      { kind: 'rhythm-complete', at: 2.25, space: { pan: 0.3, depth: 1 } },
+    ],
+  },
+  {
+    name: 'singularity',
+    seconds: 7,
+    events: [
+      { kind: 'singularity', at: 0.25 },
+      { stop: true, at: 1.7 },
+      { kind: 'beyond-contract', at: 4.1 },
+      { stop: true, at: 4.65 },
+      { kind: 'beyond-open', at: 4.8 },
+    ],
+  },
+  {
+    name: 'pause',
+    seconds: 2,
+    events: [
+      { kind: 'hit', at: 0.2 },
+      { kind: 'hit', at: 0.21 },
+      { stop: true, at: 0.23 },
+      { kind: 'hit', at: 1.2 },
+    ],
+  },
+  {
+    name: 'burst',
+    seconds: 2,
+    events: Array.from({ length: 480 }, (_, i) => ({
+      kind: 'hit',
+      at: 0.2,
+      space: { pan: Math.sin(i) * 0.3, depth: 0 },
+    })),
+  },
+  {
+    name: 'contacts',
+    seconds: 8,
+    events: [1, 2, 3, 4, 16, 480]
+      .map((count, i) => ({
+        kind: 'hit',
+        count,
+        at: 0.25 + i,
+      }))
+      .concat(
+        Array.from({ length: 45 }, (_, i) => ({
+          kind: 'hit',
+          count: 16,
+          at: 6.3 + i / 60,
+        })),
+      ),
+  },
+  {
+    name: 'variation',
+    seconds: 7,
+    events: Array.from({ length: 16 }, (_, i) => ({
+      kind: 'hit',
+      count: 4,
+      at: 0.25 + i * 0.4,
+    })),
+  },
+  {
+    name: 'overlap',
+    seconds: 6,
+    events: Array.from({ length: 720 }, (_, i) => ({
+      kind: ['hit', 'hit', 'hit', 'hit', 'wave', 'rhythm-complete'][i % 6],
+      at: 0.2 + i / 160,
+    })),
+  },
+];
 mkdirSync(dir, { recursive: true });
 const browser = await launchBrowser();
 try {
   const page = await browser.newPage();
+  const durations = Object.fromEntries(plans.map(({ name, seconds }) => [name, seconds]));
+  await page.exposeFunction('writeAudioClip', (clip) => {
+    assert.ok(Object.hasOwn(durations, clip.name), 'Unknown audio clip');
+    assert.ok(clip.played > 0);
+    assert.ok(clip.peak > 0 && clip.peak < 0.95, `${clip.name} has no clipping headroom`);
+    const channels = 2;
+    const pcm = Buffer.from(clip.pcm, 'base64');
+    assert.equal(pcm.length, durations[clip.name] * 48000 * channels * 2);
+    const wav = Buffer.alloc(44 + pcm.length);
+    wav.write('RIFF');
+    wav.writeUInt32LE(wav.length - 8, 4);
+    wav.write('WAVEfmt ', 8);
+    wav.writeUInt32LE(16, 16);
+    wav.writeUInt16LE(1, 20);
+    wav.writeUInt16LE(channels, 22);
+    wav.writeUInt32LE(48000, 24);
+    wav.writeUInt32LE(48000 * channels * 2, 28);
+    wav.writeUInt16LE(channels * 2, 32);
+    wav.writeUInt16LE(16, 34);
+    wav.write('data', 36);
+    wav.writeUInt32LE(pcm.length, 40);
+    pcm.copy(wav, 44);
+    writeFileSync(join(dir, `${clip.name}.wav`), wav);
+  });
   await page.route('**/src/audio/SoundMixer.ts*', async (route) => {
     const response = await route.fetch();
     await route.fulfill({
@@ -26,8 +146,9 @@ try {
   await page.goto(base);
   const clips = process.argv.includes('--live-only')
     ? []
-    : await page.evaluate(async () => {
+    : await page.evaluate(async (plans) => {
         const { SoundMixer } = await import('/src/audio/SoundMixer.ts');
+        const { pcm16Base64 } = await import('/scripts/audio-pcm.mjs');
         for (const depth of [0, 0.0625, 0.25, 0.5625, 1]) {
           const cues = ['preview', 'hit', 'preview'].map((kind, i) => ({
             kind,
@@ -56,105 +177,6 @@ try {
           if (error > 0.02)
             throw new Error(`Batched audio changed the original waveform: ${depth}, ${error}`);
         }
-        const plans = [
-          {
-            name: 'combat',
-            seconds: 12,
-            events: Array.from({ length: 90 }, (_, i) => {
-              const at = 0.3 + i * 0.115 + Math.sin(i * 1.7) * 0.015;
-              return [
-                { kind: 'hit', at },
-                ...(i % 18 === 0 ? [{ kind: 'wave', at: at + 0.05 }] : []),
-              ];
-            }).flat(),
-          },
-          {
-            name: 'qte',
-            seconds: 4,
-            events: [{ kind: 'rhythm-complete', at: 1.5 }],
-          },
-          {
-            name: 'textures',
-            seconds: 5,
-            events: ['preview', 'hit', 'hit', 'hit', 'rhythm-complete'].map((kind, i) => ({
-              kind,
-              at: 0.25 + i * 0.9,
-            })),
-          },
-          {
-            name: 'distance',
-            seconds: 3,
-            events: [
-              { kind: 'hit', at: 0.25, space: { pan: -0.3, depth: 0 } },
-              { kind: 'hit', at: 1.25, space: { pan: 0.3, depth: 1 } },
-              { kind: 'rhythm-complete', at: 2.25, space: { pan: 0.3, depth: 1 } },
-            ],
-          },
-          {
-            name: 'singularity',
-            seconds: 7,
-            events: [
-              { kind: 'singularity', at: 0.25 },
-              { stop: true, at: 1.7 },
-              { kind: 'beyond-contract', at: 4.1 },
-              { stop: true, at: 4.65 },
-              { kind: 'beyond-open', at: 4.8 },
-            ],
-          },
-          {
-            name: 'pause',
-            seconds: 2,
-            events: [
-              { kind: 'hit', at: 0.2 },
-              { kind: 'hit', at: 0.21 },
-              { stop: true, at: 0.23 },
-              { kind: 'hit', at: 1.2 },
-            ],
-          },
-          {
-            name: 'burst',
-            seconds: 2,
-            events: Array.from({ length: 480 }, (_, i) => ({
-              kind: 'hit',
-              at: 0.2,
-              space: { pan: Math.sin(i) * 0.3, depth: 0 },
-            })),
-          },
-          {
-            name: 'contacts',
-            seconds: 8,
-            events: [1, 2, 3, 4, 16, 480]
-              .map((count, i) => ({
-                kind: 'hit',
-                count,
-                at: 0.25 + i,
-              }))
-              .concat(
-                Array.from({ length: 45 }, (_, i) => ({
-                  kind: 'hit',
-                  count: 16,
-                  at: 6.3 + i / 60,
-                })),
-              ),
-          },
-          {
-            name: 'variation',
-            seconds: 7,
-            events: Array.from({ length: 16 }, (_, i) => ({
-              kind: 'hit',
-              count: 4,
-              at: 0.25 + i * 0.4,
-            })),
-          },
-          {
-            name: 'overlap',
-            seconds: 6,
-            events: Array.from({ length: 720 }, (_, i) => ({
-              kind: ['hit', 'hit', 'hit', 'hit', 'wave', 'rhythm-complete'][i % 6],
-              at: 0.2 + i / 160,
-            })),
-          },
-        ];
         const results = [];
         for (const plan of plans) {
           const ctx = new OfflineAudioContext(2, plan.seconds * 48000, 48000);
@@ -193,7 +215,7 @@ try {
               sum += data[i] ** 2;
               if (i) edge = Math.max(edge, Math.abs(data[i] - data[i - 1]));
             }
-            return Array.from(data);
+            return data;
           });
           const quiet =
             plan.name === 'singularity'
@@ -210,7 +232,7 @@ try {
               for (let i = Math.ceil(start * 48000); i < end * 48000; i++)
                 if (Math.abs(ch[i]) > 0.00001) throw new Error(plan.name + ' must go silent');
           }
-          results.push({
+          const result = {
             name: plan.name,
             seconds: plan.seconds,
             played,
@@ -218,38 +240,17 @@ try {
             peak,
             rms: Math.sqrt(sum / (audio.length * audio.numberOfChannels)),
             edge,
-            channels,
-          });
+          };
+          await window.writeAudioClip({ ...result, pcm: pcm16Base64(channels) });
+          results.push(result);
+          mixer.dispose();
         }
         function assertFinite(value) {
           if (!Number.isFinite(value)) throw new Error('Non-finite audio sample');
         }
         return results;
-      });
-  for (const clip of clips) {
-    assert.ok(clip.played > 0);
-    assert.ok(clip.peak > 0 && clip.peak < 0.95, `${clip.name} has no clipping headroom`);
-    const count = clip.channels[0].length,
-      channels = clip.channels.length;
-    const wav = Buffer.alloc(44 + count * channels * 2);
-    wav.write('RIFF');
-    wav.writeUInt32LE(wav.length - 8, 4);
-    wav.write('WAVEfmt ', 8);
-    wav.writeUInt32LE(16, 16);
-    wav.writeUInt16LE(1, 20);
-    wav.writeUInt16LE(channels, 22);
-    wav.writeUInt32LE(48000, 24);
-    wav.writeUInt32LE(48000 * channels * 2, 28);
-    wav.writeUInt16LE(channels * 2, 32);
-    wav.writeUInt16LE(16, 34);
-    wav.write('data', 36);
-    wav.writeUInt32LE(wav.length - 44, 40);
-    for (let i = 0; i < count; i++)
-      for (let ch = 0; ch < channels; ch++)
-        wav.writeInt16LE(Math.round(clip.channels[ch][i] * 32767), 44 + (i * channels + ch) * 2);
-    writeFileSync(join(dir, `${clip.name}.wav`), wav);
-  }
-  const report = clips.map(({ channels, ...result }) => result);
+      }, plans);
+  const report = clips;
   if (report.length) {
     writeFileSync(join(dir, 'report.json'), JSON.stringify(report, null, 2) + '\n');
     console.log(JSON.stringify(report));
