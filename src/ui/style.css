@@ -703,6 +703,7 @@ svg {
   opacity: 0.78;
 }
 .card {
+  touch-action: pinch-zoom;
   transition: opacity 0.12s ease;
 }
 .card,

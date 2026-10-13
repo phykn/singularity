@@ -133,6 +133,47 @@ try {
     keyboard:
       'Escape closes panels, cancels quit, pauses and resumes without consuming choices; held key ignored',
   });
+  await page.evaluate(() => {
+    const d = window.__gameDebug;
+    d.restart(42, false);
+    d.getModel().ranks.multi = 1;
+    d.advance(0);
+  });
+  for (const dismiss of ['escape', 'button']) {
+    await page.locator('.slot-inspect').click();
+    await page.locator('.skill-details').waitFor();
+    assert.equal(await page.getByRole('dialog').count(), 1);
+    assert.equal(await paused(), true);
+    if (dismiss === 'escape') await page.keyboard.press('Escape');
+    else await page.getByRole('button', { name: c.close, exact: true }).click();
+    await page.locator('.skill-details').waitFor({ state: 'hidden' });
+    assert.equal(await paused(), false);
+    assert.equal(
+      await page.locator('.arena').evaluate((node) => node === document.activeElement),
+      true,
+    );
+  }
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: c.quit, exact: true }).click();
+  assert.equal(
+    await page
+      .getByRole('button', { name: c.back, exact: true })
+      .evaluate((node) => node === document.activeElement),
+    true,
+  );
+  await page.getByRole('button', { name: c.back, exact: true }).click();
+  assert.equal(await paused(), true);
+  assert.equal(await page.locator('#pause-title').textContent(), c.pause);
+  await page.getByRole('button', { name: c.quit, exact: true }).click();
+  await page.getByRole('button', { name: c.quitConfirm, exact: true }).click();
+  await page.getByRole('button', { name: 'START', exact: true }).waitFor();
+  assert.equal(await page.getByRole('dialog').count(), 0);
+  assert.equal(await paused(), false);
+  assert.notEqual(await page.evaluate(() => window.__gameDebug.getModel().seed), 42);
+  checks.push({
+    menus:
+      'skill inspection resumes and restores arena focus; quit defaults to Back, cancels, and resets the run',
+  });
   assert.deepEqual(errors, []);
   writeFileSync('artifacts/controls.json', JSON.stringify({ checks, errors }, null, 2));
   console.log(JSON.stringify({ hudCases: 15, keyboard: true, errors }));

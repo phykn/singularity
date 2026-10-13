@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import { endingFrame } from '../presentation/ending.ts';
 import { beyondFrame } from '../presentation/beyond.ts';
@@ -14,11 +14,11 @@ import { Result } from '../ui/Result.tsx';
 import { Settings } from '../ui/Settings.tsx';
 import { SkillDetails } from '../ui/SkillDetails.tsx';
 import { RhythmInput } from '../ui/RhythmInput.tsx';
-import type { SkillId } from '../game/rules.ts';
 import { Dialog } from '../ui/Dialog.tsx';
 import { LanguagePicker } from '../ui/controls.tsx';
 import { copy } from '../ui/i18n.ts';
 import { useGame } from './useGame.ts';
+import { useGameMenu } from './useGameMenu.ts';
 import { version } from '../../package.json';
 
 export default function App() {
@@ -48,18 +48,14 @@ export default function App() {
     ...actions
   } = useGame();
   const c = copy[language];
-  const [panel, setPanel] = useState<'guide' | 'settings' | null>(null);
-  const [inspected, setInspected] = useState<SkillId | null>(null);
-  const [exitConfirm, setExitConfirm] = useState(false);
-  const [homecoming, setHomecoming] = useState(false);
-  const arena = useRef<HTMLElement>(null);
+  const menu = useGameMenu(game, renderReady, actions.pause, actions.replace);
+  const { panel, arena, homecoming, modal, pause, replace, inspectSkill } = menu;
+  const exitConfirm = panel?.kind === 'quit';
   const caption = useRef<HTMLDivElement>(null);
   const github = useRef<HTMLAnchorElement>(null);
-  const wasPaused = useRef(game.manualPaused);
   const ready = game.phase === 'ready';
   const crossing = beyondFrame(game);
   const hud = crossing ? 0.22 + 0.78 * crossing.expand : (endingFrame(game)?.hud ?? 1);
-  const modal = panel !== null || game.manualPaused || game.phase === 'result';
 
   useLayoutEffect(() => {
     if (!ready || !arena.current || !caption.current || !github.current) return;
@@ -81,49 +77,6 @@ export default function App() {
     observer.observe(link);
     return () => observer.disconnect();
   }, [ready, game.rules.orbitRadius]);
-
-  function replace() {
-    setHomecoming(game.result?.outcome === 'success');
-    actions.replace();
-    setExitConfirm(false);
-    setPanel(null);
-  }
-  function pause(paused: boolean) {
-    actions.pause(paused);
-    setExitConfirm(false);
-  }
-
-  function inspectSkill(id: SkillId) {
-    if (game.phase !== 'running' || game.manualPaused) return;
-    pause(true);
-    setInspected(id);
-  }
-  function closeSkill() {
-    setInspected(null);
-    pause(false);
-  }
-
-  useEffect(() => {
-    if (wasPaused.current && !game.manualPaused && game.phase === 'running' && !game.choice)
-      arena.current?.focus({ preventScroll: true });
-    wasPaused.current = game.manualPaused;
-  }, [game.manualPaused, game.phase, game.choice]);
-
-  useEffect(() => {
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.repeat || event.defaultPrevented) return;
-      if (inspected) closeSkill();
-      else if (exitConfirm) setExitConfirm(false);
-      else if (panel !== null) setPanel(null);
-      else if (renderReady && game.phase !== 'ready' && game.phase !== 'result') {
-        actions.pause(!game.manualPaused);
-        setExitConfirm(false);
-      } else return;
-      event.preventDefault();
-    };
-    window.addEventListener('keydown', escape);
-    return () => window.removeEventListener('keydown', escape);
-  }, [game, panel, inspected, exitConfirm, renderReady, actions.pause]);
 
   const notice = (audioUnavailable || !storageOk) && (
     <p className="setting-notice" role="status">
@@ -159,14 +112,14 @@ export default function App() {
               <button
                 className="icon-button"
                 aria-label={c.guide}
-                onClick={() => setPanel('guide')}
+                onClick={() => menu.open('guide')}
               >
                 <ControlIcon id="help" />
               </button>
               <button
                 className="icon-button"
                 aria-label={c.settings}
-                onClick={() => setPanel('settings')}
+                onClick={() => menu.open('settings')}
               >
                 <ControlIcon id="settings" />
               </button>
@@ -282,14 +235,14 @@ export default function App() {
         </small>
       )}
 
-      {panel === 'guide' && (
-        <Guide rules={game.rules} language={language} onClose={() => setPanel(null)} />
+      {panel?.kind === 'guide' && (
+        <Guide rules={game.rules} language={language} onClose={menu.close} />
       )}
-      {panel === 'settings' && (
+      {panel?.kind === 'settings' && (
         <Dialog titleId="settings-title" className="settings-panel">
           <div className="dialog-title">
             <h2 id="settings-title">{c.settings}</h2>
-            <button className="text-button" onClick={() => setPanel(null)}>
+            <button className="text-button" onClick={menu.close}>
               {c.close}
             </button>
           </div>
@@ -300,10 +253,10 @@ export default function App() {
           </div>
         </Dialog>
       )}
-      {inspected && (
-        <SkillDetails game={game} id={inspected} language={language} onClose={closeSkill} />
+      {panel?.kind === 'skill' && (
+        <SkillDetails game={game} id={panel.id} language={language} onClose={menu.close} />
       )}
-      {game.manualPaused && game.phase !== 'result' && panel === null && !inspected && (
+      {game.manualPaused && game.phase !== 'result' && (!panel || exitConfirm) && (
         <Dialog
           titleId="pause-title"
           className={`pause-panel ${exitConfirm ? 'is-confirming' : ''}`}
@@ -327,7 +280,7 @@ export default function App() {
                 <button className="text-button quit-button" onClick={replace}>
                   {c.quitConfirm}
                 </button>
-                <button className="primary" data-autofocus onClick={() => setExitConfirm(false)}>
+                <button className="primary" data-autofocus onClick={menu.close}>
                   {c.back}
                 </button>
               </>
@@ -336,10 +289,10 @@ export default function App() {
                 <button className="primary" onClick={() => pause(false)}>
                   {c.resume}
                 </button>
-                <button className="text-button" onClick={() => setPanel('guide')}>
+                <button className="text-button" onClick={() => menu.open('guide')}>
                   {c.guide}
                 </button>
-                <button className="text-button" onClick={() => setExitConfirm(true)}>
+                <button className="text-button" onClick={() => menu.open('quit')}>
                   {c.quit}
                 </button>
               </>

@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState } from 'react';
-import type { MouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { KeyboardEvent, MouseEvent } from 'react';
 import type { Choice } from '../game/types.ts';
 import { ChoiceInput } from './ChoiceInput.ts';
 
@@ -11,6 +11,14 @@ export function useChoiceInput(choice: Choice | null, enabled: boolean) {
   const click = useRef<{ button: HTMLButtonElement; choice: Choice; allowed: boolean } | null>(
     null,
   );
+
+  useEffect(() => {
+    if (!choice || !enabled) return;
+    (
+      cards.current?.querySelector<HTMLButtonElement>('button.auto:not(:disabled)') ??
+      cards.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')
+    )?.focus({ preventScroll: true });
+  }, [choice, enabled]);
 
   useLayoutEffect(() => {
     input.show(choice, performance.now());
@@ -61,7 +69,7 @@ export function useChoiceInput(choice: Choice | null, enabled: boolean) {
       if (document.hidden) cancel();
       else refresh();
     };
-    const key = (event: KeyboardEvent) => {
+    const key = (event: globalThis.KeyboardEvent) => {
       if (['Space', 'Enter'].includes(event.code)) click.current = null;
     };
     window.addEventListener('pointerdown', down, { capture: true, passive: false });
@@ -101,5 +109,26 @@ export function useChoiceInput(choice: Choice | null, enabled: boolean) {
     return true;
   }
 
-  return { cards, pointerReady, accept };
+  function navigate(event: KeyboardEvent<HTMLDivElement>): void {
+    if (event.repeat && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      return;
+    }
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    const buttons = [
+      ...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'),
+    ];
+    if (!buttons.length) return;
+    const idx = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const next =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? buttons.length - 1
+          : (idx + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+    event.preventDefault();
+    buttons[next].focus({ preventScroll: true });
+  }
+
+  return { cards, pointerReady, accept, navigate };
 }

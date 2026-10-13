@@ -27,7 +27,8 @@ export function Choices({
 }) {
   const c = copy[language],
     rules = game.rules,
-    choice = game.choice;
+    choice = game.choice,
+    automatic = game.automaticCard?.id;
   const change = (id: UpgradeId, rarity: Rarity) =>
     skillChange(id, game.rank(id), rarity, game.rarities[id], language, rules, game.mass);
   const previous = useRef<{ choice: Choice; values: string[]; stages: number[] } | null>(null);
@@ -38,14 +39,7 @@ export function Choices({
     selected: UpgradeId;
   } | null>(null);
   const selection = game.selections.at(-1);
-  const { cards, pointerReady, accept } = useChoiceInput(choice, interactive);
-  useEffect(() => {
-    if (!choice || !interactive) return;
-    (
-      cards.current?.querySelector<HTMLButtonElement>('button.auto') ??
-      cards.current?.querySelector<HTMLButtonElement>('button')
-    )?.focus({ preventScroll: true });
-  }, [choice?.number, game, interactive]);
+  const { cards, pointerReady, accept, navigate } = useChoiceInput(choice, interactive);
   useLayoutEffect(() => {
     const old = previous.current;
     if (
@@ -101,36 +95,11 @@ export function Choices({
               </button>
             </div>
           </div>
-          <div
-            className="cards"
-            data-ready={pointerReady}
-            ref={cards}
-            onKeyDown={(event) => {
-              if (event.repeat && (event.key === 'Enter' || event.key === ' ')) {
-                event.preventDefault();
-                return;
-              }
-              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-              const buttons = [
-                ...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'),
-              ];
-              if (!buttons.length) return;
-              const idx = buttons.indexOf(document.activeElement as HTMLButtonElement);
-              const next =
-                event.key === 'Home'
-                  ? 0
-                  : event.key === 'End'
-                    ? buttons.length - 1
-                    : (idx + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) %
-                      buttons.length;
-              event.preventDefault();
-              buttons[next].focus({ preventScroll: true });
-            }}
-          >
+          <div className="cards" data-ready={pointerReady} ref={cards} onKeyDown={navigate}>
             {choice.cards.map(({ id, rarity }) => (
               <button
                 key={`${choice.number}-${id}`}
-                className={`card ${id === game.automaticCard?.id ? 'auto' : ''}`}
+                className={`card ${id === automatic ? 'auto' : ''}`}
                 data-rarity={rarity}
                 data-upgrade={id}
                 aria-label={
@@ -145,7 +114,7 @@ export function Choices({
                       : c.newSkill) +
                   ', ' +
                   change(id, rarity) +
-                  (id === game.automaticCard?.id ? ', ' + c.auto : '')
+                  (id === automatic ? ', ' + c.auto : '')
                 }
                 onClick={(event) => {
                   if (accept(event)) onSelect(id, choice.number);
@@ -154,7 +123,7 @@ export function Choices({
               >
                 <span className="card-label">
                   <b>{c.rarities[rarity]}</b>
-                  {id === game.automaticCard?.id && <ControlIcon id="next" size={12} />}
+                  {id === automatic && <ControlIcon id="next" size={12} />}
                 </span>
                 <span className="card-icon">
                   <SkillIcon id={id} size={32} />

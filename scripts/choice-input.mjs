@@ -91,6 +91,11 @@ async function checkChoiceLayout(page) {
   checks.push({ choiceLayout: 'fixed footer, no gameplay overlap, loadout restored', ...offered });
 }
 
+async function ready(page) {
+  await page.clock.runFor(500);
+  await page.locator('.cards[data-ready="true"]').waitFor();
+}
+
 try {
   for (const [width, height] of process.argv.includes('--mouse-only')
     ? []
@@ -105,9 +110,12 @@ try {
       hasTouch: true,
     });
     page.on('pageerror', (e) => errors.push(e.message));
+    await page.clock.install({ time: 0 });
     await page.goto(base);
     await page.getByRole('button', { name: 'START', exact: true }).click();
     await checkChoiceLayout(page);
+    // Freeze guard time so browser transport delays cannot turn an early tap into a valid one.
+    await page.clock.pauseAt(60 * 60 * 1000);
     const touch = await page.context().newCDPSession(page);
     const send = (type, points) =>
       touch.send('Input.dispatchTouchEvent', { type, touchPoints: points });
@@ -129,35 +137,34 @@ try {
     let p = await open();
     await tap(p);
     assert.equal(await selections(), 0, 'The touch burst that opens choices must not pick a card');
-    // Leave room for native touch dispatch to synchronize with browser frames.
     for (let i = 0; i < 8; i++) {
-      await page.waitForTimeout(60);
+      await page.clock.runFor(60);
       await tap(p);
     }
     assert.equal(await selections(), 0, 'Continued rapid taps must not select a card');
-    await page.locator('.cards[data-ready="true"]').waitFor();
+    await ready(page);
     await tap(p);
     assert.equal(await selections(), 1, 'One fresh tap after a quiet interval must select once');
     checks.push({ rapidBurst: 'blocked beyond 450 ms', freshSingleTap: 'selected once' });
 
     p = await open();
     await send('touchStart', [p]);
-    await page.waitForTimeout(650);
+    await page.clock.runFor(650);
     await send('touchEnd', []);
     assert.equal(await selections(), 0, 'A held touch that started protected must remain rejected');
-    await page.locator('.cards[data-ready="true"]').waitFor();
+    await ready(page);
     await tap(p);
     assert.equal(await selections(), 1);
     checks.push({ heldTouch: 'rejected', nextSingleTap: 'selected once' });
 
     p = await open(100);
-    await page.locator('.cards[data-ready="true"]').waitFor();
+    await ready(page);
     await tap(p);
     assert.equal(await selections(), 1);
     const second = await page.locator('.card').first().boundingBox();
     await tap({ x: second.x + second.width / 2, y: second.y + second.height / 2, id: 1 });
     assert.equal(await selections(), 1, 'A second queued choice must have its own protection');
-    await page.locator('.cards[data-ready="true"]').waitFor();
+    await ready(page);
     await page.locator('.card').first().tap();
     assert.equal(await selections(), 2);
     checks.push({ queuedChoices: 'protected separately' });
@@ -170,32 +177,32 @@ try {
     const moved = await page.locator('.card').first().boundingBox();
     p = { x: moved.x + moved.width / 2, y: moved.y + moved.height / 2, id: 1 };
     await send('touchMove', [p]);
-    await page.waitForTimeout(500);
+    await page.clock.runFor(500);
     await send('touchEnd', []);
     assert.equal(
       await selections(),
       0,
       'A gameplay gesture must not finish on a newly appeared card',
     );
-    await page.locator('.cards[data-ready="true"]').waitFor();
+    await ready(page);
     await tap(p);
     assert.equal(await selections(), 1);
     checks.push({ gameplayCarryover: 'rejected', viewport: [width, height] });
 
     p = await open();
-    await page.locator('.cards[data-ready="true"]').waitFor();
+    await ready(page);
     const other = await page.locator('.card').nth(1).boundingBox();
     const q = { x: other.x + other.width / 2, y: other.y + other.height / 2, id: 2 };
     await send('touchStart', [p]);
     await send('touchMove', [{ ...q, id: 1 }]);
     await send('touchEnd', []);
     assert.equal(await selections(), 0, 'Dragging between cards must not select either');
-    await page.locator('.cards[data-ready="true"]').waitFor();
+    await ready(page);
     await send('touchStart', [p]);
     await send('touchStart', [p, q]);
     await send('touchEnd', []);
     assert.equal(await selections(), 0, 'A multitouch gesture must not select a card');
-    await page.locator('.cards[data-ready="true"]').waitFor();
+    await ready(page);
     await tap(p);
     assert.equal(await selections(), 1);
     checks.push({ drag: 'rejected', multitouch: 'rejected' });
@@ -206,14 +213,14 @@ try {
       const g = window.__gameDebug.getModel();
       return g.choice.deadline - g.time;
     });
-    await page.waitForTimeout(200);
+    await page.clock.runFor(200);
     assert.ok(
       (await page.evaluate(() => {
         const g = window.__gameDebug.getModel();
         return g.choice.deadline - g.time;
       })) < remaining,
     );
-    await page.locator('.cards[data-ready="true"]').waitFor();
+    await ready(page);
     await tap(p);
     assert.equal(await selections(), 1);
     checks.push({ runningChoice: 'wall-time guard with unchanged countdown' });
@@ -233,17 +240,20 @@ try {
     );
     checks.push({ keyboard: 'one activation', assistive: 'one activation' });
     await open();
+    await page.clock.runFor(250);
     await page.locator('.choice-receipt').waitFor({ state: 'hidden' });
     await capture(page, `artifacts/choice-input/appearance-${width}.png`);
-    await page.locator('.cards[data-ready="true"]').waitFor();
+    await ready(page);
     await capture(page, `artifacts/choice-input/ready-${width}.png`);
     await page.close();
   }
   const mouse = await browser.newPage({ viewport: { width: 1024, height: 768 } });
   mouse.on('pageerror', (e) => errors.push(e.message));
+  await mouse.clock.install({ time: 0 });
   await mouse.goto(base);
   await mouse.getByRole('button', { name: 'START', exact: true }).click();
   await checkChoiceLayout(mouse);
+  await mouse.clock.pauseAt(60 * 60 * 1000);
   await mouse.evaluate(() => {
     const d = window.__gameDebug;
     d.restart(421, false);
@@ -251,7 +261,7 @@ try {
   });
   await mouse.locator('.card').first().click();
   assert.equal(await mouse.evaluate(() => window.__gameDebug.getModel().selections.length), 0);
-  await mouse.locator('.cards[data-ready="true"]').waitFor();
+  await ready(mouse);
   await mouse.locator('.card').first().click();
   assert.equal(await mouse.evaluate(() => window.__gameDebug.getModel().selections.length), 1);
   checks.push({ mouse: 'appearance guard then single click' });
@@ -260,7 +270,7 @@ try {
     d.restart(421, false);
     d.xp(14);
   });
-  await mouse.locator('.cards[data-ready="true"]').waitFor();
+  await ready(mouse);
   const held = await mouse.locator('.card').first().boundingBox();
   await mouse.mouse.move(held.x + held.width / 2, held.y + held.height / 2);
   await mouse.mouse.down();
@@ -274,7 +284,7 @@ try {
     0,
     'An interrupted press must not select a card after resuming',
   );
-  await mouse.locator('.cards[data-ready="true"]').waitFor();
+  await ready(mouse);
   await mouse.locator('.card').first().click();
   assert.equal(await mouse.evaluate(() => window.__gameDebug.getModel().selections.length), 1);
   checks.push({ pauseCarryover: 'rejected', freshClickAfterResume: 'selected once' });
