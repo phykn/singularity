@@ -530,7 +530,7 @@ export class Combat {
       damage: ['bolt', 'strike', 'focus', 'pierce', 'return'].includes(kind) ? attack.damage : 0,
       life,
       source,
-      rarity: source ? attack.rarities[source] : attack.rarities.power,
+      rarity: source ? attack.rarities[source] : 'common',
       rank: source ? attack.ranks[source] : 0,
       anchor: typeof anchored === 'number' ? anchored : anchored ? 'electron' : undefined,
       endAnchor: kind === 'return' ? (attack.satellite ?? 'electron') : undefined,

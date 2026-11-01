@@ -2,8 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../src/game/Game.ts';
 import { createCheckpoint, restoreCheckpoint } from '../src/game/checkpoint.ts';
-import { isSkill, rarityIds, rules, skillIds, xpForLevel } from '../src/game/rules.ts';
-import { choose } from './helpers.ts';
+import {
+  blankRanks,
+  blankRarities,
+  isSkill,
+  rarityIds,
+  rules,
+  skillIds,
+  statIds,
+  xpForLevel,
+} from '../src/game/rules.ts';
+import type { StatId } from '../src/game/rules.ts';
+import { skillValues } from '../src/game/skills.ts';
+import { choose, fixture } from './helpers.ts';
 
 test('every skill keeps its first selected rarity through manual and automatic rank upgrades', () => {
   for (const id of skillIds) {
@@ -73,19 +84,44 @@ test('passing a common offer leaves the skill free to return at a higher rarity'
   assert.ok(acquired);
 });
 
-test('stat rarities can still improve and each mass vent has its own rarity', () => {
-  const game = new Game(42, { combat: false });
-  game.start();
-  for (const id of ['power', 'rate', 'range', 'speed'] as const) {
-    choose(game, id, 'common');
+test('stats have no rarity and each mass vent has its own rarity', () => {
+  const plain = fixture();
+  const game = fixture();
+  for (const id of statIds) {
+    choose(plain, id, 'common');
     choose(game, id, 'legendary');
-    choose(game, id, 'rare');
-    assert.equal(game.rarities[id], 'legendary');
+    assert.equal(game.rarities[id], 'common');
+  }
+  assert.equal(game.damage, plain.damage);
+  assert.equal(game.rate, plain.rate);
+  assert.equal(game.reach, plain.reach);
+  assert.equal(game.speed, plain.speed);
+  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    const offered = new Game(seed, { combat: false });
+    offered.start();
+    offered.debugSetXp(xpForLevel(2));
+    choose(offered, 'chain');
+    offered.debugSetXp(xpForLevel(30));
+    for (const card of offered.choice!.cards)
+      if (statIds.includes(card.id as StatId)) assert.equal(card.rarity, 'common');
   }
   for (const rarity of ['legendary', 'common'] as const) {
     game.mass = 150;
     choose(game, 'recover', rarity);
     assert.equal(game.rarities.recover, rarity);
+  }
+});
+
+test('every rarity step changes every skill', () => {
+  for (const id of skillIds) {
+    const values = rarityIds.map((rarity) =>
+      JSON.stringify(
+        skillValues({ ...blankRanks(), [id]: rules.maxRank }, { ...blankRarities(), [id]: rarity })[
+          id
+        ],
+      ),
+    );
+    assert.equal(new Set(values).size, rarityIds.length, id);
   }
 });
 

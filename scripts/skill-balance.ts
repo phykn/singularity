@@ -10,7 +10,7 @@ import { playRhythm } from './rhythm-bot.ts';
 
 // node scripts/skill-balance.ts [count=100] [firstSeed=300000] [report] [auto,skill,...] [rulesJson]
 // Every policy uses the same seeds and successful QTE inputs. Prefer the named skill
-// among cards tied for highest rarity; otherwise use automatic selection.
+// when it matches the automatic choice's rarity; otherwise use automatic selection.
 // This measures a build decision, not isolated skill damage or human clear rate.
 const count = Number(process.argv[2] ?? 100);
 const start = Number(process.argv[3] ?? 300000);
@@ -39,7 +39,7 @@ const simulationHash = createHash('sha256')
   .update(readFileSync(new URL('./rhythm-bot.ts', import.meta.url)))
   .digest('hex');
 console.log(
-  'Perfect-QTE reference: highest rarity, preferred skill on ties. Not human clear rate.',
+  'Perfect-QTE reference: automatic choice, or the preferred skill at its rarity. Not human clear rate.',
 );
 for (const policy of policies) {
   for (let seed = start; seed < start + count; seed++) {
@@ -101,7 +101,7 @@ writeFileSync(
       simulationHash,
       rulesOverride: process.argv[6] ?? null,
       scope:
-        '60 Hz shipped GameSession at 1x; every available QTE hit successfully. Choose highest rarity; prefer the named skill only on rarity ties, otherwise first on ties. Actual four-slot and first-pick rarity rules. Same seed does not imply identical later offers after builds diverge. Rates include seeds where the preferred skill was never offered. Not measured human play or a causal estimate of owning a skill.',
+        '60 Hz shipped GameSession at 1x; every available QTE hit successfully. Use the automatic choice; prefer the named skill when it matches that rarity. Not human clear rate.',
       seeds: [start, start + count - 1],
       rules: cfg,
       summary,

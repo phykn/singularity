@@ -1,4 +1,4 @@
-import { isSkill, rarityIds, skillIds, statIds } from '../game/rules.ts';
+import { isSkill, isStat, rarityIds, skillIds, statIds } from '../game/rules.ts';
 import type { UpgradeId } from '../game/rules.ts';
 import type { RuleSet } from '../game/rules.ts';
 import { particleIds } from '../game/particles.ts';
@@ -60,7 +60,7 @@ export function Guide({
                 </summary>
                 <div className="guide-skill-body">
                   <p>{c.upgrades[id].description}</p>
-                  <span className="guide-rarity">{c.rarities.common}</span>
+                  {!isStat(id) && <span className="guide-rarity">{c.rarities.common}</span>}
                   <span>
                     {Array.from(
                       { length: id === 'recover' ? 1 : rules.maxRank },

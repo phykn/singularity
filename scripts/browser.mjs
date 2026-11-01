@@ -81,7 +81,7 @@ const inspectCards = async (page) => {
       assert.equal(row.rows.length, 1, 'Charge text wraps: ' + JSON.stringify(row));
   }
   const clipped = await page
-    .locator('.card-value, .card strong, .card-label, .card-stage')
+    .locator('.card-value, .card strong, .card-label, .card-foot')
     .evaluateAll((nodes) =>
       nodes
         .filter((node) => {
@@ -787,9 +787,9 @@ const polishFlow = async () => {
       opened: 0,
       deadline: 8,
       cards: [
-        { id: 'power', rarity: 'common' },
+        { id: 'range', rarity: 'common' },
         { id: 'strike', rarity: 'legendary' },
-        { id: 'speed', rarity: 'epic' },
+        { id: 'speed', rarity: 'common' },
       ],
     };
     g.setHidden(true);
@@ -927,10 +927,10 @@ const qaFlow = async () => {
       window.__gameDebug.advance(0);
     });
     await page.locator('.card').first().waitFor();
-    assert.equal(await page.locator('.card-stage').nth(0).locator('.rank i.on').count(), 0);
-    assert.equal(await page.locator('.card-stage').nth(1).locator('.rank i.on').count(), 2);
-    assert.equal(await page.locator('.card-stage .rank i.next').count(), 2);
-    assert.deepEqual(await page.locator('.card-stage').allTextContents(), ['', '', '']);
+    assert.equal(await page.locator('.card').nth(0).locator('.rank i.on').count(), 0);
+    assert.equal(await page.locator('.card').nth(1).locator('.rank i.on').count(), 2);
+    assert.equal(await page.locator('.card .rank i.next').count(), 2);
+    assert.deepEqual(await page.locator('.card-foot').allTextContents(), ['', '', '']);
     await inspectCards(page);
     await inspect(page);
     assert.equal(await page.locator('.danger-status').textContent(), copy.ko.danger);

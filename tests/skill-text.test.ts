@@ -11,14 +11,14 @@ test('equipped skill values include the current Multi and range synergies in eve
   for (const id of ['strike', 'repel', 'bridge'] as const) choose(game, id);
   game.boosts.range = 3;
   const forms = game.forms;
-  assert.equal(forms.multi.count, 8);
+  assert.equal(forms.multi.count, 7);
   assert.ok(forms.bridge.angle > game.rules.skills.bridge.angles[1]);
   for (const { id: language } of languages) {
     const text = (id: 'strike' | 'repel' | 'bridge') =>
       skillValue(id, game.rank(id), game.rarities[id], language, game.rules, game.reach, forms);
     const metric = copy[language].metric;
-    assert.ok(text('strike').startsWith(metric.targets(String(forms.strike.count + 7))));
-    assert.ok(text('repel').startsWith(metric.targets(String(forms.repel.count + 7))));
+    assert.ok(text('strike').startsWith(metric.targets(String(forms.strike.count + 6))));
+    assert.ok(text('repel').startsWith(metric.targets(String(forms.repel.count + 6))));
     assert.ok(text('bridge').startsWith(numberText(forms.bridge.angle) + '°'));
     assert.notEqual(text('bridge'), skillValue('bridge', 1, 'common', language));
   }

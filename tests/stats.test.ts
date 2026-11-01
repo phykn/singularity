@@ -18,7 +18,7 @@ test('movement speed upgrades increase orbital travel without changing orbit siz
   close(fast.damage, normal.damage);
   close(fast.attackInterval, normal.attackInterval);
   choose(fast, 'speed', 'legendary');
-  assert.ok(fast.speed > 180);
+  close(fast.speed, 180);
   assert.equal(fast.rank('speed'), 2);
 });
 
@@ -56,10 +56,9 @@ test('field reach acquires distant targets without changing damage, speed or dam
 });
 
 test('range grows at diminishing returns and remains useful above skill rank limits', () => {
-  const values = [0, 1, 5, 20, 100, 1000].map((rank) => rangeScale(rank, 'common'));
+  const values = [0, 1, 5, 20, 100, 1000].map((rank) => rangeScale(rank));
   for (let i = 1; i < values.length; i++) assert.ok(values[i] > values[i - 1]);
   assert.ok(values.at(-1)! < 1 + rules.rangeBonus);
-  assert.ok(rangeScale(1, 'legendary') > rangeScale(1, 'common'));
 });
 
 test('repeat retargets at the cast reach and an upgrade does not rewrite reserved geometry', () => {

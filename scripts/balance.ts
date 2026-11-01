@@ -179,11 +179,11 @@ writeFileSync(
       target: policy === 'qte' ? [0.15, 0.2] : policy === 'qte-off' ? [0.1, 0.15] : null,
       scope:
         policy === 'qte-off'
-          ? '60 Hz real GameSession at 1x; no QTE taps. Paused choices selected immediately using highest rarity (first on ties), matching qte. Not measured human clear rate.'
+          ? '60 Hz real GameSession at 1x; no QTE taps. Paused choices selected immediately using the automatic choice, matching qte. Not measured human clear rate.'
           : policy.startsWith('qte')
-            ? '60 Hz real GameSession at 1x; every available QTE hit at its center, including hit stop and choice interruptions. Paused choices selected immediately; qte uses highest rarity (first on ties), qte-guided uses the visible-state heuristic. Not measured human clear rate.'
+            ? '60 Hz real GameSession at 1x; every available QTE hit at its center, including hit stop and choice interruptions. Paused choices selected immediately; qte uses the automatic choice, qte-guided uses the visible-state heuristic. Not measured human clear rate.'
             : policy === 'auto'
-              ? 'Automatic highest-rarity selection, first card on ties, with uncapped time and stats; human clear rates may differ.'
+              ? 'Automatic selection with uncapped time and stats; human clear rates may differ.'
               : 'Visible-state skill/stat/recovery heuristic selecting one second after opening; this is a bot, not measured human play.',
       validationSeeds: [start, start + count - 1],
       measurements: {

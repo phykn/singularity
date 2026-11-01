@@ -44,7 +44,7 @@ Play at [localhost:8081](http://localhost:8081).
 | `npm run check:skill-balance` | Compare sixteen skill-priority builds on matched seeds      |
 | `npm run check:skill-trial`   | Compare equal-rank encounters and fourth-slot contributions |
 
-Balance references use the real session with immediate paused choices and highest-rarity selection. Targets are 15–20% with successful QTE inputs and 10–15% without QTE. These are bot references, not measured player clear rates. To compare matched seeds:
+Balance references use the real session with immediate paused choices and the game's automatic selection. Targets are 15–20% with successful QTE inputs and 10–15% without QTE. These are bot references, not measured player clear rates. The current rules measure 15.2% with QTE and 7.5% without, below the no-QTE target, and have not been retuned yet. To compare matched seeds:
 
 ```sh
 npm run check:balance -- 600 480000 artifacts/qte.json qte

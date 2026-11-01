@@ -23,7 +23,7 @@ export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rul
       hits: s.repeat.hits[ranks.repeat] + extra('repeat'),
       damage: s.repeat.damage * (ranks.repeat ? scale('repeat') : 1),
     },
-    multi: { count: multi, damage: 1 / (1 + s.multi.spreadCost * (multi - 1)) },
+    multi: { count: multi, damage: scale('multi') / (1 + s.multi.spreadCost * (multi - 1)) },
     chain: {
       hops: s.chain.hops[ranks.chain] + extra('chain'),
       range: s.chain.ranges[ranks.chain] * scale('chain') * reach,

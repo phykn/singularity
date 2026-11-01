@@ -17,7 +17,7 @@ import type { Result } from '../src/game/types.ts';
 import { playRhythm } from '../scripts/rhythm-bot.ts';
 
 function cleared(recordEvents = true) {
-  const g = new Game(360011, { recordEvents });
+  const g = new Game(360061, { recordEvents });
   playRhythm(g, undefined, false);
   assert.equal(g.result?.outcome, 'success');
   return g;

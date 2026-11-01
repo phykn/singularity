@@ -1,17 +1,43 @@
 import { skillValues } from '../game/skills.ts';
 import type { SkillValues } from '../game/skills.ts';
 import { numberText } from '../format.ts';
-import {
-  blankRanks,
-  blankRarities,
-  rarityScale,
-  rangeScale,
-  recoveryMass,
-  rules,
-} from '../game/rules.ts';
-import type { Rarity, RuleSet, UpgradeId } from '../game/rules.ts';
+import { blankRanks, blankRarities, rangeScale, recoveryMass, rules } from '../game/rules.ts';
+import type { Rarity, RuleSet, SkillId, UpgradeId } from '../game/rules.ts';
 import { copy } from './i18n.ts';
-import type { Language } from './i18n.ts';
+import type { Language, LinkEffect } from './i18n.ts';
+
+const attackers: SkillId[] = [
+  'strike',
+  'repel',
+  'focus',
+  'satellite',
+  'bridge',
+  'gather',
+  'chase',
+  'surge',
+];
+// Each effect changes the attacks of these skills in combat.ts; tests/skill-links.test.ts checks them.
+// Bridge has no fork or return: its barrier hits skip Multi branches and fire at depth 1.
+const linkedAttackers: Record<LinkEffect, SkillId[]> = {
+  repeat: attackers,
+  multi: attackers.filter((id) => id !== 'bridge'),
+  chain: [...attackers, 'return', 'charge'],
+  pierce: [...attackers, 'charge'],
+  return: attackers.filter((id) => id !== 'bridge'),
+  burst: [...attackers, 'return', 'charge'],
+  charge: ['repeat', 'multi', 'return', 'focus'],
+};
+
+export function skillLinks(id: UpgradeId, owned: SkillId[]) {
+  return owned.flatMap((skill) => {
+    const effect = (Object.keys(linkedAttackers) as LinkEffect[]).find(
+      (key) =>
+        (key === id && linkedAttackers[key].includes(skill)) ||
+        (key === skill && linkedAttackers[key].includes(id as SkillId)),
+    );
+    return effect ? [{ skill, effect }] : [];
+  });
+}
 
 export function skillValue(
   id: UpgradeId,
@@ -27,7 +53,6 @@ export function skillValue(
     skillValues({ ...blankRanks(), [id]: rank }, { ...blankRarities(), [id]: rarity }, cfg, reach);
   const c = copy[language],
     m = c.metric,
-    scale = rarityScale(rarity, cfg),
     n = numberText;
   switch (id) {
     case 'repeat':
@@ -63,13 +88,13 @@ export function skillValue(
     case 'return':
       return `${m.damage} ×${n(s.return.damage)}`;
     case 'power':
-      return `${m.damage} ${n(cfg.baseHitDamage + cfg.damagePerRank * rank * scale)}`;
+      return `${m.damage} ${n(cfg.baseHitDamage + cfg.damagePerRank * rank)}`;
     case 'rate':
-      return `${m.rate} +${Math.round(cfg.ratePerRank * rank * scale * 100)}%`;
+      return `${m.rate} +${Math.round(cfg.ratePerRank * rank * 100)}%`;
     case 'range':
-      return `${m.range} +${n((rangeScale(rank, rarity, cfg) - 1) * 100)}%`;
+      return `${m.range} +${n((rangeScale(rank, cfg) - 1) * 100)}%`;
     case 'speed':
-      return `${m.speed} +${n(cfg.speedPerRank * rank * scale * 100)}%`;
+      return `${m.speed} +${n(cfg.speedPerRank * rank * 100)}%`;
     case 'recover':
       return `${c.mass} -${recoveryMass(rarity, cfg)}`;
   }
@@ -99,13 +124,13 @@ export function skillChange(
   const count = (a: number, b: number, unit: string) => (current ? `${a}→${b}` : String(b)) + unit;
   switch (id) {
     case 'power':
-      return `${numberText(cfg.baseHitDamage + current * cfg.damagePerRank * rarityScale(previous, cfg))}→${numberText(cfg.baseHitDamage + (current + 1) * cfg.damagePerRank * rarityScale(rarity, cfg))}`;
+      return `${numberText(cfg.baseHitDamage + current * cfg.damagePerRank)}→${numberText(cfg.baseHitDamage + (current + 1) * cfg.damagePerRank)}`;
     case 'rate':
       return text.rate;
     case 'range':
-      return `${c.metric.range} +${numberText((rangeScale(current + 1, rarity, cfg) / rangeScale(current, previous, cfg) - 1) * 100)}%`;
+      return `${c.metric.range} +${numberText((rangeScale(current + 1, cfg) / rangeScale(current, cfg) - 1) * 100)}%`;
     case 'speed':
-      return `${numberText(cfg.baseSpeed * (1 + current * cfg.speedPerRank * rarityScale(previous, cfg)))}→${numberText(cfg.baseSpeed * (1 + (current + 1) * cfg.speedPerRank * rarityScale(rarity, cfg)))}`;
+      return `${numberText(cfg.baseSpeed * (1 + current * cfg.speedPerRank))}→${numberText(cfg.baseSpeed * (1 + (current + 1) * cfg.speedPerRank))}`;
     case 'recover':
       return `${c.mass} -${numberText(Math.min(mass, recoveryMass(rarity, cfg)))}`;
     case 'repeat':

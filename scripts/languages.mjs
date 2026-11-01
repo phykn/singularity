@@ -31,7 +31,7 @@ const inspect = async (page) => {
         issues.push('Offscreen: ' + button.textContent);
     }
     for (const node of document.querySelectorAll(
-      '.card-label, .card strong, .card-value, .card-stage, .arena-caption h1, .upgrade-feedback',
+      '.card-label, .card strong, .card-value, .card-foot, .arena-caption h1, .upgrade-feedback',
     )) {
       const css = getComputedStyle(node);
       if (

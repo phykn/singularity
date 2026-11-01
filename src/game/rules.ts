@@ -16,8 +16,6 @@ export const upgradeIds: UpgradeId[] = [...skillIds, ...statIds, 'recover'];
 export const rarityIds: Rarity[] = ['common', 'rare', 'epic', 'legendary'];
 export const blankRarities = (): Rarities =>
   Object.fromEntries(upgradeIds.map((id) => [id, 'common'])) as Rarities;
-export const higherRarity = (a: Rarity, b: Rarity): Rarity =>
-  rarityIds.indexOf(a) >= rarityIds.indexOf(b) ? a : b;
 export const rarityScale = (rarity: Rarity, cfg: RuleSet = rules) => cfg.rarity[rarity].scale;
 export function rollRarity(roll: number, cfg: RuleSet = rules): Rarity {
   let total = 0;
@@ -31,10 +29,10 @@ export const maxDamageNumbers = 64;
 export const blankRanks = (): Ranks => Object.fromEntries(skillIds.map((id) => [id, 0])) as Ranks;
 export const blankBoosts = (): Boosts => ({ power: 0, rate: 0, range: 0, speed: 0 });
 export const isSkill = (id: UpgradeId): id is SkillId => skillIds.includes(id as SkillId);
+export const isStat = (id: UpgradeId): id is StatId => statIds.includes(id as StatId);
 
-export function rangeScale(rank: number, rarity: Rarity, cfg: RuleSet = rules): number {
-  const strength = rank * rarityScale(rarity, cfg);
-  return 1 + (cfg.rangeBonus * strength) / (cfg.rangeFalloff + strength);
+export function rangeScale(rank: number, cfg: RuleSet = rules): number {
+  return 1 + (cfg.rangeBonus * rank) / (cfg.rangeFalloff + rank);
 }
 
 export const recoveryMass = (rarity: Rarity, cfg: RuleSet = rules) =>

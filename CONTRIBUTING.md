@@ -4,18 +4,18 @@ Use Node.js 24 or later. Start from the [README](README.md) for local setup.
 
 ## Where behavior lives
 
-| Area                                          | Owner and entrypoint                                                                                                                                                                                                               |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Game rules                                    | `design/rules.json`, loaded by `src/game/rules.ts`; this is the current configuration, with no older rules or save migrations                                                                                                      |
-| Start, pause, restart, visibility, speed, QTE | `src/app/useGame.ts` connects React to `GameSession.ts`; the session advances `Game.ts` and `OrbitRhythm.ts`                                                                                                                       |
-| Menus and keyboard focus                      | `src/app/useGameMenu.ts` owns help, settings, skill inspection and quit confirmation, including Escape and focus restoration; `App.tsx` renders the active panel                                                                   |
-| Combat and skill combinations                 | `src/game/combat.ts` owns attacks, delayed hits, timers and shared reaction budgets; `skills.ts` derives values from ranks and rarity                                                                                              |
-| Choices and growth                            | `src/game/growth.ts` generates offers; `Game.ts` owns availability, selection and the first skill rarity; `src/ui/Choices.tsx` renders cards; `useChoiceInput.ts` owns pointer protection, keyboard navigation and held-key guards |
-| Saved preferences and best results            | `src/app/storage.ts` owns keys, validation and record ranking; `ResultRecords.ts` merges best results and retries at most one record per mode                                                                                      |
-| Drawing                                       | `src/render/ElectronScene.ts` draws particles, electron and phases; `EffectRenderer.ts` owns effect graphics and its own sprite pool; `DamageLabels.ts` places integer damage labels                                               |
-| Transition timelines                          | `src/presentation/ending.ts` and `beyond.ts` calculate the shared visual, HUD and sound stages without owning any of those consumers                                                                                               |
-| Sound                                         | `src/app/GameAudio.ts` translates game events and owns activation; `src/audio/SoundComposer.ts` assembles and caches samples; `SoundMixer.ts` owns playback, gain and node cleanup; `samples.ts` defines cue textures              |
-| Art and translations                          | `src/art/skills.ts` maps the current atlas; `scripts/art.mjs` builds it; `src/ui/i18n.ts` and `skillText.ts` own player text                                                                                                       |
+| Area                                          | Owner and entrypoint                                                                                                                                                                                                                                            |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Game rules                                    | `design/rules.json`, loaded by `src/game/rules.ts`; this is the current configuration, with no older rules or save migrations                                                                                                                                   |
+| Start, pause, restart, visibility, speed, QTE | `src/app/useGame.ts` connects React to `GameSession.ts`; the session advances `Game.ts` and `OrbitRhythm.ts`                                                                                                                                                    |
+| Menus and keyboard focus                      | `src/app/useGameMenu.ts` owns help, settings, skill inspection and quit confirmation, including Escape and focus restoration; `App.tsx` renders the active panel                                                                                                |
+| Combat and skill combinations                 | `src/game/combat.ts` owns attacks, delayed hits, timers and shared reaction budgets; `skills.ts` derives values from ranks and rarity                                                                                                                           |
+| Choices and growth                            | `src/game/growth.ts` generates offers; `Game.ts` owns availability, automatic selection and first-pick skill rarity (stats have none); `src/ui/Choices.tsx` renders cards; `useChoiceInput.ts` owns pointer protection, keyboard navigation and held-key guards |
+| Saved preferences and best results            | `src/app/storage.ts` owns keys, validation and record ranking; `ResultRecords.ts` merges best results and retries at most one record per mode                                                                                                                   |
+| Drawing                                       | `src/render/ElectronScene.ts` draws particles, electron and phases; `EffectRenderer.ts` owns effect graphics and its own sprite pool; `DamageLabels.ts` places integer damage labels                                                                            |
+| Transition timelines                          | `src/presentation/ending.ts` and `beyond.ts` calculate the shared visual, HUD and sound stages without owning any of those consumers                                                                                                                            |
+| Sound                                         | `src/app/GameAudio.ts` translates game events and owns activation; `src/audio/SoundComposer.ts` assembles and caches samples; `SoundMixer.ts` owns playback, gain and node cleanup; `samples.ts` defines cue textures                                           |
+| Art and translations                          | `src/art/skills.ts` maps the current atlas; `scripts/art.mjs` builds it; `src/ui/i18n.ts` and `skillText.ts` own player text                                                                                                                                    |
 
 The browser starts a fresh seeded run on reload or restart. It stores language and best results, not an active run. Sound belongs to the current page session and starts off on reload. `src/game/checkpoint.ts` replays model inputs for diagnostics and tests; it does not restore session QTE windows, playback speed or choice-pause preferences.
 
@@ -58,7 +58,7 @@ Run `npm run check:high-rate` with the development server running to measure att
 These commands measure different questions. All use current rules by default; an optional rules JSON replaces the whole configuration.
 
 ```sh
-# Real session, same seeds and highest-rarity choices; perfect QTE versus no taps.
+# Real session, same seeds and automatic choices; perfect QTE versus no taps.
 npm run check:balance -- 600 480000 artifacts/qte.json qte
 npm run check:balance -- 600 480000 artifacts/no-qte.json qte-off
 
@@ -67,9 +67,9 @@ npm run check:skill-balance -- 2 300000 artifacts/builds.json auto,satellite,gat
 npm run check:skill-trial -- 1 artifacts/encounters.json design/rules.json common
 ```
 
-`check:balance` arguments: count, first seed, report path, policy (`qte`, `qte-off`, `qte-guided`, `auto`, or `guided`), optional rules JSON. The QTE reference targets are 15–20% with perfect hits and 10–15% without taps. Both select paused choices immediately, highest rarity first and first card on ties. They measure bots, not human clear rates.
+`check:balance` arguments: count, first seed, report path, policy (`qte`, `qte-off`, `qte-guided`, `auto`, or `guided`), optional rules JSON. The QTE reference targets are 15–20% with perfect hits and 10–15% without taps. Both select paused choices immediately with `Game.automaticCard`: Attack Power and Attack Speed below `autoStatRank`, then highest rarity, first card on ties. They measure bots, not human clear rates. After first-pick skill rarity, narrower rarity bands and stats without rarity, the current rules measure 15.2% (`qte`), 7.5% (`qte-off`, below target) and 41.5% (`qte-guided`) on 600 seeds from 480000; difficulty has not been retuned while these rules are playtested.
 
-`check:skill-balance` arguments: count per policy, first seed, report path, comma-separated `auto`/skill IDs, optional rules JSON. It compares matched runs, preferring a named skill only among the highest-rarity offers. Results reflect the resulting build, not isolated skill strength.
+`check:skill-balance` arguments: count per policy, first seed, report path, comma-separated `auto`/skill IDs, optional rules JSON. It compares matched runs, preferring a named skill only when it matches the automatic choice's rarity. Results reflect the resulting build, not isolated skill strength.
 
 `check:skill-trial` arguments: seed count, report path, optional rules JSON, comma-separated rarities. It compares fixed 30-second enemy streams at early, middle and late stages, with equal ranks and fixed orbit/stats. Solo and fourth-slot encounters measure effective damage, kills and net mass against matched baselines. They exclude QTE, growth, rush spawns and collision endings. Spawn intervals must round to a positive tick count.
 

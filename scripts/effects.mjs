@@ -244,7 +244,6 @@ try {
         striker.ranks.strike = rank;
         striker.rarities.strike = rarity;
         striker.boosts.power = power;
-        striker.rarities.power = rarity;
         const { target } = await import('/tests/helpers.ts');
         striker.targets = [
           target(900, 210, 210, 100000),

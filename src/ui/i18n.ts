@@ -7,6 +7,7 @@ export const languages: { id: Language; label: string; html: string }[] = [
   { id: 'zh', label: '中文', html: 'zh-CN' },
   { id: 'ja', label: '日本語', html: 'ja' },
 ];
+export type LinkEffect = 'repeat' | 'multi' | 'chain' | 'pierce' | 'return' | 'burst' | 'charge';
 type Info = { name: string; short: string; description: string };
 
 const ko = {
@@ -79,9 +80,9 @@ const ko = {
   guideGoal: (goal: number) =>
     `${goal} XP를 모으면 특이점 형성. 놓친 입자가 핵에 쌓이면 궤도가 좁아지고, 충돌 시 전자 소멸. 시간 제한 없음.`,
   guideChoice:
-    '이동·공격은 자동. 선택 중에는 정지하며, 진행하면 5초 뒤 최고 등급을 자동 선택합니다.',
+    '이동·공격은 자동. 선택 중에는 정지하며, 진행하면 5초 뒤 공격력·공격속도를 우선하고, 그다음 최고 등급을 자동 선택합니다.',
   guideRarity:
-    '스킬 등급은 첫 선택으로 고정. 미습득 스킬은 다시 추첨. 능력치 등급은 상승 가능하며, 질량 방출은 매번 추첨.',
+    '등급은 스킬과 질량 방출에만 있음. 스킬은 첫 선택으로 고정되고 미습득은 다시 추첨, 질량 방출은 매번 추첨.',
   guideCombo: '갈래·연속·연쇄·관통은 다른 번개에도 적용.',
   guideLimits:
     '스킬은 네 종류까지. 능력치는 계속 강화할 수 있습니다. 다른 화면으로 이동하면 정지, 돌아오면 계속.',
@@ -218,6 +219,16 @@ const ko = {
     surge: ['처치·적중 후 난사', '폭주 시간 ↑'],
     return: ['귀환 경로 관통', '경로·위력 ↑'],
   },
+  link: '연계',
+  links: {
+    repeat: '연속 발사',
+    multi: '갈래 추가',
+    chain: '연쇄 전이',
+    pierce: '관통 추가',
+    return: '역류 추가',
+    burst: '처치 방전',
+    charge: '전하 축적',
+  } as Record<LinkEffect, string>,
 };
 type Copy = typeof ko;
 
@@ -291,9 +302,9 @@ const en: Copy = {
   guideGoal: (goal) =>
     `Reach ${goal} XP to form a black hole. Missed particles gather at the center and pull your orbit inward; hitting the core ends the run. There is no time limit.`,
   guideChoice:
-    'Movement and attacks are automatic. Choices pause combat. Switch to play for a highest-rarity auto-pick after 5 seconds.',
+    'Movement and attacks are automatic. Choices pause combat. Switch to play to auto-pick after 5 seconds: Attack Power and Speed first, then highest rarity.',
   guideRarity:
-    'Rarity locks on the first skill pick. Unlearned skills reroll; learned skills gain ranks. Stat rarity can improve. Mass Vent rerolls each time.',
+    'Only skills and Mass Vent have rarity. A skill locks on its first pick and rerolls until learned; Mass Vent rerolls each time.',
   guideCombo: 'Fork, Repeat, Chain and Pierce also modify other lightning skills.',
   guideLimits:
     'Combine up to four skills. Stats have no upgrade cap. Switching away pauses; return to resume.',
@@ -439,6 +450,16 @@ const en: Copy = {
     surge: ['Kills & hits fuel fire', 'Longer flurry'],
     return: ['Pierce on return', 'Path · power ↑'],
   },
+  link: 'Link',
+  links: {
+    repeat: 'Repeats',
+    multi: 'Forks',
+    chain: 'Chains',
+    pierce: 'Pierces',
+    return: 'Returns',
+    burst: 'Kill arcs',
+    charge: 'Charges',
+  } as Record<LinkEffect, string>,
 };
 
 const zh: Copy = {
@@ -510,9 +531,10 @@ const zh: Copy = {
   guideEnergy: '击败粒子获得经验，升级时选择强化。',
   guideGoal: (goal) =>
     `积累 ${goal} 经验即可形成黑洞。漏掉的粒子会聚集在中心，缩小轨道；撞上核心则对局结束。没有时间限制。`,
-  guideChoice: '移动和攻击自动进行。选择时暂停，开启进行模式后5秒自动选择最高品质。',
+  guideChoice:
+    '移动和攻击自动进行。选择时暂停，开启进行模式后5秒自动选择：优先攻击力和攻击速度，其次最高品质。',
   guideRarity:
-    '技能品质首次选择时固定，未学习的技能重新抽取，学会后只提升等级。属性品质可提升，质量释放每次抽取。',
+    '只有技能和质量释放有品质。技能在首次选择时固定，未学习前重新抽取；质量释放每次抽取。',
   guideCombo: '分支、连续、连锁和贯穿也会强化其他闪电。',
   guideLimits: '最多组合4种技能，属性可持续强化。切换页面暂停，返回后继续。',
   countdown: (n) => `${n}秒后自动选择`,
@@ -601,6 +623,16 @@ const zh: Copy = {
     surge: ['击杀命中后连射', '暴走时间 ↑'],
     return: ['回流贯穿', '路径·威力 ↑'],
   },
+  link: '联动',
+  links: {
+    repeat: '连续发射',
+    multi: '增加分支',
+    chain: '连锁传导',
+    pierce: '附加贯穿',
+    return: '附加回流',
+    burst: '击杀放电',
+    charge: '积蓄电荷',
+  } as Record<LinkEffect, string>,
 };
 
 const ja: Copy = {
@@ -672,9 +704,10 @@ const ja: Copy = {
   guideEnergy: '敵を倒して経験値を獲得。レベルアップで強化を選択。',
   guideGoal: (goal) =>
     `経験値を ${goal} 集めるとブラックホールが生まれます。逃した粒子が中心に集まると軌道が狭まり、核にぶつかると消滅します。時間制限はありません。`,
-  guideChoice: '移動と攻撃は自動。選択中は停止し、続行すると5秒後に最高レア度を自動選択。',
+  guideChoice:
+    '移動と攻撃は自動。選択中は停止し、続行すると5秒後に自動選択。攻撃力・攻撃速度を優先し、次に最高レア度。',
   guideRarity:
-    'スキルのレア度は初選択で固定。未習得は再抽選、習得後はランク上昇。能力のレア度は上昇可能。質量放出は毎回抽選。',
+    'レア度があるのはスキルと質量放出のみ。スキルは初選択で固定、未習得は再抽選。質量放出は毎回抽選。',
   guideCombo: '分岐・連続・連鎖・貫通はほかの雷にも適用。',
   guideLimits: 'スキルは4種まで。能力は上限なく強化。画面を離れると停止し、戻ると再開。',
   countdown: (n) => `${n}秒後に自動選択`,
@@ -803,6 +836,16 @@ const ja: Copy = {
     surge: ['撃破・命中で連射', '暴走時間 ↑'],
     return: ['帰路を貫通', '経路・威力 ↑'],
   },
+  link: '連携',
+  links: {
+    repeat: '連続発射',
+    multi: '分岐追加',
+    chain: '連鎖発生',
+    pierce: '貫通追加',
+    return: '逆流追加',
+    burst: '撃破放電',
+    charge: '電荷蓄積',
+  } as Record<LinkEffect, string>,
 };
 
 export const copy: Record<Language, Copy> = { ko, en, zh, ja };

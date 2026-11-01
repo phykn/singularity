@@ -1,14 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Choice } from '../game/types.ts';
 import type { Rarity, UpgradeId } from '../game/rules.ts';
-import { isSkill } from '../game/rules.ts';
-import { skillChange } from './skillText.ts';
+import { isSkill, isStat } from '../game/rules.ts';
+import { skillChange, skillLinks } from './skillText.ts';
 import { SkillIcon, ControlIcon } from './icons.tsx';
 import { Rank } from './controls.tsx';
 import type { Game } from '../game/Game.ts';
 import { copy } from './i18n.ts';
 import type { Language } from './i18n.ts';
 import { useChoiceInput } from './useChoiceInput.ts';
+
+type Links = ReturnType<typeof skillLinks>;
 
 export function Choices({
   game,
@@ -31,11 +33,17 @@ export function Choices({
     automatic = game.automaticCard?.id;
   const change = (id: UpgradeId, rarity: Rarity) =>
     skillChange(id, game.rank(id), rarity, game.rarities[id], language, rules, game.mass);
-  const previous = useRef<{ choice: Choice; values: string[]; stages: number[] } | null>(null);
+  const previous = useRef<{
+    choice: Choice;
+    values: string[];
+    stages: number[];
+    links: Links[];
+  } | null>(null);
   const [receipt, setReceipt] = useState<{
     choice: Choice;
     values: string[];
     stages: number[];
+    links: Links[];
     selected: UpgradeId;
   } | null>(null);
   const selection = game.selections.at(-1);
@@ -55,6 +63,7 @@ export function Choices({
           choice,
           values: choice.cards.map((card) => change(card.id, card.rarity)),
           stages: choice.cards.map((card) => game.rank(card.id)),
+          links: choice.cards.map((card) => skillLinks(card.id, game.ownedSkills)),
         }
       : null;
   }, [choice?.number, game, game.selections.length]);
@@ -103,8 +112,7 @@ export function Choices({
                 data-rarity={rarity}
                 data-upgrade={id}
                 aria-label={
-                  c.rarities[rarity] +
-                  ' ' +
+                  (isStat(id) ? '' : c.rarities[rarity] + ' ') +
                   c.upgrades[id].name +
                   ', ' +
                   (id === 'recover'
@@ -114,6 +122,12 @@ export function Choices({
                       : c.newSkill) +
                   ', ' +
                   change(id, rarity) +
+                  skillLinks(id, game.ownedSkills)
+                    .map(
+                      (link) =>
+                        `, ${c.link}: ${c.upgrades[link.skill].name} ${c.links[link.effect]}`,
+                    )
+                    .join('') +
                   (id === automatic ? ', ' + c.auto : '')
                 }
                 onClick={(event) => {
@@ -122,15 +136,23 @@ export function Choices({
                 disabled={!interactive || !game.canUpgrade(id)}
               >
                 <span className="card-label">
-                  <b>{c.rarities[rarity]}</b>
+                  {!isStat(id) && <b>{c.rarities[rarity]}</b>}
                   {id === automatic && <ControlIcon id="next" size={12} />}
                 </span>
                 <span className="card-icon">
                   <SkillIcon id={id} size={32} />
+                  {isSkill(id) && (
+                    <Rank value={game.rank(id)} max={rules.maxRank} next={game.rank(id) + 1} />
+                  )}
                 </span>
                 <strong>{c.upgrades[id].short}</strong>
-                <CardStage id={id} rank={game.rank(id)} max={rules.maxRank} />
                 <span className="card-value">{change(id, rarity)}</span>
+                <CardFoot
+                  id={id}
+                  rank={game.rank(id)}
+                  links={skillLinks(id, game.ownedSkills)}
+                  language={language}
+                />
               </button>
             ))}
           </div>
@@ -153,15 +175,25 @@ export function Choices({
                 data-upgrade={id}
                 key={id}
               >
-                <span className="card-label">
-                  <b>{c.rarities[rarity]}</b>
-                </span>
+                <span className="card-label">{!isStat(id) && <b>{c.rarities[rarity]}</b>}</span>
                 <span className="card-icon">
                   <SkillIcon id={id} size={32} />
+                  {isSkill(id) && (
+                    <Rank
+                      value={receipt.stages[i]}
+                      max={rules.maxRank}
+                      next={receipt.stages[i] + 1}
+                    />
+                  )}
                 </span>
                 <strong>{c.upgrades[id].short}</strong>
-                <CardStage id={id} rank={receipt.stages[i]} max={rules.maxRank} />
                 <span className="card-value">{receipt.values[i]}</span>
+                <CardFoot
+                  id={id}
+                  rank={receipt.stages[i]}
+                  links={receipt.links[i]}
+                  language={language}
+                />
               </div>
             ))}
           </div>
@@ -172,14 +204,32 @@ export function Choices({
   );
 }
 
-function CardStage({ id, rank, max }: { id: UpgradeId; rank: number; max: number }) {
+function CardFoot({
+  id,
+  rank,
+  links,
+  language,
+}: {
+  id: UpgradeId;
+  rank: number;
+  links: Links;
+  language: Language;
+}) {
+  const c = copy[language];
   return (
-    <span className="card-stage" aria-hidden="true">
-      {isSkill(id) ? (
-        <Rank value={rank} max={max} next={rank + 1} />
-      ) : id !== 'recover' ? (
-        `${rank}→${rank + 1}`
-      ) : null}
+    <span className="card-foot" aria-hidden="true">
+      {isSkill(id)
+        ? links.length > 0 && (
+            <>
+              {links.map((link) => (
+                <SkillIcon key={link.skill} id={link.skill} size={16} />
+              ))}
+              <span>{links.length === 1 ? c.links[links[0].effect] : c.link}</span>
+            </>
+          )
+        : id !== 'recover'
+          ? `${rank}→${rank + 1}`
+          : null}
     </span>
   );
 }

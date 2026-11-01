@@ -52,7 +52,7 @@ try {
       {
         sourceHash: hash,
         runtime: 'Chromium',
-        scope: 'Automatic highest-rarity selection, first card on ties.',
+        scope: 'Automatic selection.',
         validationSeeds: [start, start + count - 1],
         summary,
         rows,

@@ -184,7 +184,6 @@ try {
     window.__gameDebug.restart(42, false);
     const g = window.__gameDebug.getModel();
     g.boosts.power = 3;
-    g.rarities.power = 'legendary';
     g.ranks.multi = 1;
     g.targets = Array.from({ length: 4 }, (_, id) => {
       const x = 180 + id * 22,
@@ -213,7 +212,7 @@ try {
     window.__gameDebug.advance(0);
   });
   const damage = await page.evaluate(() => window.__gameDebug.getModel().damageNumbers);
-  const power = rules.baseHitDamage + 3 * rules.damagePerRank * rules.rarity.legendary.scale;
+  const power = rules.baseHitDamage + 3 * rules.damagePerRank;
   const expectedDamage = [power, power / (1 + rules.skills.multi.spreadCost)];
   assert.equal(damage.length, 2);
   assert.ok(damage.every((n, i) => Math.abs(n.value - expectedDamage[i]) < 1e-8));

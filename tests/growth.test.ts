@@ -7,6 +7,7 @@ import {
   blankBoosts,
   blankRanks,
   isSkill,
+  isStat,
   rarityIds,
   rollRarity,
   rules,
@@ -16,7 +17,7 @@ import {
   levelForXp,
   xpForLevel,
 } from '../src/game/rules.ts';
-import type { Boosts, UpgradeId } from '../src/game/rules.ts';
+import type { Boosts, Card, UpgradeId } from '../src/game/rules.ts';
 import { effectOrigin, visibleEffects } from '../src/render/effects.ts';
 import { close, fixture, choose } from './helpers.ts';
 
@@ -37,7 +38,7 @@ test('every skill and stat upgrade confirms its actual rank and follows the live
       assert.ok(fx);
       assert.equal(fx.source, id);
       assert.equal(fx.rank, id === 'recover' ? 0 : rank);
-      assert.equal(fx.rarity, 'rare');
+      assert.equal(fx.rarity, isStat(id) ? 'common' : 'rare');
       assert.equal(g.notice, id);
       g.advance(50);
       assert.deepEqual(
@@ -240,7 +241,7 @@ test('every lightning form can be offered from the first choice without a growth
   }
 });
 
-test('automatic choices pick the highest rarity, including the opening, with stable ties', () => {
+test('automatic choices take early attack stats, then the highest rarity with stable ties', () => {
   for (const seed of [1710, ...Array.from({ length: 128 }, (_, i) => i)]) {
     const game = new Game(seed, { combat: false });
     game.start();
@@ -255,17 +256,25 @@ test('automatic choices pick the highest rarity, including the opening, with sta
     assert.equal(game.selections[0].automatic, true);
   }
   const game = fixture();
-  game.choice = {
-    cards: [
-      { id: 'power', rarity: 'common' },
-      { id: 'speed', rarity: 'legendary' },
-      { id: 'range', rarity: 'legendary' },
-    ],
-    number: 1,
-    opened: 0,
-    deadline: 8,
+  const offer = (cards: Card[]) => {
+    game.choice = { cards, number: 1, opened: 0, deadline: 8 };
   };
-  assert.equal(game.automaticCard?.id, 'speed');
+  offer([
+    { id: 'strike', rarity: 'legendary' },
+    { id: 'rate', rarity: 'common' },
+    { id: 'power', rarity: 'common' },
+  ]);
+  assert.equal(game.automaticCard?.id, 'rate');
+  game.boosts.rate = rules.autoStatRank;
+  assert.equal(game.automaticCard?.id, 'power');
+  game.boosts.power = rules.autoStatRank;
+  assert.equal(game.automaticCard?.id, 'strike');
+  offer([
+    { id: 'speed', rarity: 'common' },
+    { id: 'chain', rarity: 'epic' },
+    { id: 'pierce', rarity: 'epic' },
+  ]);
+  assert.equal(game.automaticCard?.id, 'chain');
 });
 
 test('rarity roll boundaries and seeded base frequencies match published odds', () => {

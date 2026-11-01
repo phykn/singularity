@@ -11,12 +11,11 @@ import {
   blankRanks,
   blankRarities,
   coreRadius,
-  higherRarity,
   isSkill,
+  isStat,
   levelForXp,
   orbitTarget,
   rarityIds,
-  rarityScale,
   rangeScale,
   recoveryMass,
   rollRarity,
@@ -140,14 +139,10 @@ export class Game {
     return levelForXp(this.xp, this.rules);
   }
   get speed(): number {
-    return (
-      this.rules.baseSpeed *
-      (1 +
-        this.rules.speedPerRank * this.boosts.speed * rarityScale(this.rarities.speed, this.rules))
-    );
+    return this.rules.baseSpeed * (1 + this.rules.speedPerRank * this.boosts.speed);
   }
   get reach(): number {
-    return rangeScale(this.boosts.range, this.rarities.range, this.rules);
+    return rangeScale(this.boosts.range, this.rules);
   }
   get range(): number {
     return this.rules.primaryRange * this.reach;
@@ -156,15 +151,10 @@ export class Game {
     return this.mass >= this.rules.recovery.minMass;
   }
   get damage(): number {
-    return (
-      this.rules.baseHitDamage +
-      this.rules.damagePerRank * this.boosts.power * rarityScale(this.rarities.power, this.rules)
-    );
+    return this.rules.baseHitDamage + this.rules.damagePerRank * this.boosts.power;
   }
   get rate(): number {
-    return (
-      1 + this.rules.ratePerRank * this.boosts.rate * rarityScale(this.rarities.rate, this.rules)
-    );
+    return 1 + this.rules.ratePerRank * this.boosts.rate;
   }
   get forms(): SkillValues {
     return skillValues(this.ranks, this.rarities, this.rules, this.reach);
@@ -227,12 +217,16 @@ export class Game {
     return this.manualPaused || this.hiddenPaused;
   }
   get automaticCard(): Card | undefined {
-    return this.choice?.cards
-      .filter((card) => this.canUpgrade(card.id))
-      .reduce<Card | undefined>(
+    const cards = this.choice?.cards.filter((card) => this.canUpgrade(card.id)) ?? [];
+    return (
+      cards.find(
+        ({ id }) => (id === 'power' || id === 'rate') && this.boosts[id] < this.rules.autoStatRank,
+      ) ??
+      cards.reduce<Card | undefined>(
         (a, b) => (!a || rarityIds.indexOf(b.rarity) > rarityIds.indexOf(a.rarity) ? b : a),
         undefined,
-      );
+      )
+    );
   }
   canUpgrade(id: UpgradeId): boolean {
     return eligibleUpgrades(this.ranks, this.rules, this.recoverable).includes(id);
@@ -623,12 +617,7 @@ export class Game {
       this.rules,
     ).map((id) => {
       const rolled = rollRarity(this.randomRarity.next(), this.rules);
-      const rarity = isSkill(id)
-        ? this.ranks[id]
-          ? this.rarities[id]
-          : rolled
-        : higherRarity(id === 'recover' ? 'common' : this.rarities[id], rolled);
-      return { id, rarity };
+      return { id, rarity: isStat(id) ? 'common' : this.rank(id) ? this.rarities[id] : rolled };
     });
     this.choice = {
       cards,
@@ -675,11 +664,7 @@ export class Game {
     if (!this.canUpgrade(id)) return false;
     const previous = this.rank(id),
       oldRate = this.rate;
-    if (isSkill(id)) {
-      if (previous === 0) this.rarities[id] = card.rarity;
-    } else
-      this.rarities[id] =
-        id === 'recover' ? card.rarity : higherRarity(this.rarities[id], card.rarity);
+    if (previous === 0 && !isStat(id)) this.rarities[id] = card.rarity;
     if (id === 'recover') {
       const removed = this.releaseMass(recoveryMass(card.rarity, this.rules));
       this.log('recover', { removed, mass: this.mass });
@@ -811,7 +796,6 @@ export class Game {
       y: target.y,
       value: damage,
       born: this.seconds,
-      rarity: attack?.rarities.power ?? this.rarities.power,
     });
     if (this.damageNumbers.length > maxDamageNumbers)
       this.damageNumbers.splice(0, this.damageNumbers.length - maxDamageNumbers);

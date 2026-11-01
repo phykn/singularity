@@ -711,7 +711,7 @@ svg {
   min-width: 0;
   height: 116px;
   display: grid;
-  grid-template-rows: 14px 32px 16px 16px 28px;
+  grid-template-rows: 14px 32px 16px 28px 16px;
   gap: 0;
   padding: 4px 6px;
   background: #101e2a;
@@ -748,26 +748,37 @@ svg {
   word-break: keep-all;
   letter-spacing: 0;
 }
-.card-stage {
+.card-foot {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 1px;
   color: #8fa4b5;
   font-size: 12px;
   line-height: 16px;
   white-space: nowrap;
 }
-.card-stage .rank i {
-  width: 6px;
-  height: 6px;
+.card-foot span {
+  margin-left: 2px;
+  color: var(--blue);
+}
+.card-icon .rank {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  flex-direction: column-reverse;
+  gap: 2px;
+}
+.card-icon .rank i {
+  width: 4px;
+  height: 4px;
   background: #253543;
 }
-.card-stage .rank i.on {
+.card-icon .rank i.on {
   background: color-mix(in srgb, var(--rarity) 55%, #253543);
 }
-.card-stage .rank i.next {
+.card-icon .rank i.next {
   background: var(--rarity);
-  box-shadow: 0 2px var(--rarity);
 }
 .choice-track {
   margin-top: 4px;
@@ -777,6 +788,7 @@ svg {
   background: #70828c;
 }
 .card-icon {
+  position: relative;
   display: grid;
   place-items: center;
 }
@@ -1415,6 +1427,9 @@ svg {
   align-items: center;
   justify-content: space-between;
   gap: 3px;
+}
+.card-label svg {
+  margin-left: auto;
 }
 .card-label b {
   font-weight: 400;
