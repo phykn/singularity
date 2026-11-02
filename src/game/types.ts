@@ -3,7 +3,7 @@ import type { ParticleKind } from './particles.ts';
 import type { Boosts, Card, Ranks, Rarities, Rarity, UpgradeId } from './rules.ts';
 
 export type TargetKind = 'small' | 'dense' | 'boss';
-export type BannerKind = 'critical' | 'boss' | 'boss-down';
+export type BannerKind = 'critical' | 'boss' | 'boss-down' | 'final-boss';
 export type Phase = 'ready' | 'running' | 'collapse' | 'ending' | 'result' | 'crossing';
 export type Target = Point & {
   id: number;
@@ -21,6 +21,9 @@ export type Target = Point & {
   turn: number;
   hitAt?: number;
   bridgeUntil?: number;
+  final?: boolean;
+  summons?: number;
+  summonCount?: number;
   bridgeReady?: number;
   previousRadius?: number;
   pushReady?: number;
@@ -83,7 +86,7 @@ export type Metrics = {
 export type Result = {
   endless: { seconds: number; xp: number } | null;
   outcome: Outcome;
-  trigger: 'gravity' | 'energy' | 'quit';
+  trigger: 'gravity' | 'boss' | 'quit';
   xp: number;
   mass: number;
   radius: number;

@@ -69,7 +69,7 @@ for (const success of [true, false]) {
     const game = new Game(17, { combat: false });
     assert.equal(endingFrame(game), null);
     game.start();
-    if (success) game.debugSetXp(game.rules.energyGoal);
+    if (success) game.debugClear();
     else {
       game.mass = 1000;
       game.radius = game.core + game.rules.electronRadius;

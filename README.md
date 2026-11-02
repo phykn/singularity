@@ -18,7 +18,7 @@ Particles pour in. The core swells. The space around you closes in. Each run tur
 
 - **Let the sparks fly** — Sixteen skills, from branching bolts to orbiting satellite electrons.
 - **Find your rhythm** — Ride the electron's orbit, build a charge, and let it burst.
-- **Survive the breach** — A giant particle and a critical breach test your finished build before the singularity forms.
+- **Survive the breach** — Four giant particles and a critical breach test your build, and the singularity forms only when you destroy the final particle.
 - **Evolve or gamble** — Evolve maxed skills, or take pacts that trade safety for power.
 - **Go beyond** — Reach the singularity, then take your build into an ever-growing storm.
 - **Small pixels, big impact** — Bright electrical effects against a dark cosmic backdrop.

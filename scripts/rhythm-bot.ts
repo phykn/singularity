@@ -66,7 +66,7 @@ export function playRhythm(
     wall = (frame * 1000) / 60;
     session.step(wall);
     onFrame?.();
-    if (game.choice && !game.charged) {
+    if (game.choice) {
       session.select(choose(game).id, game.choice.number, wall);
       continue;
     }

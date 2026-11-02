@@ -55,9 +55,20 @@ for (let seed = start; seed < start + count; seed++) {
     slotsFull,
     developed,
     critical: event('critical'),
-    bossAt: event('boss'),
-    bossDown: event('boss-down'),
-    bossAbsorbed: event('boss-absorbed'),
+    bossAt: g.events.filter((e) => e.kind === 'boss').map((e) => e.time),
+    bossKill: g.events
+      .filter((e) => e.kind === 'boss')
+      .map((e) => {
+        const id = (e.data as { id: number }).id;
+        const down = g.events.find(
+          (d) => d.kind === 'boss-down' && (d.data as { id: number }).id === id,
+        );
+        return down ? down.time - e.time : null;
+      }),
+    bossDown: g.events.filter((e) => e.kind === 'boss-down').map((e) => e.time),
+    bossAbsorbed: g.events.filter((e) => e.kind === 'boss-absorbed').map((e) => e.time),
+    finalAt: event('final-boss'),
+    finalDown: event('final-boss-down'),
     evolutions: g.selections.filter((s) => s.evolve).length,
     pacts: g.selections.filter((s) => isPact(s.id)).length,
   });
@@ -78,7 +89,16 @@ const decided = (time: number, low: number) => {
   });
   return { runs: alive.length, winRate: ratio(alive.filter(Boolean).length, alive.length) };
 };
-const bossRuns = rows.filter((r) => r.bossAt !== null);
+const finalRuns = rows.filter((r) => r.finalAt !== null);
+const stage = (index: number) => {
+  const runs = rows.filter((r) => r.bossAt.length > index);
+  return {
+    runs: runs.length,
+    medianAt: median(runs.map((r) => r.bossAt[index])),
+    killed: ratio(runs.filter((r) => r.bossKill[index] !== null).length, runs.length),
+    medianKillSeconds: median(runs.flatMap((r) => r.bossKill[index] ?? [])),
+  };
+};
 const summary = {
   policy,
   games: rows.length,
@@ -95,13 +115,15 @@ const summary = {
   medianLateMargin: median(wins.map((r) => r.lateMargin)),
   closeCalls: ratio(wins.filter((r) => r.lateMargin < 30).length, wins.length),
   medianCritical: median(wins.flatMap((r) => (r.critical === null ? [] : [r.critical]))),
-  boss: {
-    runs: bossRuns.length,
-    medianAt: median(bossRuns.map((r) => r.bossAt!)),
-    killed: ratio(bossRuns.filter((r) => r.bossDown !== null).length, bossRuns.length),
-    absorbed: ratio(bossRuns.filter((r) => r.bossAbsorbed !== null).length, bossRuns.length),
+  bossStages: cfg.boss.stages.map((_, index) => stage(index)),
+  bossesKilled: median(rows.map((r) => r.bossDown.length)),
+  bossesAbsorbed: median(rows.map((r) => r.bossAbsorbed.length)),
+  finalBoss: {
+    runs: finalRuns.length,
+    medianAt: median(finalRuns.map((r) => r.finalAt!)),
+    killed: ratio(finalRuns.filter((r) => r.finalDown !== null).length, finalRuns.length),
     medianKillSeconds: median(
-      bossRuns.flatMap((r) => (r.bossDown === null ? [] : [r.bossDown - r.bossAt!])),
+      finalRuns.flatMap((r) => (r.finalDown === null ? [] : [r.finalDown - r.finalAt!])),
     ),
   },
   evolvedWins: ratio(wins.filter((r) => r.evolutions > 0).length, wins.length),

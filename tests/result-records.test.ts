@@ -7,7 +7,7 @@ import { recordKey, beyondRecordKey } from '../src/app/storage.ts';
 
 const game = new Game(1, { combat: false });
 game.start();
-game.debugSetXp(game.rules.energyGoal);
+game.debugClear();
 game.advance(10000);
 const normal = (xp: number, seed = 1): Result => ({ ...game.result!, xp, seed });
 const endless = (seconds: number, xp: number, seed = 1): Result => ({

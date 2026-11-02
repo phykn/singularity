@@ -51,7 +51,7 @@ for (let seed = 1701; seed <= 1730; seed++) {
   // of requiring every skill to trigger before its conditions exist.
   assert.ok(first && first.time <= 25, 'Opening upgrade selection is too late');
   assert.ok(row.choices <= game.level - 1);
-  assert.equal(game.result!.trigger, game.result!.outcome === 'success' ? 'energy' : 'gravity');
+  assert.equal(game.result!.trigger, game.result!.outcome === 'success' ? 'boss' : 'gravity');
   if (game.result!.outcome === 'success') {
     assert.ok(game.xp >= rules.energyGoal);
     assert.ok(row.maxChoiceGap! <= 90);

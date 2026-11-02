@@ -126,7 +126,7 @@ export class GameAudio {
           space: soundSpace(point, listener),
         });
       } else if (['wave', 'charged'].includes(event.kind)) cues.push({ kind: event.kind });
-      else if (['critical', 'boss'].includes(event.kind)) cues.push({ kind: 'wave' });
+      else if (['critical', 'boss', 'final-boss'].includes(event.kind)) cues.push({ kind: 'wave' });
       else if (['boss-down', 'evolve'].includes(event.kind)) cues.push({ kind: 'charged' });
     }
     this.mixer.playBatch(cues, ctx.currentTime);

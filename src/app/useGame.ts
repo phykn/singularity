@@ -155,6 +155,10 @@ export function useGame() {
         session.game.debugSetXp(xp);
         force();
       },
+      clear: () => {
+        session.game.debugClear();
+        force();
+      },
       restart: (seed: number, combat = true) => {
         const game = new Game(seed, { combat });
         game.setHidden(document.hidden);
@@ -203,6 +207,7 @@ declare global {
       prepare: (seed: number) => void;
       advance: (ms: number) => void;
       xp: (xp: number) => void;
+      clear: () => void;
       restart: (seed: number, combat?: boolean) => void;
     };
   }

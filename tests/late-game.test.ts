@@ -46,10 +46,12 @@ test('critical breach slows energy without losing fractions and ends at the norm
   assert.equal(g.xp, start + Math.floor(5 * rules.critical.xpScale));
 });
 
+const firstStage = rules.boss.stages[0];
+
 test('the boss arrives once at its energy with a warning, resists control and reports its fate', () => {
   const g = spawned();
   g.selections.length = 100;
-  g.xp = energy(rules.boss.energyFraction);
+  g.xp = energy(firstStage.energyFraction);
   tick(g);
   const boss = g.boss!;
   assert.equal(boss.kind, 'boss');
@@ -62,7 +64,7 @@ test('the boss arrives once at its energy with a warning, resists control and re
   boss.radius = g.core;
   const mass = g.mass;
   g.absorbTargets();
-  assert.equal(g.mass, mass + rules.boss.mass);
+  assert.equal(g.mass, mass + firstStage.mass);
   assert.equal(g.events.filter((event) => event.kind === 'boss-absorbed').length, 1);
   assert.equal(g.boss, undefined);
 });
@@ -85,26 +87,104 @@ test('the core grows while the boss lives and stops once it is gone', () => {
 test('damaging the boss summons each escort group once and a kill pays its reward', () => {
   const g = spawned();
   g.selections.length = 100;
-  g.xp = energy(rules.boss.energyFraction);
+  g.xp = energy(firstStage.energyFraction);
   tick(g);
   const boss = g.boss!;
   g.targets = [boss];
   g.damageTarget(boss, boss.maxHp * 0.4);
-  assert.equal(g.targets.length, 1 + rules.boss.summonCount);
+  assert.equal(g.targets.length, 1 + firstStage.summonCount);
   g.damageTarget(boss, 1);
-  assert.equal(g.targets.length, 1 + rules.boss.summonCount);
+  assert.equal(g.targets.length, 1 + firstStage.summonCount);
   g.damageTarget(boss, boss.maxHp * 0.4);
-  assert.equal(g.targets.length, 1 + 2 * rules.boss.summonCount);
+  assert.equal(g.targets.length, 1 + 2 * firstStage.summonCount);
   const xp = g.xp;
   g.damageTarget(boss, boss.maxHp);
-  assert.equal(g.xp, xp + rules.boss.xp);
+  assert.equal(g.xp, xp + firstStage.xp);
   assert.equal(g.banner?.kind, 'boss-down');
   assert.equal(g.events.filter((event) => event.kind === 'boss-down').length, 1);
 });
 
+const bossesAtGoal = () => {
+  const g = spawned();
+  g.selections.length = 100;
+  g.xp = rules.energyGoal;
+  for (let i = 0; i <= rules.boss.stages.length; i++) {
+    g.choice = null;
+    tick(g);
+  }
+  return g;
+};
+
+test('every middle boss arrives in order before the final boss, numbered and independent', () => {
+  const g = bossesAtGoal();
+  const seen = g.targets.filter((t) => t.kind === 'boss');
+  assert.equal(g.bossCount, rules.boss.stages.length);
+  assert.equal(seen.length, rules.boss.stages.length + 1);
+  assert.deepEqual(
+    seen.slice(0, -1).map((t) => t.xp),
+    rules.boss.stages.map((stage) => stage.xp),
+  );
+  assert.equal(g.events.filter((event) => event.kind === 'final-boss').length, 1);
+  assert.equal(g.boss, seen.at(-1), 'The final boss takes priority once it is present');
+  const [first, second] = seen;
+  g.targets = [first, second];
+  g.damageTarget(first, first.maxHp * 0.4);
+  g.damageTarget(second, second.maxHp * 0.4);
+  assert.equal(g.targets.length, 2 + first.summonCount! + second.summonCount!);
+});
+
+test('full energy alone never ends the run and choices keep coming during the final fight', () => {
+  const g = fixture();
+  g.xp = rules.energyGoal;
+  g.selections.length = 100;
+  for (let i = 0; i < 300; i++) {
+    g.choice = null;
+    tick(g);
+  }
+  assert.equal(g.phase, 'running');
+  assert.equal(g.charged, true);
+  const level = g.level;
+  g.selections.length = 0;
+  (g as unknown as { openChoice(): void }).openChoice();
+  assert.ok(g.choice, `Level ${level} still opens a choice`);
+});
+
+test('destroying the final boss is the only clear and is reported once', () => {
+  const g = bossesAtGoal();
+  const final = g.boss!;
+  assert.equal(final.final, true);
+  g.targets = [final];
+  g.damageTarget(final, final.maxHp);
+  g.choice = null;
+  tick(g);
+  assert.equal(g.phase, 'collapse');
+  assert.equal(g.successfulEnding, true);
+  assert.equal(g.events.filter((event) => event.kind === 'final-boss-down').length, 1);
+  g.advance((rules.collisionSeconds + rules.successEndingSeconds) * 1000 + 100);
+  assert.equal(g.result?.outcome, 'success');
+  assert.equal(g.result?.trigger, 'boss');
+});
+
+test('the final boss reaching the core fails the run even with full energy', () => {
+  const g = bossesAtGoal();
+  const final = g.boss!;
+  g.targets = [final];
+  final.radius = g.core;
+  g.choice = null;
+  tick(g);
+  assert.equal(g.phase, 'collapse');
+  assert.equal(g.successfulEnding, false);
+  g.advance((rules.collisionSeconds + rules.failureEndingSeconds) * 1000 + 100);
+  assert.equal(g.result?.outcome, 'collapse-failure');
+  assert.equal(g.result?.trigger, 'gravity');
+  assert.equal(g.result?.missingXp, 0);
+});
+
 test('the boss and critical breach stay out of endless play', () => {
   const g = new Game(1500003);
-  playRhythm(g, undefined, false);
+  g.start();
+  g.debugClear();
+  g.advance((rules.collisionSeconds + rules.successEndingSeconds) * 1000 + 100);
   assert.equal(g.result?.outcome, 'success');
   assert.ok(g.continueBeyond());
   assert.equal(g.critical, false);
@@ -301,5 +381,6 @@ test('every language describes pacts, evolutions and event banners', () => {
     for (const skill of ['chain', 'multi', 'pierce', 'satellite'] as const)
       assert.ok(c.evolutions[skill].name && c.evolutions[skill].summary);
     assert.ok(c.banners.critical && c.banners.boss && c.banners['boss-down']);
+    assert.ok(c.banners['final-boss'] && c.finalBossName);
   }
 });

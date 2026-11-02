@@ -46,7 +46,7 @@ const ko = {
   xp: '경험치',
   charge: '특이점',
   energy: '누적 경험치',
-  ready: '임계 도달',
+  ready: '최후의 입자를 격파하라',
   danger: '충돌 위험',
   collapse: '궤도 붕괴',
   success: '특이점',
@@ -79,7 +79,7 @@ const ko = {
   guideTitle: '플레이 방법',
   guideEnergy: '적 처치로 XP 획득. 레벨이 오르면 강화 선택.',
   guideGoal: (goal: number) =>
-    `${goal} XP를 모으면 특이점 형성. 놓친 입자가 핵에 쌓이면 궤도가 좁아지고, 충돌 시 전자 소멸. 시간 제한 없음.`,
+    `${goal} XP를 모으면 최후의 입자가 나타나고, 격파하면 특이점 형성. 놓친 입자가 핵에 쌓이면 궤도가 좁아지고, 충돌 시 전자 소멸. 시간 제한 없음.`,
   guideChoice:
     '이동·공격은 자동. 선택 중에는 정지하며, 진행하면 5초 뒤 공격력·공격속도를 우선하고, 그다음 최고 등급을 자동 선택합니다.',
   guideRarity:
@@ -238,14 +238,16 @@ const ko = {
   evolve: '진화',
   pact: '대가',
   bossName: '거대 입자',
+  finalBossName: '최후의 입자',
   guideLate:
-    '에너지 60%에 거대 입자가 핵으로 다가옵니다. 살아 있는 동안 핵이 자라고, 놓치면 큰 질량이 쌓입니다. 80%부터는 임계 돌파로 궤도가 좁아지고 입자가 몰려옵니다.',
+    '에너지 10·30·50·70%마다 거대 입자가 핵으로 다가옵니다. 살아 있는 동안 핵이 자라고, 놓치면 큰 질량이 쌓입니다. 80%부터는 임계 돌파로 궤도가 좁아지고 입자가 몰려옵니다. 100%에 나타나는 최후의 입자가 핵에 닿으면 실패합니다.',
   guideEvolve:
     '5단계 연쇄·갈래·관통·위성 번개는 에너지 40%와 70%에 진화 카드로 나옵니다. 자동 선택은 진화 카드를 가장 먼저 고릅니다. 대가 카드는 강한 효과에 위험이 따르며 자동 선택되지 않습니다.',
   banners: {
     critical: '임계 돌파',
     boss: '거대 입자 접근',
     'boss-down': '거대 입자 격파',
+    'final-boss': '최후의 입자 출현',
   } as Record<BannerKind, string>,
   evolutions: {
     chain: {
@@ -322,7 +324,7 @@ const en: Copy = {
   xp: 'XP',
   charge: 'Singularity',
   energy: 'Total XP',
-  ready: 'Ready to collapse',
+  ready: 'Destroy the final particle',
   danger: 'Collision risk',
   collapse: 'Collision',
   success: 'Singularity',
@@ -355,7 +357,7 @@ const en: Copy = {
   guideTitle: 'Lightning & gravity',
   guideEnergy: 'Defeat particles for XP. Level up to choose an upgrade.',
   guideGoal: (goal) =>
-    `Reach ${goal} XP to form a black hole. Missed particles gather at the center and pull your orbit inward; hitting the core ends the run. There is no time limit.`,
+    `Reach ${goal} XP to summon the final particle, then destroy it to form a black hole. Missed particles gather at the center and pull your orbit inward; hitting the core ends the run. There is no time limit.`,
   guideChoice:
     'Movement and attacks are automatic. Choices pause combat. Switch to play to auto-pick after 5 seconds: Attack Power and Speed first, then highest rarity.',
   guideRarity:
@@ -523,14 +525,16 @@ const en: Copy = {
   evolve: 'EVOLVE',
   pact: 'PACT',
   bossName: 'Giant particle',
+  finalBossName: 'Final particle',
   guideLate:
-    'At 60% energy a giant particle closes on the core; the core grows while it lives, and letting it through adds heavy mass. From 80% the critical breach tightens your orbit and draws more particles.',
+    'At 10, 30, 50 and 70% energy a giant particle closes on the core; the core grows while it lives, and letting it through adds heavy mass. From 80% the critical breach tightens your orbit and draws more particles. The final particle appears at 100%; if it reaches the core, the run fails.',
   guideEvolve:
     'Rank 5 Chain, Fork, Pierce and Satellite offer an evolution card at 40% and 70% energy. Automatic selection takes evolutions first. Pact cards trade risk for power and are never picked automatically.',
   banners: {
     critical: 'CRITICAL BREACH',
     boss: 'GIANT PARTICLE INBOUND',
     'boss-down': 'GIANT PARTICLE DOWN',
+    'final-boss': 'FINAL PARTICLE INBOUND',
   },
   evolutions: {
     chain: {
@@ -606,7 +610,7 @@ const zh: Copy = {
   xp: '经验',
   charge: '奇点',
   energy: '总经验',
-  ready: '可形成黑洞',
+  ready: '击破终极粒子',
   danger: '碰撞危险',
   collapse: '碰撞',
   success: '奇点',
@@ -639,7 +643,7 @@ const zh: Copy = {
   guideTitle: '闪电与引力',
   guideEnergy: '击败粒子获得经验，升级时选择强化。',
   guideGoal: (goal) =>
-    `积累 ${goal} 经验即可形成黑洞。漏掉的粒子会聚集在中心，缩小轨道；撞上核心则对局结束。没有时间限制。`,
+    `积累 ${goal} 经验后终极粒子出现，击破它即可形成黑洞。漏掉的粒子会聚集在中心，缩小轨道；撞上核心则对局结束。没有时间限制。`,
   guideChoice:
     '移动和攻击自动进行。选择时暂停，开启进行模式后5秒自动选择：优先攻击力和攻击速度，其次最高品质。',
   guideRarity:
@@ -742,11 +746,17 @@ const zh: Copy = {
   evolve: '进化',
   pact: '代价',
   bossName: '巨型粒子',
+  finalBossName: '终极粒子',
   guideLate:
-    '能量达到60%时巨型粒子逼近核心,存活期间核心持续增长,漏掉会增加大量质量。80%起进入临界突破,轨道收缩且粒子涌来。',
+    '能量达到10、30、50、70%时巨型粒子逼近核心,存活期间核心持续增长,漏掉会增加大量质量。80%起进入临界突破,轨道收缩且粒子涌来。100%时出现终极粒子,它触及核心则失败。',
   guideEvolve:
     '5级连锁、分叉、贯穿、卫星闪电会在能量40%和70%时出现进化卡。自动选择优先选进化卡。代价卡以风险换取强力效果,不会被自动选择。',
-  banners: { critical: '临界突破', boss: '巨型粒子接近', 'boss-down': '巨型粒子被击破' },
+  banners: {
+    critical: '临界突破',
+    boss: '巨型粒子接近',
+    'boss-down': '巨型粒子被击破',
+    'final-boss': '终极粒子出现',
+  },
   evolutions: {
     chain: {
       name: '回归连锁',
@@ -821,7 +831,7 @@ const ja: Copy = {
   xp: '経験値',
   charge: '特異点',
   energy: '累計経験値',
-  ready: '生成準備完了',
+  ready: '最終粒子を撃破せよ',
   danger: '衝突の危険',
   collapse: '衝突',
   success: '特異点',
@@ -854,7 +864,7 @@ const ja: Copy = {
   guideTitle: '雷と重力',
   guideEnergy: '敵を倒して経験値を獲得。レベルアップで強化を選択。',
   guideGoal: (goal) =>
-    `経験値を ${goal} 集めるとブラックホールが生まれます。逃した粒子が中心に集まると軌道が狭まり、核にぶつかると消滅します。時間制限はありません。`,
+    `経験値を ${goal} 集めると最終粒子が現れ、撃破するとブラックホールが生まれます。逃した粒子が中心に集まると軌道が狭まり、核にぶつかると消滅します。時間制限はありません。`,
   guideChoice:
     '移動と攻撃は自動。選択中は停止し、続行すると5秒後に自動選択。攻撃力・攻撃速度を優先し、次に最高レア度。',
   guideRarity:
@@ -1005,11 +1015,17 @@ const ja: Copy = {
   evolve: '進化',
   pact: '代償',
   bossName: '巨大粒子',
+  finalBossName: '最終粒子',
   guideLate:
-    'エネルギー60%で巨大粒子が核に迫ります。生きている間は核が成長し、逃すと大きな質量が加わります。80%からは臨界突破で軌道が狭まり、粒子が押し寄せます。',
+    'エネルギー10・30・50・70%で巨大粒子が核に迫ります。生きている間は核が成長し、逃すと大きな質量が加わります。80%からは臨界突破で軌道が狭まり、粒子が押し寄せます。100%で現れる最終粒子が核に届くと失敗です。',
   guideEvolve:
     'ランク5の連鎖・分岐・貫通・衛星はエネルギー40%と70%で進化カードが出ます。自動選択は進化カードを最優先します。代償カードは危険と引き換えに強力で、自動選択されません。',
-  banners: { critical: '臨界突破', boss: '巨大粒子接近', 'boss-down': '巨大粒子撃破' },
+  banners: {
+    critical: '臨界突破',
+    boss: '巨大粒子接近',
+    'boss-down': '巨大粒子撃破',
+    'final-boss': '最終粒子出現',
+  },
   evolutions: {
     chain: {
       name: '回帰連鎖',

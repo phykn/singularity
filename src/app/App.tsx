@@ -157,13 +157,11 @@ export default function App() {
           )}
           {!ready && (
             <>
-              {game.phase === 'running' &&
-                !game.charged &&
-                game.margin < game.rules.dangerMargin && (
-                  <span className="sr-only danger-status" role="status">
-                    {c.danger}
-                  </span>
-                )}
+              {game.phase === 'running' && game.margin < game.rules.dangerMargin && (
+                <span className="sr-only danger-status" role="status">
+                  {c.danger}
+                </span>
+              )}
               <UpgradeFeedback game={game} language={language} />
               <EventBanner game={game} language={language} />
               {game.phase === 'crossing' && (

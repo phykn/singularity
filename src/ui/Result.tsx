@@ -122,7 +122,7 @@ export function Result({
               {c.seed} {result.seed} ·{' '}
               {result.trigger === 'gravity'
                 ? c.early
-                : result.trigger === 'energy'
+                : result.trigger === 'boss'
                   ? c.goalReached
                   : c.finish}
             </p>

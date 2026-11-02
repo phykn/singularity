@@ -41,7 +41,7 @@ try {
   for (const r of rows) {
     for (const c of Object.values(r.counts))
       assert.equal(c.generated, c.killed + c.absorbed + c.remaining);
-    assert.equal(r.trigger, r.outcome === 'success' ? 'energy' : 'gravity');
+    assert.equal(r.trigger, r.outcome === 'success' ? 'boss' : 'gravity');
   }
   const wins = rows.filter((r) => r.outcome === 'success').length;
   const summary = { games: rows.length, wins, clearRate: wins / rows.length };

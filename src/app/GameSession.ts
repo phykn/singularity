@@ -138,9 +138,7 @@ export class GameSession {
 
   get rhythmAvailable(): boolean {
     const game = this.game;
-    return (
-      this.renderReady && game.phase === 'running' && !game.paused && !game.choice && !game.charged
-    );
+    return this.renderReady && game.phase === 'running' && !game.paused && !game.choice;
   }
 
   tapRhythm(wall: number): void {
@@ -192,7 +190,7 @@ export class GameSession {
       available && this.rhythmAvailable,
       game.angle,
       (game.speed / game.radius / 1000) * this.playbackSpeed,
-      (Boolean(game.choice) || game.charged) && game.phase === 'running' && !game.paused,
+      Boolean(game.choice) && game.phase === 'running' && !game.paused,
     );
     this.lastWall = wall;
     if (this.audio.enabled) this.audio.update(game, this.audioCursor);
@@ -225,7 +223,7 @@ export class GameSession {
 
   private advanceTime(ms: number, tickLimit = Infinity): void {
     this.game.advance(
-      this.pauseOnChoice && this.game.choice && !this.game.charged
+      this.pauseOnChoice && this.game.choice
         ? 0
         : ms * (this.game.phase === 'crossing' ? 1 : this.playbackSpeed),
       tickLimit,

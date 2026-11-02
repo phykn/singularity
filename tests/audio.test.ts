@@ -587,7 +587,7 @@ test('batched distance filtering and QTE emphasis retain audible spatial detail'
 test('success uses one continuous vacuum cue and stays silent from the point through results', () => {
   const game = new Game(17, { combat: false });
   game.start();
-  game.debugSetXp(game.rules.energyGoal);
+  game.debugClear();
   game.advance(1000 / game.rules.tickRate);
   const cues: string[] = [];
   const audio = new GameAudio();
@@ -635,7 +635,7 @@ test('audio recovery restarts the current transition cue and preserves silent st
     const game = new Game(17, { combat: false });
     game.start();
     if (stage === 'collision') game.radius = game.core;
-    else game.debugSetXp(game.rules.energyGoal);
+    else game.debugClear();
     game.advance(1000 / game.rules.tickRate);
     if (stage === 'collision') {
       game.advance(game.rules.collisionSeconds * 1000);

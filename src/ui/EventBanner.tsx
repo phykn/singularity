@@ -8,6 +8,7 @@ export function EventBanner({ game, language }: { game: Game; language: Language
   return (
     <div className="event-banner" data-kind={banner.kind} role="status" key={banner.kind}>
       {copy[language].banners[banner.kind]}
+      {banner.kind === 'boss' && ` ${game.bossCount}/${game.rules.boss.stages.length}`}
     </div>
   );
 }

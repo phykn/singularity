@@ -58,7 +58,7 @@ The model publishes and the views read.
 
 - Node runs the TypeScript directly through type stripping, with no build step. Code reached by tests or scripts must use erasable syntax only (no `enum`, no constructor parameter properties) and explicit `.ts` import extensions.
 - `tsconfig.json` includes only `src`, so `tests/` and `scripts/` are not type checked.
-- Browser checks use `window.__gameDebug` (`prepare`, `restart`, `advance`, `xp`, `getModel`, `getRhythm`), which exists only in development builds. Use it for fixtures rather than adding new debug hooks.
+- Browser checks use `window.__gameDebug` (`prepare`, `restart`, `advance`, `xp`, `clear`, `getModel`, `getRhythm`), which exists only in development builds. Use it for fixtures rather than adding new debug hooks.
 - In tests, `new Game(seed, { combat: false })` disables spawning so a test can place its own targets. `tests/helpers.ts` provides `fixture`, `target`, `choose`, and `stationarySkill`.
 - `check:design` also asserts array lengths and invariants across `design/rules.json`, so changing a stage or skill table can require matching changes elsewhere in the file.
 - Player text lives in `src/ui/i18n.ts` and `skillText.ts`, in Korean, English, Chinese, and Japanese. `check:languages` covers layout across them.

@@ -251,7 +251,7 @@ try {
       }
       return write.call(this, key, value);
     };
-    window.__gameDebug.xp(window.__gameDebug.getModel().rules.energyGoal);
+    window.__gameDebug.clear();
     window.__gameDebug.advance(10000);
   });
   await failed.locator('.result .setting-notice').waitFor();
@@ -305,7 +305,7 @@ try {
       ({ success, seed }) => {
         const d = window.__gameDebug;
         d.restart(seed, false);
-        if (success) d.xp(d.getModel().rules.energyGoal);
+        if (success) d.clear();
         else {
           const g = d.getModel();
           g.mass = 1e9;

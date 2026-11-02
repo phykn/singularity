@@ -63,14 +63,31 @@ for (const data of Object.values(r.skills))
       assert.ok(array.every(Number.isFinite));
     }
   }
-assert.ok(r.boss.energyFraction < r.critical.energyFraction && r.critical.energyFraction < 1);
+assert.ok(r.critical.energyFraction > 0 && r.critical.energyFraction < 1);
+assert.ok(r.boss.stages.length > 0);
+assert.ok(
+  r.boss.stages.every(
+    (s, i, a) =>
+      s.energyFraction > 0 &&
+      s.energyFraction < 1 &&
+      (!i || s.energyFraction > a[i - 1].energyFraction) &&
+      s.hp > 0 &&
+      s.xp > 0 &&
+      s.mass > 0 &&
+      s.summonCount > 0 &&
+      (!i || s.hp > a[i - 1].hp),
+  ),
+);
+assert.ok(r.boss.final.hp > r.boss.stages.at(-1).hp);
+assert.ok(r.boss.final.speed > 0 && r.boss.final.size > r.boss.size);
 assert.ok(r.critical.pull > 0 && r.critical.spawnScale > 0 && r.critical.spawnScale < 1);
 assert.ok(r.critical.xpScale > 0 && r.critical.xpScale <= 1);
 assert.ok(r.critical.hpScale >= 1 && r.critical.speedScale >= 1);
-assert.ok(r.boss.hp > 0 && r.boss.speed > 0 && r.boss.mass > 0 && r.boss.size > 0);
+assert.ok(r.boss.speed > 0 && r.boss.size > 0);
 assert.ok(r.boss.pushScale > 0 && r.boss.pushScale < 1);
 assert.ok(Math.round(r.boss.feedSeconds * r.tickRate) > 0);
-assert.ok(r.boss.summonFractions.every((n, i, a) => n > 0 && n < 1 && (!i || n < a[i - 1])));
+for (const fractions of [r.boss.summonFractions, r.boss.final.summonFractions])
+  assert.ok(fractions.every((n, i, a) => n > 0 && n < 1 && (!i || n < a[i - 1])));
 assert.ok(r.evolution.energyFractions.every((n, i, a) => n > 0 && n < 1 && (!i || n > a[i - 1])));
 assert.ok(r.evolution.pierce.trailInterval < r.evolution.pierce.trailSeconds);
 assert.ok(Number.isInteger(r.pacts.interval) && r.pacts.interval > 1);

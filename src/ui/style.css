@@ -1723,6 +1723,10 @@ b {
   height: 100%;
   background: #ff536b;
 }
+.boss-bar[data-final='true'] {
+  height: 10px;
+  outline: 1px solid #ffd76a;
+}
 .hud[data-critical='true'] .charge {
   color: #ff536b;
   animation: critical-pulse 0.8s steps(2) infinite;
@@ -1781,6 +1785,10 @@ b {
   outline-offset: -1px;
 }
 @media (prefers-reduced-motion: reduce) {
+  .boss-bar[data-final='true'] {
+    height: 10px;
+    outline: 1px solid #ffd76a;
+  }
   .hud[data-critical='true'] .charge {
     animation: none;
   }

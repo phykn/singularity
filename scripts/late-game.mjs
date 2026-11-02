@@ -37,7 +37,7 @@ try {
           beforeCombat: false,
           evolve: false,
         }));
-        g.xp = g.rules.energyGoal * g.rules.boss.energyFraction;
+        g.xp = g.rules.energyGoal * g.rules.boss.stages[0].energyFraction;
         for (let i = 0; i < 4; i++) d.advance(50);
       });
       await page.locator('.boss-bar').waitFor();
@@ -45,6 +45,7 @@ try {
       await page.evaluate(() => {
         const d = window.__gameDebug,
           g = d.getModel();
+        g.bossCount = g.rules.boss.stages.length;
         g.xp = g.rules.energyGoal * g.rules.critical.energyFraction;
         d.advance(50);
       });
@@ -52,6 +53,20 @@ try {
       await page.locator('.hud[data-critical="true"]').waitFor();
       const banner = await page.locator('.event-banner').boundingBox();
       assert.ok(banner.x >= 0 && banner.x + banner.width <= width, 'Banner must fit');
+      await page.evaluate(() => {
+        const d = window.__gameDebug,
+          g = d.getModel();
+        g.choice = null;
+        g.xp = g.rules.energyGoal;
+        d.advance(50);
+      });
+      await page.locator('.event-banner[data-kind="final-boss"]').waitFor();
+      await page.locator('.boss-bar[data-final="true"]').waitFor();
+      const finalBanner = await page.locator('.event-banner').boundingBox();
+      assert.ok(
+        finalBanner.x >= 0 && finalBanner.x + finalBanner.width <= width,
+        'Final banner must fit',
+      );
       await page.evaluate(() => {
         const d = window.__gameDebug,
           g = d.getModel();

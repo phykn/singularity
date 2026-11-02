@@ -45,17 +45,25 @@
     "xpScale": 0.6
   },
   "boss": {
-    "energyFraction": 0.6,
-    "hp": 6000,
-    "xp": 400,
-    "mass": 60,
+    "stages": [
+      { "energyFraction": 0.1, "hp": 250, "xp": 100, "mass": 10, "summonCount": 4 },
+      { "energyFraction": 0.3, "hp": 1000, "xp": 200, "mass": 20, "summonCount": 8 },
+      { "energyFraction": 0.5, "hp": 2500, "xp": 300, "mass": 40, "summonCount": 12 },
+      { "energyFraction": 0.7, "hp": 4500, "xp": 400, "mass": 50, "summonCount": 18 }
+    ],
+    "final": {
+      "hp": 9000,
+      "speed": 2.5,
+      "size": 18,
+      "summonFractions": [0.75, 0.5, 0.25],
+      "summonCount": 24
+    },
     "speed": 3.5,
     "turn": 0.06,
     "size": 14,
     "pushScale": 0.25,
-    "feedSeconds": 2,
-    "summonFractions": [0.66, 0.33],
-    "summonCount": 24
+    "feedSeconds": 6,
+    "summonFractions": [0.66, 0.33]
   },
   "evolution": {
     "energyFractions": [0.4, 0.7],

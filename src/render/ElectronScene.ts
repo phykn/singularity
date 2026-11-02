@@ -95,7 +95,7 @@ export class ElectronScene extends Phaser.Scene {
     }
     const ending = endingFrame(game),
       clock = game.seconds;
-    const danger = !game.charged && game.margin < game.rules.dangerMargin;
+    const danger = game.margin < game.rules.dangerMargin;
     const color = game.charged ? GOLD : BLUE;
     const orbitColor = game.endless ? VIOLET : color;
     const position = game.position,
@@ -152,9 +152,14 @@ export class ElectronScene extends Phaser.Scene {
       if (point.x < -20 || point.x > width + 20 || point.y < -20 || point.y > height + 20) continue;
       const hit = !ending && target.hitAt !== undefined && game.time - target.hitAt < 0.06;
       const boss = target.kind === 'boss';
-      const sprite = this.sprites.draw(point, target.particle, boss ? 3 : 1, 1 - absorb);
+      const sprite = this.sprites.draw(
+        point,
+        target.particle,
+        target.final ? 4 : boss ? 3 : 1,
+        1 - absorb,
+      );
       if (boss && !ending) {
-        g.lineStyle(1 / scale, WARNING_RED, 0.55 + 0.35 * Math.sin(clock * 6));
+        g.lineStyle((target.final ? 2 : 1) / scale, WARNING_RED, 0.55 + 0.35 * Math.sin(clock * 6));
         g.strokeCircle(p.x, p.y, target.size + 4);
       }
       if (ending?.success && absorb > 0 && target.id % 9 === 0) {

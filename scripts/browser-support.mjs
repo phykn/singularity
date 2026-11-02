@@ -64,7 +64,7 @@ export async function showSuccess(page, seed = 96048) {
     g.rarities.chain = 'epic';
     g.boosts.power = 3;
     g.boosts.rate = 2;
-    debug.xp(g.rules.energyGoal);
+    debug.clear();
     debug.advance(16000);
   }, seed);
 }

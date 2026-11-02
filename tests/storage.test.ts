@@ -61,7 +61,7 @@ test('checkpoints preserve fractional time and pending catch-up without processi
 
 test('best records handle malformed or unavailable storage', () => {
   const g = fixture();
-  g.debugSetXp(rules.energyGoal);
+  g.debugClear();
   g.advance(610000);
   const success = bestRecord(null, g.result!);
   assert.ok(success);
@@ -223,7 +223,7 @@ test('checkpoints and records accept a run past ten minutes and a manual choice 
   assert.deepEqual(createCheckpoint(restored), createCheckpoint(g));
   // Finish both long-lived fixtures explicitly; this checks save/record handling, not win rate.
   for (const game of [restored, g]) {
-    game.debugSetXp(rules.energyGoal);
+    game.debugClear();
     game.advance(16000);
   }
   assert.equal(g.result?.outcome, 'success');

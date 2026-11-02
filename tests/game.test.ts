@@ -254,7 +254,7 @@ test('mass release recovery follows rarity, clamps removed mass and is independe
   close(g.radius, rules.orbitRadius);
 });
 
-test('early collision snapshots the energy boundary and cancels combat and cards', () => {
+test('gravity collapse fails at any energy, snapshots state and cancels combat and cards', () => {
   for (const xp of [rules.energyGoal - 1, rules.energyGoal]) {
     const g = fixture({ repel: 3, focus: 3 });
     g.debugSetXp(xp);
@@ -263,7 +263,7 @@ test('early collision snapshots the energy boundary and cancels combat and cards
     g.advance(1000 / 60);
     assert.equal(g.phase, 'collapse');
     assert.equal(g.choice, null);
-    assert.equal(g.successfulEnding, xp >= rules.energyGoal);
+    assert.equal(g.successfulEnding, false);
     const frozen = { xp: g.xp, mass: g.mass, time: g.time };
     g.debugSetXp(100000);
     assert.equal(g.xp, xp);
@@ -278,8 +278,8 @@ test('early collision snapshots the energy boundary and cancels combat and cards
     );
     assert.ok(g.result);
     assert.deepEqual({ xp: g.xp, mass: g.mass, time: g.time }, frozen);
-    assert.equal(g.result.trigger, xp >= rules.energyGoal ? 'energy' : 'gravity');
-    assert.equal(g.result.outcome, xp >= rules.energyGoal ? 'success' : 'collapse-failure');
+    assert.equal(g.result.trigger, 'gravity');
+    assert.equal(g.result.outcome, 'collapse-failure');
     assert.equal(
       g.events.some((e) => e.kind === 'hit' && e.time >= frozen.time),
       false,
@@ -287,7 +287,7 @@ test('early collision snapshots the energy boundary and cancels combat and cards
   }
 });
 
-test('elapsed time never ends a run and reaching the XP goal starts a successful collapse', () => {
+test('elapsed time never ends a run and a debug clear starts a successful collapse', () => {
   assert.equal(rules.energyGoal, 20000);
   const g = fixture();
   g.debugSetXp(rules.energyGoal - 1);
@@ -301,13 +301,15 @@ test('elapsed time never ends a run and reaching the XP goal starts a successful
   g.counts.proton.generated++;
   g.combat.fireBasic(enemy);
   assert.equal(g.xp, rules.energyGoal + 2);
+  g.debugClear();
+  g.choice = null;
   const choices = g.selections.length;
   g.advance(1000 / rules.tickRate);
   assert.equal(g.phase, 'collapse');
   assert.equal(g.choice, null);
   assert.equal(g.successfulEnding, true);
   g.advance(15000);
-  assert.equal(g.result?.trigger, 'energy');
+  assert.equal(g.result?.trigger, 'boss');
   assert.equal(g.result?.missingXp, 0);
   assert.equal(g.selections.length, choices);
   close(
@@ -486,7 +488,7 @@ test('full games conserve particles and are identical at 30 and 60fps', () => {
       const c = a.result!.counts[id];
       assert.equal(c.generated, c.killed + c.absorbed + c.remaining);
     }
-    assert.equal(a.result!.trigger, a.result!.outcome === 'success' ? 'energy' : 'gravity');
+    assert.equal(a.result!.trigger, a.result!.outcome === 'success' ? 'boss' : 'gravity');
   }
 });
 

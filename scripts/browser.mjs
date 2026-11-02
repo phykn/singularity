@@ -970,13 +970,6 @@ const qaFlow = async () => {
     });
     assert.equal(await page.locator('.danger-status').count(), 0);
     assert.ok((await snapshot(page)).mass < paused.mass);
-    await page.evaluate(() => {
-      const g = window.__gameDebug.getModel();
-      g.xp = g.rules.energyGoal;
-      g.radius = g.core + g.rules.electronRadius + 1;
-      window.__gameDebug.advance(0);
-    });
-    assert.equal(await page.locator('.danger-status').count(), 0);
     await page.close();
   }
   report(
@@ -1319,7 +1312,7 @@ try {
       ),
     );
     assert.equal(s.result?.outcome, 'success');
-    assert.equal(s.result.trigger, 'energy');
+    assert.equal(s.result.trigger, 'boss');
     assert.deepEqual(s.result, expected);
     assert.deepEqual(errors, []);
     report('normal clock: full autonomous game', {
@@ -1390,7 +1383,7 @@ try {
       await page.getByRole('heading', { name: copy.ko.success, exact: true }).waitFor();
       await inspect(page);
       await screenshot(page, 'result-' + name);
-      assert.equal((await snapshot(page)).result.trigger, 'energy');
+      assert.equal((await snapshot(page)).result.trigger, 'boss');
       await page.getByRole('button', { name: copy.ko.finish, exact: true }).click();
       assert.notEqual((await snapshot(page)).seed, 96048);
       await page.evaluate(() => window.__gameDebug.restart(10004));
@@ -1506,6 +1499,9 @@ try {
     }, rules.energyGoal);
     assert.equal(await page.locator('.charge b').textContent(), '100%');
     assert.equal(await page.locator('.charge').getAttribute('aria-label'), copy.ko.ready);
+    await advance(page, 1000);
+    assert.equal((await snapshot(page)).phase, 'running', 'Full energy alone must not end the run');
+    await page.evaluate(() => window.__gameDebug.clear());
     await advance(page, 100);
     await screenshot(page, 'energy-collapse');
     await advance(page, rules.collisionSeconds * 1000 + 1000);

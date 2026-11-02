@@ -37,7 +37,7 @@ try {
       for (let i = 0; i < 20; i++) g.spawnBatch();
       g.ranks.chain = 3;
       g.rarities.chain = 'epic';
-      d.xp(g.rules.energyGoal);
+      d.clear();
       d.advance(20);
       g.setHidden(true);
       d.advance(0);

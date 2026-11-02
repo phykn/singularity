@@ -220,7 +220,7 @@ test('completed results are emitted once and storage retries belong to the recor
   run.setRenderReady(true, 0);
   run.begin(0);
   run.step(1000);
-  game.debugSetXp(game.rules.energyGoal);
+  game.debugClear();
   run.advance(10000, 2000);
   assert.equal(game.phase, 'result');
   run.step(2000);
@@ -233,7 +233,7 @@ test('completed results are emitted once and storage retries belong to the recor
   assert.equal(results.length, 1);
   const next = new Game(42, { combat: false });
   next.start();
-  next.debugSetXp(next.rules.energyGoal);
+  next.debugClear();
   next.advance(10000);
   run.replace(next, 10000);
   run.step(10000);
@@ -243,7 +243,7 @@ test('completed results are emitted once and storage retries belong to the recor
 test('a pause request that finishes the ending cannot leave the result paused or block Beyond', () => {
   const game = new Game(42, { combat: false });
   game.start();
-  game.debugSetXp(game.rules.energyGoal);
+  game.debugClear();
   game.advance(1000 / game.rules.tickRate);
   game.advance(game.rules.collisionSeconds * 1000);
   assert.equal(game.phase, 'ending');
@@ -437,7 +437,7 @@ test('manual pause, backgrounding and renderer loss preserve the running selecti
   assert.ok(Math.abs(run.game.choice!.deadline - run.game.time - 3) < 1e-8);
 });
 
-test('a new choice stops retained frame ticks and a charged run proceeds to its ending', () => {
+test('a new choice stops retained frame ticks and a cleared run proceeds to its ending', () => {
   const { run } = session();
   run.setRenderReady(true, 0);
   run.begin(0);
@@ -449,7 +449,7 @@ test('a new choice stops retained frame ticks and a charged run proceeds to its 
   run.select(g.choice.cards[0].id, g.choice.number);
   run.step((tick * 1000) / 60);
   assert.equal(g.tick, tick, 'Paused frames must not catch up after selection');
-  g.debugSetXp(g.rules.energyGoal);
+  g.debugClear();
   run.advance(10000, 11000);
   assert.equal(g.phase, 'result');
 });

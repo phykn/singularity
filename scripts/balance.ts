@@ -55,7 +55,7 @@ for (let seed = start; seed < start + count; seed++) {
   for (const c of Object.values(g.result.counts)) {
     assert.equal(c.generated, c.killed + c.absorbed + c.remaining);
   }
-  assert.equal(g.result.trigger, g.result.outcome === 'success' ? 'energy' : 'gravity');
+  assert.equal(g.result.trigger, g.result.outcome === 'success' ? 'boss' : 'gravity');
   const cards = g.events
     .filter((e) => e.kind === 'cards')
     .flatMap((e) => (e.data as { cards: { rarity: string }[] }).cards);

@@ -144,9 +144,6 @@ test('all beats require active play and accept empty arenas once per tick', () =
   g.choice = { number: 1, opened: 0, deadline: 5, cards: [{ id: 'power', rarity: 'common' }] };
   assert.equal(g.resonate(3), false);
   g.choice = null;
-  g.xp = rules.energyGoal;
-  assert.equal(g.resonate(1), false);
-  g.xp = 0;
   assert.ok(g.resonate(1));
   assert.equal(g.resonate(2), false);
   assert.deepEqual(g.resonances, [{ tick: 0, selectionCount: 0, beat: 1 }]);

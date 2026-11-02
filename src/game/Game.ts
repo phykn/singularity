@@ -105,8 +105,9 @@ export class Game {
   private nextDamageId = 0;
   private orbitRecovery = 0;
   private criticalEntered = false;
-  private bossEntered = false;
-  private bossSummons = 0;
+  bossCount = 0;
+  private finalEntered = false;
+  private finalDown = false;
   private xpRemainder = 0;
   banner: { kind: BannerKind; until: number } | null = null;
   private endingOutcome: Outcome = 'collapse-failure';
@@ -197,7 +198,10 @@ export class Game {
     return !this.endless && this.xp >= this.rules.energyGoal * this.rules.critical.energyFraction;
   }
   get boss(): Target | undefined {
-    return this.targets.find((target) => target.kind === 'boss');
+    return (
+      this.targets.find((target) => target.final) ??
+      this.targets.find((target) => target.kind === 'boss')
+    );
   }
   get endless(): boolean {
     return this.clearResult !== null;
@@ -373,6 +377,7 @@ export class Game {
     this.notice = '';
     this.banner = null;
     this.xpRemainder = 0;
+    this.finalDown = false;
     this.kills = [];
     this.killHead = this.killEnergy = this.rushUntil = 0;
     this.waveCount = this.rushSpawns = 0;
@@ -425,7 +430,6 @@ export class Game {
     } = {},
   ): void {
     if (this.paused || this.phase === 'ready' || this.phase === 'result') return;
-    stopAtChoice = stopAtChoice && !this.charged;
     this.pendingTicks += (milliseconds * this.rules.tickRate) / 1000;
     const count =
       stopAtChoice && this.choice ? 0 : Math.min(Math.floor(this.pendingTicks + 1e-8), tickLimit);
@@ -434,7 +438,7 @@ export class Game {
     if (this.choice)
       this.choice.deadline += count / this.rules.tickRate - choiceMilliseconds / 1000;
     for (let i = 0; i < count && !this.result; i++) {
-      if (stopAtChoice && this.choice && !this.charged) {
+      if (stopAtChoice && this.choice) {
         this.pendingTicks = 0;
         break;
       }
@@ -469,8 +473,8 @@ export class Game {
 
   private step(autoSelect: boolean, beforeCombat?: () => void): void {
     this.tick++;
-    if (this.charged) {
-      this.collide('energy');
+    if (this.finalDown) {
+      this.collide('boss');
       return;
     }
     beforeCombat?.();
@@ -530,11 +534,14 @@ export class Game {
     this.moveTargets();
     this.angle += this.speed / this.radius / this.rules.tickRate;
     this.combat.update();
-    if (this.charged) {
-      this.collide('energy');
+    if (this.finalDown) {
+      this.collide('boss');
       return;
     }
-    this.absorbTargets();
+    if (this.absorbTargets()) {
+      this.collide('gravity');
+      return;
+    }
     if (
       this.boss &&
       this.tick % Math.round(this.rules.boss.feedSeconds * this.rules.tickRate) === 0
@@ -543,7 +550,7 @@ export class Game {
     this.updateOrbit();
     this.metrics.minRadius = Math.min(this.metrics.minRadius, this.radius);
     this.metrics.minMargin = Math.min(this.metrics.minMargin, this.margin);
-    if (this.margin > 0 && this.margin < this.rules.dangerMargin && !this.charged)
+    if (this.margin > 0 && this.margin < this.rules.dangerMargin)
       this.metrics.dangerSeconds += 1 / this.rules.tickRate;
     if (this.margin <= 0) {
       this.collide('gravity');
@@ -554,10 +561,14 @@ export class Game {
 
   private enterMilestones(): void {
     if (this.endless) return;
-    const energy = this.xp / this.rules.energyGoal;
-    if (!this.bossEntered && energy >= this.rules.boss.energyFraction) {
-      this.bossEntered = true;
-      if (this.combatEnabled) this.spawnBoss();
+    const energy = this.xp / this.rules.energyGoal,
+      stage = this.rules.boss.stages[this.bossCount];
+    if (stage && energy >= stage.energyFraction) {
+      this.bossCount++;
+      if (this.combatEnabled) this.spawnBoss(stage);
+    } else if (!stage && !this.finalEntered && this.charged) {
+      this.finalEntered = true;
+      if (this.combatEnabled) this.spawnFinalBoss();
     }
     if (!this.criticalEntered && this.critical) {
       this.criticalEntered = true;
@@ -566,11 +577,25 @@ export class Game {
     }
   }
 
-  private spawnBoss(): void {
-    const data = this.rules.boss,
-      theta = this.randomSpawn.next() * Math.PI * 2,
+  private spawnBoss(stage: RuleSet['boss']['stages'][number]): void {
+    const { speed, size } = this.rules.boss,
+      { hp, xp, mass, summonCount } = stage;
+    this.addBoss({ hp, xp, mass, speed, size, summonCount }, 'boss');
+  }
+
+  private spawnFinalBoss(): void {
+    const { hp, speed, size, summonCount } = this.rules.boss.final;
+    this.addBoss({ hp, xp: 0, mass: 0, speed, size, summonCount, final: true }, 'final-boss');
+  }
+
+  private addBoss(
+    data: Pick<Target, 'hp' | 'xp' | 'mass' | 'speed' | 'size' | 'summonCount' | 'final'>,
+    banner: BannerKind,
+  ): void {
+    const theta = this.randomSpawn.next() * Math.PI * 2,
       hp = Math.round(data.hp * this.enemyStrength.hp);
     const target: Target = {
+      ...data,
       id: this.nextTargetId++,
       ...orbit(theta, this.rules.spawnRadius),
       angle: theta,
@@ -580,17 +605,12 @@ export class Game {
       born: this.time,
       hp,
       maxHp: hp,
-      xp: data.xp,
-      mass: data.mass,
-      size: data.size,
-      speed: data.speed,
-      turn: data.turn,
+      turn: this.rules.boss.turn,
     };
     this.targets.push(target);
     this.counts.neutron.generated++;
-    this.bossSummons = 0;
-    this.banner = { kind: 'boss', until: this.time + this.rules.bannerSeconds };
-    this.log('boss', { id: target.id, hp });
+    this.banner = { kind: banner, until: this.time + this.rules.bannerSeconds };
+    this.log(banner, { id: target.id, hp });
   }
 
   moveTargets(): void {
@@ -610,7 +630,8 @@ export class Game {
     }
   }
 
-  absorbTargets(): void {
+  // Reports whether the final boss reached the core, which ends the run.
+  absorbTargets(): boolean {
     const core = this.core;
     const absorbed = this.targets
       .filter((t) => t.hp > 0 && t.radius <= core + t.size)
@@ -631,6 +652,7 @@ export class Game {
     }
     const ids = new Set(absorbed.map((t) => t.id));
     this.targets = this.targets.filter((t) => !ids.has(t.id) && t.hp > 0);
+    return absorbed.some((t) => t.final);
   }
 
   releaseMass(amount: number): number {
@@ -663,6 +685,11 @@ export class Game {
         Math.abs(change),
         (change < 0 ? this.rules.inwardSpeed : this.rules.outwardSpeed) / this.rules.tickRate,
       );
+  }
+
+  debugClear(): void {
+    this.debugSetXp(Math.max(this.xp, this.rules.energyGoal));
+    this.finalDown = true;
   }
 
   debugSetXp(xp: number): void {
@@ -739,7 +766,6 @@ export class Game {
       this.phase !== 'running' ||
       this.paused ||
       this.choice ||
-      this.charged ||
       this.resonances.at(-1)?.tick === this.elapsedTicks
     )
       return false;
@@ -943,7 +969,10 @@ export class Game {
       const previous = this.level;
       this.gainXp(target.xp);
       this.levelUp(previous);
-      if (target.kind === 'boss') {
+      if (target.final) {
+        this.finalDown = true;
+        this.log('final-boss-down', { id: target.id });
+      } else if (target.kind === 'boss') {
         this.banner = { kind: 'boss-down', until: this.time + this.rules.bannerSeconds };
         this.log('boss-down', { id: target.id });
       }
@@ -975,13 +1004,14 @@ export class Game {
   }
 
   private summonEscorts(boss: Target): void {
-    const { summonFractions, summonCount } = this.rules.boss;
+    const { summonFractions } = boss.final ? this.rules.boss.final : this.rules.boss;
+    boss.summons ??= 0;
     while (
-      this.bossSummons < summonFractions.length &&
-      boss.hp / boss.maxHp <= summonFractions[this.bossSummons]
+      boss.summons < summonFractions.length &&
+      boss.hp / boss.maxHp <= summonFractions[boss.summons]
     ) {
-      this.bossSummons++;
-      this.spawnGroup('small', summonCount, boss.angle, 1, boss.radius);
+      boss.summons++;
+      this.spawnGroup('small', boss.summonCount!, boss.angle, 1, boss.radius);
     }
   }
 
@@ -995,8 +1025,8 @@ export class Game {
     this.xp += whole;
   }
 
-  private collide(trigger: 'gravity' | 'energy'): void {
-    this.endingOutcome = this.charged ? 'success' : 'collapse-failure';
+  private collide(trigger: 'gravity' | 'boss'): void {
+    this.endingOutcome = trigger === 'boss' ? 'success' : 'collapse-failure';
     this.collisionTime = this.time;
     this.collisionTrigger = trigger;
     this.phase = 'collapse';
