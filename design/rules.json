@@ -206,13 +206,12 @@
     "bridge": {
       "angles": [0, 42, 50, 58, 66, 74],
       "duration": [0, 2.2, 2.45, 2.7, 2.95, 3.2],
-      "damage": [0, 0.2, 0.24, 0.28, 0.32, 0.36],
+      "damage": [0, 1, 1.15, 1.3, 1.45, 1.6],
       "width": [0, 8, 9, 10, 11, 12],
-      "push": [0, 12, 14, 16, 18, 20],
       "periodSeconds": 3.2,
       "movementScale": 0.55,
       "slowSeconds": 1.2,
-      "immunitySeconds": 1.8,
+      "zapSeconds": 0.2,
       "maxArcs": 2,
       "maxAngle": 80
     },
@@ -225,8 +224,11 @@
       "immunitySeconds": 1.2
     },
     "vent": {
-      "mass": [0, 5, 7, 9, 11, 13],
-      "periodSeconds": 8
+      "mass": [0, 4, 5, 6, 7, 8],
+      "radius": [0, 90, 100, 110, 120, 130],
+      "damage": [0, 3, 3.5, 4, 4.5, 5],
+      "waveSpeed": 240,
+      "periodSeconds": 5
     },
     "chase": {
       "threshold": [0, 0.45, 0.49, 0.53, 0.57, 0.61],
@@ -249,6 +251,18 @@
       "damage": [0, 0.45, 0.55, 0.65, 0.75, 0.85],
       "width": [0, 16, 18, 20, 22, 24],
       "delaySeconds": 0.28
+    },
+    "mark": {
+      "threshold": [0, 8, 7, 6, 6, 5],
+      "damage": [0, 1.8, 2.1, 2.4, 2.7, 3],
+      "popSeconds": 0.04
+    },
+    "tempo": {
+      "count": [0, 6, 7, 8, 9, 10],
+      "band": [0, 20, 24, 28, 32, 36],
+      "damage": [0, 1.8, 2.1, 2.4, 2.7, 3],
+      "finishScale": 2,
+      "popSeconds": 0.03
     }
   },
   "rarity": {

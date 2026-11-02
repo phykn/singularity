@@ -292,7 +292,7 @@ test('rarity roll boundaries and seeded base frequencies match published odds', 
 });
 
 test('automatic selection skips recovery made unavailable by mass release', () => {
-  const game = new Game(1527, { combat: false });
+  const game = new Game(1654, { combat: false });
   game.start();
   game.debugSetXp(14);
   assert.ok(game.select('vent'));
@@ -311,8 +311,8 @@ test('automatic selection skips recovery made unavailable by mass release', () =
   assert.equal(game.selections.at(-1)!.automatic, true);
 });
 
-test('new runs have sixteen lightning skills and always offer owned upgrades', () => {
-  assert.equal(skillIds.length, 16);
+test('new runs have eighteen lightning skills and always offer owned upgrades', () => {
+  assert.equal(skillIds.length, 18);
   const g = fixture();
   g.debugSetXp(18);
   for (let seed = 0; seed < 128; seed++) {

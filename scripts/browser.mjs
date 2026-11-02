@@ -432,6 +432,10 @@ const showSkill = async (page, id, rank = 5, rarity = 'common') =>
         g.combat.fireSkill('vent');
       } else if (id === 'charge') {
         for (let i = 0; i < Math.ceil(g.forms.charge.threshold); i++) g.combat.fireBasic();
+      } else if (id === 'mark') {
+        for (const t of g.targets.slice(0, g.forms.mark.threshold)) g.combat.fireBasic(t);
+      } else if (id === 'tempo') {
+        g.combat.sweep(3);
       } else if (['strike', 'repel', 'focus', 'satellite', 'gather', 'chase'].includes(id))
         g.combat.fireSkill(id);
       else g.combat.fireBasic();

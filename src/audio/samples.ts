@@ -3,7 +3,7 @@ import { rules } from '../game/rules.ts';
 import { singularitySilenceSeconds } from '../presentation/ending.ts';
 
 type Bus = 'preview' | 'hit' | 'rhythm' | 'transition';
-type Recipe = 'key' | 'impact' | 'pair' | 'inhale' | 'exhale';
+type Recipe = 'key' | 'impact' | 'pop' | 'pair' | 'inhale' | 'exhale';
 type Definition = {
   bus: Bus;
   recipe: Recipe;
@@ -22,6 +22,15 @@ export const soundDefinitions = {
     gain: 0.32,
     color: 1.05,
     variants: bank.keys.length,
+  },
+  // A killing hit: one keycap whose pitch climbs with the kill streak (variant = streak step).
+  pop: {
+    bus: 'hit',
+    recipe: 'pop',
+    duration: 0.075,
+    gain: 0.34,
+    color: 1.08,
+    variants: 8,
   },
   wave: {
     bus: 'transition',
@@ -108,8 +117,9 @@ export function renderSound(kind: SoundKind, sampleRate: number, variant = 0): F
   const data = new Float32Array(Math.ceil(spec.duration * sampleRate));
   let seed = 2166136261;
   for (const char of kind) seed = Math.imul(seed ^ char.charCodeAt(0), 16777619);
-  const palette = kind === 'hit' ? bank.keys.length : soundDefinitions.preview.variants;
-  const first = ((seed >>> 0) + variant * 5) % palette;
+  const palette =
+    kind === 'hit' || kind === 'pop' ? bank.keys.length : soundDefinitions.preview.variants;
+  const first = ((seed >>> 0) + (kind === 'pop' ? 0 : variant * 5)) % palette;
   seed ^= Math.imul(variant + 1, 0x9e3779b9);
   const random = () => {
     seed ^= seed << 13;
@@ -177,6 +187,12 @@ export function renderSound(kind: SoundKind, sampleRate: number, variant = 0): F
     case 'impact':
       add(0, recording(first).press, kind === 'rhythm-complete' ? 1.65 : 1.25, color);
       break;
+    case 'pop': {
+      const pitch = color * (1 + variant * 0.045);
+      add(0, recording(first).press, 1.2, pitch);
+      add(0.026, recording(first).release, 0.45, pitch * 1.06);
+      break;
+    }
     case 'inhale':
       flow(false);
       break;

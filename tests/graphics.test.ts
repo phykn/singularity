@@ -161,6 +161,9 @@ function drawing() {
     contact: (point, color, alpha, radius) => {
       commands.push({ method: 'contact', args: [point.x, point.y, color, alpha, radius] });
     },
+    particle: (kind, point, scale) => {
+      commands.push({ method: 'particle:' + kind, args: [point.x, point.y, scale] });
+    },
   };
   return { graphics, commands, paint };
 }
@@ -201,6 +204,34 @@ const effect: Effect = {
   rarity: 'legendary',
 };
 
+test('a staggered kill holds its particle, then pops with shards in the particle colour', () => {
+  const fx = {
+    ...effect,
+    kind: 'kill',
+    source: undefined,
+    radius: 6,
+    born: 1,
+    life: 0.49,
+    delay: 0.09,
+    particle: 'muon',
+  } as Effect;
+  const held = drawing();
+  drawEffect(held.graphics, fx, 1.05, 1, fx.from, [], held.paint);
+  assert.deepEqual(
+    held.commands.map((c) => c.method),
+    ['particle:muon'],
+  );
+  const popped = drawing();
+  drawEffect(popped.graphics, fx, 1.2, 1, fx.from, [], popped.paint);
+  const methods = popped.commands.map((c) => c.method);
+  assert.ok(methods.includes('stamp:dissolve') && !methods.includes('particle:muon'));
+  assert.equal(methods.filter((m) => m === 'fillRect').length, 6, 'One pixel per shard');
+  const boss = drawing();
+  drawEffect(boss.graphics, { ...fx, radius: 36, delay: 0 }, 1.1, 1, fx.from, [], boss.paint);
+  const stamp = boss.commands.find((c) => c.method === 'stamp:dissolve')!;
+  assert.equal(stamp.args.at(-1), 72, 'Boss pops scale with the boss');
+});
+
 test('lightning remains finite at mobile scales and never changes combat data', () => {
   for (const id of skillIds) {
     const kind = [
@@ -212,6 +243,8 @@ test('lightning remains finite at mobile scales and never changes combat data', 
       'gather',
       'chase',
       'satellite',
+      'mark',
+      'tempo',
     ].includes(id)
       ? 'bolt'
       : id;

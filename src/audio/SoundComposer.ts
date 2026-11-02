@@ -2,7 +2,9 @@ import { soundDefinitions, renderSound } from './samples.ts';
 import type { SoundBus, SoundKind } from './samples.ts';
 
 export type SoundSpace = { pan: number; depth: number };
-export type SoundCue = { kind: string; space?: SoundSpace };
+// `variant` picks a fixed sample variant, such as the streak step of a pop.
+export type SoundCue = { kind: string; space?: SoundSpace; variant?: number };
+const contact = (kind: string) => kind === 'hit' || kind === 'pop';
 
 export const distanceCutoff = (depth: number) => 8000 - 4400 * depth;
 
@@ -24,7 +26,7 @@ export class SoundComposer {
   constructor(context: BaseAudioContext, seed: number) {
     this.context = context;
     this.seed = seed >>> 0 || 0x9e3779b9;
-    for (const kind of ['preview', 'hit'] as const)
+    for (const kind of ['preview', 'hit', 'pop'] as const)
       for (let i = 0; i < soundDefinitions[kind].variants; i++) this.buffer(kind, i);
   }
 
@@ -38,7 +40,7 @@ export class SoundComposer {
   // cached layers, but every hit contributes; no recorded phrase or delayed queue.
   compose(cues: readonly SoundCue[]): SoundBatch {
     if (!cues.length) return { count: 0, buffers: new Map(), attacks: [] };
-    const hits = cues.reduce((n, cue) => n + Number(cue.kind === 'hit'), 0);
+    const hits = cues.reduce((n, cue) => n + Number(contact(cue.kind)), 0);
     const offsets = [0];
     while (offsets.length < hits) {
       const next = offsets.at(-1)! + 0.018 + this.random() * 0.014;
@@ -72,22 +74,25 @@ export class SoundComposer {
     >();
     let accepted = 0;
     let hitIndex = 0;
-    for (const { kind, space } of cues) {
+    for (const { kind, space, variant: fixed } of cues) {
       if (!Object.hasOwn(soundDefinitions, kind)) continue;
       const id = kind as SoundKind,
         spec = soundDefinitions[id];
       let variant = this.variants[id] ?? 0,
         offset = 0,
         weight = 1;
-      if (id === 'hit') {
+      if (contact(id)) {
         const position = positions[hitIndex],
           slot = Math.floor(position / 3);
-        if (variants[position] < 0) variants[position] = this.nextHit();
-        variant = variants[position];
+        if (id === 'pop') variant = Math.max(0, Math.min(spec.variants - 1, fixed ?? 0));
+        else {
+          if (variants[position] < 0) variants[position] = this.nextHit();
+          variant = variants[position];
+        }
         offset = delays[position];
         weight = hitIndex++ < offsets.length ? leads[slot] : support[slot];
       }
-      if (id !== 'hit') this.variants[id] = (variant + 1) % spec.variants;
+      if (!contact(id)) this.variants[id] = (variant + 1) % spec.variants;
       const important = spec.bus === 'rhythm' || spec.bus === 'transition';
       const depth = important ? 0 : Math.max(0, Math.min(1, space?.depth ?? 0));
       const angle =
@@ -104,7 +109,7 @@ export class SoundComposer {
         const key =
           id === 'hit'
             ? (offset * soundDefinitions.hit.variants + variant) * 9 + step
-            : id + ':' + variant + ':' + step;
+            : id + ':' + variant + ':' + step + ':' + offset;
         let layer = layers.get(key);
         if (!layer) {
           layer = {

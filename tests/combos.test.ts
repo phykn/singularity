@@ -26,6 +26,7 @@ for (let a = 0; a < skillIds.length; a++)
           const from = living.length ? living[(tick / 6) % living.length] : g.position;
           g.combat.fireBasic(from);
         }
+        if (tick % 40 === 20) g.resonate(((((tick - 20) / 40) % 3) + 1) as 1 | 2 | 3);
         g.advance(1000 / rules.tickRate);
       }
       const heavy = target(999, 200, 128, 100000);

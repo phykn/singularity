@@ -29,6 +29,7 @@ export type Target = Point & {
   pushReady?: number;
   gatherReady?: number;
   controlCount?: number;
+  marked?: boolean;
 };
 export type Effect = {
   kind:
@@ -59,6 +60,9 @@ export type Effect = {
   anchor?: 'electron' | number;
   endAnchor?: 'electron' | number;
   arc?: { start: number; sweep: number };
+  particle?: ParticleKind;
+  // Seconds after birth before the effect appears; kills in one tick pop in sequence.
+  delay?: number;
 };
 export type EffectInput = Omit<Effect, 'born' | 'rank' | 'rarity' | 'damage'> &
   Partial<Pick<Effect, 'rank' | 'rarity' | 'damage'>>;

@@ -7,8 +7,8 @@ import { effectOrigin, visibleEffects } from '../src/render/effects.ts';
 import { close, choose, stationarySkill, target } from './helpers.ts';
 import { distance } from '../src/game/geometry.ts';
 
-test('the roster has exactly sixteen current skills and no removed attack forms', () => {
-  assert.equal(skillIds.length, 16);
+test('the roster has exactly eighteen current skills and no removed attack forms', () => {
+  assert.equal(skillIds.length, 18);
   for (const id of ['area', 'whip', 'wave']) assert.ok(!(id in blankRanks()));
 });
 
@@ -222,7 +222,7 @@ test('charge only releases after enough weighted hits and cannot charge its own 
   assert.ok(stored > 1 && stored < 2);
 });
 
-test('mass vent waits for mass, never creates negative mass, and ignores fire-rate upgrades', () => {
+test('mass burst waits for mass or particles, never creates negative mass, and ignores fire rate', () => {
   const g = stationarySkill({}, []);
   choose(g, 'vent');
   g.advance(1000);
@@ -236,14 +236,15 @@ test('mass vent waits for mass, never creates negative mass, and ignores fire-ra
   const before = g.combat.status('vent').progress;
   choose(g, 'rate');
   close(g.combat.status('vent').progress, before);
-  g.advance(6000);
+  const period = rules.skills.vent.periodSeconds * 1000;
+  g.advance(period - 2000);
   assert.equal(g.mass, 20 - g.forms.vent.mass);
   g.advance(1100);
   assert.equal(g.mass, 20 - 2 * g.forms.vent.mass);
   g.mass = 1;
-  g.advance(8000);
+  g.advance(period);
   assert.equal(g.mass, 0);
-  g.advance(9000);
+  g.advance(period + 1000);
   assert.equal(g.mass, 0);
   assert.equal(g.combat.status('vent').progress, 1);
 });
@@ -260,6 +261,24 @@ test('mass reclaim restores fixed orbital room without charging attacks or consu
   assert.equal(100 - heavy.mass, heavy.forms.vent.mass);
   assert.equal(heavy.xp, 10);
   assert.equal(heavy.combat.status('charge').progress, 0);
+});
+
+test('the mass burst shockwave pops particles inside its reach from the core outward', () => {
+  const g = stationarySkill({ vent: 1 }, []);
+  const reach = g.forms.vent.radius;
+  const near = target(1, 180, 260 - (g.core + 20), 10000),
+    far = target(2, 180, 260 - (reach - 5), 10000),
+    outside = target(3, 180, 260 - (reach + 5), 10000);
+  g.targets.push(far, outside, near);
+  assert.equal(g.mass, 0);
+  assert.ok(g.combat.fireSkill('vent'), 'Particles alone are enough to fire');
+  g.advance(150);
+  assert.ok(near.hp < 10000 && far.hp === 10000, 'The wave reaches near particles first');
+  g.advance(1000);
+  close(10000 - far.hp, g.damage * g.forms.vent.damage);
+  close(10000 - near.hp, g.damage * g.forms.vent.damage);
+  assert.equal(outside.hp, 10000);
+  assert.equal(g.combat.status('charge').progress, 0);
 });
 
 test('mass reclaim visibly restores a contracting orbit even above its gravity target', () => {

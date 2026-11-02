@@ -1,5 +1,6 @@
 import type { Effect } from '../game/types.ts';
 import type { Point } from '../game/geometry.ts';
+import type { ParticleKind } from '../game/particles.ts';
 
 export const effectRows = {
   hit: 0,
@@ -40,6 +41,8 @@ export type EffectPainter = {
     strength: number,
   ): void;
   contact(point: Point, color: number, alpha: number, radius: number): void;
+  // A brightened particle sprite, held in place until its delayed pop.
+  particle(kind: ParticleKind, point: Point, scale: number): void;
 };
 
 export function beamStrength(damage: number): number {
@@ -87,7 +90,7 @@ export function visibleEffects(effects: Effect[]): Effect[] {
     surge: 1,
     return: 10,
     focus: 8,
-    kill: 8,
+    kill: 32,
     level: 2,
     upgrade: 1,
     absorb: 4,

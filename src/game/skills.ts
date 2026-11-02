@@ -67,7 +67,6 @@ export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rul
         s.bridge.angles[ranks.bridge] * scale('bridge') * (1 + 0.035 * (multi - 1)),
       ),
       duration: s.bridge.duration[ranks.bridge],
-      push: s.bridge.push[ranks.bridge] * scale('bridge'),
       damage: s.bridge.damage[ranks.bridge] * scale('bridge'),
       width: s.bridge.width[ranks.bridge],
     },
@@ -77,7 +76,11 @@ export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rul
       pull: s.gather.pull[ranks.gather] * scale('gather'),
       damage: s.gather.damage[ranks.gather] * scale('gather'),
     },
-    vent: { mass: Math.round(s.vent.mass[ranks.vent] * scale('vent')) },
+    vent: {
+      mass: Math.round(s.vent.mass[ranks.vent] * scale('vent')),
+      radius: s.vent.radius[ranks.vent],
+      damage: s.vent.damage[ranks.vent] * scale('vent'),
+    },
     chase: {
       threshold: s.chase.threshold[ranks.chase],
       jumps: s.chase.jumps[ranks.chase],
@@ -92,6 +95,15 @@ export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rul
     return: {
       damage: s.return.damage[ranks.return] * scale('return'),
       width: s.return.width[ranks.return] * scale('return'),
+    },
+    mark: {
+      threshold: Math.max(3, s.mark.threshold[ranks.mark] - extra('mark')),
+      damage: s.mark.damage[ranks.mark] * scale('mark'),
+    },
+    tempo: {
+      count: s.tempo.count[ranks.tempo] + extra('tempo'),
+      band: s.tempo.band[ranks.tempo] * reach,
+      damage: s.tempo.damage[ranks.tempo] * scale('tempo'),
     },
   };
 }

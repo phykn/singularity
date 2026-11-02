@@ -93,13 +93,17 @@ export function skillValue(
     case 'gather':
       return `${m.targets(String(s.gather.count))} · ${m.radius} ${n(s.gather.radius)}`;
     case 'vent':
-      return `${cfg.skills.vent.periodSeconds}${c.seconds} · ${c.mass} -${s.vent.mass}`;
+      return `${c.mass} -${s.vent.mass} · ×${n(s.vent.damage)}`;
     case 'chase':
       return `${m.health} <=${Math.round(s.chase.threshold * 100)}% · ×${n(s.chase.damage)}`;
     case 'surge':
       return `${m.charge} ${s.surge.kills} · ${n(s.surge.duration)}${c.seconds}`;
     case 'return':
       return `${m.damage} ×${n(s.return.damage)}`;
+    case 'mark':
+      return `${m.charge} ${s.mark.threshold} · ×${n(s.mark.damage)}`;
+    case 'tempo':
+      return `${m.targets(String(s.tempo.count))} · ×${n(s.tempo.damage)}`;
     case 'power':
       return `${m.damage} ${n(cfg.baseHitDamage + cfg.damagePerRank * rank)}`;
     case 'rate':
@@ -183,6 +187,8 @@ export function skillChange(
     case 'chase':
     case 'surge':
     case 'return':
+    case 'mark':
+    case 'tempo':
       return text[id][current ? 1 : 0];
   }
 }

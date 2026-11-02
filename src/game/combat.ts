@@ -35,6 +35,8 @@ type Pulse = {
   from?: Point;
   reverse?: Point;
   pursuit?: Pursuit;
+  // A delayed single hit that lets a group of particles pop one after another.
+  pop?: boolean;
   anchored: Anchor;
 };
 type Focus = {
@@ -92,6 +94,7 @@ export class Combat {
   private surgeUntil = 0;
   private nextSurge = 0;
   private surgeAttack?: Attack;
+  private marked = new Set<number>();
 
   constructor(game: Game) {
     this.game = game;
@@ -121,6 +124,7 @@ export class Combat {
         const target = this.wounded(pulse.attack, pulse.from!, pulse.pursuit.visited)[0];
         if (target) this.pursue(pulse.attack, pulse.from!, target, pulse.pursuit);
       } else if (pulse.reverse) this.reverse(pulse.attack, pulse.reverse);
+      else if (pulse.pop) this.pop(pulse);
       else {
         const from =
           typeof pulse.anchored === 'number'
@@ -181,7 +185,15 @@ export class Combat {
         active: false,
         fired,
       };
-    if (id === 'burst') return { mode: 'conditional', progress: 0, active: false, fired };
+    if (id === 'mark')
+      return {
+        mode: 'charging',
+        progress: Math.min(1, this.marked.size / g.forms.mark.threshold),
+        active: false,
+        fired,
+      };
+    if (id === 'burst' || id === 'tempo')
+      return { mode: 'conditional', progress: 0, active: false, fired };
     const timed = timedSkills.includes(id as TimedSkill),
       skill = id as TimedSkill;
     const interval = timed ? this.interval(skill) : g.attackInterval * g.rules.tickRate;
@@ -228,9 +240,11 @@ export class Combat {
     this.storedCharge = 0;
     this.surgeUntil = 0;
     this.surgeAttack = undefined;
+    this.marked.clear();
     for (const target of this.game.targets) {
       target.bridgeUntil = 0;
       target.bridgeReady = 0;
+      target.marked = false;
     }
   }
 
@@ -310,6 +324,60 @@ export class Combat {
     for (const target of [...g.targets]) this.deal(attack, target, attack.damage);
   }
 
+  // Tempo: each accepted beat sweeps forward along the orbit, popping particles inside it in order.
+  sweep(beat: 1 | 2 | 3): void {
+    const g = this.game;
+    if (!g.ranks.tempo) return;
+    const s = g.forms.tempo,
+      count = s.count * (beat === 3 ? g.rules.skills.tempo.finishScale : 1);
+    const ahead = (t: Target) =>
+      (((t.angle - g.angle) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    const targets = g.targets
+      .filter((t) => t.hp > 0 && t.radius <= g.radius + s.band)
+      .sort((a, b) => ahead(a) - ahead(b) || a.id - b.id)
+      .slice(0, count);
+    if (!targets.length) return;
+    const attack = { ...this.begin('tempo', s.damage), depth: 2 };
+    this.popInOrder(attack, g.position, targets, g.rules.skills.tempo.popSeconds);
+    this.activate('tempo');
+  }
+
+  private popInOrder(attack: Attack, start: Point | undefined, targets: Target[], gap: number) {
+    let from = start;
+    for (const [i, target] of targets.entries()) {
+      this.pulses.push({
+        at: this.game.tick + i * gap * this.game.rules.tickRate,
+        order: this.order++,
+        attack,
+        target,
+        from: from && { ...from },
+        anchored: false,
+        pop: true,
+      });
+      if (from) from = { x: target.x, y: target.y };
+    }
+  }
+
+  private pop(pulse: Pulse): void {
+    const g = this.game,
+      target = pulse.target!;
+    if (target.hp <= 0 || !g.targets.includes(target)) return;
+    if (pulse.from)
+      this.effect(
+        pulse.attack,
+        'bolt',
+        pulse.from,
+        target,
+        0,
+        0.14,
+        false,
+        undefined,
+        1.3,
+        target.id,
+      );
+    this.deal(pulse.attack, target, pulse.attack.damage);
+  }
+
   fireSkill(id: TimedSkill, origin: Point = this.game.position): boolean {
     const g = this.game;
     if (!g.ranks[id]) return false;
@@ -354,12 +422,38 @@ export class Combat {
   }
 
   private fireVent(): boolean {
-    const g = this.game;
-    const removed = g.releaseMass(g.forms.vent.mass);
-    if (!removed) return false;
+    const g = this.game,
+      s = g.forms.vent,
+      cfg = g.rules.skills.vent;
+    const targets = g.targets
+      .filter((t) => t.hp > 0 && distance(t, CENTER) <= s.radius)
+      .sort((a, b) => a.radius - b.radius || a.id - b.id);
+    const removed = g.releaseMass(s.mass);
+    if (!removed && !targets.length) return false;
     g.log('vent', { removed, mass: g.mass });
     this.activate('vent');
-    this.effect(this.begin('vent'), 'vent', CENTER, CENTER, g.core + 8, 0.65, false, 'vent');
+    const attack = { ...this.begin('vent', s.damage), depth: 2 };
+    // The shockwave leaves the core and pops each particle as it reaches it.
+    for (const target of targets)
+      this.pulses.push({
+        at: g.tick + (Math.max(0, target.radius - g.core) / cfg.waveSpeed) * g.rules.tickRate,
+        order: this.order++,
+        attack,
+        target,
+        anchored: false,
+        pop: true,
+      });
+    this.effect(
+      attack,
+      'vent',
+      CENTER,
+      CENTER,
+      s.radius,
+      Math.max(0, s.radius - g.core) / cfg.waveSpeed + 0.15,
+      false,
+      'vent',
+      g.core,
+    );
     return true;
   }
 
@@ -810,6 +904,11 @@ export class Combat {
     if (target.hp <= 0) return;
     const g = this.game;
     g.damageTarget(target, damage, attack);
+    if (attack.ranks.mark && attack.depth < 2 && target.hp > 0 && !target.marked) {
+      target.marked = true;
+      this.marked.add(target.id);
+      if (this.marked.size >= attack.forms.mark.threshold) this.detonate(attack);
+    }
     if (target.hp > 0 && attack.source !== 'surge' && g.time >= this.nextSurgeHit) {
       this.nextSurgeHit = g.time + g.rules.skills.surge.hitIntervalSeconds;
       this.chargeSurge(g.rules.skills.surge.hitCharge * Math.min(1, damage / attack.power));
@@ -844,7 +943,34 @@ export class Combat {
       this.push(target, attack.forms.repel.push, g.rules.skills.repel.immunitySeconds);
   }
 
-  private push(target: Target, amount: number, immunity: number, radius = target.radius): void {
+  // Static marks: once enough live particles carry a mark, they pop in a chain from the electron.
+  private detonate(attack: Attack): void {
+    const g = this.game,
+      marked = g.targets.filter((t) => t.marked && t.hp > 0);
+    this.marked = new Set(marked.map((t) => t.id));
+    if (marked.length < attack.forms.mark.threshold) return;
+    this.marked.clear();
+    for (const target of marked) target.marked = false;
+    const ordered: Target[] = [];
+    let from: Point = g.position;
+    const left = new Set(marked);
+    while (left.size) {
+      let next = marked[0],
+        best = Infinity;
+      for (const t of left) {
+        const d = distance(t, from);
+        if (d < best) [next, best] = [t, d];
+      }
+      left.delete(next);
+      ordered.push(next);
+      from = next;
+    }
+    const child = { ...this.secondary(attack, 'mark', attack.forms.mark.damage), depth: 2 };
+    this.popInOrder(child, g.position, ordered, g.rules.skills.mark.popSeconds);
+    this.activate('mark', attack.ranks.mark);
+  }
+
+  private push(target: Target, amount: number, immunity: number): void {
     const g = this.game;
     if (g.time < (target.pushReady ?? 0)) return;
     target.pushReady = g.time + immunity;
@@ -852,7 +978,10 @@ export class Combat {
     if (target.kind === 'boss') amount *= g.rules.boss.pushScale;
     target.radius = Math.max(
       target.radius,
-      Math.min(g.rules.spawnRadius, radius + amount / (1 + 0.18 * (target.controlCount - 1))),
+      Math.min(
+        g.rules.spawnRadius,
+        target.radius + amount / (1 + 0.18 * (target.controlCount - 1)),
+      ),
     );
     Object.assign(target, orbit(target.angle, target.radius));
   }
@@ -982,12 +1111,11 @@ export class Combat {
       });
       for (const target of contacts) {
         if (target.hp <= 0 || g.time < (target.bridgeReady ?? 0)) continue;
-        target.bridgeReady = g.time + cfg.immunitySeconds;
+        // The net holds and slows particles, zapping them again while they stay inside.
+        target.bridgeReady = g.time + cfg.zapSeconds;
         target.bridgeUntil = g.time + cfg.slowSeconds;
         const contact = orbit(target.angle, g.radius);
         this.volley(barrier.attack, contact, [target], false);
-        if (target.hp > 0)
-          this.push(target, forms.push, cfg.immunitySeconds, Math.max(g.radius, target.radius));
       }
     }
   }

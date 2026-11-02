@@ -8,7 +8,7 @@ assert.ok(r.rangeFalloff > 0);
 assert.ok(r.recovery.minMass > 0 && r.recovery.mass >= r.recovery.minMass);
 assert.ok(r.speedPerRank > 0);
 assert.ok(r.introBatchSize > 0 && r.introBatches > 0);
-assert.equal(Object.keys(r.skills).length, 16);
+assert.equal(Object.keys(r.skills).length, 18);
 assert.ok(!('area' in r.skills) && !('whip' in r.skills) && !('wave' in r.skills));
 assert.ok(r.levelXp.every((n, i, a) => n > 0 && (!i || a[i - 1] < n)));
 assert.ok(r.levelXpStep > 0);

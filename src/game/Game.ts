@@ -48,6 +48,9 @@ import type {
 } from './types.ts';
 
 const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+const popStagger = 0.03;
+const popStaggerMax = 0.24;
+const popStreakSeconds = 0.4;
 
 const blankCounts = () =>
   Object.fromEntries(
@@ -114,6 +117,10 @@ export class Game {
   private finalEntered = false;
   private finalDown = false;
   private xpRemainder = 0;
+  private popTick = -1;
+  private popOrder = 0;
+  private popStreak = 0;
+  private lastPop = -Infinity;
   banner: { kind: BannerKind; until: number } | null = null;
   private endingOutcome: Outcome = 'collapse-failure';
   private readonly recordEvents: boolean;
@@ -765,6 +772,7 @@ export class Game {
     this.resonances.push(input);
     this.log('resonance', input);
     this.combat.resonate(beat);
+    this.combat.sweep(beat);
     return true;
   }
 
@@ -949,13 +957,21 @@ export class Game {
       this.counts[target.particle].killed++;
       this.combat.killed();
       this.targets.splice(index, 1);
+      // Kills in one tick pop one after another, and quick kills build a rising streak.
+      const order = this.popTick === this.tick ? ++this.popOrder : (this.popOrder = 0);
+      this.popTick = this.tick;
+      this.popStreak = this.time - this.lastPop <= popStreakSeconds ? this.popStreak + 1 : 0;
+      this.lastPop = this.time;
+      const delay = Math.min(popStaggerMax, order * popStagger);
       this.addEffect({
         kind: 'kill',
         from: target,
         to: this.position,
-        radius: target.kind === 'boss' ? 36 : target.kind === 'dense' ? 11 : 6,
+        radius: target.final ? 54 : target.kind === 'boss' ? 36 : target.kind === 'dense' ? 11 : 6,
         width: damage,
-        life: 0.4,
+        life: 0.4 + delay,
+        particle: target.particle,
+        delay,
       });
       const before = this.energyFull;
       const previous = this.level;
@@ -970,7 +986,15 @@ export class Game {
       }
       this.score += Math.round(target.xp * 10 * (1 + target.radius / this.rules.spawnRadius));
       this.recordKillEnergy(target.xp);
-      this.log('kill', { id: target.id, kind: target.kind, xp: this.xp, x: target.x, y: target.y });
+      this.log('kill', {
+        id: target.id,
+        kind: target.kind,
+        xp: this.xp,
+        x: target.x,
+        y: target.y,
+        streak: this.popStreak,
+        delay,
+      });
       if (!before && this.energyFull) this.log('charged', { xp: this.xp });
     }
   }
@@ -1075,6 +1099,7 @@ export class Game {
 
   addEffect(input: EffectInput): void {
     const { kind, from, to, radius, width, life, source, anchor, endAnchor, targetId } = input;
+    const { particle, delay } = input;
     const rarity = input.rarity ?? (source ? this.rarities[source] : 'common');
     const rank = input.rank ?? (source ? this.rank(source) : 0);
     const effect = {
@@ -1093,6 +1118,8 @@ export class Game {
       endAnchor,
       targetId,
       arc: input.arc ? { ...input.arc } : undefined,
+      particle,
+      delay,
     };
     this.effects.push(effect);
     if (this.effects.length > 160) {

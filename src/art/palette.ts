@@ -24,6 +24,8 @@ export const skillColors: Record<UpgradeId, number> = {
   chase: 0xffad86,
   surge: 0xffdf78,
   return: 0x94bfff,
+  mark: 0x8ff0ff,
+  tempo: 0xffc4e8,
   power: 0xffad86,
   rate: 0xc7ed83,
   range: BLUE,

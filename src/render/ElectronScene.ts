@@ -170,8 +170,13 @@ export class ElectronScene extends Phaser.Scene {
         g.lineStyle(1 / scale, WHITE, Math.sin(absorb * Math.PI) * 0.25);
         g.lineBetween(tail.x, tail.y, p.x, p.y);
       }
-      if (hit) sprite.setTint(WHITE).setTintMode(Phaser.TintModes.FILL);
+      // Brighten without flattening, so crowded hits keep each particle's shape and colour.
+      if (hit) sprite.setTint(0x5a5a5a).setTintMode(Phaser.TintModes.ADD);
       else sprite.clearTint();
+      if (target.marked && !ending) {
+        g.fillStyle(skillColors.mark, 0.6 + 0.4 * Math.sin(clock * 14 + target.id));
+        g.fillRect(p.x + target.size / 2, p.y - target.size / 2 - 2 / scale, 2 / scale, 2 / scale);
+      }
       const bar = !ending && healthBar(target, damage);
       if (bar) {
         const left = (Math.round(point.x) - Math.floor(bar.width / 2) - g.x) / scale;

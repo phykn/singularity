@@ -6,8 +6,8 @@ import { createCheckpoint, restoreCheckpoint } from '../src/game/checkpoint.ts';
 import { Game } from '../src/game/Game.ts';
 
 test('the current roster replaces ball lightning and short circuit without aliases', () => {
-  assert.equal(skillIds.length, 16);
-  assert.ok(skillIds.includes('satellite') && skillIds.includes('vent'));
+  assert.equal(skillIds.length, 18);
+  assert.ok(['satellite', 'vent', 'mark', 'tempo'].every((id) => skillIds.includes(id as never)));
   assert.ok(!Object.hasOwn(rules.skills, 'orb') && !Object.hasOwn(rules.skills, 'stun'));
 });
 

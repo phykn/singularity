@@ -28,9 +28,9 @@ test('orbit barrier grows only along traveled orbit, stops at its cap and expire
   g.advance(120);
   close(g.effects.findLast((f) => f.arc)!.arc!.sweep, (g.forms.bridge.angle * Math.PI) / 180);
   assert.ok(enemy.hp < 10000);
-  assert.ok(enemy.radius > g.radius);
+  assert.equal(enemy.controlCount, undefined, 'The net holds particles instead of pushing them');
   assert.equal(g.combat.movementScale(enemy), rules.skills.bridge.movementScale);
-  g.advance(2000);
+  g.advance(2000 + rules.skills.bridge.slowSeconds * 1000);
   assert.equal(g.combat.status('bridge').active, false);
   assert.equal(g.combat.movementScale(enemy), 1);
   assert.ok(!g.effects.some((f) => f.kind === 'bridge'));
@@ -66,11 +66,22 @@ test('fast radial crossings cannot tunnel through an existing barrier', () => {
   enemy.speed = 3000;
   g.advance(1000 / rules.tickRate);
   assert.ok(enemy.hp < 10000);
-  assert.ok(enemy.radius > g.radius, 'Return the crossing to the outside of the live orbit');
-  assert.equal(enemy.controlCount, 1);
+  assert.equal(enemy.controlCount, undefined);
 });
 
-test('overlapping arcs share contact immunity; repeats do not duplicate control', () => {
+test('a particle held in the net is zapped again every zap interval', () => {
+  const { g, enemy } = setup({ bridge: 1 });
+  g.combat.fireSkill('bridge');
+  g.angle += 0.5;
+  g.advance(1000);
+  const zaps = g.events.filter(
+    (e) => e.kind === 'hit' && (e.data as { id: number }).id === enemy.id,
+  ).length;
+  assert.equal(zaps, Math.ceil(1 / rules.skills.bridge.zapSeconds));
+  close(10000 - enemy.hp, zaps * g.damage * g.forms.bridge.damage);
+});
+
+test('overlapping arcs share one zap cadence and never push', () => {
   const { g, enemy } = setup({ repeat: 5 });
   assert.equal(g.combat.fireSkill('bridge'), true);
   assert.equal(g.combat.fireSkill('bridge'), true);
@@ -78,55 +89,52 @@ test('overlapping arcs share contact immunity; repeats do not duplicate control'
   g.angle += 0.5;
   g.advance(20);
   close(10000 - enemy.hp, g.damage * g.forms.bridge.damage);
-  assert.equal(enemy.controlCount, 1);
-  const pushed = enemy.radius;
+  const radius = enemy.radius;
   g.advance(500);
   assert.ok(10000 - enemy.hp > g.damage * g.forms.bridge.damage);
-  close(enemy.radius, pushed);
-  assert.equal(enemy.controlCount, 1);
-  g.advance(rules.skills.bridge.slowSeconds * 1000 + 20);
-  assert.equal(g.combat.movementScale(enemy), 1, 'Slow must end even with a live barrier');
+  close(enemy.radius, radius);
+  assert.equal(enemy.controlCount, undefined);
+  g.advance((g.forms.bridge.duration + rules.skills.bridge.slowSeconds) * 1000);
+  assert.equal(g.combat.movementScale(enemy), 1, 'Slow ends once the net is gone');
   g.combat.clear();
   assert.equal(g.combat.status('bridge').active, false);
   assert.equal(enemy.bridgeReady, 0);
 });
 
 test('barrier contact chains and stores weighted charge without recursive barriers', () => {
-  const { g, enemy } = setup({ repeat: 2, chain: 2, charge: 1 });
+  const { g, enemy } = setup({ repeat: 2, chain: 1, charge: 1 });
   const p = orbit(enemy.angle, g.radius + 25);
   const neighbor = target(1, p.x, p.y, 10000);
   g.targets.push(neighbor);
   g.combat.fireSkill('bridge');
   g.angle += 0.5;
-  g.advance(500);
+  // Stop before the next zap so the stored charge has not discharged yet.
+  g.advance(180);
   assert.ok(neighbor.hp < 10000, 'Chain must reach beyond the contact band');
   assert.ok(g.combat.activations.chain !== undefined);
   assert.ok(g.combat.activations.repeat !== undefined);
   const stored = g.combat.status('charge').progress * g.forms.charge.threshold;
-  close(stored, (20000 - enemy.hp - neighbor.hp) / g.damage);
-  assert.ok(stored > g.forms.bridge.damage && stored < 3);
+  const weighted = g.events
+    .filter((e) => e.kind === 'hit')
+    .reduce((sum, e) => sum + Math.min(1, (e.data as { damage: number }).damage / g.damage), 0);
+  close(stored, weighted);
+  assert.ok(stored > g.forms.bridge.damage && stored < g.forms.charge.threshold);
   assert.equal(visibleEffects(g.effects).filter((f) => f.kind === 'bridge').length, 1);
 });
 
-test('Repel and Orbit Barrier share push immunity and diminishing control', () => {
-  for (const first of ['repel', 'bridge'] as const) {
-    const { g, enemy } = setup({ repel: 1 });
-    g.combat.fireSkill('bridge');
-    if (first === 'repel') g.combat.fireSkill('repel', enemy);
-    enemy.radius = g.radius;
-    Object.assign(enemy, orbit(enemy.angle, enemy.radius));
-    g.angle += 0.5;
-    g.advance(20);
-    const radius = enemy.radius;
-    if (first === 'bridge') g.combat.fireSkill('repel', enemy);
-    assert.equal(enemy.controlCount, 1);
-    close(enemy.radius, radius);
-    g.combat.clear();
-    g.advance(1850);
-    g.combat.fireSkill('repel', enemy);
-    assert.equal(enemy.controlCount, 2);
-    close(enemy.radius - radius, g.forms.repel.push / 1.18);
-  }
+test('the net zaps without pushing, leaving pushes to Repel', () => {
+  const { g, enemy } = setup({ repel: 1 });
+  g.combat.fireSkill('bridge');
+  enemy.radius = g.radius;
+  Object.assign(enemy, orbit(enemy.angle, enemy.radius));
+  g.angle += 0.5;
+  g.advance(20);
+  assert.ok(enemy.hp < 10000);
+  assert.equal(enemy.controlCount, undefined);
+  close(enemy.radius, g.radius);
+  g.combat.fireSkill('repel', enemy);
+  assert.equal(enemy.controlCount, 1);
+  close(enemy.radius - g.radius, g.forms.repel.push);
 });
 
 test('Fork broadens defense while rank, rarity and range can never close the orbit', () => {

@@ -135,7 +135,7 @@ test('a wave warning remains audible when growth happens in the same frame', () 
   mixer.dispose();
 });
 
-test('each actual particle contact creates a sound, including multi-hits and fatal hits', () => {
+test('each actual particle contact creates one sound, and a fatal hit pops', () => {
   const game = new Game(17, { combat: false });
   game.start();
   const played: string[] = [];
@@ -154,22 +154,22 @@ test('each actual particle contact creates a sound, including multi-hits and fat
       played.push(kind);
     },
   });
-  game.log('hit', { kind: 'small', x: 220, y: 260 });
-  game.log('kill', { kind: 'small', x: 220, y: 260 });
+  game.log('hit', { id: 0, kind: 'small', x: 220, y: 260 });
+  game.log('kill', { id: 0, kind: 'small', x: 220, y: 260, streak: 0 });
   game.log('skill-effect', { id: 'strike', rank: 1 });
   audio.update(game, 0);
-  assert.deepEqual(played, ['hit']);
+  assert.deepEqual(played, ['pop']);
   context.currentTime = 10.1;
   audio.update(game, game.eventCount);
   assert.deepEqual(
     played,
-    ['hit'],
-    'A fatal hit produces one sound, not separate hit and kill sounds',
+    ['pop'],
+    'A fatal hit produces one pop, not separate hit and kill sounds',
   );
   const from = game.eventCount;
-  game.log('hit', { kind: 'dense', x: 220, y: 260 });
+  game.log('hit', { id: 5, kind: 'dense', x: 220, y: 260 });
   audio.update(game, from);
-  assert.deepEqual(played, ['hit', 'hit'], 'Nonfatal contact also produces a sound');
+  assert.deepEqual(played, ['pop', 'hit'], 'Nonfatal contact also produces a sound');
   const victims = [target(1, 190, 250, 1), target(2, 220, 270, 1), target(3, 140, 260, 1)];
   game.targets = [...victims, target(4, 180, 240, 100)];
   const burst = game.eventCount;
@@ -178,7 +178,7 @@ test('each actual particle contact creates a sound, including multi-hits and fat
   audio.update(game, burst);
   assert.deepEqual(
     played,
-    Array(6).fill('hit'),
+    ['pop', 'hit', 'pop', 'pop', 'pop', 'hit'],
     'Each damaged particle plays once, including the surviving target',
   );
   assert.equal(game.targets.length, 1);

@@ -127,14 +127,19 @@ export class GameAudio {
     this.stage = '';
     const cues: SoundCue[] = [];
     const listener = game.position;
+    const hits = new Map<number, SoundCue>();
     for (let i = Math.max(0, from - game.eventOffset); i < game.events.length; i++) {
       const event = game.events[i];
       if (event.kind === 'hit') {
-        const point = event.data as Point;
-        cues.push({
-          kind: 'hit',
-          space: soundSpace(point, listener),
-        });
+        const point = event.data as Point & { id: number };
+        const cue = { kind: 'hit', space: soundSpace(point, listener) };
+        hits.set(point.id, cue);
+        cues.push(cue);
+      } else if (event.kind === 'kill') {
+        // The killing hit becomes a pop that climbs in pitch with the kill streak.
+        const { id, streak } = event.data as { id: number; streak: number };
+        const cue = hits.get(id);
+        if (cue) Object.assign(cue, { kind: 'pop', variant: streak });
       } else if (eventCues[event.kind]) cues.push({ kind: eventCues[event.kind] });
     }
     this.mixer.playBatch(cues, ctx.currentTime);

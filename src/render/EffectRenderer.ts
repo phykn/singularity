@@ -7,6 +7,9 @@ import type { EffectPainter } from './effects.ts';
 import { drawEffect } from './drawEffects.ts';
 import { drawElectronField } from './electronField.ts';
 
+// Phaser.TintModes.ADD, kept as a value so this module loads without Phaser (tests run under Node).
+const addTint = 2;
+
 export class EffectRenderer {
   readonly graphics: Phaser.GameObjects.Graphics;
   readonly sprites: SpritePool;
@@ -99,6 +102,12 @@ export class EffectRenderer {
       );
       beam.clearTint();
       if (id !== 'strike') beam.setTint(color);
+    },
+    particle: (kind, point, scale) => {
+      this.sprites
+        .draw(this.screen(point), kind, scale, 1, 0.5)
+        .setTint(0x5a5a5a)
+        .setTintMode(addTint);
     },
     contact: (point, color, alpha, radius) => {
       const screen = this.screen(point);

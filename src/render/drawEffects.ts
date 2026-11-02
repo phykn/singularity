@@ -3,10 +3,15 @@ import { BLUE, WHITE, AMBER, skillColors } from '../art/palette.ts';
 import { beamStrength, effectOrigin } from './effects.ts';
 import type { EffectPainter } from './effects.ts';
 import { rarityIds } from '../game/rules.ts';
+import { particlePalettes } from '../art/particles.ts';
+import type { ParticleKind } from '../game/particles.ts';
 import { lerp, clamp, orbit } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
 import type { Effect, Target } from '../game/types.ts';
 type Graphics = Phaser.GameObjects.Graphics;
+const popColors = Object.fromEntries(
+  Object.entries(particlePalettes).map(([id, palette]) => [id, parseInt(palette[3].slice(1), 16)]),
+) as Record<ParticleKind, number>;
 function stroke(
   g: Graphics,
   points: Point[],
@@ -126,10 +131,12 @@ export function drawEffect(
     g.fillStyle(WHITE, 0.7);
     g.fillRect(point.x - 1 / scale, point.y - 1 / scale, 2 / scale, 2 / scale);
   } else if (fx.kind === 'vent') {
-    // A few outward motes make mass loss visible without a persistent core border.
+    // The shockwave ring leaves the core (width holds its radius) and fades at its reach.
+    const wave = lerp(fx.width, fx.radius, clamp(t / 0.85));
+    ring(g, from, wave, ink, alpha * 0.7, scale, 1);
     for (let i = 0; i < 6; i++) {
       const angle = (i * Math.PI) / 3 + [0, 0.09, -0.06, 0.04, -0.1, 0.08][i] + fx.born;
-      const radius = fx.radius * (0.5 + t) * (i % 2 ? 0.9 : 1);
+      const radius = wave * (i % 2 ? 0.9 : 1);
       g.fillStyle(i % 2 ? WHITE : ink, alpha * 0.85);
       g.fillRect(
         from.x + Math.cos(angle) * radius,
@@ -196,7 +203,31 @@ export function drawEffect(
     g.fillStyle(AMBER, alpha);
     g.fillRect(x - 1 / scale, y - 1 / scale, 2 / scale, 2 / scale);
   } else if (fx.kind === 'kill') {
-    paint.sprite('dissolve', from, t, fx.radius > 8 ? WHITE : BLUE, (1 - t) ** 2);
+    const delay = fx.delay ?? 0,
+      local = (time - fx.born - delay) / (fx.life - delay);
+    if (local < 0) {
+      if (fx.particle)
+        paint.particle(fx.particle, from, fx.radius > 50 ? 4 : fx.radius > 30 ? 3 : 1);
+      return;
+    }
+    const color = fx.particle ? popColors[fx.particle] : BLUE,
+      fade = (1 - local) ** 2;
+    paint.sprite('dissolve', from, local, color, fade, Math.max(32, fx.radius * 2));
+    // Shards fly out so every pop reads even inside a crowd.
+    const count = fx.radius > 30 ? 14 : fx.radius > 8 ? 8 : 6,
+      pixel = (fx.radius > 30 ? 3 : 2) / scale,
+      travel = fx.radius * 0.5 + (8 + fx.radius * 0.8) * (1 - (1 - local) ** 2);
+    for (let i = 0; i < count; i++) {
+      const angle = (i * Math.PI * 2) / count + fx.born * 7 + (i % 2) * 0.3;
+      const reach = travel * (i % 3 ? 1 : 0.7);
+      g.fillStyle(i % 3 ? color : WHITE, 1 - local);
+      g.fillRect(
+        from.x + Math.cos(angle) * reach - pixel / 2,
+        from.y + Math.sin(angle) * reach - pixel / 2,
+        pixel,
+        pixel,
+      );
+    }
   } else {
     ring(g, from, fx.radius * (0.25 + 0.75 * t), ink, alpha * 0.6, scale, 1);
   }
