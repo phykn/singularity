@@ -183,7 +183,7 @@ const ko = {
       name: '질량 분출',
       short: '질량 분출',
       description:
-        '6초마다 핵 질량을 줄이고 충격파로 가까운 적을 차례로 터뜨림. 공격속도 영향 없음',
+        '5초마다 핵 질량을 줄이고 충격파로 가까운 적을 차례로 터뜨림. 공격속도 영향 없음',
     },
     chase: {
       name: '추격 번개',
@@ -484,7 +484,7 @@ const en: Copy = {
       name: 'Mass Burst',
       short: 'Mass Burst',
       description:
-        'Every 6s shed core mass and send a shockwave that pops nearby enemies in turn; unaffected by fire rate',
+        'Every 5s shed core mass and send a shockwave that pops nearby enemies in turn; unaffected by fire rate',
     },
     chase: {
       name: 'Pursuit Arc',
@@ -725,7 +725,7 @@ const zh: Copy = {
     vent: {
       name: '质量喷发',
       short: '质量喷发',
-      description: '每6秒减少核心质量，冲击波依次引爆附近敌人，不受攻击速度影响',
+      description: '每5秒减少核心质量，冲击波依次引爆附近敌人，不受攻击速度影响',
     },
     chase: { name: '追击闪电', short: '追击闪电', description: '追击弱敌，击杀后跳向下个弱敌' },
     surge: {
@@ -998,7 +998,7 @@ const ja: Copy = {
     vent: {
       name: '質量噴出',
       short: '質量噴出',
-      description: '6秒ごとに核質量を減らし、衝撃波で近くの敵を順に弾けさせる。攻撃速度の影響なし',
+      description: '5秒ごとに核質量を減らし、衝撃波で近くの敵を順に弾けさせる。攻撃速度の影響なし',
     },
     chase: {
       name: '追撃の雷',
