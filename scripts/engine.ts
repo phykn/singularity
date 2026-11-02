@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 
+export const median = (values: number[]) =>
+  values.length ? [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] : null;
+
 export function sourceHash(): string {
   const hash = createHash('sha256');
   const folder = new URL('../src/game/', import.meta.url);

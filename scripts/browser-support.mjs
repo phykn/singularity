@@ -13,6 +13,11 @@ export function reportDirectory(fallback, args = process.argv.slice(2)) {
   return args.find((arg) => !arg.startsWith('--')) ?? fallback;
 }
 
+export const reporter = (checks) => (task, details) => {
+  checks.push({ task, details });
+  console.log('PASS ' + task, JSON.stringify(details));
+};
+
 export async function capture(page, path) {
   mkdirSync(screenshotsDir, { recursive: true });
   mkdirSync(dirname(path), { recursive: true });

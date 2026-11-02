@@ -142,7 +142,7 @@ test('full energy alone never ends the run and choices keep coming during the fi
     tick(g);
   }
   assert.equal(g.phase, 'running');
-  assert.equal(g.charged, true);
+  assert.equal(g.energyFull, true);
   const level = g.level;
   g.selections.length = 0;
   (g as unknown as { openChoice(): void }).openChoice();
@@ -177,7 +177,6 @@ test('the final boss reaching the core fails the run even with full energy', () 
   g.advance((rules.collisionSeconds + rules.failureEndingSeconds) * 1000 + 100);
   assert.equal(g.result?.outcome, 'collapse-failure');
   assert.equal(g.result?.trigger, 'gravity');
-  assert.equal(g.result?.missingXp, 0);
 });
 
 test('the boss and critical breach stay out of endless play', () => {

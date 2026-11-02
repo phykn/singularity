@@ -247,7 +247,7 @@ try {
     } finally {
       graphics.lineStyle = lineStyle;
     }
-    return { charged: g.charged, feedback: r.feedback, feedbackAge: r.feedbackAge, markers };
+    return { charged: g.energyFull, feedback: r.feedback, feedbackAge: r.feedbackAge, markers };
   });
   assert.equal(chargedFeedback.charged, true);
   assert.equal(chargedFeedback.feedback, 'complete');

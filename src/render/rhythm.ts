@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { OrbitRhythm } from '../app/OrbitRhythm.ts';
+import type { OrbitRhythm } from '../app/OrbitRhythm.ts';
 import { orbit, CENTER } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
 import { WHITE, BLUE } from '../art/palette.ts';

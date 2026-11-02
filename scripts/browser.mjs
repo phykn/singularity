@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { base, capture, launchBrowser, observeScene, showSuccess } from './browser-support.mjs';
+import {
+  base,
+  capture,
+  launchBrowser,
+  observeScene,
+  reporter,
+  showSuccess,
+} from './browser-support.mjs';
 import { pactIds, rules, skillIds, upgradeIds, rarityIds } from '../src/game/rules.ts';
 import { copy } from '../src/ui/i18n.ts';
 import { iconCells } from '../src/art/skills.ts';
@@ -10,10 +17,7 @@ mkdirSync('artifacts/screens', { recursive: true });
 const browser = await launchBrowser();
 const errors = [],
   checks = [];
-const report = (task, details) => {
-  checks.push({ task, details });
-  console.log('PASS ' + task, JSON.stringify(details));
-};
+const report = reporter(checks);
 const pageFor = async (width, height, seed = 10004) => {
   const page = await browser.newPage({
     viewport: { width, height },
@@ -1498,7 +1502,7 @@ try {
       window.__gameDebug.xp(energy);
     }, rules.energyGoal);
     assert.equal(await page.locator('.charge b').textContent(), '100%');
-    assert.equal(await page.locator('.charge').getAttribute('aria-label'), copy.ko.ready);
+    assert.equal(await page.locator('.charge').getAttribute('aria-label'), copy.ko.finalBossDue);
     await advance(page, 1000);
     assert.equal((await snapshot(page)).phase, 'running', 'Full energy alone must not end the run');
     await page.evaluate(() => window.__gameDebug.clear());
@@ -1517,7 +1521,6 @@ try {
       window.__gameDebug.advance(16000);
     }, rules.energyGoal - 1);
     await page.getByRole('heading', { name: copy.ko.failure, exact: true }).waitFor();
-    assert.equal((await snapshot(page)).result.missingXp, 1);
     await screenshot(page, 'collapse-failure');
     report('readiness and both endings', { energyBoundary: rules.energyGoal });
 

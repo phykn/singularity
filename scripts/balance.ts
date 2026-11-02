@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { sourceHash } from './engine.ts';
+import { median, sourceHash } from './engine.ts';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Game } from '../src/game/Game.ts';
@@ -101,8 +101,6 @@ for (let seed = start; seed < start + count; seed++) {
       }),
     );
 }
-const median = (values: number[]) =>
-  values.length ? values.sort((a, b) => a - b)[Math.floor(values.length / 2)] : null;
 const summarize = (set: typeof rows) => ({
   games: set.length,
   wins: set.filter((r) => r.outcome === 'success').length,

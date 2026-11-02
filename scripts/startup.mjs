@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { base, capture, launchBrowser } from './browser-support.mjs';
+import { base, capture, launchBrowser, reporter } from './browser-support.mjs';
 
 mkdirSync('artifacts/screens', { recursive: true });
 const browser = await launchBrowser();
@@ -25,10 +25,7 @@ const screenshotWhileLoading = async (page, path) => {
     delete process.env.PW_TEST_SCREENSHOT_NO_FONTS_READY;
   }
 };
-const report = (task, details) => {
-  checks.push({ task, details });
-  console.log('PASS ' + task, JSON.stringify(details));
-};
+const report = reporter(checks);
 try {
   const page = await browser.newPage({
     viewport: { width: 375, height: 812 },

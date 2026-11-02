@@ -313,145 +313,26 @@ export class Combat {
   fireSkill(id: TimedSkill, origin: Point = this.game.position): boolean {
     const g = this.game;
     if (!g.ranks[id]) return false;
-    if (id === 'vent') {
-      const removed = g.releaseMass(g.forms.vent.mass);
-      if (!removed) return false;
-      g.log('vent', { removed, mass: g.mass });
-      this.activate(id);
-      this.effect(this.begin(id), 'vent', CENTER, CENTER, g.core + 8, 0.65, false, id);
-      return true;
-    }
+    if (id === 'vent') return this.fireVent();
     if (!g.targets.length) return false;
     const attack = this.begin(id),
       s = attack.forms;
-    const multiplier =
-      id === 'strike'
-        ? s.strike.damage
-        : id === 'focus'
-          ? s.focus.damage
-          : id === 'satellite'
-            ? s.satellite.damage
-            : id === 'bridge'
-              ? s.bridge.damage
-              : id === 'chase'
-                ? s.chase.damage
-                : id === 'gather'
-                  ? s.gather.damage
-                  : g.rules.skills[id].damage;
-    attack.damage *= multiplier;
+    attack.damage *= id === 'repel' ? g.rules.skills.repel.damage : s[id].damage;
+    if (id === 'focus') return this.fireFocus(attack, origin);
+    if (id === 'satellite') return this.fireSatellite(attack);
+    if (id === 'bridge') return this.fireBridge(attack);
+    if (id === 'gather') return this.fireGather(attack, origin);
     const branches = s.multi.count;
-    const within = (range: number) =>
-      g.targets.filter((t) => t.hp > 0 && distance(t, origin) <= range);
-    if (id === 'focus') {
-      if (this.focus.length || !within(s.focus.range).length) return false;
-      for (let i = 0; i < branches; i++)
-        this.focus.push({
-          attack: this.branch(attack, i),
-          until: g.time + s.focus.duration,
-          next: g.tick,
-          held: 0,
-          group: attack.id,
-          started: false,
-        });
-      return true;
-    }
-    if (id === 'satellite') {
-      let fired = 0;
-      const reserved = new Set<number>();
-      for (const [index, point] of this.satellitePoints.entries()) {
-        const targets = closest(g.targets, point, branches, s.satellite.range, reserved);
-        if (targets.length < branches)
-          targets.push(
-            ...closest(
-              g.targets.filter((target) => reserved.has(target.id)),
-              point,
-              branches - targets.length,
-              s.satellite.range,
-            ),
-          );
-        targets.forEach((target) => reserved.add(target.id));
-        fired += this.volley(
-          { ...attack, satellite: index, range: s.satellite.range },
-          point,
-          targets,
-          index,
-        );
-      }
-      if (fired && attack.evolved.satellite) this.fireRing(attack);
-      if (fired) this.activate(id);
-      return fired > 0;
-    }
-    if (id === 'bridge') {
-      if (this.barriers.length >= g.rules.skills.bridge.maxArcs) return false;
-      this.barriers.push({
-        id: this.order++,
-        attack: { ...attack, depth: 1 },
-        start: g.angle,
-        sweep: 0,
-        until: g.time + s.bridge.duration,
-        drawn: -Infinity,
-      });
-      this.activate(id);
-      return true;
-    }
-    if (id === 'gather') {
-      const anchors = closest(
-        g.targets.filter((t) => t.radius >= g.core + 45),
-        origin,
-        branches,
-        g.range * 1.5,
-      );
-      const moved = new Set<number>();
-      const reserved = new Set(anchors.map((target) => target.id));
-      let fired = 0;
-      for (const [i, anchor] of anchors.entries()) {
-        const branch = this.branch(attack, i);
-        const point = { ...anchor };
-        fired += this.volley(branch, origin, [anchor], true);
-        const group = closest(g.targets, point, s.gather.count, s.gather.radius);
-        for (const target of group) {
-          if (
-            target.kind === 'boss' ||
-            moved.has(target.id) ||
-            reserved.has(target.id) ||
-            g.time < (target.gatherReady ?? 0)
-          )
-            continue;
-          moved.add(target.id);
-          target.gatherReady = g.time + g.rules.skills.gather.immunitySeconds;
-          const from = { ...target },
-            d = distance(point, target),
-            amount = Math.min(0.65, s.gather.pull / Math.max(1, d));
-          const x = target.x + (point.x - target.x) * amount,
-            y = target.y + (point.y - target.y) * amount;
-          target.angle = Math.atan2(y - CENTER.y, x - CENTER.x);
-          target.radius = Math.max(target.radius, Math.hypot(x - CENTER.x, y - CENTER.y));
-          Object.assign(target, orbit(target.angle, target.radius));
-          this.emit(
-            { ...branch, damage: branch.damage * 0.5, depth: 1, firstKill: undefined },
-            from,
-            target,
-            false,
-          );
-        }
-      }
-      if (fired > 1) this.activate('multi', attack.ranks.multi);
-      if (anchors.length) this.activate(id);
-      return anchors.length > 0;
-    }
     const targets =
       id === 'strike'
-        ? within(s.strike.range)
+        ? this.within(origin, s.strike.range)
             .sort((a, b) => b.maxHp - a.maxHp || a.hp - b.hp || a.radius - b.radius || a.id - b.id)
             .slice(0, s.strike.count + branches - 1)
         : id === 'repel'
-          ? within(s.repel.range)
+          ? this.within(origin, s.repel.range)
               .sort((a, b) => a.radius - b.radius || a.id - b.id)
               .slice(0, s.repel.count + branches - 1)
-          : within(g.range * 1.5)
-              .filter((t) => t.hp / t.maxHp <= s.chase.threshold)
-              .sort((a, b) => a.hp - b.hp || a.radius - b.radius || a.id - b.id)
-              .slice(0, s.chase.count + branches - 1);
+          : this.wounded(attack, origin, new Set()).slice(0, s.chase.count + branches - 1);
     attack.push = id === 'repel';
     if (id === 'chase') {
       const pursuit = {
@@ -466,6 +347,129 @@ export class Combat {
     } else this.volley(attack, origin, targets, true);
     if (targets.length) this.activate(id);
     return targets.length > 0;
+  }
+
+  private within(origin: Point, range: number): Target[] {
+    return this.game.targets.filter((t) => t.hp > 0 && distance(t, origin) <= range);
+  }
+
+  private fireVent(): boolean {
+    const g = this.game;
+    const removed = g.releaseMass(g.forms.vent.mass);
+    if (!removed) return false;
+    g.log('vent', { removed, mass: g.mass });
+    this.activate('vent');
+    this.effect(this.begin('vent'), 'vent', CENTER, CENTER, g.core + 8, 0.65, false, 'vent');
+    return true;
+  }
+
+  private fireFocus(attack: Attack, origin: Point): boolean {
+    const g = this.game,
+      s = attack.forms;
+    if (this.focus.length || !this.within(origin, s.focus.range).length) return false;
+    for (let i = 0; i < s.multi.count; i++)
+      this.focus.push({
+        attack: this.branch(attack, i),
+        until: g.time + s.focus.duration,
+        next: g.tick,
+        held: 0,
+        group: attack.id,
+        started: false,
+      });
+    return true;
+  }
+
+  private fireSatellite(attack: Attack): boolean {
+    const g = this.game,
+      s = attack.forms,
+      branches = s.multi.count;
+    let fired = 0;
+    const reserved = new Set<number>();
+    for (const [index, point] of this.satellitePoints.entries()) {
+      const targets = closest(g.targets, point, branches, s.satellite.range, reserved);
+      if (targets.length < branches)
+        targets.push(
+          ...closest(
+            g.targets.filter((target) => reserved.has(target.id)),
+            point,
+            branches - targets.length,
+            s.satellite.range,
+          ),
+        );
+      targets.forEach((target) => reserved.add(target.id));
+      fired += this.volley(
+        { ...attack, satellite: index, range: s.satellite.range },
+        point,
+        targets,
+        index,
+      );
+    }
+    if (fired && attack.evolved.satellite) this.fireRing(attack);
+    if (fired) this.activate('satellite');
+    return fired > 0;
+  }
+
+  private fireBridge(attack: Attack): boolean {
+    const g = this.game;
+    if (this.barriers.length >= g.rules.skills.bridge.maxArcs) return false;
+    this.barriers.push({
+      id: this.order++,
+      attack: { ...attack, depth: 1 },
+      start: g.angle,
+      sweep: 0,
+      until: g.time + attack.forms.bridge.duration,
+      drawn: -Infinity,
+    });
+    this.activate('bridge');
+    return true;
+  }
+
+  private fireGather(attack: Attack, origin: Point): boolean {
+    const g = this.game,
+      s = attack.forms;
+    const anchors = closest(
+      g.targets.filter((t) => t.radius >= g.core + 45),
+      origin,
+      s.multi.count,
+      g.range * 1.5,
+    );
+    const moved = new Set<number>();
+    const reserved = new Set(anchors.map((target) => target.id));
+    let fired = 0;
+    for (const [i, anchor] of anchors.entries()) {
+      const branch = this.branch(attack, i);
+      const point = { ...anchor };
+      fired += this.volley(branch, origin, [anchor], true);
+      const group = closest(g.targets, point, s.gather.count, s.gather.radius);
+      for (const target of group) {
+        if (
+          target.kind === 'boss' ||
+          moved.has(target.id) ||
+          reserved.has(target.id) ||
+          g.time < (target.gatherReady ?? 0)
+        )
+          continue;
+        moved.add(target.id);
+        target.gatherReady = g.time + g.rules.skills.gather.immunitySeconds;
+        const from = { ...target },
+          d = distance(point, target),
+          amount = Math.min(0.65, s.gather.pull / Math.max(1, d));
+        const x = target.x + (point.x - target.x) * amount,
+          y = target.y + (point.y - target.y) * amount;
+        target.angle = Math.atan2(y - CENTER.y, x - CENTER.x);
+        target.radius = Math.max(target.radius, Math.hypot(x - CENTER.x, y - CENTER.y));
+        Object.assign(target, orbit(target.angle, target.radius));
+        this.emit(
+          { ...branch, damage: branch.damage * 0.5, depth: 1, firstKill: undefined },
+          from,
+          target,
+          false,
+        );
+      }
+    }
+    if (fired > 1) this.activate('multi', attack.ranks.multi);
+    if (anchors.length) this.activate('gather');
+    return anchors.length > 0;
   }
 
   private wounded(attack: Attack, origin: Point, visited: Set<number>): Target[] {
@@ -514,6 +518,18 @@ export class Combat {
       anchored: false,
       pursuit,
     });
+  }
+
+  private secondary(attack: Attack, source: SkillId, multiplier: number): Attack {
+    return {
+      ...attack,
+      source,
+      pursuit: undefined,
+      damage: attack.power * multiplier,
+      firstKill: undefined,
+      depth: attack.depth + 1,
+      push: false,
+    };
   }
 
   private begin(source?: SkillId, multiplier = 1): Attack {
@@ -806,15 +822,7 @@ export class Combat {
       const recipient = target.hp > 0 ? target : closest(g.targets, g.position, 1, attack.range)[0];
       if (recipient && this.storedCharge + 1e-8 >= attack.forms.charge.threshold) {
         this.storedCharge = 0;
-        const charged = {
-          ...attack,
-          source: 'charge' as const,
-          pursuit: undefined,
-          damage: attack.power * attack.forms.charge.damage,
-          firstKill: undefined,
-          depth: attack.depth + 1,
-          push: false,
-        };
+        const charged = this.secondary(attack, 'charge', attack.forms.charge.damage);
         this.effect(charged, 'bolt', g.position, recipient, 0, 0.2, true, 'charge', 4);
         this.activate('charge', attack.ranks.charge);
         this.resolve(charged, recipient, g.position, true);
@@ -860,15 +868,7 @@ export class Combat {
         attack.forms.burst.count + attack.forms.multi.count - 1,
         attack.forms.burst.radius,
       );
-    const child = {
-      ...attack,
-      source: 'burst' as const,
-      pursuit: undefined,
-      damage: attack.power * attack.forms.burst.damage,
-      firstKill: undefined,
-      depth: attack.depth + 1,
-      push: false,
-    };
+    const child = this.secondary(attack, 'burst', attack.forms.burst.damage);
     if (targets.length) this.activate('burst', attack.ranks.burst);
     this.volley(child, from, targets, false);
   }

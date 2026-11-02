@@ -2,7 +2,7 @@ import { isSkill, rules, skillIds, statIds } from './rules.ts';
 import type { Boosts, Ranks, RuleSet, SkillId, UpgradeId } from './rules.ts';
 import type { Random } from './random.ts';
 
-export function eligibleSkills(ranks: Ranks, cfg: RuleSet = rules): SkillId[] {
+function eligibleSkills(ranks: Ranks, cfg: RuleSet = rules): SkillId[] {
   const owned = skillIds.filter((id) => ranks[id] > 0).length;
   return skillIds.filter(
     (id) => ranks[id] < cfg.maxRank && (ranks[id] > 0 || owned < cfg.skillSlots),

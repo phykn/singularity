@@ -91,7 +91,7 @@ export default function App() {
   return (
     <main
       style={{ '--scene-hud': hud } as CSSProperties}
-      className={`app ${game.charged ? 'is-charged' : ''} ${game.endless ? 'is-beyond' : ''} ${ready ? 'is-ready' : ''} ${ready && homecoming ? 'is-homecoming' : ''}`}
+      className={`app ${game.endless ? 'is-beyond' : ''} ${ready ? 'is-ready' : ''} ${ready && homecoming ? 'is-homecoming' : ''}`}
     >
       <div className="play-layout" inert={modal || (!ready && !renderReady)}>
         {ready ? (
@@ -171,7 +171,7 @@ export default function App() {
               )}
               {game.phase === 'collapse' && (
                 <span className="sr-only" role="status">
-                  {game.successfulEnding ? c.ready : c.collapse}
+                  {game.successfulEnding ? c.success : c.collapse}
                 </span>
               )}
               {game.phase === 'ending' && (

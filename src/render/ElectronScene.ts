@@ -96,7 +96,7 @@ export class ElectronScene extends Phaser.Scene {
     const ending = endingFrame(game),
       clock = game.seconds;
     const danger = game.margin < game.rules.dangerMargin;
-    const color = game.charged ? GOLD : BLUE;
+    const color = game.energyFull ? GOLD : BLUE;
     const orbitColor = game.endless ? VIOLET : color;
     const position = game.position,
       damage = game.damage;

@@ -281,7 +281,7 @@ test('a successful QTE that reaches the XP goal keeps its visible judgment throu
     }
     s.tapRhythm(wall);
   }
-  assert.equal(s.game.charged, true);
+  assert.equal(s.game.energyFull, true);
   s.step(wall + 5);
   assert.equal(s.rhythm.active, false);
   assert.equal(s.rhythm.feedback, 'complete');

@@ -6,7 +6,7 @@ export type SkillId = keyof typeof rules.skills;
 export type StatId = 'power' | 'rate' | 'range' | 'speed';
 export const pactIds = ['overload', 'greed', 'overclock'] as const;
 export type PactId = (typeof pactIds)[number];
-export const evolvableIds = ['chain', 'multi', 'pierce', 'satellite'] as const;
+const evolvableIds = ['chain', 'multi', 'pierce', 'satellite'] as const;
 export type EvolvableId = (typeof evolvableIds)[number];
 export type UpgradeId = SkillId | StatId | 'recover' | PactId;
 export type Rarity = keyof typeof rules.rarity;
@@ -30,6 +30,7 @@ export function rollRarity(roll: number, cfg: RuleSet = rules): Rarity {
   return 'legendary';
 }
 export const maxDamageNumbers = 64;
+export const damageNumberSeconds = 0.72;
 export const blankRanks = (): Ranks => Object.fromEntries(skillIds.map((id) => [id, 0])) as Ranks;
 export const blankBoosts = (): Boosts => ({ power: 0, rate: 0, range: 0, speed: 0 });
 export const isSkill = (id: UpgradeId): id is SkillId => skillIds.includes(id as SkillId);

@@ -6,7 +6,7 @@ export const effectRows = {
   impact: 1,
   dissolve: 2,
 } as const;
-export type EffectSprite = keyof typeof effectRows;
+type EffectSprite = keyof typeof effectRows;
 
 export const beamRows = {
   basic: 0,
@@ -18,7 +18,7 @@ export const beamRows = {
   bridge: 6,
   return: 7,
 } as const;
-export type BeamId = keyof typeof beamRows;
+type BeamId = keyof typeof beamRows;
 // Points use world coordinates; sprite sizes, beam heights and contact radii use screen pixels.
 export type EffectPainter = {
   sprite(

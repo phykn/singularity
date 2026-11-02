@@ -53,7 +53,7 @@ export function Result({
     <div style={{ opacity: 1 - departure }} inert={crossing}>
       <Dialog
         titleId="result-title"
-        className={`result ${result.outcome === 'success' ? 'success' : ''} ${collapsed ? 'collapse' : ''}`}
+        className={`result ${result.outcome === 'success' ? 'success' : ''}`}
         modalClassName="result-modal"
         focusKey={String(armed)}
       >

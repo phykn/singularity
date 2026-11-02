@@ -1,11 +1,27 @@
 import type { Result } from '../game/types.ts';
 import { rules } from '../game/rules.ts';
+import { languages } from '../ui/i18n.ts';
 import type { Language } from '../ui/i18n.ts';
 
 export type BestRecord = Pick<
   Result,
   'outcome' | 'xp' | 'level' | 'speed' | 'seed' | 'collisionTime'
 >;
+const pickRecord = ({
+  outcome,
+  xp,
+  level,
+  speed,
+  seed,
+  collisionTime,
+}: BestRecord): BestRecord => ({
+  outcome,
+  xp,
+  level,
+  speed,
+  seed,
+  collisionTime,
+});
 export const recordKey = 'singularity.record';
 export const beyondRecordKey = 'singularity.beyond';
 export type BeyondRecord = { seconds: number; xp: number; seed: number };
@@ -14,7 +30,7 @@ export const languageKey = 'singularity.language';
 export function readLanguage(storage: Storage): Language {
   try {
     const value = JSON.parse(storage.getItem(languageKey) ?? 'null');
-    if (['ko', 'en', 'zh', 'ja'].includes(value)) return value;
+    if (languages.some(({ id }) => id === value)) return value;
   } catch {
     /* Storage can be disabled by the browser. */
   }
@@ -37,8 +53,7 @@ export function readRecord(storage: Storage): BestRecord | null {
     )
       return null;
     if (value.level < 1 || value.seed > 0xffffffff) return null;
-    const { outcome, xp, level, speed, seed, collisionTime } = value;
-    return { outcome, xp, level, speed, seed, collisionTime };
+    return pickRecord(value);
   } catch {
     return null;
   }
@@ -67,8 +82,7 @@ export function bestRecord(
     const different = old.findIndex((value, i) => value !== next[i]);
     if (different < 0 || old[different] > next[different]) return current;
   }
-  const { outcome, xp, level, speed, seed, collisionTime } = result;
-  return { outcome, xp, level, speed, seed, collisionTime };
+  return pickRecord(result);
 }
 
 export function readBeyondRecord(storage: Storage): BeyondRecord | null {

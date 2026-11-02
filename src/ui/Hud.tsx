@@ -43,9 +43,9 @@ export function Hud({
           </div>
         ) : (
           <div
-            className={`charge ${game.charged ? 'charged-label' : ''}`}
+            className={`charge ${game.energyFull ? 'energy-full' : ''}`}
             role="progressbar"
-            aria-label={game.charged ? c.ready : c.charge}
+            aria-label={game.energyFull ? c.finalBossDue : c.charge}
             aria-valuenow={Math.min(game.xp, rules.energyGoal)}
             aria-valuemin={0}
             aria-valuemax={rules.energyGoal}

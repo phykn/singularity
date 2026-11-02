@@ -1,3 +1,4 @@
+import { damageNumberSeconds } from '../game/rules.ts';
 import Phaser from 'phaser';
 import type { Game } from '../game/Game.ts';
 import { maxDamageNumbers } from '../game/rules.ts';
@@ -106,7 +107,7 @@ export class DamageLabels {
             ? damageFonts.normal
             : damageFonts.low;
       if (text.font !== font) text.setFont(font);
-      text.setAlpha(1 - clamp((age - 0.35) / 0.37));
+      text.setAlpha(1 - clamp((age - 0.35) / (damageNumberSeconds - 0.35)));
     }
     for (const text of this.texts)
       if (text.visible && !shown.has(text)) text.setActive(false).setVisible(false);

@@ -310,7 +310,6 @@ test('elapsed time never ends a run and a debug clear starts a successful collap
   assert.equal(g.successfulEnding, true);
   g.advance(15000);
   assert.equal(g.result?.trigger, 'boss');
-  assert.equal(g.result?.missingXp, 0);
   assert.equal(g.selections.length, choices);
   close(
     g.result!.seconds,

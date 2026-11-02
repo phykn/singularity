@@ -41,7 +41,7 @@ test('only a normal clear can continue once, preserving the build and immutable 
   g.advance(rules.endless.entrySeconds * 1000);
   assert.equal(g.phase, 'running');
   assert.equal(g.endlessSeconds, 0);
-  assert.equal(g.charged, false);
+  assert.equal(g.energyFull, false);
   g.advance(2900);
   assert.equal(g.targets.length, 0);
   assert.ok(g.warningWave);

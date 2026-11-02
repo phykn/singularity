@@ -3,7 +3,7 @@ import type { Phase } from './types.ts';
 import { upgradeIds } from './rules.ts';
 import type { UpgradeId } from './rules.ts';
 
-export type Checkpoint = {
+type Checkpoint = {
   seed: number;
   startAngle: number;
   pendingTicks: number;

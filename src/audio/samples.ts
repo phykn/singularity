@@ -1,5 +1,6 @@
 import bank from './keycaps.json' with { type: 'json' };
 import { rules } from '../game/rules.ts';
+import { singularitySilenceSeconds } from '../presentation/ending.ts';
 
 type Bus = 'preview' | 'hit' | 'rhythm' | 'transition';
 type Recipe = 'key' | 'impact' | 'pair' | 'inhale' | 'exhale';
@@ -49,7 +50,7 @@ export const soundDefinitions = {
   singularity: {
     bus: 'transition',
     recipe: 'inhale',
-    duration: rules.collisionSeconds - 0.15,
+    duration: rules.collisionSeconds - singularitySilenceSeconds,
     gain: 0.46,
     color: 1,
     variants: 1,

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { devices } from 'playwright';
-import { base, capture, launchBrowser, observeScene } from './browser-support.mjs';
+import { base, capture, launchBrowser, observeScene, reporter } from './browser-support.mjs';
 import { copy } from '../src/ui/i18n.ts';
 import { rules } from '../src/game/rules.ts';
 
@@ -34,10 +34,7 @@ const snapshot = (page) =>
     const g = window.__gameDebug.getModel();
     return Object.fromEntries(fields.map((key) => [key, g[key]]));
   }, fields);
-const report = (task, details) => {
-  checks.push({ task, details });
-  console.log('PASS ' + task, JSON.stringify(details));
-};
+const report = reporter(checks);
 const open = async () => {
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(e.message));

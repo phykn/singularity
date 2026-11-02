@@ -92,7 +92,6 @@ export type Result = {
   radius: number;
   level: number;
   speed: number;
-  missingXp: number;
   seed: number;
   ranks: Ranks;
   boosts: Boosts;

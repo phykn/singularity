@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Game } from '../src/game/Game.ts';
 import { isPact, isSkill, rules } from '../src/game/rules.ts';
-import { sourceHash } from './engine.ts';
+import { median, sourceHash } from './engine.ts';
 import { guidedCard, playRhythm } from './rhythm-bot.ts';
 
 // node scripts/pacing.ts [count=600] [firstSeed=480000] [report] [qte|qte-off|qte-guided] [rulesJson]
@@ -18,8 +18,6 @@ const cfg = process.argv[6]
   ? (JSON.parse(readFileSync(process.argv[6], 'utf8')) as typeof rules)
   : rules;
 const step = 30;
-const median = (values: number[]) =>
-  values.length ? [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] : null;
 const ratio = (part: number, total: number) => (total ? part / total : null);
 const rows = [];
 for (let seed = start; seed < start + count; seed++) {

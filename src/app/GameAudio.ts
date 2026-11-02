@@ -10,6 +10,16 @@ function soundSpace(point: Point, listener: Point): SoundSpace {
   return { pan: (point.x - CENTER.x) / 520, depth: Math.min(1, distance(point, listener) / 300) };
 }
 
+const eventCues: Record<string, string> = {
+  wave: 'wave',
+  critical: 'wave',
+  boss: 'wave',
+  'final-boss': 'wave',
+  charged: 'charged',
+  'boss-down': 'charged',
+  evolve: 'charged',
+};
+
 export class GameAudio {
   private context: AudioContext | null = null;
   private mixer: SoundMixer | null = null;
@@ -125,9 +135,7 @@ export class GameAudio {
           kind: 'hit',
           space: soundSpace(point, listener),
         });
-      } else if (['wave', 'charged'].includes(event.kind)) cues.push({ kind: event.kind });
-      else if (['critical', 'boss', 'final-boss'].includes(event.kind)) cues.push({ kind: 'wave' });
-      else if (['boss-down', 'evolve'].includes(event.kind)) cues.push({ kind: 'charged' });
+      } else if (eventCues[event.kind]) cues.push({ kind: eventCues[event.kind] });
     }
     this.mixer.playBatch(cues, ctx.currentTime);
   }

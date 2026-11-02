@@ -1,7 +1,9 @@
 import type { Game } from '../game/Game.ts';
 import { clamp, orbit } from '../game/geometry.ts';
 
-export type EndingStage =
+export const singularitySilenceSeconds = 0.15;
+
+type EndingStage =
   | 'accelerate'
   | 'compress'
   | 'silence'
@@ -32,7 +34,7 @@ export function endingFrame(game: Game) {
   const contactAngle = game.angle + Math.PI * 2.6;
   const contactRadius = Math.min(game.radius, game.core * 0.92);
   if (success && collapsing) {
-    const still = 1 - 0.15 / game.rules.collisionSeconds;
+    const still = 1 - singularitySilenceSeconds / game.rules.collisionSeconds;
     const q = clamp((p - 0.34) / (still - 0.34));
     stage = p < 0.34 ? 'accelerate' : p < still ? 'compress' : 'silence';
     radius = game.radius * (1 - 0.06 * clamp(p / 0.34)) * (1 - q) ** 2;

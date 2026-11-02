@@ -30,7 +30,7 @@ import type { Card, PactId, RuleSet, SkillId, UpgradeId } from './rules.ts';
 
 import { Combat } from './combat.ts';
 import type { Attack } from './combat.ts';
-import { maxDamageNumbers } from './rules.ts';
+import { damageNumberSeconds, maxDamageNumbers } from './rules.ts';
 import type {
   BannerKind,
   Choice,
@@ -46,6 +46,13 @@ import type {
   Selection,
   Target,
 } from './types.ts';
+
+const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+
+const blankCounts = () =>
+  Object.fromEntries(
+    particleIds.map((id) => [id, { generated: 0, killed: 0, absorbed: 0 }]),
+  ) as Record<ParticleKind, Count>;
 
 export class Game {
   readonly rules: RuleSet;
@@ -84,9 +91,7 @@ export class Game {
   continuedAt: number | null = null;
   manualPaused = false;
   hiddenPaused = false;
-  counts = Object.fromEntries(
-    particleIds.map((id) => [id, { generated: 0, killed: 0, absorbed: 0 }]),
-  ) as Record<ParticleKind, Count>;
+  counts = blankCounts();
   events: Event[] = [];
   eventOffset = 0;
   notice: UpgradeId | '' = '';
@@ -94,7 +99,7 @@ export class Game {
   readonly combat: Combat;
   combatEnabled: boolean;
   collisionTime = 0;
-  collisionTrigger: Result['trigger'] = 'gravity';
+  private endTrigger: Result['trigger'] = 'gravity';
   metrics: Metrics;
   private randomSpawn: Random;
   private randomCards: Random;
@@ -120,13 +125,7 @@ export class Game {
     this.rules = options.rules ?? rules;
     this.recordEvents = options.recordEvents ?? true;
     this.radius = this.rules.orbitRadius;
-    this.metrics = {
-      minRadius: this.radius,
-      minMargin: this.radius - this.rules.coreRadius - this.rules.electronRadius,
-      dangerSeconds: 0,
-      maxTargets: 0,
-      maxEffects: 0,
-    };
+    this.metrics = this.blankMetrics();
     this.seed = seed >>> 0;
     this.randomSpawn = new Random(this.seed ^ 0x9e3779b9);
     this.randomCards = new Random(this.seed ^ 0xc2b2ae35);
@@ -191,7 +190,7 @@ export class Game {
   get margin(): number {
     return this.radius - this.core - this.rules.electronRadius;
   }
-  get charged(): boolean {
+  get energyFull(): boolean {
     return !this.endless && this.xp >= this.rules.energyGoal;
   }
   get critical(): boolean {
@@ -284,7 +283,7 @@ export class Game {
     if (cycle < this.rules.late.assaultSeconds + this.rules.late.recoverySeconds) return 'recovery';
     return 'steady';
   }
-  get nextXp(): number {
+  private get nextXp(): number {
     return xpForLevel(this.level + 1, this.rules);
   }
   get levelProgress(): { current: number; required: number } {
@@ -298,16 +297,14 @@ export class Game {
           this.clearResult.collisionTime +
           this.rules.waveWarningSeconds +
           this.waveCount * this.rules.endless.cycleSeconds,
-        angle:
-          (this.waves.at(-1)!.angle + this.waveCount * Math.PI * (3 - Math.sqrt(5))) %
-          (Math.PI * 2),
+        angle: (this.waves.at(-1)!.angle + this.waveCount * goldenAngle) % (Math.PI * 2),
       };
     if (this.waveCount < this.waves.length) return this.waves[this.waveCount];
     const last = this.waves.at(-1)!,
       repeat = this.waveCount - this.waves.length + 1;
     return {
       time: last.time + repeat * this.rules.waveRepeatSeconds,
-      angle: (last.angle + repeat * Math.PI * (3 - Math.sqrt(5))) % (Math.PI * 2),
+      angle: (last.angle + repeat * goldenAngle) % (Math.PI * 2),
     };
   }
   get warningWave() {
@@ -383,24 +380,25 @@ export class Game {
     this.waveCount = this.rushSpawns = 0;
     this.batchCount = this.rules.introBatches;
     this.nextSpawn = this.tick + this.rules.waveWarningSeconds * this.rules.tickRate;
-    this.counts = Object.fromEntries(
-      particleIds.map((id) => [id, { generated: 0, killed: 0, absorbed: 0 }]),
-    ) as Record<ParticleKind, Count>;
-    this.metrics = {
+    this.counts = blankCounts();
+    this.metrics = this.blankMetrics();
+    this.combat.reset();
+    this.log('beyond', { tick: this.elapsedTicks });
+    return true;
+  }
+  private blankMetrics(): Metrics {
+    return {
       minRadius: this.radius,
       minMargin: this.margin,
       dangerSeconds: 0,
       maxTargets: 0,
       maxEffects: 0,
     };
-    this.combat.reset();
-    this.log('beyond', { tick: this.elapsedTicks });
-    return true;
   }
   retire(): boolean {
     if (!this.endless || !['running', 'crossing'].includes(this.phase)) return false;
     this.endingOutcome = 'retired';
-    this.collisionTrigger = 'quit';
+    this.endTrigger = 'quit';
     this.collisionTime = this.time;
     this.choice = null;
     this.combat.clear();
@@ -468,13 +466,15 @@ export class Game {
 
   expireEffects(): void {
     this.effects = this.effects.filter((fx) => this.seconds < fx.born + fx.life);
-    this.damageNumbers = this.damageNumbers.filter((damage) => this.seconds < damage.born + 0.72);
+    this.damageNumbers = this.damageNumbers.filter(
+      (damage) => this.seconds < damage.born + damageNumberSeconds,
+    );
   }
 
   private step(autoSelect: boolean, beforeCombat?: () => void): void {
     this.tick++;
     if (this.finalDown) {
-      this.collide('boss');
+      this.beginCollapse('boss');
       return;
     }
     beforeCombat?.();
@@ -500,46 +500,16 @@ export class Game {
         (1 + (this.randomSpawn.next() * 2 - 1) * this.rules.spawnVariation.intervalFraction);
     }
     const wave = this.upcomingWave;
-    if (wave && this.time >= wave.time) {
-      if (this.combatEnabled) {
-        const scale =
-          this.rules.waveScale[
-            this.endless
-              ? this.rules.waveScale.length - 1
-              : Math.min(this.waveCount, this.rules.waveScale.length - 1)
-          ];
-        this.spawnGroup('small', Math.round((this.rules.waveSmall / 2) * scale), wave.angle, 1);
-        this.spawnGroup(
-          'small',
-          Math.round((this.rules.waveSmall / 2) * scale),
-          wave.angle + Math.PI,
-          -1,
-        );
-        this.spawnGroup(
-          'dense',
-          Math.round((this.rules.waveDense / 2) * scale),
-          wave.angle + 0.15,
-          1,
-        );
-        this.spawnGroup(
-          'dense',
-          Math.round((this.rules.waveDense / 2) * scale),
-          wave.angle + Math.PI + 0.15,
-          -1,
-        );
-      }
-      this.waveCount++;
-      this.log('wave', { number: this.waveCount, angle: wave.angle });
-    }
+    if (wave && this.time >= wave.time) this.spawnWave(wave.angle);
     this.moveTargets();
     this.angle += this.speed / this.radius / this.rules.tickRate;
     this.combat.update();
     if (this.finalDown) {
-      this.collide('boss');
+      this.beginCollapse('boss');
       return;
     }
     if (this.absorbTargets()) {
-      this.collide('gravity');
+      this.beginCollapse('gravity');
       return;
     }
     if (
@@ -553,10 +523,32 @@ export class Game {
     if (this.margin > 0 && this.margin < this.rules.dangerMargin)
       this.metrics.dangerSeconds += 1 / this.rules.tickRate;
     if (this.margin <= 0) {
-      this.collide('gravity');
+      this.beginCollapse('gravity');
       return;
     }
     this.openChoice();
+  }
+
+  private spawnWave(angle: number): void {
+    if (this.combatEnabled) {
+      const scale =
+        this.rules.waveScale[
+          this.endless
+            ? this.rules.waveScale.length - 1
+            : Math.min(this.waveCount, this.rules.waveScale.length - 1)
+        ];
+      this.spawnGroup('small', Math.round((this.rules.waveSmall / 2) * scale), angle, 1);
+      this.spawnGroup('small', Math.round((this.rules.waveSmall / 2) * scale), angle + Math.PI, -1);
+      this.spawnGroup('dense', Math.round((this.rules.waveDense / 2) * scale), angle + 0.15, 1);
+      this.spawnGroup(
+        'dense',
+        Math.round((this.rules.waveDense / 2) * scale),
+        angle + Math.PI + 0.15,
+        -1,
+      );
+    }
+    this.waveCount++;
+    this.log('wave', { number: this.waveCount, angle: angle });
   }
 
   private enterMilestones(): void {
@@ -566,7 +558,7 @@ export class Game {
     if (stage && energy >= stage.energyFraction) {
       this.bossCount++;
       if (this.combatEnabled) this.spawnBoss(stage);
-    } else if (!stage && !this.finalEntered && this.charged) {
+    } else if (!stage && !this.finalEntered && this.energyFull) {
       this.finalEntered = true;
       if (this.combatEnabled) this.spawnFinalBoss();
     }
@@ -665,7 +657,7 @@ export class Game {
     return removed;
   }
 
-  updateOrbit(): void {
+  private updateOrbit(): void {
     if (this.orbitRecovery > 0) {
       const change = Math.min(
         this.orbitRecovery,
@@ -965,7 +957,7 @@ export class Game {
         width: damage,
         life: 0.4,
       });
-      const before = this.charged;
+      const before = this.energyFull;
       const previous = this.level;
       this.gainXp(target.xp);
       this.levelUp(previous);
@@ -977,29 +969,33 @@ export class Game {
         this.log('boss-down', { id: target.id });
       }
       this.score += Math.round(target.xp * 10 * (1 + target.radius / this.rules.spawnRadius));
-      this.kills.push({ tick: this.tick, energy: target.xp });
-      this.killEnergy += target.xp;
-      const windowTicks = this.rules.rush.windowSeconds * this.rules.tickRate;
-      while (
-        this.killHead < this.kills.length &&
-        this.tick - this.kills[this.killHead].tick >= windowTicks
-      ) {
-        this.killEnergy -= this.kills[this.killHead++].energy;
-      }
-      if (this.killHead > 1024) {
-        this.kills.splice(0, this.killHead);
-        this.killHead = 0;
-      }
-      if (this.killEnergy >= this.rules.rush.energyThreshold) {
-        this.rushUntil = this.tick + this.rules.rush.windowSeconds * this.rules.tickRate;
-        if (this.rushing)
-          this.nextSpawn = Math.min(
-            this.nextSpawn,
-            this.tick + this.rules.rush.spawnSecondsByStage[this.stage] * this.rules.tickRate,
-          );
-      }
+      this.recordKillEnergy(target.xp);
       this.log('kill', { id: target.id, kind: target.kind, xp: this.xp, x: target.x, y: target.y });
-      if (!before && this.charged) this.log('charged', { xp: this.xp });
+      if (!before && this.energyFull) this.log('charged', { xp: this.xp });
+    }
+  }
+
+  private recordKillEnergy(energy: number): void {
+    this.kills.push({ tick: this.tick, energy });
+    this.killEnergy += energy;
+    const windowTicks = this.rules.rush.windowSeconds * this.rules.tickRate;
+    while (
+      this.killHead < this.kills.length &&
+      this.tick - this.kills[this.killHead].tick >= windowTicks
+    ) {
+      this.killEnergy -= this.kills[this.killHead++].energy;
+    }
+    if (this.killHead > 1024) {
+      this.kills.splice(0, this.killHead);
+      this.killHead = 0;
+    }
+    if (this.killEnergy >= this.rules.rush.energyThreshold) {
+      this.rushUntil = this.tick + this.rules.rush.windowSeconds * this.rules.tickRate;
+      if (this.rushing)
+        this.nextSpawn = Math.min(
+          this.nextSpawn,
+          this.tick + this.rules.rush.spawnSecondsByStage[this.stage] * this.rules.tickRate,
+        );
     }
   }
 
@@ -1025,10 +1021,10 @@ export class Game {
     this.xp += whole;
   }
 
-  private collide(trigger: 'gravity' | 'boss'): void {
+  private beginCollapse(trigger: 'gravity' | 'boss'): void {
     this.endingOutcome = trigger === 'boss' ? 'success' : 'collapse-failure';
     this.collisionTime = this.time;
-    this.collisionTrigger = trigger;
+    this.endTrigger = trigger;
     this.phase = 'collapse';
     this.phaseTicks = 0;
     this.choice = null;
@@ -1050,13 +1046,12 @@ export class Game {
         ? { seconds: this.endlessSeconds, xp: this.xp - this.clearResult.xp }
         : null,
       outcome: this.endingOutcome,
-      trigger: this.collisionTrigger,
+      trigger: this.endTrigger,
       xp: this.xp,
       mass: this.mass,
       radius: this.radius,
       level: this.level,
       speed: this.speed,
-      missingXp: Math.max(0, this.rules.energyGoal - this.xp),
       seed: this.seed,
       ranks: { ...this.ranks },
       boosts: { ...this.boosts },
