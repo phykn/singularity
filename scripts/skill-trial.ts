@@ -135,6 +135,43 @@ for (const phase of phases) {
     console.log('Completed ' + phase.name + ' / ' + rarity);
   }
 }
+// Every skill must be able to answer the boss while the late stream keeps coming.
+const bossTrial = [];
+const late = phases.at(-1)!;
+for (const context of [[], ['multi', 'chain', 'satellite']] as SkillId[][]) {
+  for (const id of skillIds.filter((id) => !context.includes(id))) {
+    const times: number[] = [];
+    let killed = 0;
+    for (let seed = 350000; seed < 350000 + count; seed++) {
+      const g = new Game(seed, { rules: cfg, recordEvents: false });
+      g.start();
+      g.tick = g.elapsedTicks = 390 * cfg.tickRate;
+      g.selections.length = 1000;
+      Object.assign(g.boosts, { power: late.power, rate: late.rate, range: late.range, speed: 1 });
+      for (const skill of [...context, id]) g.ranks[skill] = late.rank;
+      g.combat.reset();
+      g.xp = Math.ceil(cfg.energyGoal * cfg.boss.energyFraction);
+      g.advance(1000 / cfg.tickRate);
+      const boss = g.boss!;
+      const spawned = g.time;
+      while (g.targets.includes(boss) && g.phase === 'running' && g.time - spawned < 120) {
+        g.xp = Math.ceil(cfg.energyGoal * cfg.boss.energyFraction);
+        g.mass = 0;
+        g.advance(1000 / cfg.tickRate);
+      }
+      if (boss.hp <= 0) {
+        killed++;
+        times.push(g.time - spawned);
+      }
+    }
+    bossTrial.push({
+      context: context.join('+') || 'solo',
+      id,
+      killed: killed / count,
+      medianSeconds: times.sort((a, b) => a - b)[Math.floor(times.length / 2)] ?? null,
+    });
+  }
+}
 const summary = [];
 for (const phase of phases)
   for (const rarity of rarities)
@@ -180,6 +217,7 @@ writeFileSync(
       scope:
         'Controlled 30-second Combat encounters. Identical seeded spawn streams, fixed orbit/stats, equal ranks and skill rarity, no QTE, growth, rush spawning or collision ending. Solo and fourth-slot marginal tests in two three-skill contexts. Measures effective HP removed (overkill excluded), kills and net mass versus a matched baseline. Not human perception or natural clear rate.',
       summary,
+      bossTrial,
       rows,
     },
     null,
@@ -197,4 +235,5 @@ console.table(
       extraDamage: Number(r.extraDamage.toFixed(2)),
     })),
 );
+console.table(bossTrial);
 console.log('Report: ' + output);

@@ -1,7 +1,8 @@
 import type { Target } from '../game/types.ts';
 
 export function healthBar(target: Target, damage: number) {
-  if (target.hp <= 0 || target.maxHp <= damage + 1e-8) return null;
+  // The boss shows its health in the HUD.
+  if (target.kind === 'boss' || target.hp <= 0 || target.maxHp <= damage + 1e-8) return null;
   const width = 12;
   return {
     width,

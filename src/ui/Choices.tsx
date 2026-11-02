@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Choice } from '../game/types.ts';
-import type { Rarity, UpgradeId } from '../game/rules.ts';
-import { isSkill, isStat } from '../game/rules.ts';
-import { skillChange, skillLinks } from './skillText.ts';
+import type { Card, UpgradeId } from '../game/rules.ts';
+import { isEvolvable, isPact, isSkill, isStat } from '../game/rules.ts';
+import { pactText, skillChange, skillLinks } from './skillText.ts';
 import { SkillIcon, ControlIcon } from './icons.tsx';
 import { Rank } from './controls.tsx';
 import type { Game } from '../game/Game.ts';
@@ -31,8 +31,16 @@ export function Choices({
     rules = game.rules,
     choice = game.choice,
     automatic = game.automaticCard?.id;
-  const change = (id: UpgradeId, rarity: Rarity) =>
-    skillChange(id, game.rank(id), rarity, game.rarities[id], language, rules, game.mass);
+  const change = ({ id, rarity, evolve }: Card) =>
+    evolve && isEvolvable(id)
+      ? c.evolutions[id].summary
+      : isPact(id)
+        ? pactText(id, language, rules).gain
+        : skillChange(id, game.rank(id), rarity, game.rarities[id], language, rules, game.mass);
+  const title = ({ id, evolve }: Card) =>
+    evolve && isEvolvable(id) ? c.evolutions[id].name : c.upgrades[id].short;
+  const tag = ({ id, rarity, evolve }: Card) =>
+    evolve ? c.evolve : isPact(id) ? c.pact : isStat(id) ? '' : c.rarities[rarity];
   const previous = useRef<{
     choice: Choice;
     values: string[];
@@ -61,7 +69,7 @@ export function Choices({
     previous.current = choice
       ? {
           choice,
-          values: choice.cards.map((card) => change(card.id, card.rarity)),
+          values: choice.cards.map(change),
           stages: choice.cards.map((card) => game.rank(card.id)),
           links: choice.cards.map((card) => skillLinks(card.id, game.ownedSkills)),
         }
@@ -105,56 +113,63 @@ export function Choices({
             </div>
           </div>
           <div className="cards" data-ready={pointerReady} ref={cards} onKeyDown={navigate}>
-            {choice.cards.map(({ id, rarity }) => (
-              <button
-                key={`${choice.number}-${id}`}
-                className={`card ${id === automatic ? 'auto' : ''}`}
-                data-rarity={rarity}
-                data-upgrade={id}
-                aria-label={
-                  (isStat(id) ? '' : c.rarities[rarity] + ' ') +
-                  c.upgrades[id].name +
-                  ', ' +
-                  (id === 'recover'
-                    ? c.instant
-                    : game.rank(id) || !isSkill(id)
-                      ? c.rankUp(game.rank(id), game.rank(id) + 1)
-                      : c.newSkill) +
-                  ', ' +
-                  change(id, rarity) +
-                  skillLinks(id, game.ownedSkills)
-                    .map(
-                      (link) =>
-                        `, ${c.link}: ${c.upgrades[link.skill].name} ${c.links[link.effect]}`,
-                    )
-                    .join('') +
-                  (id === automatic ? ', ' + c.auto : '')
-                }
-                onClick={(event) => {
-                  if (accept(event)) onSelect(id, choice.number);
-                }}
-                disabled={!interactive || !game.canUpgrade(id)}
-              >
-                <span className="card-label">
-                  {!isStat(id) && <b>{c.rarities[rarity]}</b>}
-                  {id === automatic && <ControlIcon id="next" size={12} />}
-                </span>
-                <span className="card-icon">
-                  <SkillIcon id={id} size={32} />
-                  {isSkill(id) && (
-                    <Rank value={game.rank(id)} max={rules.maxRank} next={game.rank(id) + 1} />
-                  )}
-                </span>
-                <strong>{c.upgrades[id].short}</strong>
-                <span className="card-value">{change(id, rarity)}</span>
-                <CardFoot
-                  id={id}
-                  rank={game.rank(id)}
-                  links={skillLinks(id, game.ownedSkills)}
-                  language={language}
-                />
-              </button>
-            ))}
+            {choice.cards.map((card) => {
+              const { id, rarity, evolve } = card;
+              return (
+                <button
+                  key={`${choice.number}-${id}`}
+                  className={`card ${id === automatic ? 'auto' : ''}`}
+                  data-rarity={rarity}
+                  data-upgrade={id}
+                  data-evolve={!!evolve}
+                  data-pact={isPact(id)}
+                  aria-label={
+                    (tag(card) && tag(card) + ' ') +
+                    title(card) +
+                    ', ' +
+                    (id === 'recover' || evolve || isPact(id)
+                      ? c.instant
+                      : game.rank(id) || !isSkill(id)
+                        ? c.rankUp(game.rank(id), game.rank(id) + 1)
+                        : c.newSkill) +
+                    ', ' +
+                    change(card) +
+                    (isPact(id) ? ', ' + pactText(id, language, rules).cost : '') +
+                    skillLinks(id, game.ownedSkills)
+                      .map(
+                        (link) =>
+                          `, ${c.link}: ${c.upgrades[link.skill].name} ${c.links[link.effect]}`,
+                      )
+                      .join('') +
+                    (id === automatic ? ', ' + c.auto : '')
+                  }
+                  onClick={(event) => {
+                    if (accept(event)) onSelect(id, choice.number);
+                  }}
+                  disabled={!interactive || !game.canUpgrade(id)}
+                >
+                  <span className="card-label">
+                    {tag(card) && <b>{tag(card)}</b>}
+                    {id === automatic && <ControlIcon id="next" size={12} />}
+                  </span>
+                  <span className="card-icon">
+                    <SkillIcon id={id} size={32} />
+                    {isSkill(id) && !evolve && (
+                      <Rank value={game.rank(id)} max={rules.maxRank} next={game.rank(id) + 1} />
+                    )}
+                  </span>
+                  <strong>{title(card)}</strong>
+                  <span className="card-value">{change(card)}</span>
+                  <CardFoot
+                    id={id}
+                    evolve={evolve}
+                    rank={game.rank(id)}
+                    links={skillLinks(id, game.ownedSkills)}
+                    language={language}
+                  />
+                </button>
+              );
+            })}
           </div>
           <div className="choice-track">
             <i style={{ width: (secondsLeft / rules.choiceSeconds) * 100 + '%' }} />
@@ -167,35 +182,41 @@ export function Choices({
             <strong>{c.growth}</strong>
           </div>
           <div className="cards">
-            {receipt.choice.cards.map(({ id, rarity }, i) => (
-              <div
-                className="choice-echo"
-                data-selected={id === receipt.selected}
-                data-rarity={rarity}
-                data-upgrade={id}
-                key={id}
-              >
-                <span className="card-label">{!isStat(id) && <b>{c.rarities[rarity]}</b>}</span>
-                <span className="card-icon">
-                  <SkillIcon id={id} size={32} />
-                  {isSkill(id) && (
-                    <Rank
-                      value={receipt.stages[i]}
-                      max={rules.maxRank}
-                      next={receipt.stages[i] + 1}
-                    />
-                  )}
-                </span>
-                <strong>{c.upgrades[id].short}</strong>
-                <span className="card-value">{receipt.values[i]}</span>
-                <CardFoot
-                  id={id}
-                  rank={receipt.stages[i]}
-                  links={receipt.links[i]}
-                  language={language}
-                />
-              </div>
-            ))}
+            {receipt.choice.cards.map((card, i) => {
+              const { id, rarity, evolve } = card;
+              return (
+                <div
+                  className="choice-echo"
+                  data-selected={id === receipt.selected}
+                  data-rarity={rarity}
+                  data-upgrade={id}
+                  data-evolve={!!evolve}
+                  data-pact={isPact(id)}
+                  key={id}
+                >
+                  <span className="card-label">{tag(card) && <b>{tag(card)}</b>}</span>
+                  <span className="card-icon">
+                    <SkillIcon id={id} size={32} />
+                    {isSkill(id) && !evolve && (
+                      <Rank
+                        value={receipt.stages[i]}
+                        max={rules.maxRank}
+                        next={receipt.stages[i] + 1}
+                      />
+                    )}
+                  </span>
+                  <strong>{title(card)}</strong>
+                  <span className="card-value">{receipt.values[i]}</span>
+                  <CardFoot
+                    id={id}
+                    evolve={evolve}
+                    rank={receipt.stages[i]}
+                    links={receipt.links[i]}
+                    language={language}
+                  />
+                </div>
+              );
+            })}
           </div>
           <div className="choice-track" />
         </section>
@@ -206,16 +227,25 @@ export function Choices({
 
 function CardFoot({
   id,
+  evolve,
   rank,
   links,
   language,
 }: {
   id: UpgradeId;
+  evolve?: boolean;
   rank: number;
   links: Links;
   language: Language;
 }) {
   const c = copy[language];
+  if (evolve) return <span className="card-foot" aria-hidden="true" />;
+  if (isPact(id))
+    return (
+      <span className="card-foot pact-cost" aria-hidden="true">
+        {pactText(id, language).cost}
+      </span>
+    );
   return (
     <span className="card-foot" aria-hidden="true">
       {isSkill(id)

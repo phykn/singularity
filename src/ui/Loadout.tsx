@@ -63,6 +63,7 @@ export function Loadout({
                 data-acquired={game.notice === id && game.time < game.noticeUntil}
                 data-new={id && game.rank(id) === 1}
                 data-rarity={id ? game.rarities[id] : undefined}
+                data-evolved={id ? !!game.evolved[id] : undefined}
                 role={status && status.mode !== 'conditional' ? 'progressbar' : 'img'}
                 aria-valuemin={status && status.mode !== 'conditional' ? 0 : undefined}
                 aria-valuemax={status && status.mode !== 'conditional' ? 100 : undefined}
@@ -81,13 +82,20 @@ export function Loadout({
                       ' ' +
                       game.rank(id) +
                       '/' +
-                      rules.maxRank
+                      rules.maxRank +
+                      (game.evolved[id] ? ', ' + c.evolve : '')
                     : c.empty
                 }
                 title={id ? c.upgrades[id].name + ' · ' + value(id) : undefined}
               >
                 {id && status ? (
-                  <SkillSlot id={id} status={status} rank={game.rank(id)} max={rules.maxRank} />
+                  <SkillSlot
+                    id={id}
+                    status={status}
+                    rank={game.rank(id)}
+                    max={rules.maxRank}
+                    evolved={!!game.evolved[id]}
+                  />
                 ) : (
                   <i />
                 )}
@@ -114,11 +122,13 @@ function SkillSlot({
   status,
   rank,
   max,
+  evolved,
 }: {
   id: SkillId;
   status: SkillStatus;
   rank: number;
   max: number;
+  evolved: boolean;
 }) {
   return (
     <>
@@ -133,7 +143,7 @@ function SkillSlot({
       </span>
       {rank >= max ? (
         <span className="slot-max" aria-hidden="true">
-          MAX
+          {evolved ? 'EVO' : 'MAX'}
         </span>
       ) : (
         <Rank value={rank} max={max} />

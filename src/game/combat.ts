@@ -14,6 +14,7 @@ export type Attack = {
   id: number;
   ranks: Ranks;
   rarities: Rarities;
+  evolved: Partial<Record<SkillId, boolean>>;
   forms: SkillValues;
   power: number;
   damage: number;
@@ -45,6 +46,14 @@ type Focus = {
   group: number;
   started: boolean;
 };
+type Trail = {
+  attack: Attack;
+  from: Point;
+  to: Point;
+  width: number;
+  until: number;
+  next: number;
+};
 type Barrier = {
   id: number;
   attack: Attack;
@@ -75,6 +84,7 @@ export class Combat {
   private pulses: Pulse[] = [];
   private focus: Focus[] = [];
   private barriers: Barrier[] = [];
+  private trails: Trail[] = [];
   private surgeCharge = 0;
   private storedCharge = 0;
   private lastSurgeCharge = -Infinity;
@@ -145,6 +155,7 @@ export class Combat {
     }
     this.updateFocus();
     this.updateBarriers();
+    this.updateTrails();
     this.updateSurge();
   }
 
@@ -212,6 +223,7 @@ export class Combat {
     this.pulses = [];
     this.focus = [];
     this.barriers = [];
+    this.trails = [];
     this.surgeCharge = 0;
     this.storedCharge = 0;
     this.surgeUntil = 0;
@@ -234,7 +246,7 @@ export class Combat {
   }
 
   movementScale(target: Target): number {
-    return this.game.time < (target.bridgeUntil ?? 0)
+    return target.kind !== 'boss' && this.game.time < (target.bridgeUntil ?? 0)
       ? this.game.rules.skills.bridge.movementScale
       : 1;
   }
@@ -272,6 +284,12 @@ export class Combat {
     if (!this.game.targets.some((t) => t.hp > 0 && distance(t, origin) <= range)) return false;
     const attack = this.begin();
     const selected = closest(this.game.targets, origin, attack.forms.multi.count, attack.range);
+    // Basic fire always answers the boss, so builds without single-target skills can still fight it.
+    const boss = this.game.boss;
+    if (boss && !selected.includes(boss) && distance(boss, origin) <= attack.range) {
+      selected.unshift(boss);
+      selected.length = attack.forms.multi.count;
+    }
     this.volley(attack, origin, selected, true);
     return selected.length > 0;
   }
@@ -359,6 +377,7 @@ export class Combat {
           index,
         );
       }
+      if (fired && attack.evolved.satellite) this.fireRing(attack);
       if (fired) this.activate(id);
       return fired > 0;
     }
@@ -391,7 +410,12 @@ export class Combat {
         fired += this.volley(branch, origin, [anchor], true);
         const group = closest(g.targets, point, s.gather.count, s.gather.radius);
         for (const target of group) {
-          if (moved.has(target.id) || reserved.has(target.id) || g.time < (target.gatherReady ?? 0))
+          if (
+            target.kind === 'boss' ||
+            moved.has(target.id) ||
+            reserved.has(target.id) ||
+            g.time < (target.gatherReady ?? 0)
+          )
             continue;
           moved.add(target.id);
           target.gatherReady = g.time + g.rules.skills.gather.immunitySeconds;
@@ -499,6 +523,7 @@ export class Combat {
       id: this.nextId++,
       ranks: { ...g.ranks },
       rarities: { ...g.rarities },
+      evolved: { ...g.evolved },
       forms,
       power: g.damage,
       damage: g.damage * multiplier,
@@ -568,7 +593,62 @@ export class Combat {
       fired++;
     }
     if (fired > 1) this.activate('multi', attack.ranks.multi);
+    if (fired > 1 && attack.evolved.multi && attack.depth === 0) this.linkTargets(attack, selected);
     return fired;
+  }
+
+  private linkTargets(attack: Attack, selected: Target[]): void {
+    const damage = attack.damage * this.game.rules.evolution.multi.linkDamage,
+      link = { ...attack, damage, depth: 2, firstKill: undefined, push: false };
+    const alive = selected.filter((target) => target.hp > 0);
+    for (const [i, target] of alive.entries()) {
+      const next = alive[(i + 1) % alive.length];
+      if (next === target || (alive.length === 2 && i === 1)) continue;
+      this.effect(link, 'bolt', target, next, 0, 0.14, false, 'multi', 1.3);
+      this.deal(link, next, damage);
+    }
+  }
+
+  private fireRing(attack: Attack): void {
+    const g = this.game,
+      cfg = g.rules.evolution.satellite,
+      points = this.satellitePoints;
+    const damage = attack.damage * cfg.ringDamage,
+      ring = { ...attack, damage, depth: 2, firstKill: undefined, push: false };
+    const hit = new Set<number>();
+    for (const [i, from] of points.entries()) {
+      const to = points[(i + 1) % points.length];
+      if (points.length < 2) break;
+      this.effect(ring, 'pierce', from, to, 0, 0.14, false, 'satellite', cfg.width);
+      for (const target of onSegment(g.targets, from, to, cfg.width)) {
+        if (hit.has(target.id)) continue;
+        hit.add(target.id);
+        this.deal(ring, target, damage);
+      }
+    }
+  }
+
+  private updateTrails(): void {
+    const g = this.game,
+      cfg = g.rules.evolution.pierce;
+    this.trails = this.trails.filter((trail) => g.time < trail.until - 1e-8);
+    for (const trail of this.trails) {
+      if (g.tick + 1e-8 < trail.next) continue;
+      trail.next = g.tick + cfg.trailInterval * g.rules.tickRate;
+      this.effect(
+        trail.attack,
+        'pierce',
+        trail.from,
+        trail.to,
+        0,
+        0.14,
+        false,
+        'pierce',
+        trail.width,
+      );
+      for (const target of onSegment(g.targets, trail.from, trail.to, trail.width))
+        this.deal(trail.attack, target, trail.attack.damage);
+    }
   }
 
   private emit(
@@ -658,6 +738,22 @@ export class Combat {
         visited.add(target.id);
         this.deal(attack, target, damage);
       }
+      const cfg = this.game.rules.evolution.pierce;
+      if (attack.evolved.pierce && attack.depth === 0 && this.trails.length < cfg.maxTrails)
+        this.trails.push({
+          attack: {
+            ...attack,
+            damage: attack.damage * cfg.trailDamage,
+            depth: 2,
+            firstKill: undefined,
+            push: false,
+          },
+          from: { ...origin },
+          to: { ...to },
+          width: s.pierce.width,
+          until: this.game.time + cfg.trailSeconds,
+          next: this.game.tick + cfg.trailInterval * this.game.rules.tickRate,
+        });
     }
     this.chain(attack, contact, visited);
     this.discharge(attack);
@@ -672,6 +768,23 @@ export class Combat {
       const damage = attack.damage * this.game.rules.skills.chain.falloff ** (hop + 1);
       this.effect({ ...attack, damage }, 'bolt', previous, next, 0, 0.14, false, 'chain', 1.3);
       this.activate('chain', attack.ranks.chain);
+      previous = { x: next.x, y: next.y };
+      this.deal(attack, next, damage);
+    }
+    if (!attack.evolved.chain || !attack.forms.chain.hops) return;
+    // Evolved: the bolt turns back through the same stretch at reduced power.
+    const returned = new Set<number>();
+    for (let hop = 0; hop < attack.forms.chain.hops; hop++) {
+      const next = closest(this.game.targets, previous, 2, attack.forms.chain.range, returned).find(
+        (target) => distance(target, previous) > 1e-6,
+      );
+      if (!next) break;
+      returned.add(next.id);
+      const damage =
+        attack.damage *
+        this.game.rules.evolution.chain.loopDamage *
+        this.game.rules.skills.chain.falloff ** (hop + 1);
+      this.effect({ ...attack, damage }, 'bolt', previous, next, 0, 0.14, false, 'chain', 1.3);
       previous = { x: next.x, y: next.y };
       this.deal(attack, next, damage);
     }
@@ -728,6 +841,7 @@ export class Combat {
     if (g.time < (target.pushReady ?? 0)) return;
     target.pushReady = g.time + immunity;
     target.controlCount = (target.controlCount ?? 0) + 1;
+    if (target.kind === 'boss') amount *= g.rules.boss.pushScale;
     target.radius = Math.max(
       target.radius,
       Math.min(g.rules.spawnRadius, radius + amount / (1 + 0.18 * (target.controlCount - 1))),

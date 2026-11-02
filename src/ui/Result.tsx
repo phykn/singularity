@@ -106,7 +106,7 @@ export function Result({
           </div>
           <div className="result-build">
             {owned.map((id) => (
-              <div key={id} data-rarity={game.rarities[id]}>
+              <div key={id} data-rarity={game.rarities[id]} data-evolved={!!game.evolved[id]}>
                 <SkillIcon id={id} size={32} />
                 <span>{c.upgrades[id].short}</span>
                 <small>{c.rarities[game.rarities[id]]}</small>

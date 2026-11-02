@@ -3,9 +3,9 @@ import { sourceHash } from './engine.ts';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Game } from '../src/game/Game.ts';
-import { rarityIds, rarityScale, rules, isSkill } from '../src/game/rules.ts';
-import type { Card, SkillId } from '../src/game/rules.ts';
-import { playRhythm } from './rhythm-bot.ts';
+import { rarityIds, rules, isSkill } from '../src/game/rules.ts';
+import type { SkillId } from '../src/game/rules.ts';
+import { guidedCard, playRhythm } from './rhythm-bot.ts';
 import { createHash } from 'node:crypto';
 
 // node scripts/balance.ts [count=900] [firstSeed=92000] [report] [qte|qte-off|qte-guided|auto|guided] [rulesJson]
@@ -26,36 +26,6 @@ assert.ok(
 const cfg = process.argv[6]
   ? (JSON.parse(readFileSync(process.argv[6], 'utf8')) as typeof rules)
   : rules;
-// A reproducible, visible-state choice heuristic; this is not a human clear-rate estimate.
-const strength: Record<SkillId, number> = {
-  multi: 10,
-  chain: 9,
-  repeat: 8,
-  pierce: 8,
-  burst: 7,
-  strike: 6,
-  focus: 6,
-  satellite: 6,
-  bridge: 6,
-  charge: 4,
-  surge: 4,
-  return: 4,
-  repel: 4,
-  chase: 4,
-  vent: 3,
-  gather: 3,
-};
-function value(g: Game, card: Card) {
-  const { id, rarity } = card;
-  const scale = rarityScale(rarity, g.rules);
-  if (id === 'recover') return g.margin < 30 ? 30 : g.mass > 65 ? 10 : 1;
-  if (id === 'power') return (g.boosts.power < 3 ? 12 : 7) * scale;
-  if (id === 'rate') return (g.boosts.rate < 3 ? 9 : 5) * scale;
-  if (id === 'range') return (g.boosts.range < 2 ? 6 : 3) * scale;
-  if (id === 'speed') return 2 * scale;
-  if (isSkill(id)) return strength[id] * scale * (g.ranks[id] ? 1.15 : 1);
-  return 0;
-}
 const started = Date.now();
 const hash = sourceHash();
 const simulationHash = createHash('sha256')
@@ -66,13 +36,7 @@ for (let seed = start; seed < start + count; seed++) {
   const g = new Game(seed, { rules: cfg });
   let rhythm = null;
   if (policy.startsWith('qte')) {
-    rhythm = playRhythm(
-      g,
-      policy === 'qte-guided'
-        ? (game) => game.choice!.cards.reduce((a, b) => (value(game, b) > value(game, a) ? b : a))
-        : undefined,
-      policy !== 'qte-off',
-    );
+    rhythm = playRhythm(g, policy === 'qte-guided' ? guidedCard : undefined, policy !== 'qte-off');
     assert.equal(rhythm.misses, 0, 'The perfect-QTE reference bot must not miss a beat');
     if (policy === 'qte-off') assert.equal(g.resonances.length, 0);
   } else if (policy === 'auto') {
@@ -82,8 +46,7 @@ for (let seed = start; seed < start + count; seed++) {
     g.start();
     while (!g.result && g.seconds < 1800) {
       if (g.choice && g.time - g.choice.opened >= 1) {
-        const card = g.choice.cards.reduce((a, b) => (value(g, b) > value(g, a) ? b : a));
-        g.select(card.id);
+        g.select(guidedCard(g).id);
       }
       g.advance(250);
     }

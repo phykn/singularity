@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { base, capture, launchBrowser, observeScene, showSuccess } from './browser-support.mjs';
-import { rules, skillIds, upgradeIds, rarityIds } from '../src/game/rules.ts';
+import { pactIds, rules, skillIds, upgradeIds, rarityIds } from '../src/game/rules.ts';
 import { copy } from '../src/ui/i18n.ts';
 import { iconCells } from '../src/art/skills.ts';
 import { WARNING_RED } from '../src/render/warning.ts';
@@ -545,7 +545,11 @@ const visualFlow = async () => {
       const rank = id === 'chain' ? 5 : 2;
       assert.ok(
         (await feedback.innerText()).includes(
-          id === 'recover' ? copy.ko.instant : `${rank - 1} → ${rank}`,
+          id === 'recover'
+            ? copy.ko.instant
+            : pactIds.includes(id)
+              ? copy.ko.pact
+              : `${rank - 1} → ${rank}`,
         ),
       );
       if (id === 'chain') {
@@ -746,6 +750,7 @@ const interfaceFlow = async () => {
     g.setHidden(false);
     g.ranks = { ...g.ranks, charge: 5, chain: 5, repel: 5, strike: 5 };
     g.boosts = { power: 6, rate: 6, range: 6, speed: 6 };
+    g.evolved = { chain: true };
     g.selections = Array.from({ length: 20 }, (_, i) => ({
       time: i,
       id: ['charge', 'chain', 'repel', 'strike'][i % 4],

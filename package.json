@@ -1,6 +1,6 @@
 {
   "name": "web-game",
-  "version": "0.1.53",
+  "version": "0.1.54",
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
@@ -25,6 +25,7 @@
     "check:choice-input": "node scripts/choice-input.mjs",
     "check:controls": "node scripts/controls.mjs",
     "check:ui": "node scripts/ui.mjs",
+    "check:late-game": "node scripts/late-game.mjs",
     "check:rhythm": "node scripts/rhythm.mjs",
     "check:effects": "node scripts/effects.mjs",
     "check:presentation": "node scripts/presentation.mjs",
@@ -39,6 +40,7 @@
     "build:art": "node scripts/art.mjs",
     "preview": "vite preview --host 0.0.0.0 --port 8081 --strictPort",
     "check:balance": "node scripts/balance.ts",
+    "check:pacing": "node scripts/pacing.ts",
     "check:skill-balance": "node scripts/skill-balance.ts",
     "check:skill-trial": "node scripts/skill-trial.ts",
     "check:beyond": "node scripts/beyond.ts",

@@ -1,12 +1,49 @@
 import { GameSession } from '../src/app/GameSession.ts';
 import type { Game } from '../src/game/Game.ts';
-import type { Card } from '../src/game/rules.ts';
+import { isPact, isSkill, rarityScale } from '../src/game/rules.ts';
+import type { Card, SkillId } from '../src/game/rules.ts';
+
+// A reproducible, visible-state choice heuristic; this is not a human clear-rate estimate.
+const strength: Record<SkillId, number> = {
+  multi: 10,
+  chain: 9,
+  repeat: 8,
+  pierce: 8,
+  burst: 7,
+  strike: 6,
+  focus: 6,
+  satellite: 6,
+  bridge: 6,
+  charge: 4,
+  surge: 4,
+  return: 4,
+  repel: 4,
+  chase: 4,
+  vent: 3,
+  gather: 3,
+};
+function value(g: Game, card: Card) {
+  const { id, rarity } = card;
+  if (card.evolve) return 40;
+  if (isPact(id)) return g.margin > 60 ? 11 : 0;
+  const scale = rarityScale(rarity, g.rules);
+  if (id === 'recover') return g.margin < 30 ? 30 : g.mass > 65 ? 10 : 1;
+  if (id === 'power') return (g.boosts.power < 3 ? 12 : 7) * scale;
+  if (id === 'rate') return (g.boosts.rate < 3 ? 9 : 5) * scale;
+  if (id === 'range') return (g.boosts.range < 2 ? 6 : 3) * scale;
+  if (id === 'speed') return 2 * scale;
+  if (isSkill(id)) return strength[id] * scale * (g.ranks[id] ? 1.15 : 1);
+  return 0;
+}
+export const guidedCard = (g: Game): Card =>
+  g.choice!.cards.reduce((a, b) => (value(g, b) > value(g, a) ? b : a));
 
 // Drive the shipped session at 60 Hz, including hit stop, choices and orbit-based judgment.
 export function playRhythm(
   game: Game,
   choose: (game: Game) => Card = (g) => g.automaticCard!,
   qte = true,
+  onFrame?: () => void,
 ) {
   const session = new GameSession(
     game,
@@ -28,6 +65,7 @@ export function playRhythm(
   for (let frame = 1; !game.result && game.seconds < 1800; frame++) {
     wall = (frame * 1000) / 60;
     session.step(wall);
+    onFrame?.();
     if (game.choice && !game.charged) {
       session.select(choose(game).id, game.choice.number, wall);
       continue;

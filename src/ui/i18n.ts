@@ -1,4 +1,5 @@
-import type { Rarity, UpgradeId } from '../game/rules.ts';
+import type { EvolvableId, PactId, Rarity, UpgradeId } from '../game/rules.ts';
+import type { BannerKind } from '../game/types.ts';
 
 export type Language = 'ko' | 'en' | 'zh' | 'ja';
 export const languages: { id: Language; label: string; html: string }[] = [
@@ -106,6 +107,21 @@ const ko = {
       description: '조준·연쇄 거리와 관통 길이 증가',
     },
     speed: { name: '이동속도', short: '이동속도', description: '전자가 궤도를 도는 속도 증가' },
+    overload: {
+      name: '과부하',
+      short: '과부하',
+      description: '공격력을 크게 올리는 대신 핵 질량이 늘어납니다',
+    },
+    greed: {
+      name: '탐욕의 고리',
+      short: '탐욕의 고리',
+      description: 'XP를 더 얻는 대신 입자가 빨라집니다',
+    },
+    overclock: {
+      name: '가속 회로',
+      short: '가속 회로',
+      description: '공격속도를 크게 올리는 대신 질량 방출을 잃습니다',
+    },
     recover: {
       name: '질량 방출',
       short: '질량 방출',
@@ -219,6 +235,45 @@ const ko = {
     surge: ['처치·적중 후 난사', '폭주 시간 ↑'],
     return: ['귀환 경로 관통', '경로·위력 ↑'],
   },
+  evolve: '진화',
+  pact: '대가',
+  bossName: '거대 입자',
+  guideLate:
+    '에너지 60%에 거대 입자가 핵으로 다가옵니다. 살아 있는 동안 핵이 자라고, 놓치면 큰 질량이 쌓입니다. 80%부터는 임계 돌파로 궤도가 좁아지고 입자가 몰려옵니다.',
+  guideEvolve:
+    '5단계 연쇄·갈래·관통·위성 번개는 에너지 40%와 70%에 진화 카드로 나옵니다. 자동 선택은 진화 카드를 가장 먼저 고릅니다. 대가 카드는 강한 효과에 위험이 따르며 자동 선택되지 않습니다.',
+  banners: {
+    critical: '임계 돌파',
+    boss: '거대 입자 접근',
+    'boss-down': '거대 입자 격파',
+  } as Record<BannerKind, string>,
+  evolutions: {
+    chain: {
+      name: '회귀 연쇄',
+      summary: '연쇄가 되돌아옴',
+      description: '연쇄가 끝나면 약해진 번개가 다시 한 번 돌아 나갑니다',
+    },
+    multi: {
+      name: '번개 그물',
+      summary: '표적끼리 연결',
+      description: '갈래가 맞힌 표적들이 번개로 이어져 추가 피해를 줍니다',
+    },
+    pierce: {
+      name: '잔류 줄기',
+      summary: '관통선이 남음',
+      description: '관통선이 잠시 남아 지나가는 입자에 피해를 줍니다',
+    },
+    satellite: {
+      name: '위성 고리',
+      summary: '위성끼리 연결',
+      description: '위성 발사 때 위성끼리 이어져 사이의 입자에 피해를 줍니다',
+    },
+  } as Record<EvolvableId, { name: string; summary: string; description: string }>,
+  pactTerms: {
+    overload: { gain: (n: number) => `공격력 +${n}`, cost: (n: number) => `핵 질량 +${n}` },
+    greed: { gain: (n: number) => `XP +${n}%`, cost: (n: number) => `입자 +${n}%` },
+    overclock: { gain: (n: number) => `공격속도 +${n}`, cost: () => '방출 불가' },
+  } as Record<PactId, { gain: (n: number) => string; cost: (n: number) => string }>,
   link: '연계',
   links: {
     repeat: '연속 발사',
@@ -329,6 +384,21 @@ const en: Copy = {
       description: 'Extend targeting, chain jumps and piercing beams',
     },
     speed: { name: 'Move Speed', short: 'Move Speed', description: 'Move faster around the orbit' },
+    overload: {
+      name: 'Overload',
+      short: 'Overload',
+      description: 'Greatly raises power but adds core mass',
+    },
+    greed: {
+      name: 'Greed Loop',
+      short: 'Greed Loop',
+      description: 'Earn more XP but particles move faster',
+    },
+    overclock: {
+      name: 'Overclock',
+      short: 'Overclock',
+      description: 'Greatly raises attack speed but gives up Mass Release',
+    },
     recover: {
       name: 'Mass Vent',
       short: 'Mass Vent',
@@ -450,6 +520,45 @@ const en: Copy = {
     surge: ['Kills & hits fuel fire', 'Longer flurry'],
     return: ['Pierce on return', 'Path · power ↑'],
   },
+  evolve: 'EVOLVE',
+  pact: 'PACT',
+  bossName: 'Giant particle',
+  guideLate:
+    'At 60% energy a giant particle closes on the core; the core grows while it lives, and letting it through adds heavy mass. From 80% the critical breach tightens your orbit and draws more particles.',
+  guideEvolve:
+    'Rank 5 Chain, Fork, Pierce and Satellite offer an evolution card at 40% and 70% energy. Automatic selection takes evolutions first. Pact cards trade risk for power and are never picked automatically.',
+  banners: {
+    critical: 'CRITICAL BREACH',
+    boss: 'GIANT PARTICLE INBOUND',
+    'boss-down': 'GIANT PARTICLE DOWN',
+  },
+  evolutions: {
+    chain: {
+      name: 'Recoil Chain',
+      summary: 'Chain doubles back',
+      description: 'After a chain ends, a weaker bolt runs back through nearby particles',
+    },
+    multi: {
+      name: 'Lightning Net',
+      summary: 'Links its targets',
+      description: 'Targets hit by branches are linked by lightning for extra damage',
+    },
+    pierce: {
+      name: 'Lingering Line',
+      summary: 'Line stays active',
+      description: 'The pierce line lingers and damages particles crossing it',
+    },
+    satellite: {
+      name: 'Satellite Ring',
+      summary: 'Links satellites',
+      description: 'Satellites link when they fire, damaging particles between them',
+    },
+  },
+  pactTerms: {
+    overload: { gain: (n) => `Power +${n}`, cost: (n) => `Core mass +${n}` },
+    greed: { gain: (n) => `XP +${n}%`, cost: (n) => `Particles +${n}%` },
+    overclock: { gain: (n) => `Rate +${n}`, cost: () => 'No release' },
+  },
   link: 'Link',
   links: {
     repeat: 'Repeats',
@@ -546,6 +655,13 @@ const zh: Copy = {
     rate: { name: '攻击速度', short: '攻击速度', description: '缩短普通攻击与攻击技能的间隔' },
     range: { name: '射程', short: '射程', description: '延长瞄准、连锁和贯穿距离' },
     speed: { name: '移动速度', short: '移动速度', description: '提高电子绕轨道移动的速度' },
+    overload: { name: '过载', short: '过载', description: '大幅提升攻击力,但增加核心质量' },
+    greed: { name: '贪婪之环', short: '贪婪之环', description: '获得更多经验,但粒子变快' },
+    overclock: {
+      name: '超频回路',
+      short: '超频回路',
+      description: '大幅提升攻击速度,但失去质量释放',
+    },
     recover: {
       name: '质量释放',
       short: '质量释放',
@@ -622,6 +738,41 @@ const zh: Copy = {
     chase: ['击杀继续追击', '追击威力 ↑'],
     surge: ['击杀命中后连射', '暴走时间 ↑'],
     return: ['回流贯穿', '路径·威力 ↑'],
+  },
+  evolve: '进化',
+  pact: '代价',
+  bossName: '巨型粒子',
+  guideLate:
+    '能量达到60%时巨型粒子逼近核心,存活期间核心持续增长,漏掉会增加大量质量。80%起进入临界突破,轨道收缩且粒子涌来。',
+  guideEvolve:
+    '5级连锁、分叉、贯穿、卫星闪电会在能量40%和70%时出现进化卡。自动选择优先选进化卡。代价卡以风险换取强力效果,不会被自动选择。',
+  banners: { critical: '临界突破', boss: '巨型粒子接近', 'boss-down': '巨型粒子被击破' },
+  evolutions: {
+    chain: {
+      name: '回归连锁',
+      summary: '连锁折返',
+      description: '连锁结束后,减弱的闪电会再折返一次',
+    },
+    multi: {
+      name: '闪电之网',
+      summary: '连接目标',
+      description: '分叉击中的目标以闪电相连,造成额外伤害',
+    },
+    pierce: {
+      name: '残留光束',
+      summary: '贯穿线残留',
+      description: '贯穿线短暂残留,伤害穿过的粒子',
+    },
+    satellite: {
+      name: '卫星环',
+      summary: '连接卫星',
+      description: '卫星发射时彼此相连,伤害其间的粒子',
+    },
+  },
+  pactTerms: {
+    overload: { gain: (n) => `攻击力+${n}级`, cost: (n) => `核心质量+${n}` },
+    greed: { gain: (n) => `经验+${n}%`, cost: (n) => `粒子速度+${n}%` },
+    overclock: { gain: (n) => `攻速+${n}级`, cost: () => '无法释放质量' },
   },
   link: '联动',
   links: {
@@ -727,6 +878,21 @@ const ja: Copy = {
       description: '照準・連鎖・貫通の距離を延長',
     },
     speed: { name: '移動速度', short: '移動速度', description: '電子が軌道を回る速度が上がる' },
+    overload: {
+      name: '過負荷',
+      short: '過負荷',
+      description: '攻撃力が大きく上がる代わりに核の質量が増えます',
+    },
+    greed: {
+      name: '強欲の環',
+      short: '強欲の環',
+      description: '経験値が増える代わりに粒子が速くなります',
+    },
+    overclock: {
+      name: '加速回路',
+      short: '加速回路',
+      description: '攻撃速度が大きく上がる代わりに質量放出を失います',
+    },
     recover: {
       name: '質量放出',
       short: '質量放出',
@@ -835,6 +1001,41 @@ const ja: Copy = {
     chase: ['撃破で次へ追撃', '追撃威力 ↑'],
     surge: ['撃破・命中で連射', '暴走時間 ↑'],
     return: ['帰路を貫通', '経路・威力 ↑'],
+  },
+  evolve: '進化',
+  pact: '代償',
+  bossName: '巨大粒子',
+  guideLate:
+    'エネルギー60%で巨大粒子が核に迫ります。生きている間は核が成長し、逃すと大きな質量が加わります。80%からは臨界突破で軌道が狭まり、粒子が押し寄せます。',
+  guideEvolve:
+    'ランク5の連鎖・分岐・貫通・衛星はエネルギー40%と70%で進化カードが出ます。自動選択は進化カードを最優先します。代償カードは危険と引き換えに強力で、自動選択されません。',
+  banners: { critical: '臨界突破', boss: '巨大粒子接近', 'boss-down': '巨大粒子撃破' },
+  evolutions: {
+    chain: {
+      name: '回帰連鎖',
+      summary: '連鎖が往復',
+      description: '連鎖の終わりに弱まった雷がもう一度折り返します',
+    },
+    multi: {
+      name: '雷の網',
+      summary: '標的を接続',
+      description: '分岐が当たった標的が雷でつながり追加ダメージを与えます',
+    },
+    pierce: {
+      name: '残留光線',
+      summary: '貫通線が残る',
+      description: '貫通線がしばらく残り、通過する粒子にダメージを与えます',
+    },
+    satellite: {
+      name: '衛星リング',
+      summary: '衛星を接続',
+      description: '衛星の発射時に衛星同士がつながり、間の粒子にダメージを与えます',
+    },
+  },
+  pactTerms: {
+    overload: { gain: (n) => `攻撃力+${n}`, cost: (n) => `核質量+${n}` },
+    greed: { gain: (n) => `XP+${n}%`, cost: (n) => `粒子速度+${n}%` },
+    overclock: { gain: (n) => `攻速+${n}`, cost: () => '質量放出不可' },
   },
   link: '連携',
   links: {

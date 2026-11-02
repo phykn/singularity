@@ -199,6 +199,7 @@ svg {
   height: 24px;
 }
 .hud {
+  position: relative;
   opacity: var(--scene-hud, 1);
   padding: 0 8px;
 }
@@ -1706,5 +1707,81 @@ b {
   }
   to {
     opacity: 1;
+  }
+}
+
+.boss-bar {
+  position: absolute;
+  top: 44px;
+  right: 8px;
+  left: 8px;
+  height: 6px;
+  background: #492129;
+}
+.boss-bar i {
+  display: block;
+  height: 100%;
+  background: #ff536b;
+}
+.hud[data-critical='true'] .charge {
+  color: #ff536b;
+  animation: critical-pulse 0.8s steps(2) infinite;
+}
+@keyframes critical-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+.event-banner {
+  position: absolute;
+  top: 25%;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  padding: 6px 12px;
+  color: #ffe3e7;
+  background: #2a0f16e8;
+  border-top: 2px solid #ff536b;
+  border-bottom: 2px solid #ff536b;
+  font-size: 14px;
+  line-height: 18px;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.event-banner[data-kind='boss-down'] {
+  color: #e8fff3;
+  background: #0d2a1fe8;
+  border-color: #79ecaa;
+}
+.card[data-evolve='true'],
+.choice-echo[data-evolve='true'] {
+  box-shadow: inset 0 0 0 2px #ffdf78;
+}
+.card[data-evolve='true'] .card-label b,
+.choice-echo[data-evolve='true'] .card-label b {
+  color: #ffdf78;
+}
+.card[data-pact='true'],
+.choice-echo[data-pact='true'] {
+  box-shadow: inset 0 0 0 2px #ff536b;
+}
+.card[data-pact='true'] .card-label b,
+.choice-echo[data-pact='true'] .card-label b,
+.pact-cost {
+  color: #ff8d9c;
+}
+.slot[data-evolved='true'] .slot-max,
+.skill-evolved {
+  color: #ffdf78;
+}
+.slot[data-evolved='true'],
+.result-build > div[data-evolved='true'] {
+  outline: 1px solid #ffdf78;
+  outline-offset: -1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hud[data-critical='true'] .charge {
+    animation: none;
   }
 }

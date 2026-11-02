@@ -1,10 +1,10 @@
-import { isSkill, isStat, rarityIds, skillIds, statIds } from '../game/rules.ts';
+import { isPact, isSkill, isStat, pactIds, rarityIds, skillIds, statIds } from '../game/rules.ts';
 import type { UpgradeId } from '../game/rules.ts';
 import type { RuleSet } from '../game/rules.ts';
 import { particleIds } from '../game/particles.ts';
 import { particleNames, particleSymbols } from './i18n.ts';
 import { ParticleIcon, SkillIcon } from './icons.tsx';
-import { skillValue } from './skillText.ts';
+import { pactText, skillValue } from './skillText.ts';
 import { Dialog } from './Dialog.tsx';
 import { copy } from './i18n.ts';
 import type { Language } from './i18n.ts';
@@ -41,6 +41,8 @@ export function Guide({
         </div>
         <p>{c.guideRarity}</p>
         <p>{c.guideCombo}</p>
+        <p>{c.guideLate}</p>
+        <p>{c.guideEvolve}</p>
         <div className="particle-guide">
           {particleIds.map((id) => (
             <div key={id}>
@@ -51,7 +53,7 @@ export function Guide({
           ))}
         </div>
         <div className="skill-guide">
-          {([...statIds, 'recover', ...skillIds] as UpgradeId[]).map((id) => (
+          {([...statIds, 'recover', ...skillIds, ...pactIds] as UpgradeId[]).map((id) => (
             <div key={id}>
               <details>
                 <summary>
@@ -60,19 +62,27 @@ export function Guide({
                 </summary>
                 <div className="guide-skill-body">
                   <p>{c.upgrades[id].description}</p>
-                  {!isStat(id) && <span className="guide-rarity">{c.rarities.common}</span>}
-                  <span>
-                    {Array.from(
-                      { length: id === 'recover' ? 1 : rules.maxRank },
-                      (_, i) => i + 1,
-                    ).map((rank) => (
-                      <span className="guide-rank" key={rank}>
-                        {id === 'recover' ? c.instant : rank} ·{' '}
-                        {skillValue(id, rank, 'common', language, rules)}
+                  {isPact(id) ? (
+                    <span className="guide-rank">
+                      {pactText(id, language, rules).gain} · {pactText(id, language, rules).cost}
+                    </span>
+                  ) : (
+                    <>
+                      {!isStat(id) && <span className="guide-rarity">{c.rarities.common}</span>}
+                      <span>
+                        {Array.from(
+                          { length: id === 'recover' ? 1 : rules.maxRank },
+                          (_, i) => i + 1,
+                        ).map((rank) => (
+                          <span className="guide-rank" key={rank}>
+                            {id === 'recover' ? c.instant : rank} ·{' '}
+                            {skillValue(id, rank, 'common', language, rules)}
+                          </span>
+                        ))}
                       </span>
-                    ))}
-                  </span>
-                  {!isSkill(id) && id !== 'recover' && <p className="muted">{c.unlimited}</p>}
+                      {!isSkill(id) && id !== 'recover' && <p className="muted">{c.unlimited}</p>}
+                    </>
+                  )}
                 </div>
               </details>
             </div>

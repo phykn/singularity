@@ -4,15 +4,19 @@ export const rules = values;
 export type RuleSet = typeof rules;
 export type SkillId = keyof typeof rules.skills;
 export type StatId = 'power' | 'rate' | 'range' | 'speed';
-export type UpgradeId = SkillId | StatId | 'recover';
+export const pactIds = ['overload', 'greed', 'overclock'] as const;
+export type PactId = (typeof pactIds)[number];
+export const evolvableIds = ['chain', 'multi', 'pierce', 'satellite'] as const;
+export type EvolvableId = (typeof evolvableIds)[number];
+export type UpgradeId = SkillId | StatId | 'recover' | PactId;
 export type Rarity = keyof typeof rules.rarity;
 export type Rarities = Record<UpgradeId, Rarity>;
-export type Card = { id: UpgradeId; rarity: Rarity };
+export type Card = { id: UpgradeId; rarity: Rarity; evolve?: boolean };
 export type Ranks = Record<SkillId, number>;
 export type Boosts = Record<StatId, number>;
 export const skillIds = Object.keys(values.skills) as SkillId[];
 export const statIds: StatId[] = ['power', 'rate', 'range', 'speed'];
-export const upgradeIds: UpgradeId[] = [...skillIds, ...statIds, 'recover'];
+export const upgradeIds: UpgradeId[] = [...skillIds, ...statIds, 'recover', ...pactIds];
 export const rarityIds: Rarity[] = ['common', 'rare', 'epic', 'legendary'];
 export const blankRarities = (): Rarities =>
   Object.fromEntries(upgradeIds.map((id) => [id, 'common'])) as Rarities;
@@ -30,6 +34,9 @@ export const blankRanks = (): Ranks => Object.fromEntries(skillIds.map((id) => [
 export const blankBoosts = (): Boosts => ({ power: 0, rate: 0, range: 0, speed: 0 });
 export const isSkill = (id: UpgradeId): id is SkillId => skillIds.includes(id as SkillId);
 export const isStat = (id: UpgradeId): id is StatId => statIds.includes(id as StatId);
+export const isPact = (id: UpgradeId): id is PactId => pactIds.includes(id as PactId);
+export const isEvolvable = (id: UpgradeId): id is EvolvableId =>
+  evolvableIds.includes(id as EvolvableId);
 
 export function rangeScale(rank: number, cfg: RuleSet = rules): number {
   return 1 + (cfg.rangeBonus * rank) / (cfg.rangeFalloff + rank);

@@ -2,7 +2,8 @@ import type { Point } from './geometry.ts';
 import type { ParticleKind } from './particles.ts';
 import type { Boosts, Card, Ranks, Rarities, Rarity, UpgradeId } from './rules.ts';
 
-export type TargetKind = 'small' | 'dense';
+export type TargetKind = 'small' | 'dense' | 'boss';
+export type BannerKind = 'critical' | 'boss' | 'boss-down';
 export type Phase = 'ready' | 'running' | 'collapse' | 'ending' | 'result' | 'crossing';
 export type Target = Point & {
   id: number;
@@ -70,6 +71,7 @@ export type Selection = {
   rarity: Rarity;
   automatic: boolean;
   beforeCombat: boolean;
+  evolve: boolean;
 };
 export type Metrics = {
   minRadius: number;

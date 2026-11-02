@@ -276,8 +276,8 @@ test('a successful QTE that reaches the XP goal keeps its visible judgment throu
     assert.ok(s.rhythm.open);
     if (beat === 3) {
       s.game.xp = s.game.rules.energyGoal - 1;
-      s.game.targets = [target(900, s.game.position.x, s.game.position.y, 1)];
-      s.game.counts.quark.generated++;
+      s.game.targets = [target(900, s.game.position.x, s.game.position.y, 1, 'dense')];
+      s.game.counts.proton.generated++;
     }
     s.tapRhythm(wall);
   }

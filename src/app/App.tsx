@@ -8,6 +8,7 @@ import { GameCanvas } from '../render/GameCanvas.tsx';
 import { Hud } from '../ui/Hud.tsx';
 import { Loadout } from '../ui/Loadout.tsx';
 import { UpgradeFeedback } from '../ui/UpgradeFeedback.tsx';
+import { EventBanner } from '../ui/EventBanner.tsx';
 import { Choices } from '../ui/Choices.tsx';
 import { Guide } from '../ui/Guide.tsx';
 import { Result } from '../ui/Result.tsx';
@@ -164,6 +165,7 @@ export default function App() {
                   </span>
                 )}
               <UpgradeFeedback game={game} language={language} />
+              <EventBanner game={game} language={language} />
               {game.phase === 'crossing' && (
                 <span className="sr-only" role="status">
                   {c.beyond}

@@ -1,4 +1,5 @@
 import type { Game } from '../game/Game.ts';
+import { isEvolvable } from '../game/rules.ts';
 import type { SkillId } from '../game/rules.ts';
 import { Dialog } from './Dialog.tsx';
 import { SkillIcon } from './icons.tsx';
@@ -35,6 +36,11 @@ export function SkillDetails({
       </div>
       <div className="dialog-body">
         <p>{c.upgrades[id].description}</p>
+        {game.evolved[id] && isEvolvable(id) && (
+          <p className="skill-evolved">
+            {c.evolutions[id].name} · {c.evolutions[id].description}
+          </p>
+        )}
         <p className="skill-value">
           {skillValue(id, rank, rarity, language, game.rules, game.reach, game.forms)}
         </p>

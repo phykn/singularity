@@ -33,8 +33,9 @@ export function Hud({
   const energyPercent = Math.min(100, Math.floor((game.xp / rules.energyGoal) * 100));
   const value = (id: UpgradeId, rank = game.rank(id)) =>
     skillValue(id, rank, game.rarities[id], language, rules, game.reach);
+  const boss = game.phase === 'running' ? game.boss : undefined;
   return (
-    <section className="hud" aria-label={c.hud}>
+    <section className="hud" aria-label={c.hud} data-critical={game.critical}>
       <div className="hud-top">
         {game.endless ? (
           <div className="beyond-symbol" aria-label={c.beyond}>
@@ -99,6 +100,18 @@ export function Hud({
           <ControlIcon id="pause" />
         </button>
       </div>
+      {boss && (
+        <div
+          className="boss-bar"
+          role="progressbar"
+          aria-label={c.bossName}
+          aria-valuenow={Math.ceil((boss.hp / boss.maxHp) * 100)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <i style={{ width: (boss.hp / boss.maxHp) * 100 + '%' }} />
+        </div>
+      )}
     </section>
   );
 }

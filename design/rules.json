@@ -26,8 +26,8 @@
   "skillSlots": 4,
   "baseHitDamage": 10,
   "resonance": {
-    "beatDamage": 0.3,
-    "finishDamage": 0.55
+    "beatDamage": 0.225,
+    "finishDamage": 0.41
   },
   "damagePerRank": 9,
   "attackBaseSeconds": 0.37,
@@ -36,6 +36,42 @@
   "speedPerRank": 0.1,
   "rangeBonus": 0.8,
   "rangeFalloff": 5,
+  "critical": {
+    "energyFraction": 0.8,
+    "pull": 32,
+    "spawnScale": 0.65,
+    "hpScale": 1.4,
+    "speedScale": 1.15,
+    "xpScale": 0.6
+  },
+  "boss": {
+    "energyFraction": 0.6,
+    "hp": 6000,
+    "xp": 400,
+    "mass": 60,
+    "speed": 3.5,
+    "turn": 0.06,
+    "size": 14,
+    "pushScale": 0.25,
+    "feedSeconds": 2,
+    "summonFractions": [0.66, 0.33],
+    "summonCount": 24
+  },
+  "evolution": {
+    "energyFractions": [0.4, 0.7],
+    "chain": { "loopDamage": 0.5 },
+    "multi": { "linkDamage": 0.45 },
+    "pierce": { "trailDamage": 0.25, "trailSeconds": 1.2, "trailInterval": 0.3, "maxTrails": 4 },
+    "satellite": { "ringDamage": 0.45, "width": 10 }
+  },
+  "pacts": {
+    "interval": 5,
+    "minSkills": 2,
+    "overload": { "power": 2, "mass": 40 },
+    "greed": { "xp": 0.3, "enemySpeed": 0.1 },
+    "overclock": { "rate": 1 }
+  },
+  "bannerSeconds": 3,
   "recovery": {
     "mass": 50,
     "minMass": 30
@@ -84,7 +120,7 @@
   "denseBatchSize": 2,
   "targets": {
     "small": {
-      "hp": [2, 3, 18, 33, 48],
+      "hp": [2, 3, 12, 19, 48],
       "xp": 1,
       "mass": 1,
       "speed": 17.5,
@@ -92,7 +128,7 @@
       "size": 5
     },
     "dense": {
-      "hp": [8, 16, 117, 229, 400],
+      "hp": [8, 16, 72, 130, 400],
       "xp": 5,
       "mass": 5,
       "speed": 11.25,

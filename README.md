@@ -18,6 +18,8 @@ Particles pour in. The core swells. The space around you closes in. Each run tur
 
 - **Let the sparks fly** — Sixteen skills, from branching bolts to orbiting satellite electrons.
 - **Find your rhythm** — Ride the electron's orbit, build a charge, and let it burst.
+- **Survive the breach** — A giant particle and a critical breach test your finished build before the singularity forms.
+- **Evolve or gamble** — Evolve maxed skills, or take pacts that trade safety for power.
 - **Go beyond** — Reach the singularity, then take your build into an ever-growing storm.
 - **Small pixels, big impact** — Bright electrical effects against a dark cosmic backdrop.
 - **Open a tab. Enter orbit.** — A fresh run every time, with preferences and best results saved on your device.
@@ -41,10 +43,11 @@ Play at [localhost:8081](http://localhost:8081).
 | `npm test`                    | Test the game rules                                         |
 | `npm run build`               | Create a production build                                   |
 | `npm run check:balance`       | Measure clear rate with successful QTE play                 |
+| `npm run check:pacing`        | Measure whether a run stays undecided after the build forms |
 | `npm run check:skill-balance` | Compare sixteen skill-priority builds on matched seeds      |
 | `npm run check:skill-trial`   | Compare equal-rank encounters and fourth-slot contributions |
 
-Balance references use the real session with immediate paused choices and the game's automatic selection. Targets are 15–20% with successful QTE inputs and 10–15% without QTE. These are bot references, not measured player clear rates. The current rules measure 15.2% with QTE and 7.5% without, below the no-QTE target, and have not been retuned yet. To compare matched seeds:
+Balance references use the real session with immediate paused choices and the game's automatic selection. Targets are 15–20% with successful QTE inputs and 10–15% without QTE. These are bot references, not measured player clear rates. The current rules measure 19.7% with QTE and 10.3% without on 600 seeds, and 17.3% and 10.2% on an untouched cohort. To compare matched seeds:
 
 ```sh
 npm run check:balance -- 600 480000 artifacts/qte.json qte

@@ -29,6 +29,9 @@ export const skillColors: Record<UpgradeId, number> = {
   range: BLUE,
   speed: 0xffdf78,
   recover: 0x79ecaa,
+  overload: 0xff536b,
+  greed: 0xff536b,
+  overclock: 0xff536b,
 };
 
 export const skillColor = (id: UpgradeId) => '#' + skillColors[id].toString(16).padStart(6, '0');

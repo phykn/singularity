@@ -14,6 +14,7 @@ import {
   skillIds,
   statIds,
   upgradeIds,
+  isPact,
   levelForXp,
   xpForLevel,
 } from '../src/game/rules.ts';
@@ -22,7 +23,7 @@ import { effectOrigin, visibleEffects } from '../src/render/effects.ts';
 import { close, fixture, choose } from './helpers.ts';
 
 test('every skill and stat upgrade confirms its actual rank and follows the live electron', () => {
-  for (const id of upgradeIds) {
+  for (const id of upgradeIds.filter((id) => !isPact(id))) {
     const g = new Game(17, { combat: false });
     g.start();
     for (let rank = 1; rank <= 2; rank++) {
@@ -233,7 +234,7 @@ test('every lightning form can be offered from the first choice without a growth
     );
   }
   assert.deepEqual(opening, new Set(skillIds));
-  assert.deepEqual(later, new Set(upgradeIds));
+  assert.deepEqual(later, new Set(upgradeIds.filter((id) => !isPact(id))));
   for (const id of skillIds) {
     const game = fixture();
     choose(game, id);

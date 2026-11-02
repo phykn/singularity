@@ -1,10 +1,17 @@
 import { skillIds, statIds } from '../game/rules.ts';
-import type { UpgradeId } from '../game/rules.ts';
+import type { PactId, UpgradeId } from '../game/rules.ts';
 
-export const iconIds: UpgradeId[] = [...statIds, 'recover', ...skillIds];
-export const iconCells = Object.fromEntries(
+export const iconIds: Exclude<UpgradeId, PactId>[] = [...statIds, 'recover', ...skillIds];
+const cells = Object.fromEntries(
   iconIds.map((id, index) => [id, { x: (index % 7) * 32, y: Math.floor(index / 7) * 32 }]),
-) as Record<UpgradeId, { x: number; y: number }>;
+) as Record<Exclude<UpgradeId, PactId>, { x: number; y: number }>;
+// Pacts wear the icon of the stat they strengthen.
+export const iconCells: Record<UpgradeId, { x: number; y: number }> = {
+  ...cells,
+  overload: cells.power,
+  greed: cells.speed,
+  overclock: cells.rate,
+};
 
 export const controlIds = [
   'github',

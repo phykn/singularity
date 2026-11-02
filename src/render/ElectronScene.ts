@@ -14,7 +14,7 @@ import { orbit, clamp } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
 import type { Game } from '../game/Game.ts';
 import { BLUE, WHITE, AMBER, GOLD, VIOLET, skillColors } from '../art/palette.ts';
-import { drawWaveWarning } from './warning.ts';
+import { drawWaveWarning, WARNING_RED } from './warning.ts';
 import type { OrbitRhythm } from '../app/OrbitRhythm.ts';
 import { drawRhythm } from './rhythm.ts';
 import { arenaViewport } from '../presentation/viewport.ts';
@@ -120,7 +120,14 @@ export class ElectronScene extends Phaser.Scene {
     const radius = ending?.electron ? ending.radius : game.radius;
     if (!ending || (ending.success && ending.electron)) {
       const opacity = (danger ? 0.8 : 0.32) * (1 - (ending?.absorb ?? 0));
-      this.drawOrbit(radius, danger ? AMBER : orbitColor, opacity, danger, scale);
+      const critical = game.critical && !ending;
+      this.drawOrbit(
+        radius,
+        danger ? AMBER : critical ? WARNING_RED : orbitColor,
+        critical ? Math.max(opacity, 0.45 + 0.3 * Math.sin(clock * 8)) : opacity,
+        danger,
+        scale,
+      );
     }
     if (game.mass > 0 && (!ending || !ending.success || ending.electron))
       this.drawCore(game.core * (ending?.core ?? 1), scale);
@@ -144,7 +151,12 @@ export class ElectronScene extends Phaser.Scene {
       const point = this.screen(p);
       if (point.x < -20 || point.x > width + 20 || point.y < -20 || point.y > height + 20) continue;
       const hit = !ending && target.hitAt !== undefined && game.time - target.hitAt < 0.06;
-      const sprite = this.sprites.draw(point, target.particle, 1, 1 - absorb);
+      const boss = target.kind === 'boss';
+      const sprite = this.sprites.draw(point, target.particle, boss ? 3 : 1, 1 - absorb);
+      if (boss && !ending) {
+        g.lineStyle(1 / scale, WARNING_RED, 0.55 + 0.35 * Math.sin(clock * 6));
+        g.strokeCircle(p.x, p.y, target.size + 4);
+      }
       if (ending?.success && absorb > 0 && target.id % 9 === 0) {
         const tail = orbit(
           target.angle + absorb * absorb * Math.PI * 2 - 0.08,

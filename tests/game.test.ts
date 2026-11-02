@@ -296,11 +296,11 @@ test('elapsed time never ends a run and reaching the XP goal starts a successful
   assert.equal(g.seconds, 3600);
   assert.equal(g.stage, rules.stageStarts.length - 1);
   assert.equal(g.result, null);
-  const enemy = target(0, 180, 128, 1);
+  const enemy = target(0, 180, 128, 1, 'dense');
   g.targets = [enemy];
-  g.counts.quark.generated++;
+  g.counts.proton.generated++;
   g.combat.fireBasic(enemy);
-  assert.equal(g.xp, rules.energyGoal);
+  assert.equal(g.xp, rules.energyGoal + 2);
   const choices = g.selections.length;
   g.advance(1000 / rules.tickRate);
   assert.equal(g.phase, 'collapse');

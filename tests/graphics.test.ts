@@ -17,7 +17,7 @@ import { healthBar } from '../src/render/healthBars.ts';
 import { drawEffect } from '../src/render/drawEffects.ts';
 import type { Effect } from '../src/game/types.ts';
 import { skillIds, upgradeIds } from '../src/game/rules.ts';
-import { iconCells, controlCells, controlIds } from '../src/art/skills.ts';
+import { iconCells, iconIds, controlCells, controlIds } from '../src/art/skills.ts';
 import { close, target } from './helpers.ts';
 import { drawWaveWarning, WARNING_RED } from '../src/render/warning.ts';
 import { drawElectronField } from '../src/render/electronField.ts';
@@ -68,8 +68,11 @@ test('native sprites paint only palette pixels within their texture bounds', () 
 
 test('generated icon atlases have transparent-capable PNGs and unique in-bounds cells', () => {
   assert.deepEqual(Object.keys(iconCells).sort(), [...upgradeIds].sort());
+  assert.deepEqual(iconCells.overload, iconCells.power);
+  assert.deepEqual(iconCells.greed, iconCells.speed);
+  assert.deepEqual(iconCells.overclock, iconCells.rate);
   const cells = new Set<string>();
-  for (const id of upgradeIds) {
+  for (const id of iconIds) {
     const { x, y } = iconCells[id],
       cell = `${x},${y}`;
     assert.ok(!cells.has(cell), id);

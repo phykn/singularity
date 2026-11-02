@@ -2,7 +2,7 @@ import { skillValues } from '../game/skills.ts';
 import type { SkillValues } from '../game/skills.ts';
 import { numberText } from '../format.ts';
 import { blankRanks, blankRarities, rangeScale, recoveryMass, rules } from '../game/rules.ts';
-import type { Rarity, RuleSet, SkillId, UpgradeId } from '../game/rules.ts';
+import type { PactId, Rarity, RuleSet, SkillId, UpgradeId } from '../game/rules.ts';
 import { copy } from './i18n.ts';
 import type { Language, LinkEffect } from './i18n.ts';
 
@@ -37,6 +37,19 @@ export function skillLinks(id: UpgradeId, owned: SkillId[]) {
     );
     return effect ? [{ skill, effect }] : [];
   });
+}
+
+export function pactText(id: PactId, language: Language = 'ko', cfg: RuleSet = rules) {
+  const terms = copy[language].pactTerms[id],
+    p = cfg.pacts;
+  if (id === 'overload')
+    return { gain: terms.gain(p.overload.power), cost: terms.cost(p.overload.mass) };
+  if (id === 'greed')
+    return {
+      gain: terms.gain(Math.round(p.greed.xp * 100)),
+      cost: terms.cost(Math.round(p.greed.enemySpeed * 100)),
+    };
+  return { gain: terms.gain(p.overclock.rate), cost: terms.cost(0) };
 }
 
 export function skillValue(
@@ -97,6 +110,10 @@ export function skillValue(
       return `${m.speed} +${n(cfg.speedPerRank * rank * 100)}%`;
     case 'recover':
       return `${c.mass} -${recoveryMass(rarity, cfg)}`;
+    case 'overload':
+    case 'greed':
+    case 'overclock':
+      return pactText(id, language, cfg).gain;
   }
 }
 
@@ -133,6 +150,10 @@ export function skillChange(
       return `${numberText(cfg.baseSpeed * (1 + current * cfg.speedPerRank))}→${numberText(cfg.baseSpeed * (1 + (current + 1) * cfg.speedPerRank))}`;
     case 'recover':
       return `${c.mass} -${numberText(Math.min(mass, recoveryMass(rarity, cfg)))}`;
+    case 'overload':
+    case 'greed':
+    case 'overclock':
+      return pactText(id, language, cfg).gain;
     case 'repeat':
       return count(before.repeat.hits, after.repeat.hits, text.repeat);
     case 'multi':
