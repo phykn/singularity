@@ -2,19 +2,22 @@ import { isSkill, rules, skillIds, statIds } from './rules.ts';
 import type { Boosts, Ranks, RuleSet, SkillId, UpgradeId } from './rules.ts';
 import type { Random } from './random.ts';
 
-function eligibleSkills(ranks: Ranks, cfg: RuleSet = rules): SkillId[] {
+function eligibleSkills(ranks: Ranks, cfg: RuleSet, slots: number): SkillId[] {
   const owned = skillIds.filter((id) => ranks[id] > 0).length;
-  return skillIds.filter(
-    (id) => ranks[id] < cfg.maxRank && (ranks[id] > 0 || owned < cfg.skillSlots),
-  );
+  return skillIds.filter((id) => ranks[id] < cfg.maxRank && (ranks[id] > 0 || owned < slots));
 }
 
 export function eligibleUpgrades(
   ranks: Ranks,
   cfg: RuleSet = rules,
   recoverable = false,
+  slots = cfg.skillSlots,
 ): UpgradeId[] {
-  return [...eligibleSkills(ranks, cfg), ...statIds, ...(recoverable ? ['recover' as const] : [])];
+  return [
+    ...eligibleSkills(ranks, cfg, slots),
+    ...statIds,
+    ...(recoverable ? ['recover' as const] : []),
+  ];
 }
 
 type CardState = {
@@ -23,10 +26,11 @@ type CardState = {
   number: number;
   danger: boolean;
   recoverable: boolean;
+  slots?: number;
 };
 export function makeCards(state: CardState, random: Random, cfg: RuleSet = rules): UpgradeId[] {
-  const { ranks, boosts, number, danger, recoverable } = state;
-  const pool = random.shuffle(eligibleUpgrades(ranks, cfg, recoverable));
+  const { ranks, boosts, number, danger, recoverable, slots } = state;
+  const pool = random.shuffle(eligibleUpgrades(ranks, cfg, recoverable, slots));
   if (pool.length < cfg.choiceCount) throw new Error('Not enough valid growth cards');
   if (number === 1) {
     const forms = pool.filter(isSkill),

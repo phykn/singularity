@@ -1,9 +1,10 @@
 import type { Point } from './geometry.ts';
 import type { ParticleKind } from './particles.ts';
+import type { BossKind } from './bosses.ts';
 import type { Boosts, Card, Ranks, Rarities, Rarity, UpgradeId } from './rules.ts';
 
 export type TargetKind = 'small' | 'dense' | 'boss';
-export type BannerKind = 'critical' | 'boss' | 'boss-down' | 'final-boss';
+export type BannerKind = 'critical' | 'boss' | 'boss-down' | 'slot-open' | 'final-boss';
 export type Phase = 'ready' | 'running' | 'collapse' | 'ending' | 'result' | 'crossing';
 export type Target = Point & {
   id: number;
@@ -22,6 +23,13 @@ export type Target = Point & {
   hitAt?: number;
   bridgeUntil?: number;
   final?: boolean;
+  boss?: BossKind;
+  // The gluon that holds this quark; the gluon takes less damage while any are held.
+  tether?: number;
+  // A neutrino's first hit only reveals it.
+  veiled?: boolean;
+  // Set once a particle has taken mass from the Higgs field.
+  higgs?: boolean;
   summons?: number;
   summonCount?: number;
   bridgeReady?: number;
@@ -45,7 +53,8 @@ export type Effect = {
     | 'kill'
     | 'level'
     | 'upgrade'
-    | 'absorb';
+    | 'absorb'
+    | 'convert';
   from: Point;
   to: Point;
   radius: number;
@@ -61,6 +70,7 @@ export type Effect = {
   endAnchor?: 'electron' | number;
   arc?: { start: number; sweep: number };
   particle?: ParticleKind;
+  boss?: BossKind;
   // Seconds after birth before the effect appears; kills in one tick pop in sequence.
   delay?: number;
 };
@@ -115,4 +125,19 @@ export type SkillStatus = {
   active: boolean;
   fired: boolean;
 };
+export type Member = {
+  kind: 'small' | 'dense';
+  particle: ParticleKind;
+  angle: number;
+  radius: number;
+  hp: number;
+  xp: number;
+  mass: number;
+  size: number;
+  speed: number;
+  turn: number;
+  tether?: number;
+};
+// A formation shown as faint dots before its members appear.
+export type PendingSpawn = { planned: number; time: number; members: Member[]; wave?: number };
 export type Event = { time: number; kind: string; data: unknown };

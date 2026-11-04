@@ -607,6 +607,8 @@ const interfaceFlow = async () => {
     'μ뮤온',
     'p양성자',
     'n중성자',
+    'ν중성미자',
+    'π중간자',
   ]);
   await screenshot(page, 'particle-guide');
   await page.getByRole('button', { name: copy.ko.close, exact: true }).click();
@@ -1134,7 +1136,7 @@ const waveWarningFlow = async () => {
       const debug = window.__gameDebug;
       debug.restart(10004, false);
       const g = debug.getModel();
-      g.tick = g.elapsedTicks = 87 * g.rules.tickRate;
+      g.tick = g.elapsedTicks = (g.rules.waves[0] - 3) * g.rules.tickRate;
       g.combatEnabled = true;
       g.nextSpawn = Infinity;
       g.spawnBatch();
@@ -1394,8 +1396,12 @@ try {
       assert.equal((await snapshot(page)).result.trigger, 'boss');
       await page.getByRole('button', { name: copy.ko.finish, exact: true }).click();
       assert.notEqual((await snapshot(page)).seed, 96048);
-      await page.evaluate(() => window.__gameDebug.restart(10004));
-      await advance(page, 610000);
+      // The orbit falls into a heavy core within a minute, so the result offers a retry.
+      await page.evaluate(() => {
+        window.__gameDebug.restart(10004);
+        window.__gameDebug.getModel().mass = 1000;
+      });
+      await advance(page, 60000);
       await page.getByRole('button', { name: copy.ko.retry, exact: true }).click();
       assert.notEqual((await snapshot(page)).seed, 10004);
       report('mobile flow ' + name, { canvas: cards.canvas, firstSkill: chosen });

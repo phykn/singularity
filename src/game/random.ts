@@ -9,6 +9,9 @@ export class Random {
     n ^= n + Math.imul(n ^ (n >>> 7), n | 61);
     return ((n ^ (n >>> 14)) >>> 0) / 4294967296;
   }
+  pick<T>(items: readonly T[]): T {
+    return items[Math.floor(this.next() * items.length)];
+  }
   shuffle<T>(input: T[]): T[] {
     const items = [...input];
     for (let i = items.length - 1; i > 0; i--) {

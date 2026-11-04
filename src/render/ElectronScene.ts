@@ -9,6 +9,9 @@ import { beyondFrame } from '../presentation/beyond.ts';
 import { EffectRenderer } from './EffectRenderer.ts';
 import effectsUrl from '../art/assets/effects.png';
 import beamsUrl from '../art/assets/beams.png';
+import particlesUrl from '../art/assets/particles.png';
+import bossesUrl from '../art/assets/bosses.png';
+import { bossFrames, particleFrames } from '../art/particles.ts';
 import { DamageLabels } from './DamageLabels.ts';
 import { orbit, clamp } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
@@ -18,6 +21,7 @@ import { drawWaveWarning, WARNING_RED } from './warning.ts';
 import type { OrbitRhythm } from '../app/OrbitRhythm.ts';
 import { drawRhythm } from './rhythm.ts';
 import { arenaViewport } from '../presentation/viewport.ts';
+import { particleLook, GLUON } from './particleLook.ts';
 export class ElectronScene extends Phaser.Scene {
   private graphics!: Phaser.GameObjects.Graphics;
   private effects!: EffectRenderer;
@@ -41,6 +45,8 @@ export class ElectronScene extends Phaser.Scene {
   preload(): void {
     this.load.spritesheet('effects', effectsUrl, { frameWidth: 32, frameHeight: 32 });
     this.load.spritesheet('beams', beamsUrl, { frameWidth: 64, frameHeight: 16 });
+    this.load.spritesheet('particles', particlesUrl, { frameWidth: 16, frameHeight: 16 });
+    this.load.spritesheet('bosses', bossesUrl, { frameWidth: 64, frameHeight: 64 });
   }
   create(): void {
     this.graphics = this.add.graphics();
@@ -140,6 +146,7 @@ export class ElectronScene extends Phaser.Scene {
         game.time - warning.time + game.rules.waveWarningSeconds,
         scale,
       );
+    if (!ending) this.drawPending(game, scale);
     for (const target of game.targets) {
       if (ending && !ending.success && ending.quiet) continue;
       const absorb = ending?.absorb ?? 0;
@@ -152,12 +159,27 @@ export class ElectronScene extends Phaser.Scene {
       if (point.x < -20 || point.x > width + 20 || point.y < -20 || point.y > height + 20) continue;
       const hit = !ending && target.hitAt !== undefined && game.time - target.hitAt < 0.06;
       const boss = target.kind === 'boss';
-      const sprite = this.sprites.draw(
-        point,
-        target.particle,
-        target.final ? 4 : boss ? 3 : 1,
-        1 - absorb,
-      );
+      const look = particleLook(game, target, clock);
+      const sprite = target.boss
+        ? this.sprites.draw(
+            point,
+            'bosses',
+            1,
+            (1 - absorb) * look.alpha,
+            0.5,
+            bossFrames[target.boss],
+            look.rotation,
+          )
+        : this.sprites.draw(
+            point,
+            'particles',
+            1,
+            (1 - absorb) * look.alpha,
+            0.5,
+            particleFrames[target.particle],
+            look.rotation,
+          );
+      if (!ending) this.drawBehavior(game, target, clock, scale);
       if (boss && !ending) {
         g.lineStyle((target.final ? 2 : 1) / scale, WARNING_RED, 0.55 + 0.35 * Math.sin(clock * 6));
         g.strokeCircle(p.x, p.y, target.size + 4);
@@ -236,6 +258,50 @@ export class ElectronScene extends Phaser.Scene {
     if (ending.success && ending.flash) {
       g.fillStyle(WHITE, ending.flash * 0.6);
       g.fillCircle(180, 260, 5 / scale);
+    }
+  }
+  // Faint dots where a formation is about to appear.
+  private drawPending(game: Game, scale: number): void {
+    const g = this.graphics;
+    for (const spawn of game.pending) {
+      const span = Math.max(1e-3, spawn.time - spawn.planned),
+        progress = clamp((game.time - spawn.planned) / span);
+      g.fillStyle(WHITE, 0.12 + 0.18 * progress);
+      for (const member of spawn.members) {
+        const p = orbit(member.angle, Math.min(member.radius, game.rules.spawnRadius + 6));
+        const size = (member.kind === 'dense' ? 2 : 1.5) / scale;
+        g.fillRect(p.x - size / 2, p.y - size / 2, size, size);
+      }
+    }
+  }
+  // Tethers, the Higgs field and other giant particle rules, drawn under the sprite.
+  private drawBehavior(game: Game, target: Game['targets'][number], clock: number, scale: number) {
+    const g = this.graphics;
+    if (target.tether !== undefined) {
+      const holder = game.targets.find((t) => t.id === target.tether);
+      if (holder) {
+        g.lineStyle(1 / scale, GLUON, 0.35 + 0.2 * Math.sin(clock * 9 + target.id));
+        g.lineBetween(holder.x, holder.y, target.x, target.y);
+      }
+    }
+    if (target.boss === 'higgs') {
+      const field = game.higgsField(target);
+      g.lineStyle(1 / scale, GOLD, 0.25 + 0.1 * Math.sin(clock * 3));
+      g.strokeCircle(target.x, target.y, field);
+      g.fillStyle(GOLD, 0.05);
+      g.fillCircle(target.x, target.y, field);
+    }
+    if (target.higgs) {
+      g.lineStyle(1 / scale, GOLD, 0.5);
+      g.strokeCircle(target.x, target.y, target.size + 1);
+    }
+    if (target.particle === 'neutron' && target.kind !== 'boss') {
+      // Heavy particles light their rim as they near the core.
+      const near = clamp(1 - (target.radius - game.core) / 60);
+      if (near > 0) {
+        g.lineStyle(1 / scale, WARNING_RED, 0.6 * near);
+        g.strokeCircle(target.x, target.y, target.size);
+      }
     }
   }
   private drawBeyond(

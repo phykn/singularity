@@ -60,7 +60,7 @@ export async function showSuccess(page, seed = 96048) {
     const debug = window.__gameDebug;
     debug.restart(seed, false);
     const g = debug.getModel();
-    g.tick = g.rules.stageStarts[2] * g.rules.tickRate;
+    g.tick = g.rules.stageStarts.at(-1) * g.rules.tickRate;
     g.elapsedTicks = g.tick;
     for (let i = 0; i < 80; i++) g.spawnBatch();
     g.ranks.multi = 3;

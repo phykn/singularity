@@ -41,7 +41,9 @@ export function Guide({
         </div>
         <p>{c.guideRarity}</p>
         <p>{c.guideCombo}</p>
-        <p>{c.guideLate}</p>
+        <p>
+          {c.guideLate(rules.boss.stages.map((stage) => Math.round(stage.energyFraction * 100)))}
+        </p>
         <p>{c.guideEvolve}</p>
         <div className="particle-guide">
           {particleIds.map((id) => (
@@ -88,7 +90,7 @@ export function Guide({
             </div>
           ))}
         </div>
-        <p className="muted">{c.guideLimits}</p>
+        <p className="muted">{c.guideLimits(rules.skillSlots, rules.boss.slotKills[0])}</p>
       </div>
     </Dialog>
   );

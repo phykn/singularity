@@ -1,3 +1,4 @@
+import { bossFrames, particleFrames } from '../art/particles.ts';
 import type Phaser from 'phaser';
 import type { Game } from '../game/Game.ts';
 import type { Point } from '../game/geometry.ts';
@@ -103,9 +104,11 @@ export class EffectRenderer {
       beam.clearTint();
       if (id !== 'strike') beam.setTint(color);
     },
-    particle: (kind, point, scale) => {
-      this.sprites
-        .draw(this.screen(point), kind, scale, 1, 0.5)
+    particle: (kind, point, boss) => {
+      (boss
+        ? this.sprites.draw(this.screen(point), 'bosses', 1, 1, 0.5, bossFrames[boss])
+        : this.sprites.draw(this.screen(point), 'particles', 1, 1, 0.5, particleFrames[kind])
+      )
         .setTint(0x5a5a5a)
         .setTintMode(addTint);
     },

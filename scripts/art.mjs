@@ -42,6 +42,48 @@ try {
     );
     writeFileSync('src/art/assets/controls.png', Buffer.from(controls, 'base64'));
     console.log('Packed 8 generated controls into the 128×64 transparent atlas.');
+    // Whole cells keep the designed size differences between particles.
+    const particles = await packIcons(
+      page,
+      [
+        {
+          path: 'assets/particle-art/particle-source.png',
+          columns: 6,
+          rows: 1,
+          whole: true,
+          cells: Array.from({ length: 6 }, (_, i) => [i, i]),
+        },
+      ],
+      6,
+      1,
+      16,
+    );
+    writeFileSync('src/art/assets/particles.png', Buffer.from(particles, 'base64'));
+    console.log('Packed 6 generated particles into the 96×16 transparent atlas.');
+    const bosses = await packIcons(
+      page,
+      [
+        {
+          path: 'assets/boss-art/middle-source.png',
+          columns: 5,
+          rows: 1,
+          fill: 46,
+          cells: Array.from({ length: 5 }, (_, i) => [i, i]),
+        },
+        {
+          path: 'assets/boss-art/final-source.png',
+          columns: 1,
+          rows: 1,
+          fill: 62,
+          cells: [[0, 5]],
+        },
+      ],
+      6,
+      1,
+      64,
+    );
+    writeFileSync('src/art/assets/bosses.png', Buffer.from(bosses, 'base64'));
+    console.log('Packed 6 generated giant particles into the 384×64 transparent atlas.');
   }
   for (const sheet of effectArtwork()) {
     const png = await page.evaluate(

@@ -1,5 +1,7 @@
 import type { EvolvableId, PactId, Rarity, UpgradeId } from '../game/rules.ts';
 import type { BannerKind } from '../game/types.ts';
+import type { BossKind } from '../game/bosses.ts';
+import type { ParticleKind } from '../game/particles.ts';
 
 export type Language = 'ko' | 'en' | 'zh' | 'ja';
 export const languages: { id: Language; label: string; html: string }[] = [
@@ -42,11 +44,12 @@ const ko = {
   arena: '전자의 원형 궤도',
   loadout: '보유 스킬',
   empty: '빈 스킬 슬롯',
+  locked: '잠긴 스킬 슬롯. 거대 입자를 격파하면 열림',
   rank: '단계',
   xp: '경험치',
   charge: '특이점',
   energy: '누적 경험치',
-  finalBossDue: '최후의 입자를 격파하라',
+  finalBossDue: '힉스 입자를 격파하라',
   danger: '충돌 위험',
   collapse: '궤도 붕괴',
   success: '특이점',
@@ -79,14 +82,14 @@ const ko = {
   guideTitle: '플레이 방법',
   guideEnergy: '적 처치로 XP 획득. 레벨이 오르면 강화 선택.',
   guideGoal: (goal: number) =>
-    `${goal} XP를 모으면 최후의 입자가 나타나고, 격파하면 특이점 형성. 놓친 입자가 핵에 쌓이면 궤도가 좁아지고, 충돌 시 전자 소멸. 시간 제한 없음.`,
+    `${goal} XP를 모으면 힉스 입자가 나타나고, 격파하면 특이점 형성. 놓친 입자가 핵에 쌓이면 궤도가 좁아지고, 충돌 시 전자 소멸. 시간 제한 없음.`,
   guideChoice:
     '이동·공격은 자동. 선택 중에는 정지하며, 진행하면 5초 뒤 공격력·공격속도를 우선하고, 그다음 최고 등급을 자동 선택합니다.',
   guideRarity:
     '등급은 스킬과 질량 방출에만 있음. 스킬은 첫 선택으로 고정되고 미습득은 다시 추첨, 질량 방출은 매번 추첨.',
   guideCombo: '갈래·연속·연쇄·관통은 다른 번개에도 적용.',
-  guideLimits:
-    '스킬은 네 종류까지. 능력치는 계속 강화할 수 있습니다. 다른 화면으로 이동하면 정지, 돌아오면 계속.',
+  guideLimits: (slots: number, kills: number) =>
+    `스킬은 ${slots}종류까지, 거대 입자를 ${kills}마리 격파하면 한 칸 더. 능력치는 계속 강화할 수 있습니다. 다른 화면으로 이동하면 정지, 돌아오면 계속.`,
   countdown: (n: number) => `${n}초 뒤 자동 선택`,
   rankUp: (a: number, b: number) => `${a}→${b}단계`,
   seconds: '초',
@@ -251,16 +254,25 @@ const ko = {
   evolve: '진화',
   pact: '대가',
   bossName: '거대 입자',
-  finalBossName: '최후의 입자',
-  guideLate:
-    '에너지 10·30·50·70%마다 거대 입자가 핵으로 다가옵니다. 살아 있는 동안 핵이 자라고, 놓치면 큰 질량이 쌓입니다. 80%부터는 임계 돌파로 궤도가 좁아지고 입자가 몰려옵니다. 100%에 나타나는 최후의 입자가 핵에 닿으면 실패합니다.',
+  finalBossName: '힉스 입자',
+  bossNames: {
+    gluon: '글루온',
+    w: 'W 보손',
+    z: 'Z 보손',
+    tau: '타우',
+    top: '톱 쿼크',
+    higgs: '힉스 입자',
+  } as Record<BossKind, string>,
+  guideLate: (bosses: number[]) =>
+    `에너지 ${bosses.join('·')}%마다 거대 입자가 핵으로 다가옵니다. 살아 있는 동안 핵이 자라고, 놓치면 큰 질량이 쌓입니다. 80%부터는 임계 돌파로 궤도가 좁아지고 입자가 몰려옵니다. 100%에 나타나는 힉스 입자가 핵에 닿으면 실패합니다.`,
   guideEvolve:
     '5단계 연쇄·갈래·관통·위성 번개는 에너지 40%와 70%에 진화 카드로 나옵니다. 자동 선택은 진화 카드를 가장 먼저 고릅니다. 대가 카드는 강한 효과에 위험이 따르며 자동 선택되지 않습니다.',
   banners: {
     critical: '임계 돌파',
-    boss: '거대 입자 접근',
-    'boss-down': '거대 입자 격파',
-    'final-boss': '최후의 입자 출현',
+    boss: '{name} 접근',
+    'boss-down': '{name} 격파',
+    'slot-open': '{name} 격파 · 스킬 슬롯 +1',
+    'final-boss': '{name} 출현',
   } as Record<BannerKind, string>,
   evolutions: {
     chain: {
@@ -333,11 +345,12 @@ const en: Copy = {
   arena: 'Electron orbit',
   loadout: 'Skills',
   empty: 'Empty skill slot',
+  locked: 'Locked skill slot. Defeat giant particles to open it',
   rank: 'Rank',
   xp: 'XP',
   charge: 'Singularity',
   energy: 'Total XP',
-  finalBossDue: 'Destroy the final particle',
+  finalBossDue: 'Destroy the Higgs',
   danger: 'Collision risk',
   collapse: 'Collision',
   success: 'Singularity',
@@ -370,14 +383,14 @@ const en: Copy = {
   guideTitle: 'Lightning & gravity',
   guideEnergy: 'Defeat particles for XP. Level up to choose an upgrade.',
   guideGoal: (goal) =>
-    `Reach ${goal} XP to summon the final particle, then destroy it to form a black hole. Missed particles gather at the center and pull your orbit inward; hitting the core ends the run. There is no time limit.`,
+    `Reach ${goal} XP to summon the Higgs, then destroy it to form a black hole. Missed particles gather at the center and pull your orbit inward; hitting the core ends the run. There is no time limit.`,
   guideChoice:
     'Movement and attacks are automatic. Choices pause combat. Switch to play to auto-pick after 5 seconds: Attack Power and Speed first, then highest rarity.',
   guideRarity:
     'Only skills and Mass Vent have rarity. A skill locks on its first pick and rerolls until learned; Mass Vent rerolls each time.',
   guideCombo: 'Fork, Repeat, Chain and Pierce also modify other lightning skills.',
-  guideLimits:
-    'Combine up to four skills. Stats have no upgrade cap. Switching away pauses; return to resume.',
+  guideLimits: (slots, kills) =>
+    `Combine up to ${slots} skills; defeating ${kills} giant particles opens one more slot. Stats have no upgrade cap. Switching away pauses; return to resume.`,
   countdown: (n) => `Auto-pick in ${n}s`,
   rankUp: (a, b) => `Rank ${a}→${b}`,
   seconds: 's',
@@ -552,16 +565,25 @@ const en: Copy = {
   evolve: 'EVOLVE',
   pact: 'PACT',
   bossName: 'Giant particle',
-  finalBossName: 'Final particle',
-  guideLate:
-    'At 10, 30, 50 and 70% energy a giant particle closes on the core; the core grows while it lives, and letting it through adds heavy mass. From 80% the critical breach tightens your orbit and draws more particles. The final particle appears at 100%; if it reaches the core, the run fails.',
+  finalBossName: 'Higgs',
+  bossNames: {
+    gluon: 'Gluon',
+    w: 'W boson',
+    z: 'Z boson',
+    tau: 'Tau',
+    top: 'Top quark',
+    higgs: 'Higgs',
+  } as Record<BossKind, string>,
+  guideLate: (bosses) =>
+    `At ${bosses.slice(0, -1).join(', ')} and ${bosses.at(-1)}% energy a giant particle closes on the core; the core grows while it lives, and letting it through adds heavy mass. From 80% the critical breach tightens your orbit and draws more particles. The Higgs appears at 100%; if it reaches the core, the run fails.`,
   guideEvolve:
     'Rank 5 Chain, Fork, Pierce and Satellite offer an evolution card at 40% and 70% energy. Automatic selection takes evolutions first. Pact cards trade risk for power and are never picked automatically.',
   banners: {
     critical: 'CRITICAL BREACH',
-    boss: 'GIANT PARTICLE INBOUND',
-    'boss-down': 'GIANT PARTICLE DOWN',
-    'final-boss': 'FINAL PARTICLE INBOUND',
+    boss: '{NAME} INBOUND',
+    'boss-down': '{NAME} DOWN',
+    'slot-open': '{NAME} DOWN · SKILL SLOT +1',
+    'final-boss': '{NAME} INBOUND',
   },
   evolutions: {
     chain: {
@@ -633,11 +655,12 @@ const zh: Copy = {
   arena: '电子圆形轨道',
   loadout: '已持有技能',
   empty: '空技能槽',
+  locked: '未解锁技能槽，击破巨型粒子后开启',
   rank: '等级',
   xp: '经验',
   charge: '奇点',
   energy: '总经验',
-  finalBossDue: '击破终极粒子',
+  finalBossDue: '击破希格斯粒子',
   danger: '碰撞危险',
   collapse: '碰撞',
   success: '奇点',
@@ -670,13 +693,14 @@ const zh: Copy = {
   guideTitle: '闪电与引力',
   guideEnergy: '击败粒子获得经验，升级时选择强化。',
   guideGoal: (goal) =>
-    `积累 ${goal} 经验后终极粒子出现，击破它即可形成黑洞。漏掉的粒子会聚集在中心，缩小轨道；撞上核心则对局结束。没有时间限制。`,
+    `积累 ${goal} 经验后希格斯粒子出现，击破它即可形成黑洞。漏掉的粒子会聚集在中心，缩小轨道；撞上核心则对局结束。没有时间限制。`,
   guideChoice:
     '移动和攻击自动进行。选择时暂停，开启进行模式后5秒自动选择：优先攻击力和攻击速度，其次最高品质。',
   guideRarity:
     '只有技能和质量释放有品质。技能在首次选择时固定，未学习前重新抽取；质量释放每次抽取。',
   guideCombo: '分支、连续、连锁和贯穿也会强化其他闪电。',
-  guideLimits: '最多组合4种技能，属性可持续强化。切换页面暂停，返回后继续。',
+  guideLimits: (slots, kills) =>
+    `最多组合${slots}种技能，击破${kills}个巨型粒子后再开一格。属性可持续强化。切换页面暂停，返回后继续。`,
   countdown: (n) => `${n}秒后自动选择`,
   rankUp: (a, b) => `${a}→${b}级`,
   seconds: '秒',
@@ -785,16 +809,25 @@ const zh: Copy = {
   evolve: '进化',
   pact: '代价',
   bossName: '巨型粒子',
-  finalBossName: '终极粒子',
-  guideLate:
-    '能量达到10、30、50、70%时巨型粒子逼近核心,存活期间核心持续增长,漏掉会增加大量质量。80%起进入临界突破,轨道收缩且粒子涌来。100%时出现终极粒子,它触及核心则失败。',
+  finalBossName: '希格斯粒子',
+  bossNames: {
+    gluon: '胶子',
+    w: 'W玻色子',
+    z: 'Z玻色子',
+    tau: 'τ子',
+    top: '顶夸克',
+    higgs: '希格斯粒子',
+  } as Record<BossKind, string>,
+  guideLate: (bosses) =>
+    `能量达到${bosses.join('、')}%时巨型粒子逼近核心,存活期间核心持续增长,漏掉会增加大量质量。80%起进入临界突破,轨道收缩且粒子涌来。100%时出现希格斯粒子,它触及核心则失败。`,
   guideEvolve:
     '5级连锁、分叉、贯穿、卫星闪电会在能量40%和70%时出现进化卡。自动选择优先选进化卡。代价卡以风险换取强力效果,不会被自动选择。',
   banners: {
     critical: '临界突破',
-    boss: '巨型粒子接近',
-    'boss-down': '巨型粒子被击破',
-    'final-boss': '终极粒子出现',
+    boss: '{name}接近',
+    'boss-down': '{name}被击破',
+    'slot-open': '{name}被击破 · 技能栏 +1',
+    'final-boss': '{name}出现',
   },
   evolutions: {
     chain: {
@@ -866,11 +899,12 @@ const ja: Copy = {
   arena: '電子の円形軌道',
   loadout: '所持スキル',
   empty: '空きスロット',
+  locked: 'ロック中のスロット。巨大粒子を撃破すると開放',
   rank: 'ランク',
   xp: '経験値',
   charge: '特異点',
   energy: '累計経験値',
-  finalBossDue: '最終粒子を撃破せよ',
+  finalBossDue: 'ヒッグス粒子を撃破せよ',
   danger: '衝突の危険',
   collapse: '衝突',
   success: '特異点',
@@ -903,13 +937,14 @@ const ja: Copy = {
   guideTitle: '雷と重力',
   guideEnergy: '敵を倒して経験値を獲得。レベルアップで強化を選択。',
   guideGoal: (goal) =>
-    `経験値を ${goal} 集めると最終粒子が現れ、撃破するとブラックホールが生まれます。逃した粒子が中心に集まると軌道が狭まり、核にぶつかると消滅します。時間制限はありません。`,
+    `経験値を ${goal} 集めるとヒッグス粒子が現れ、撃破するとブラックホールが生まれます。逃した粒子が中心に集まると軌道が狭まり、核にぶつかると消滅します。時間制限はありません。`,
   guideChoice:
     '移動と攻撃は自動。選択中は停止し、続行すると5秒後に自動選択。攻撃力・攻撃速度を優先し、次に最高レア度。',
   guideRarity:
     'レア度があるのはスキルと質量放出のみ。スキルは初選択で固定、未習得は再抽選。質量放出は毎回抽選。',
   guideCombo: '分岐・連続・連鎖・貫通はほかの雷にも適用。',
-  guideLimits: 'スキルは4種まで。能力は上限なく強化。画面を離れると停止し、戻ると再開。',
+  guideLimits: (slots, kills) =>
+    `スキルは${slots}種まで、巨大粒子を${kills}体撃破するともう1枠。能力は上限なく強化。画面を離れると停止し、戻ると再開。`,
   countdown: (n) => `${n}秒後に自動選択`,
   rankUp: (a, b) => `ランク ${a}→${b}`,
   seconds: '秒',
@@ -1066,16 +1101,25 @@ const ja: Copy = {
   evolve: '進化',
   pact: '代償',
   bossName: '巨大粒子',
-  finalBossName: '最終粒子',
-  guideLate:
-    'エネルギー10・30・50・70%で巨大粒子が核に迫ります。生きている間は核が成長し、逃すと大きな質量が加わります。80%からは臨界突破で軌道が狭まり、粒子が押し寄せます。100%で現れる最終粒子が核に届くと失敗です。',
+  finalBossName: 'ヒッグス粒子',
+  bossNames: {
+    gluon: 'グルーオン',
+    w: 'Wボソン',
+    z: 'Zボソン',
+    tau: 'タウ粒子',
+    top: 'トップクォーク',
+    higgs: 'ヒッグス粒子',
+  } as Record<BossKind, string>,
+  guideLate: (bosses) =>
+    `エネルギー${bosses.join('・')}%で巨大粒子が核に迫ります。生きている間は核が成長し、逃すと大きな質量が加わります。80%からは臨界突破で軌道が狭まり、粒子が押し寄せます。100%で現れるヒッグス粒子が核に届くと失敗です。`,
   guideEvolve:
     'ランク5の連鎖・分岐・貫通・衛星はエネルギー40%と70%で進化カードが出ます。自動選択は進化カードを最優先します。代償カードは危険と引き換えに強力で、自動選択されません。',
   banners: {
     critical: '臨界突破',
-    boss: '巨大粒子接近',
-    'boss-down': '巨大粒子撃破',
-    'final-boss': '最終粒子出現',
+    boss: '{name}接近',
+    'boss-down': '{name}撃破',
+    'slot-open': '{name}撃破 · スキル枠 +1',
+    'final-boss': '{name}出現',
   },
   evolutions: {
     chain: {
@@ -1118,11 +1162,46 @@ const ja: Copy = {
 
 export const copy: Record<Language, Copy> = { ko, en, zh, ja };
 
-export const particleNames = {
-  ko: { quark: '쿼크', muon: '뮤온', proton: '양성자', neutron: '중성자' },
-  en: { quark: 'Quark', muon: 'Muon', proton: 'Proton', neutron: 'Neutron' },
-  zh: { quark: '夸克', muon: '缪子', proton: '质子', neutron: '中子' },
-  ja: { quark: 'クォーク', muon: 'ミューオン', proton: '陽子', neutron: '中性子' },
+export const particleNames: Record<Language, Record<ParticleKind, string>> = {
+  ko: {
+    quark: '쿼크',
+    muon: '뮤온',
+    proton: '양성자',
+    neutron: '중성자',
+    neutrino: '중성미자',
+    meson: '중간자',
+  },
+  en: {
+    quark: 'Quark',
+    muon: 'Muon',
+    proton: 'Proton',
+    neutron: 'Neutron',
+    neutrino: 'Neutrino',
+    meson: 'Meson',
+  },
+  zh: {
+    quark: '夸克',
+    muon: '缪子',
+    proton: '质子',
+    neutron: '中子',
+    neutrino: '中微子',
+    meson: '介子',
+  },
+  ja: {
+    quark: 'クォーク',
+    muon: 'ミューオン',
+    proton: '陽子',
+    neutron: '中性子',
+    neutrino: 'ニュートリノ',
+    meson: '中間子',
+  },
 };
 
-export const particleSymbols = { quark: 'q', proton: 'p', muon: 'μ', neutron: 'n' };
+export const particleSymbols: Record<ParticleKind, string> = {
+  quark: 'q',
+  proton: 'p',
+  muon: 'μ',
+  neutron: 'n',
+  neutrino: 'ν',
+  meson: 'π',
+};

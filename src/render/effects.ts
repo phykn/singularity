@@ -1,6 +1,7 @@
 import type { Effect } from '../game/types.ts';
 import type { Point } from '../game/geometry.ts';
 import type { ParticleKind } from '../game/particles.ts';
+import type { BossKind } from '../game/bosses.ts';
 
 export const effectRows = {
   hit: 0,
@@ -42,7 +43,7 @@ export type EffectPainter = {
   ): void;
   contact(point: Point, color: number, alpha: number, radius: number): void;
   // A brightened particle sprite, held in place until its delayed pop.
-  particle(kind: ParticleKind, point: Point, scale: number): void;
+  particle(kind: ParticleKind, point: Point, boss?: BossKind): void;
 };
 
 export function beamStrength(damage: number): number {

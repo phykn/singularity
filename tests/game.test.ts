@@ -138,11 +138,11 @@ test('moving particles approach and death and absorption are mutually exclusive'
 
 test('results separate every particle species through death, absorption and survival', () => {
   const targets = particleIds.flatMap((particle, i) => {
-    const kind = i < 2 ? 'small' : 'dense';
+    const kind = particle === 'proton' || particle === 'neutron' ? 'dense' : 'small';
     return [
-      target(i * 3, 30 + i * 100, 100, 1, kind),
-      target(i * 3 + 1, 180, 260, 100, kind),
-      target(i * 3 + 2, 30 + i * 100, 400, 100, kind),
+      target(100 + i * 3, 30 + i * 60, 100, 1, kind),
+      target(101 + i * 3, 180, 260, 100, kind),
+      target(102 + i * 3, 30 + i * 60, 400, 100, kind),
     ].map((t) => ({ ...t, particle }));
   });
   const g = fixture({}, targets);
@@ -153,8 +153,14 @@ test('results separate every particle species through death, absorption and surv
   g.advance(16000);
   assert.ok(g.result);
   assert.deepEqual(Object.keys(g.result.counts), particleIds);
+  // A meson splits into two quarks that survive to the end.
   for (const id of particleIds)
-    assert.deepEqual(g.result.counts[id], { generated: 3, killed: 1, absorbed: 1, remaining: 1 });
+    assert.deepEqual(
+      g.result.counts[id],
+      id === 'quark'
+        ? { generated: 5, killed: 1, absorbed: 1, remaining: 3 }
+        : { generated: 3, killed: 1, absorbed: 1, remaining: 1 },
+    );
 });
 
 test('mass vent immediately removes mass and restores the orbit gradually at fixed movement speed', () => {
@@ -288,7 +294,6 @@ test('gravity collapse fails at any energy, snapshots state and cancels combat a
 });
 
 test('elapsed time never ends a run and a debug clear starts a successful collapse', () => {
-  assert.equal(rules.energyGoal, 20000);
   const g = fixture();
   g.debugSetXp(rules.energyGoal - 1);
   g.advance(3600000);
@@ -300,7 +305,10 @@ test('elapsed time never ends a run and a debug clear starts a successful collap
   g.targets = [enemy];
   g.counts.proton.generated++;
   g.combat.fireBasic(enemy);
-  assert.equal(g.xp, rules.energyGoal + 2);
+  assert.equal(
+    g.xp,
+    rules.energyGoal - 1 + Math.floor(rules.targets.dense.xp * rules.critical.xpScale),
+  );
   g.debugClear();
   g.choice = null;
   const choices = g.selections.length;
@@ -454,8 +462,9 @@ test('contact at zero margin ends the run; a timely mass vent recovers a narrow 
 test('wave warnings precede the same spawn directions and stage changes do not alter existing HP', () => {
   const g = new Game(1701);
   g.start();
-  g.advance(87000);
-  assert.equal(g.warningWave?.time, 90);
+  const first = rules.waves[0];
+  g.advance((first - 3) * 1000);
+  assert.equal(g.warningWave?.time, first);
   const angle = g.warningWave!.angle;
   g.advance(3000);
   assert.equal(g.waveCount, 1);
@@ -463,11 +472,11 @@ test('wave warnings precede the same spawn directions and stage changes do not a
   const wave = g.events.find((e) => e.kind === 'wave')!.data as { angle: number };
   assert.equal(wave.angle, angle);
   const expected = g.events
-    .filter((e) => e.kind === 'spawn' && e.time === 90)
+    .filter((e) => e.kind === 'spawn' && e.time === first)
     .flatMap((e) => (e.data as { planned: Target[] }).planned);
   assert.equal(expected.length, rules.waveSmall + rules.waveDense);
   const h = fixture();
-  h.tick = 89 * 60;
+  h.tick = (first - 1) * 60;
   h.spawnBatch();
   const hp = h.targets.map((t) => t.maxHp);
   h.advance(2000);

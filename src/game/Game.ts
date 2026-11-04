@@ -1,10 +1,14 @@
 import type { SkillValues } from './skills.ts';
 import { skillValues } from './skills.ts';
 import { Random } from './random.ts';
-import { particleIds, particleKind, particleMotion } from './particles.ts';
+import { particleIds, particleKind, particleMix, particleMotion } from './particles.ts';
+import { bossPhase } from './bosses.ts';
+import type { BossKind } from './bosses.ts';
+import { formationSlots, formationsAt } from './formations.ts';
+import type { FormationId } from './formations.ts';
 import type { ParticleKind } from './particles.ts';
 import { eligibleUpgrades, makeCards } from './growth.ts';
-import { CENTER, orbit } from './geometry.ts';
+import { CENTER, distance, orbit } from './geometry.ts';
 import type { Point } from './geometry.ts';
 import {
   blankBoosts,
@@ -39,8 +43,10 @@ import type {
   Effect,
   EffectInput,
   Event,
+  Member,
   Metrics,
   Outcome,
+  PendingSpawn,
   Phase,
   Result,
   Selection,
@@ -50,6 +56,14 @@ import type {
 const goldenAngle = Math.PI * (3 - Math.sqrt(5));
 const popStagger = 0.03;
 const popStaggerMax = 0.24;
+
+// Spreads the large members of a ring evenly among the small ones.
+function interleave(dense: number, small: number): ('small' | 'dense')[] {
+  const total = dense + small;
+  return Array.from({ length: total }, (_, i) =>
+    Math.floor(((i + 1) * dense) / total) > Math.floor((i * dense) / total) ? 'dense' : 'small',
+  );
+}
 
 const blankCounts = () =>
   Object.fromEntries(
@@ -81,6 +95,8 @@ export class Game {
   private killEnergy = 0;
   private rushUntil = 0;
   targets: Target[] = [];
+  pending: PendingSpawn[] = [];
+  private plannedWave = -1;
   effects: Effect[] = [];
   damageNumbers: DamageNumber[] = [];
   choice: Choice | null = null;
@@ -113,12 +129,13 @@ export class Game {
   private orbitRecovery = 0;
   private criticalEntered = false;
   bossCount = 0;
+  bossesDown = 0;
   private finalEntered = false;
   private finalDown = false;
   private xpRemainder = 0;
   private popTick = -1;
   private popOrder = 0;
-  banner: { kind: BannerKind; until: number } | null = null;
+  banner: { kind: BannerKind; until: number; boss?: BossKind } | null = null;
   private endingOutcome: Outcome = 'collapse-failure';
   private readonly recordEvents: boolean;
 
@@ -161,6 +178,13 @@ export class Game {
   get range(): number {
     return this.rules.primaryRange * this.reach;
   }
+  // Skill slots grow as giant particles fall (`boss.slotKills`).
+  get skillSlots(): number {
+    return (
+      this.rules.skillSlots +
+      this.rules.boss.slotKills.filter((kills) => this.bossesDown >= kills).length
+    );
+  }
   get recoverable(): boolean {
     return this.mass >= this.rules.recovery.minMass && !this.pacts.overclock;
   }
@@ -178,7 +202,7 @@ export class Game {
       this.phase === 'running' &&
       this.wavePhase !== 'recovery' &&
       this.tick < this.rushUntil &&
-      this.targets.length < this.rules.rush.maxTargetsByStage[this.stage]
+      this.targets.length < this.staged(this.rules.rush.maxTargetsByStage)
     );
   }
   get attackInterval(): number {
@@ -261,7 +285,7 @@ export class Game {
     const card = this.choice?.cards.find((entry) => entry.id === id);
     if (card?.evolve) return !this.evolved[id as SkillId];
     if (isPact(id)) return !!card && !this.pacts[id];
-    return eligibleUpgrades(this.ranks, this.rules, this.recoverable).includes(id);
+    return eligibleUpgrades(this.ranks, this.rules, this.recoverable, this.skillSlots).includes(id);
   }
   get position(): Point {
     return orbit(this.angle, this.radius);
@@ -357,7 +381,7 @@ export class Game {
     this.log('start', { seed: this.seed });
     if (this.combatEnabled) {
       this.spawnBatch();
-      this.nextSpawn = this.rules.spawnSecondsByStage[this.stage] * this.rules.tickRate;
+      this.nextSpawn = this.staged(this.rules.spawnSecondsByStage) * this.rules.tickRate;
     }
   }
   continueBeyond(): boolean {
@@ -373,6 +397,8 @@ export class Game {
     this.orbitRecovery = 0;
     this.choice = null;
     this.targets = [];
+    this.pending = [];
+    this.plannedWave = -1;
     this.effects = [];
     this.damageNumbers = [];
     this.notice = '';
@@ -496,16 +522,27 @@ export class Game {
       }
       this.nextSpawn +=
         (rushing
-          ? this.rules.rush.spawnSecondsByStage[this.stage]
-          : this.rules.spawnSecondsByStage[this.stage]) *
+          ? this.staged(this.rules.rush.spawnSecondsByStage)
+          : this.staged(this.rules.spawnSecondsByStage)) *
         this.rules.tickRate *
         (this.wavePhase === 'recovery' ? this.rules.late.recoverySpawnScale : 1) *
         (this.critical ? this.rules.critical.spawnScale : 1) *
         (1 + (this.randomSpawn.next() * 2 - 1) * this.rules.spawnVariation.intervalFraction);
     }
     const wave = this.upcomingWave;
+    if (
+      wave &&
+      this.combatEnabled &&
+      this.plannedWave !== this.waveCount &&
+      this.time + 1e-8 >= wave.time - this.rules.formations.previewSeconds
+    ) {
+      this.plannedWave = this.waveCount;
+      this.planWave(wave.angle, wave.time);
+    }
     if (wave && this.time >= wave.time) this.spawnWave(wave.angle);
+    this.releasePending();
     this.moveTargets();
+    this.bossActions();
     this.angle += this.speed / this.radius / this.rules.tickRate;
     this.combat.update();
     if (this.finalDown) {
@@ -534,25 +571,51 @@ export class Game {
   }
 
   private spawnWave(angle: number): void {
-    if (this.combatEnabled) {
-      const scale =
-        this.rules.waveScale[
-          this.endless
-            ? this.rules.waveScale.length - 1
-            : Math.min(this.waveCount, this.rules.waveScale.length - 1)
-        ];
-      this.spawnGroup('small', Math.round((this.rules.waveSmall / 2) * scale), angle, 1);
-      this.spawnGroup('small', Math.round((this.rules.waveSmall / 2) * scale), angle + Math.PI, -1);
-      this.spawnGroup('dense', Math.round((this.rules.waveDense / 2) * scale), angle + 0.15, 1);
-      this.spawnGroup(
-        'dense',
-        Math.round((this.rules.waveDense / 2) * scale),
-        angle + Math.PI + 0.15,
-        -1,
-      );
-    }
+    const index = this.pending.findIndex((p) => p.wave === this.waveCount);
+    if (index !== -1) this.placeMembers(this.pending.splice(index, 1)[0].members);
     this.waveCount++;
     this.log('wave', { number: this.waveCount, angle: angle });
+  }
+
+  // Waves always come as formations, planned while their warning shows.
+  private planWave(angle: number, time: number): void {
+    const scale =
+      this.rules.waveScale[
+        this.endless
+          ? this.rules.waveScale.length - 1
+          : Math.min(this.waveCount, this.rules.waveScale.length - 1)
+      ];
+    const small = Math.round((this.rules.waveSmall / 2) * scale),
+      dense = Math.round((this.rules.waveDense / 2) * scale),
+      stage = this.stageAt(time);
+    const shapes = formationsAt(stage, this.rules.formations);
+    const shape = this.randomSpawn.pick(shapes);
+    let members: Member[];
+    if (shape === 'ring') members = this.formation('ring', small * 2, dense * 2, angle, 1, stage);
+    else {
+      const sides = shapes.filter((id) => id !== 'pincer' && id !== 'ring');
+      const first = shape === 'pincer' ? this.randomSpawn.pick(sides) : shape,
+        second = shape === 'pincer' ? this.randomSpawn.pick(sides) : shape;
+      members = [
+        ...this.formation(first, small, dense, angle, 1, stage),
+        ...this.formation(second, small, dense, angle + Math.PI, -1, stage),
+      ];
+    }
+    this.pending.push({ planned: this.time, time, members, wave: this.waveCount });
+    this.log('formation', { shape, wave: this.waveCount + 1, count: members.length });
+  }
+
+  private stageAt(time: number): number {
+    if (this.endless) return this.rules.stageStarts.length - 1;
+    return this.rules.stageStarts.filter((start) => time >= start).length - 1;
+  }
+
+  private get mix() {
+    return particleMix(
+      this.stage,
+      this.rules.particles,
+      this.wavePhase === 'assault' ? this.rules.late : undefined,
+    );
   }
 
   private enterMilestones(): void {
@@ -576,17 +639,22 @@ export class Game {
   private spawnBoss(stage: RuleSet['boss']['stages'][number]): void {
     const { speed, size } = this.rules.boss,
       { hp, xp, mass, summonCount } = stage;
-    this.addBoss({ hp, xp, mass, speed, size, summonCount }, 'boss');
+    this.addBoss({ hp, xp, mass, speed, size, summonCount }, 'boss', stage.kind as BossKind);
   }
 
   private spawnFinalBoss(): void {
     const { hp, speed, size, summonCount } = this.rules.boss.final;
-    this.addBoss({ hp, xp: 0, mass: 0, speed, size, summonCount, final: true }, 'final-boss');
+    this.addBoss(
+      { hp, xp: 0, mass: 0, speed, size, summonCount, final: true },
+      'final-boss',
+      'higgs',
+    );
   }
 
   private addBoss(
     data: Pick<Target, 'hp' | 'xp' | 'mass' | 'speed' | 'size' | 'summonCount' | 'final'>,
     banner: BannerKind,
+    kind: BossKind,
   ): void {
     const theta = this.randomSpawn.next() * Math.PI * 2,
       hp = Math.round(data.hp * this.enemyStrength.hp);
@@ -597,6 +665,7 @@ export class Game {
       angle: theta,
       radius: this.rules.spawnRadius,
       kind: 'boss',
+      boss: kind,
       particle: 'neutron',
       born: this.time,
       hp,
@@ -605,19 +674,116 @@ export class Game {
     };
     this.targets.push(target);
     this.counts.neutron.generated++;
-    this.banner = { kind: banner, until: this.time + this.rules.bannerSeconds };
-    this.log(banner, { id: target.id, hp });
+    this.banner = { kind: banner, until: this.time + this.rules.bannerSeconds, boss: kind };
+    this.log(banner, { id: target.id, hp, boss: kind });
+    if (kind === 'gluon') {
+      const { tethered, distance } = this.rules.boss.behaviors.gluon;
+      this.spawnAround(target, 'quark', tethered, distance, target);
+    }
+  }
+
+  // Giant particle rules that act on their surroundings, once per tick.
+  private bossActions(): void {
+    const behaviors = this.rules.boss.behaviors;
+    for (const boss of this.targets.filter((t) => t.boss)) {
+      const age = this.time - boss.born,
+        ticks = Math.round(age * this.rules.tickRate);
+      if (boss.boss === 'w') {
+        const { seconds, radius, count } = behaviors.w,
+          every = Math.round(seconds * this.rules.tickRate);
+        if (ticks <= 0 || ticks % every) continue;
+        const near = this.targets
+          .filter((t) => t.particle === 'quark' && t.tether === undefined)
+          .map((t) => ({ t, d: distance(t, boss) }))
+          .filter(({ d }) => d <= radius)
+          .sort((a, b) => a.d - b.d || a.t.id - b.t.id)
+          .slice(0, count);
+        for (const { t } of near) {
+          t.particle = 'muon';
+          t.born = this.time;
+          this.counts.quark.generated--;
+          this.counts.muon.generated++;
+        }
+        if (near.length) {
+          this.addEffect({
+            kind: 'convert',
+            from: boss,
+            to: boss,
+            radius,
+            width: 1,
+            life: 0.5,
+            particle: 'muon',
+          });
+          this.log('convert', { id: boss.id, ids: near.map(({ t }) => t.id) });
+        }
+      } else if (boss.boss === 'tau') {
+        const before = bossPhase('tau', age - 1 / this.rules.tickRate, behaviors),
+          now = bossPhase('tau', age, behaviors);
+        if (ticks > 0 && before.dashing && !now.dashing)
+          this.spawnAround(boss, 'muon', behaviors.tau.drops, boss.size + 4);
+      } else if (boss.boss === 'higgs') {
+        const field = this.higgsField(boss);
+        for (const t of this.targets) {
+          if (t.boss || t.higgs || distance(t, boss) > field) continue;
+          const cfg = this.rules.boss.final.field;
+          t.higgs = true;
+          t.speed *= cfg.speed;
+          t.hp *= cfg.hp;
+          t.maxHp *= cfg.hp;
+          t.mass *= cfg.mass;
+        }
+      }
+    }
+  }
+
+  higgsField(boss: Target): number {
+    const cfg = this.rules.boss.final.field;
+    return boss.hp / boss.maxHp < cfg.wideFraction ? cfg.wideRadius : cfg.radius;
+  }
+
+  bossPhase(target: Target) {
+    return target.boss
+      ? bossPhase(target.boss, this.time - target.born, this.rules.boss.behaviors)
+      : undefined;
+  }
+
+  // Members ringed around a particle; tethered ones travel with it.
+  private spawnAround(
+    center: Target,
+    particle: ParticleKind,
+    count: number,
+    spread: number,
+    tether?: Target,
+  ): void {
+    const kind = particle === 'proton' || particle === 'neutron' ? 'dense' : 'small';
+    const members = Array.from({ length: count }, (_, i) => {
+      const a = (i * Math.PI * 2) / count + center.id,
+        x = center.x - CENTER.x + spread * Math.cos(a),
+        y = center.y - CENTER.y + spread * Math.sin(a);
+      const member = this.member(
+        kind,
+        particle,
+        Math.atan2(y, x),
+        Math.hypot(x, y),
+        Math.sign(center.turn) || 1,
+        tether && { speed: tether.speed, turn: tether.turn },
+      );
+      if (tether) member.tether = tether.id;
+      return member;
+    });
+    this.placeMembers(members);
   }
 
   moveTargets(): void {
     const pace = this.pacts.greed ? 1 + this.rules.pacts.greed.enemySpeed : 1;
     for (const target of this.targets) {
       target.previousRadius = target.radius;
-      const motion = particleMotion(target.particle, this.time - target.born);
+      const motion = particleMotion(target.particle, this.time - target.born),
+        boss = this.bossPhase(target)?.speed ?? 1;
       target.radius = Math.max(
         0,
         target.radius -
-          (target.speed * pace * motion.speed * this.combat.movementScale(target)) /
+          (target.speed * pace * motion.speed * boss * this.combat.movementScale(target)) /
             this.rules.tickRate,
       );
       target.angle +=
@@ -714,7 +880,14 @@ export class Game {
     const number = this.selections.length + 1;
     const danger = this.margin < this.rules.dangerMargin;
     const offered: Card[] = makeCards(
-      { ranks: this.ranks, boosts: this.boosts, number, danger, recoverable: this.recoverable },
+      {
+        ranks: this.ranks,
+        boosts: this.boosts,
+        number,
+        danger,
+        recoverable: this.recoverable,
+        slots: this.skillSlots,
+      },
       this.randomCards,
       this.rules,
     ).map((id) => {
@@ -861,18 +1034,92 @@ export class Game {
           1,
           Math.round(
             size *
-              this.rules.batchScale[this.stage] *
+              this.staged(this.rules.batchScale) *
               (1 + (this.randomSpawn.next() * 2 - 1) * this.rules.spawnVariation.batchFraction),
           ),
         );
-    const cfg = this.rules.spawnVariation;
+    const cfg = this.rules.spawnVariation,
+      shapes = this.rules.formations;
     const center = intro
       ? this.angle +
         cfg.introAngleMin +
         this.randomSpawn.next() * (cfg.introAngleMax - cfg.introAngleMin)
       : angle;
-    this.spawnGroup(kind, count, center, direction);
     this.batchCount++;
+    if (intro || count < shapes.minCount || this.randomSpawn.next() >= shapes.chance) {
+      this.spawnGroup(kind, count, center, direction);
+      return;
+    }
+    // Sometimes a batch arrives as a formation, shown first as faint dots.
+    const available = formationsAt(this.stage, shapes),
+      shape = this.randomSpawn.pick(available),
+      small = kind === 'small' ? count : 0,
+      dense = kind === 'dense' ? count : 0;
+    let members: Member[];
+    if (shape === 'pincer') {
+      const sides = available.filter((id) => id !== 'pincer' && id !== 'ring');
+      const first = this.randomSpawn.pick(sides),
+        second = this.randomSpawn.pick(sides);
+      members = [
+        ...this.formation(first, Math.ceil(small / 2), Math.ceil(dense / 2), center, direction),
+        ...this.formation(
+          second,
+          Math.floor(small / 2),
+          Math.floor(dense / 2),
+          center + Math.PI,
+          -direction,
+        ),
+      ];
+    } else members = this.formation(shape, small, dense, center, direction);
+    this.pending.push({
+      planned: this.time,
+      time: this.time + shapes.previewSeconds,
+      members,
+    });
+    this.log('formation', { shape, count: members.length });
+  }
+
+  // One shape of members that share speed and turn, so it holds until it pops.
+  private formation(
+    shape: Exclude<FormationId, 'pincer'>,
+    small: number,
+    dense: number,
+    angle: number,
+    direction: number,
+    stage = this.stage,
+  ): Member[] {
+    const cfg = this.rules.formations,
+      targets = this.rules.targets;
+    if (shape === 'ring') {
+      small = Math.round(small * cfg.ringScale);
+      dense = Math.round(dense * cfg.ringScale);
+    }
+    if (shape === 'arrow' && !dense && small > 3) {
+      // An arrowhead is led by one large particle worth the small ones it replaces.
+      const replaced = Math.min(
+        small - 3,
+        Math.round(targets.dense.hp[stage] / targets.small.hp[stage]),
+      );
+      small -= replaced;
+      dense = 1;
+    }
+    const kinds: ('small' | 'dense')[] =
+      shape === 'ring'
+        ? interleave(dense, small)
+        : [...Array(dense).fill('dense'), ...Array(small).fill('small')];
+    const slots = formationSlots(shape, kinds.length, angle, this.rules.spawnRadius, cfg);
+    const strength = this.enemyStrength;
+    const shared = {
+      speed:
+        Math.min(...kinds.map((k) => targets[k].speed)) *
+        strength.speed *
+        (shape === 'clump' ? cfg.clumpSpeed : 1),
+      turn:
+        shape === 'line' || shape === 'star' ? 0 : targets[kinds[0] ?? 'small'].turn * direction,
+    };
+    return kinds.map((kind, i) =>
+      this.member(kind, undefined, slots[i].theta, slots[i].radius, direction, shared, stage),
+    );
   }
 
   private spawnGroup(
@@ -882,59 +1129,133 @@ export class Game {
     direction: number,
     origin = this.rules.spawnRadius,
   ): void {
-    const data = this.rules.targets[kind];
     const cfg = this.rules.spawnVariation;
-    const late = this.rules.late;
-    const strength = this.enemyStrength;
-    if (this.endless) count = Math.min(count, this.rules.endless.maxTargets - this.targets.length);
-    const planned = [];
-    for (let i = 0; i < count; i++) {
-      const theta =
-        angle +
-        (i - (count - 1) / 2) * (kind === 'small' ? 0.095 : 0.46) +
-        (this.randomSpawn.next() * 2 - 1) * cfg.angleJitter;
-      const radius = origin + this.randomSpawn.next() * cfg.radiusSpread;
-      const id = this.nextTargetId++,
-        particle = particleKind(
-          kind,
-          this.randomSpawn.next(),
-          this.stage,
-          this.wavePhase === 'assault' ? late : undefined,
-        ),
-        heavy = particle === 'neutron';
-      const hp = Math.round(data.hp[this.stage] * (heavy ? 1.2 : 1) * strength.hp);
-      const target: Target = {
-        id,
-        ...orbit(theta, radius),
-        angle: theta,
-        radius,
+    // Small particles come in tight packs along the arc.
+    const offsets: number[] = [];
+    if (kind === 'small') {
+      const pack = this.rules.particles.quarkPack;
+      let at = 0;
+      while (offsets.length < count) {
+        const size =
+          pack.size[0] + Math.floor(this.randomSpawn.next() * (pack.size[1] - pack.size[0] + 1));
+        for (let i = 0; i < size && offsets.length < count; i++, at += pack.spacing)
+          offsets.push(at);
+        at += pack.gap - pack.spacing;
+      }
+    } else for (let i = 0; i < count; i++) offsets.push(i * 0.46);
+    const middle = ((offsets.at(-1) ?? 0) + (offsets[0] ?? 0)) / 2;
+    const members = offsets.map((offset) =>
+      this.member(
         kind,
-        particle,
+        undefined,
+        angle + offset - middle + (this.randomSpawn.next() * 2 - 1) * cfg.angleJitter,
+        origin + this.randomSpawn.next() * cfg.radiusSpread,
+        direction,
+      ),
+    );
+    this.placeMembers(members);
+  }
+
+  private member(
+    kind: 'small' | 'dense',
+    particle: ParticleKind | undefined,
+    angle: number,
+    radius: number,
+    direction: number,
+    shared?: { speed: number; turn: number },
+    stage = this.stage,
+  ): Member {
+    const data = this.rules.targets[kind],
+      p = this.rules.particles,
+      strength = this.enemyStrength;
+    particle ??= particleKind(kind, this.randomSpawn.next(), this.mix);
+    const heavy = particle === 'neutron',
+      split = particle === 'meson';
+    const speed =
+      shared?.speed ??
+      data.speed *
+        strength.speed *
+        (1 + (this.randomSpawn.next() * 2 - 1) * this.rules.spawnVariation.speedFraction);
+    return {
+      kind,
+      particle,
+      angle,
+      radius,
+      hp: Math.round(
+        this.baseHp(kind, stage) * (heavy ? p.heavy.hp : split ? p.split.hp : 1) * strength.hp,
+      ),
+      xp: heavy ? p.heavy.xp : split ? p.split.xp : data.xp,
+      mass: heavy ? p.heavy.mass : split ? p.split.mass : data.mass,
+      size: data.size,
+      speed: speed * (heavy ? p.heavy.speed : 1),
+      turn: (shared?.turn ?? data.turn * direction) * (split ? p.split.turn : 1),
+    };
+  }
+
+  // HP, group size and spawn pace climb through a stage toward the next stage's
+  // values, so stage starts and their waves are not a sudden wall.
+  private baseHp(kind: 'small' | 'dense', stage: number): number {
+    return this.staged(this.rules.targets[kind].hp, stage);
+  }
+
+  // A per-stage value that moves geometrically toward the next stage's value.
+  private staged(values: readonly number[], stage = this.stage): number {
+    const starts = this.rules.stageStarts;
+    if (this.endless || stage >= values.length - 1) return values[stage];
+    const progress = Math.max(
+      0,
+      Math.min(1, (this.time - starts[stage]) / (starts[stage + 1] - starts[stage])),
+    );
+    return values[stage] * (values[stage + 1] / values[stage]) ** progress;
+  }
+
+  private placeMembers(members: Member[]): void {
+    const planned = [];
+    for (const member of members) {
+      if (this.endless && this.targets.length >= this.rules.endless.maxTargets) break;
+      const { angle, radius, tether, ...data } = member;
+      const id = this.nextTargetId++;
+      const target: Target = {
+        ...data,
+        id,
+        ...orbit(angle, radius),
+        angle,
+        radius,
         born: this.time,
-        hp,
-        maxHp: hp,
-        xp: heavy ? 6 : data.xp,
-        mass: heavy ? 6 : data.mass,
-        size: data.size,
-        speed:
-          data.speed *
-          (heavy ? 0.85 : 1) *
-          strength.speed *
-          (1 + (this.randomSpawn.next() * 2 - 1) * cfg.speedFraction),
-        turn: data.turn * direction,
+        maxHp: data.hp,
+        ...(tether !== undefined && { tether }),
+        ...(data.particle === 'neutrino' && { veiled: true }),
       };
       this.targets.push(target);
-      this.counts[particle].generated++;
-      planned.push({ id, kind, angle: theta, hp });
+      this.counts[data.particle].generated++;
+      planned.push({ id, kind: data.kind, angle, hp: data.hp });
     }
+    if (!planned.length) return;
     this.metrics.maxTargets = Math.max(this.metrics.maxTargets, this.targets.length);
     this.log('spawn', { planned });
+  }
+
+  // Formations that have finished showing their dots.
+  private releasePending(): void {
+    if (!this.pending.some((p) => p.wave === undefined && this.time + 1e-8 >= p.time)) return;
+    const ready = this.pending.filter((p) => p.wave === undefined && this.time + 1e-8 >= p.time);
+    this.pending = this.pending.filter((p) => !ready.includes(p));
+    for (const spawn of ready) this.placeMembers(spawn.members);
   }
 
   damageTarget(target: Target, damage: number, attack?: Attack): void {
     if (target.hp <= 0) return;
     const index = this.targets.indexOf(target);
     if (index === -1) return;
+    if (target.veiled) {
+      target.veiled = false;
+      target.hitAt = this.time;
+      this.log('reveal', { id: target.id, x: target.x, y: target.y });
+      return;
+    }
+    if (this.bossPhase(target)?.immune) return;
+    if (target.boss === 'gluon' && this.targets.some((t) => t.tether === target.id))
+      damage *= this.rules.boss.behaviors.gluon.damageScale;
     target.hp -= damage;
     if (target.hp < 1e-8) target.hp = 0;
     target.hitAt = this.time;
@@ -966,8 +1287,13 @@ export class Game {
         width: damage,
         life: 0.4 + delay,
         particle: target.particle,
+        ...(target.boss && { boss: target.boss }),
         delay,
       });
+      if (target.particle === 'meson') {
+        const { quarks } = this.rules.particles.split;
+        this.spawnAround(target, 'quark', quarks, 3);
+      }
       const before = this.energyFull;
       const previous = this.level;
       this.gainXp(target.xp);
@@ -976,8 +1302,15 @@ export class Game {
         this.finalDown = true;
         this.log('final-boss-down', { id: target.id });
       } else if (target.kind === 'boss') {
-        this.banner = { kind: 'boss-down', until: this.time + this.rules.bannerSeconds };
-        this.log('boss-down', { id: target.id });
+        const slots = this.skillSlots;
+        this.bossesDown++;
+        const opened = this.skillSlots > slots;
+        this.banner = {
+          kind: opened ? 'slot-open' : 'boss-down',
+          until: this.time + this.rules.bannerSeconds,
+          boss: target.boss,
+        };
+        this.log('boss-down', { id: target.id, slots: this.skillSlots });
       }
       this.score += Math.round(target.xp * 10 * (1 + target.radius / this.rules.spawnRadius));
       this.recordKillEnergy(target.xp);
@@ -1012,7 +1345,7 @@ export class Game {
       if (this.rushing)
         this.nextSpawn = Math.min(
           this.nextSpawn,
-          this.tick + this.rules.rush.spawnSecondsByStage[this.stage] * this.rules.tickRate,
+          this.tick + this.staged(this.rules.rush.spawnSecondsByStage) * this.rules.tickRate,
         );
     }
   }
@@ -1025,7 +1358,9 @@ export class Game {
       boss.hp / boss.maxHp <= summonFractions[boss.summons]
     ) {
       boss.summons++;
-      this.spawnGroup('small', boss.summonCount!, boss.angle, 1, boss.radius);
+      // The top quark splits into a swarm of mesons instead of calling quarks.
+      if (boss.boss === 'top') this.spawnAround(boss, 'meson', boss.summonCount!, boss.size + 8);
+      else this.spawnGroup('small', boss.summonCount!, boss.angle, 1, boss.radius);
     }
   }
 

@@ -79,7 +79,43 @@ assert.ok(
   ),
 );
 assert.ok(r.boss.final.hp > r.boss.stages.at(-1).hp);
+assert.ok(
+  r.boss.slotKills.every(
+    (n, i, a) => Number.isInteger(n) && n > 0 && n <= r.boss.stages.length && (!i || n > a[i - 1]),
+  ),
+);
 assert.ok(r.boss.final.speed > 0 && r.boss.final.size > r.boss.size);
+// Each giant particle has its own rule, and the Higgs field widens near the end.
+assert.deepEqual(
+  r.boss.stages.map((s) => s.kind),
+  ['gluon', 'w', 'z', 'tau', 'top'],
+);
+const b = r.boss.behaviors;
+assert.ok(b.gluon.tethered > 0 && b.gluon.damageScale > 0 && b.gluon.damageScale < 1);
+assert.ok(b.w.seconds > 0 && b.w.radius > 0 && b.w.count > 0);
+assert.ok(b.z.immuneSeconds + b.z.warnSeconds < b.z.period);
+assert.ok(b.tau.chargeSeconds + b.tau.dashSeconds < b.tau.cycle && b.tau.dashSpeed > 1);
+assert.ok(b.top.speed > 0 && b.top.speed < 1);
+const field = r.boss.final.field;
+assert.ok(field.wideRadius > field.radius && field.wideFraction > 0 && field.wideFraction < 1);
+assert.ok(field.speed < 1 && field.hp > 1 && field.mass > 1);
+// Particle mixes cover every stage and leave room for quarks and protons.
+const p = r.particles;
+for (const key of ['muon', 'neutrino', 'meson', 'neutron'])
+  assert.equal(p[key].length, r.stageStarts.length);
+for (let i = 0; i < r.stageStarts.length; i++) {
+  assert.ok(p.muon[i] + p.neutrino[i] + p.meson[i] < 1);
+  assert.ok(p.neutron[i] < 1);
+}
+assert.ok(r.late.muonProbability + Math.max(...p.neutrino) + Math.max(...p.meson) < 1);
+assert.ok(p.quarkPack.size[0] >= 1 && p.quarkPack.size[1] >= p.quarkPack.size[0]);
+assert.ok(p.heavy.mass > r.targets.dense.mass && p.heavy.speed < 1 && p.split.quarks > 0);
+// Formations unlock by stage, the first on stage one.
+const f = r.formations;
+assert.ok(f.chance > 0 && f.chance < 1 && f.previewSeconds > 0 && f.minCount >= 3);
+assert.equal(Math.min(...Object.values(f.stages)), 0);
+assert.ok(Object.values(f.stages).every((s) => s < r.stageStarts.length));
+assert.ok(f.previewSeconds < r.waveWarningSeconds);
 assert.ok(r.critical.pull > 0 && r.critical.spawnScale > 0 && r.critical.spawnScale < 1);
 assert.ok(r.critical.xpScale > 0 && r.critical.xpScale <= 1);
 assert.ok(r.critical.hpScale >= 1 && r.critical.speedScale >= 1);

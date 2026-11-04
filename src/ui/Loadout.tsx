@@ -20,7 +20,8 @@ export function Loadout({
 }) {
   const c = copy[language],
     rules = game.rules,
-    owned = game.ownedSkills;
+    owned = game.ownedSkills,
+    slots = rules.skillSlots + rules.boss.slotKills.length;
   const progress = game.levelProgress;
   const xpPercent = progress.required
     ? Math.min(100, (progress.current / progress.required) * 100)
@@ -47,14 +48,15 @@ export function Loadout({
           <i style={{ width: xpPercent + '%' }} />
         </div>
       </div>
-      <div className="loadout" aria-label={c.loadout}>
-        {Array.from({ length: rules.skillSlots }, (_, i) => {
+      <div className="loadout" aria-label={c.loadout} style={{ '--slots': slots } as CSSProperties}>
+        {Array.from({ length: slots }, (_, i) => {
           const id = owned[i];
           const status = id ? game.combat.status(id) : null;
+          const locked = i >= game.skillSlots;
           return (
             <div className="slot-cell" key={id ? id + game.rank(id) : i}>
               <div
-                className={`slot ${id ? '' : 'empty'}`}
+                className={`slot ${id ? '' : 'empty'} ${locked ? 'locked' : ''}`}
                 data-skill={id}
                 style={id ? ({ '--skill': skillColor(id) } as CSSProperties) : undefined}
                 data-mode={status?.mode}
@@ -84,7 +86,9 @@ export function Loadout({
                       '/' +
                       rules.maxRank +
                       (game.evolved[id] ? ', ' + c.evolve : '')
-                    : c.empty
+                    : locked
+                      ? c.locked
+                      : c.empty
                 }
                 title={id ? c.upgrades[id].name + ' · ' + value(id) : undefined}
               >

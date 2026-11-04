@@ -104,7 +104,7 @@ export function Hud({
         <div
           className="boss-bar"
           role="progressbar"
-          aria-label={boss.final ? c.finalBossName : c.bossName}
+          aria-label={boss.boss ? c.bossNames[boss.boss] : c.bossName}
           data-final={Boolean(boss.final)}
           aria-valuenow={Math.ceil((boss.hp / boss.maxHp) * 100)}
           aria-valuemin={0}

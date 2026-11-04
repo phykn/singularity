@@ -3,15 +3,11 @@ import { BLUE, WHITE, AMBER, skillColors } from '../art/palette.ts';
 import { beamStrength, effectOrigin } from './effects.ts';
 import type { EffectPainter } from './effects.ts';
 import { rarityIds } from '../game/rules.ts';
-import { particlePalettes } from '../art/particles.ts';
-import type { ParticleKind } from '../game/particles.ts';
+import { particleColors as popColors } from '../art/particles.ts';
 import { lerp, clamp, orbit } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
 import type { Effect, Target } from '../game/types.ts';
 type Graphics = Phaser.GameObjects.Graphics;
-const popColors = Object.fromEntries(
-  Object.entries(particlePalettes).map(([id, palette]) => [id, parseInt(palette[3].slice(1), 16)]),
-) as Record<ParticleKind, number>;
 function stroke(
   g: Graphics,
   points: Point[],
@@ -206,8 +202,7 @@ export function drawEffect(
     const delay = fx.delay ?? 0,
       local = (time - fx.born - delay) / (fx.life - delay);
     if (local < 0) {
-      if (fx.particle)
-        paint.particle(fx.particle, from, fx.radius > 50 ? 4 : fx.radius > 30 ? 3 : 1);
+      if (fx.particle) paint.particle(fx.particle, from, fx.boss);
       return;
     }
     const color = fx.particle ? popColors[fx.particle] : BLUE,
@@ -228,6 +223,9 @@ export function drawEffect(
         pixel,
       );
     }
+  } else if (fx.kind === 'convert') {
+    // A W boson's pulse turning nearby quarks into muons.
+    ring(g, from, fx.radius * (0.3 + 0.7 * t), popColors.muon, alpha * 0.7, scale, 1);
   } else {
     ring(g, from, fx.radius * (0.25 + 0.75 * t), ink, alpha * 0.6, scale, 1);
   }

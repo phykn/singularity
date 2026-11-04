@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import type { UpgradeId } from '../game/rules.ts';
-import { particleArt, particlePalettes } from '../art/particles.ts';
+import { particleFrames } from '../art/particles.ts';
+import particleAtlas from '../art/assets/particles.png';
 import type { ParticleKind } from '../game/particles.ts';
 import { iconCells, controlCells } from '../art/skills.ts';
 import type { ControlId } from '../art/skills.ts';
@@ -32,25 +33,16 @@ export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
 }
 
 export function ParticleIcon({ id }: { id: ParticleKind }) {
-  const rows = particleArt[id],
-    palette = particlePalettes[id];
   return (
-    <svg width={32} height={32} viewBox="0 0 16 16" shapeRendering="crispEdges" aria-hidden="true">
-      {rows.flatMap((row, y) =>
-        [...row].map(
-          (pixel, x) =>
-            pixel !== '.' && (
-              <rect
-                key={y * 20 + x}
-                x={x}
-                y={y}
-                width={1}
-                height={1}
-                fill={palette[Number(pixel)]}
-              />
-            ),
-        ),
-      )}
+    <svg width={32} height={32} viewBox="0 0 16 16" overflow="hidden" aria-hidden="true">
+      <image
+        href={particleAtlas}
+        x={-particleFrames[id] * 16}
+        y={0}
+        width={96}
+        height={16}
+        style={{ imageRendering: 'pixelated' }}
+      />
     </svg>
   );
 }

@@ -1,14 +1,32 @@
-export const particleIds = ['quark', 'muon', 'proton', 'neutron'] as const;
+import type { RuleSet } from './rules.ts';
+
+export const particleIds = ['quark', 'muon', 'proton', 'neutron', 'neutrino', 'meson'] as const;
 export type ParticleKind = (typeof particleIds)[number];
+export type ParticleMix = { muon: number; neutrino: number; meson: number; neutron: number };
+
+export function particleMix(
+  stage: number,
+  cfg: RuleSet['particles'],
+  late?: RuleSet['late'],
+): ParticleMix {
+  return {
+    muon: late ? late.muonProbability : cfg.muon[stage],
+    neutrino: cfg.neutrino[stage],
+    meson: cfg.meson[stage],
+    neutron: late ? late.neutronProbability : cfg.neutron[stage],
+  };
+}
 
 export function particleKind(
   family: 'small' | 'dense',
   roll: number,
-  stage: number,
-  mix = { muonProbability: 0.25, neutronProbability: 0.5 },
+  mix: ParticleMix,
 ): ParticleKind {
-  if (family === 'small') return stage >= 1 && roll < mix.muonProbability ? 'muon' : 'quark';
-  return stage >= 2 && roll < mix.neutronProbability ? 'neutron' : 'proton';
+  if (family === 'dense') return roll < mix.neutron ? 'neutron' : 'proton';
+  if (roll < mix.muon) return 'muon';
+  if (roll < mix.muon + mix.neutrino) return 'neutrino';
+  if (roll < mix.muon + mix.neutrino + mix.meson) return 'meson';
+  return 'quark';
 }
 
 export function particleMotion(kind: ParticleKind, age: number) {

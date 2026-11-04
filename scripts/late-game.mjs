@@ -27,7 +27,8 @@ try {
         d.restart(900000);
         const g = d.getModel();
         Object.assign(g.ranks, { chain: 5, multi: 5, pierce: 3, satellite: 5 });
-        g.selections = Array.from({ length: 30 }, () => ({
+        // Enough picks for every level up to the goal, so no further choice opens.
+        g.selections = Array.from({ length: 200 }, () => ({
           id: 'power',
           tick: 0,
           time: 0,
@@ -71,7 +72,7 @@ try {
         const d = window.__gameDebug,
           g = d.getModel();
         g.choice = {
-          number: 31,
+          number: g.selections.length + 1,
           opened: g.time,
           deadline: g.time + 8,
           cards: [

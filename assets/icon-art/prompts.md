@@ -71,3 +71,293 @@ ROW 2 left to right:
 6 ENERGY METER: simple cyan/slate-blue pixel O-ring with an entirely transparent large center, evenly thick ring, NO tick marks, divisions or extra rays; the runtime fills this ring to show charge.
 7 EMPTY: completely transparent unused cell.
 Control icons must be simpler and quieter than the colored stat icons, yet share the same precise pixel contours, bevel lighting and restrained craftsmanship. Do not turn controls into equipment or fantasy ornaments. Keep symbols flat-facing and readable.
+
+## 2026-11-04 — 1. skill-new-source
+
+Tool: built-in image_gen.
+
+```text
+Polished pixel art for SINGULARITY, a dark electron survival game where lightning pops swarms of subatomic particles. Same artist as the attached style reference. Transparent background. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters with bold readable silhouettes. No text, letters, numbers, frames, panels, background, blur, glow mist, or scattered grain.
+
+Exactly FOUR equal columns and TWO equal rows: 7 isolated skill icons and the LAST cell fully EMPTY. Each subject is centered in its cell with generous transparent gutters, designed on a 32x32 logical grid and readable at 24px. All icons share the same visual weight.
+Row 1:
+1 CHARGED BOLT, pale lilac #e3b3ff: four small round electric sparks scattering from one point along zigzag paths, each spark a tiny bright orb. Many small pops, playful.
+2 STATIC FIELD, electric blue #69bdff: a wide flat dome of crackling field over three small particles, the field clearly drawn as a ring band, one particle in the middle shattering.
+3 FISSION, sage lime #c8dd96: one particle splitting into two, each of those already splitting into two more, a small branching domino of pops.
+4 OVERCHARGE, hot coral #ff8a5c: a compact electron core glowing with three stacked heat chevrons above it and a thin full circle of discharge around it.
+Row 2:
+5 STATIC MARK, cyan #8ff0ff: three small round particles each tagged with a tiny spark, joined in sequence by one short jagged bolt that pops the last one into a few pixel shards.
+6 TEMPO COIL, soft pink #ffc4e8: a compact coil spring with three evenly spaced beat ticks above it and a curved sweep arc along its top.
+7 THUNDERSTRIKE (flagship, must be the most striking icon): one THICK orange #ffbe69 lightning bolt slamming straight down from the top edge into a wide impact burst, with three small particles at the burst rim breaking apart at once.
+8 EMPTY: completely transparent unused cell.
+Use case: stylized-concept. References are style only; do not copy their subjects or layout.
+Generate large PNG: square cells in the exact requested grid, at least 1024 pixels on the long edge. Keep all art strictly inside its cell with clear transparent edge margins. No labels.
+```
+
+재생성 3회. 사유: 여백과 빈 칸에 비영 알파 잔여 픽셀. 최종 후보: 3차. 32px/24px 최근접 축소 육안 검사 완료. 남은 문제: 빈 칸/여백의 알파가 완전한 0은 아님. 일부 세부는 24px에서 단순화됨.
+
+### 재생성 1
+
+```text
+Polished pixel art for SINGULARITY, a dark electron survival game where lightning pops swarms of subatomic particles. Same artist as the attached style reference. Transparent background. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters with bold readable silhouettes. No text, letters, numbers, frames, panels, background, blur, glow mist, or scattered grain.
+
+Exactly FOUR equal columns and TWO equal rows: 7 isolated skill icons and the LAST cell fully EMPTY. Each subject is centered in its cell with generous transparent gutters, designed on a 32x32 logical grid and readable at 24px. All icons share the same visual weight.
+Row 1:
+1 CHARGED BOLT, pale lilac #e3b3ff: four small round electric sparks scattering from one point along zigzag paths, each spark a tiny bright orb. Many small pops, playful.
+2 STATIC FIELD, electric blue #69bdff: a wide flat dome of crackling field over three small particles, the field clearly drawn as a ring band, one particle in the middle shattering.
+3 FISSION, sage lime #c8dd96: one particle splitting into two, each of those already splitting into two more, a small branching domino of pops.
+4 OVERCHARGE, hot coral #ff8a5c: a compact electron core glowing with three stacked heat chevrons above it and a thin full circle of discharge around it.
+Row 2:
+5 STATIC MARK, cyan #8ff0ff: three small round particles each tagged with a tiny spark, joined in sequence by one short jagged bolt that pops the last one into a few pixel shards.
+6 TEMPO COIL, soft pink #ffc4e8: a compact coil spring with three evenly spaced beat ticks above it and a curved sweep arc along its top.
+7 THUNDERSTRIKE (flagship, must be the most striking icon): one THICK orange #ffbe69 lightning bolt slamming straight down from the top edge into a wide impact burst, with three small particles at the burst rim breaking apart at once.
+8 EMPTY: completely transparent unused cell.
+Use case: stylized-concept. References are style only; do not copy their subjects or layout.
+Generate large PNG: square cells in the exact requested grid, at least 1024 pixels on the long edge. Keep all art strictly inside its cell with clear transparent edge margins. No labels.
+STRICT ALPHA REQUIREMENT: the eighth bottom-right cell must contain ZERO painted pixels (RGBA 0,0,0,0). All gutters and outer margins are truly transparent alpha 0, including no faint invisible residue. Every subject fits within the central 72% of each square cell. No cross-cell art. Seven icons only. Make the charged bolt round orb sparks clearer, not a simple X.
+```
+
+### 재생성 2
+
+```text
+Polished pixel art for SINGULARITY, a dark electron survival game where lightning pops swarms of subatomic particles. Same artist as the attached style reference. Transparent background. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters with bold readable silhouettes. No text, letters, numbers, frames, panels, background, blur, glow mist, or scattered grain.
+
+Exactly FOUR equal columns and TWO equal rows: 7 isolated skill icons and the LAST cell fully EMPTY. Each subject is centered in its cell with generous transparent gutters, designed on a 32x32 logical grid and readable at 24px. All icons share the same visual weight.
+Row 1:
+1 CHARGED BOLT, pale lilac #e3b3ff: four small round electric sparks scattering from one point along zigzag paths, each spark a tiny bright orb. Many small pops, playful.
+2 STATIC FIELD, electric blue #69bdff: a wide flat dome of crackling field over three small particles, the field clearly drawn as a ring band, one particle in the middle shattering.
+3 FISSION, sage lime #c8dd96: one particle splitting into two, each of those already splitting into two more, a small branching domino of pops.
+4 OVERCHARGE, hot coral #ff8a5c: a compact electron core glowing with three stacked heat chevrons above it and a thin full circle of discharge around it.
+Row 2:
+5 STATIC MARK, cyan #8ff0ff: three small round particles each tagged with a tiny spark, joined in sequence by one short jagged bolt that pops the last one into a few pixel shards.
+6 TEMPO COIL, soft pink #ffc4e8: a compact coil spring with three evenly spaced beat ticks above it and a curved sweep arc along its top.
+7 THUNDERSTRIKE (flagship, must be the most striking icon): one THICK orange #ffbe69 lightning bolt slamming straight down from the top edge into a wide impact burst, with three small particles at the burst rim breaking apart at once.
+8 EMPTY: completely transparent unused cell.
+Use case: stylized-concept. References are style only; do not copy their subjects or layout.
+Generate large PNG: square cells in the exact requested grid, at least 1024 pixels on the long edge. Keep all art strictly inside its cell with clear transparent edge margins. No labels.
+STRICT ALPHA REQUIREMENT: the eighth bottom-right cell must contain ZERO painted pixels (RGBA 0,0,0,0). All gutters and outer margins are truly transparent alpha 0, including no faint invisible residue. Every subject fits within the central 72% of each square cell. No cross-cell art. Seven icons only. Make the charged bolt round orb sparks clearer, not a simple X.
+Regenerate the sheet from scratch. Make four clearly ROUND lilac orb sparks, not thin star arms. Remove ALL alpha residue across empty cells and gutters. Pixel sheet must have alpha zero background, not almost-transparent noise. Keep 25% padding inside each cell.
+```
+
+### 재생성 3
+
+```text
+Polished pixel art for SINGULARITY, a dark electron survival game where lightning pops swarms of subatomic particles. Same artist as the attached style reference. Transparent background. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters with bold readable silhouettes. No text, letters, numbers, frames, panels, background, blur, glow mist, or scattered grain.
+
+Exactly FOUR equal columns and TWO equal rows: 7 isolated skill icons and the LAST cell fully EMPTY. Each subject is centered in its cell with generous transparent gutters, designed on a 32x32 logical grid and readable at 24px. All icons share the same visual weight.
+Row 1:
+1 CHARGED BOLT, pale lilac #e3b3ff: four small round electric sparks scattering from one point along zigzag paths, each spark a tiny bright orb. Many small pops, playful.
+2 STATIC FIELD, electric blue #69bdff: a wide flat dome of crackling field over three small particles, the field clearly drawn as a ring band, one particle in the middle shattering.
+3 FISSION, sage lime #c8dd96: one particle splitting into two, each of those already splitting into two more, a small branching domino of pops.
+4 OVERCHARGE, hot coral #ff8a5c: a compact electron core glowing with three stacked heat chevrons above it and a thin full circle of discharge around it.
+Row 2:
+5 STATIC MARK, cyan #8ff0ff: three small round particles each tagged with a tiny spark, joined in sequence by one short jagged bolt that pops the last one into a few pixel shards.
+6 TEMPO COIL, soft pink #ffc4e8: a compact coil spring with three evenly spaced beat ticks above it and a curved sweep arc along its top.
+7 THUNDERSTRIKE (flagship, must be the most striking icon): one THICK orange #ffbe69 lightning bolt slamming straight down from the top edge into a wide impact burst, with three small particles at the burst rim breaking apart at once.
+8 EMPTY: completely transparent unused cell.
+Use case: stylized-concept. References are style only; do not copy their subjects or layout.
+Generate large PNG: square cells in the exact requested grid, at least 1024 pixels on the long edge. Keep all art strictly inside its cell with clear transparent edge margins. No labels.
+STRICT ALPHA REQUIREMENT: the eighth bottom-right cell must contain ZERO painted pixels (RGBA 0,0,0,0). All gutters and outer margins are truly transparent alpha 0, including no faint invisible residue. Every subject fits within the central 72% of each square cell. No cross-cell art. Seven icons only. Make the charged bolt round orb sparks clearer, not a simple X.
+Regenerate the sheet from scratch. Make four clearly ROUND lilac orb sparks, not thin star arms. Remove ALL alpha residue across empty cells and gutters. Pixel sheet must have alpha zero background, not almost-transparent noise. Keep 25% padding inside each cell.
+Final correction: absolutely hard-cut transparency. Do not encode any low-opacity pixels outside the seven icons. Bottom right quadrant cell is wholly empty. Keep the tempo coil upright like a spring, with three beat ticks and one sweep arc.
+```
+
+## 2026-11-04 — 2. evolution-source
+
+Tool: built-in image_gen.
+
+```text
+Polished pixel art for SINGULARITY, a dark electron survival game where lightning pops swarms of subatomic particles. Same artist as the attached style reference. Transparent background. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters with bold readable silhouettes. No text, letters, numbers, frames, panels, background, blur, glow mist, or scattered grain.
+
+Exactly FOUR equal columns and FOUR equal rows: 16 isolated EVOLVED skill icons. Each one keeps the exact silhouette, orientation and dominant color of its original skill icon from the attached references, and adds ONE clear new element plus a small gold #f9d894 accent. Centered in equal cells with generous transparent gutters, 32x32 logical grid, readable at 24px.
+Row 1:
+1 CHAIN EVOLVED: the green Chain icon's two linked nodes, the bolt path now closed into a LOOP returning to its start.
+2 FORK EVOLVED: the gold Fork icon's three prongs, tips joined by a thin crosslink arc.
+3 PIERCE EVOLVED: the violet Pierce arrow through two rings, leaving a bright broken trail behind it.
+4 SATELLITE EVOLVED: the cyan Satellite electron and moons, moons connected by a closed bright ring.
+Row 2:
+5 THUNDER STORM (from Thunderstrike): the thick orange bolt, now THREE bolts falling side by side from the top.
+6 RAPID TYPING (from Repeat): the two parallel teal strokes, now a dense row of four strokes hitting in sequence.
+7 CHAIN BLAST (from Death Arc): the pink cracked sphere, its discharge branches each ending in a second smaller cracked sphere.
+8 DISCHARGE RING (from Capacitor): the gold twin-terminal capacitor at the center of a full expanding lightning ring.
+Row 3:
+9 ECHO (from Return Arc): the blue U-turn arrow, doubled into a back-and-forth zigzag that returns twice.
+10 FRENZY (from Surge): the gold core with its curving arcs, arcs now longer and spiraling outward.
+11 CONTAGION MARK (from Static Mark): the cyan tagged particles, a spark jumping from a popped one onto two new particles.
+12 PERFECT RESONANCE (from Tempo Coil): the pink coil, its sweep arc now a full closed circle.
+Row 4:
+13 REBOUND (from Charged Bolt): the lilac sparks bouncing off a curved wall line and coming back.
+14 OVERLOAD FIELD (from Static Field): the blue field dome, with two smaller domes left where particles popped.
+15 CRITICAL MASS (from Fission): the lime splitting chain, each split burst larger than the last.
+16 DOUBLE DISCHARGE (from Overcharge): the coral core, with two concentric discharge circles.
+Use case: stylized-concept. References show the original subjects: preserve their silhouette and color; new skill sheet takes precedence.
+Generate large PNG: square cells in the exact requested grid, at least 1024 pixels on the long edge. Keep all art strictly inside its cell with clear transparent edge margins. No labels.
+```
+
+재생성 1회: 연속 진화가 4줄 대신 3줄, 금색 장식 일부 누락, 낙뢰 구름 제거. 32px/24px 최근접 검사. 남은 문제: 연속 진화는 여전히 3줄, 일부 진화 세부가 약함; 여백 알파 잔여. 수정 결과를 선택.
+
+Initial prompt suffix:
+
+```text
+True transparent alpha-zero gutters, hard opaque pixel clusters. Keep each icon inside central 72% of its cell.
+```
+
+재생성 프롬프트 전문:
+
+```text
+Polished pixel art for SINGULARITY, a dark electron survival game where lightning pops swarms of subatomic particles. Same artist as the attached style reference. Transparent background. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters with bold readable silhouettes. No text, letters, numbers, frames, panels, background, blur, glow mist, or scattered grain.
+
+Exactly FOUR equal columns and FOUR equal rows: 16 isolated EVOLVED skill icons. Each one keeps the exact silhouette, orientation and dominant color of its original skill icon from the attached references, and adds ONE clear new element plus a small gold #f9d894 accent. Centered in equal cells with generous transparent gutters, 32x32 logical grid, readable at 24px.
+Row 1:
+1 CHAIN EVOLVED: the green Chain icon's two linked nodes, the bolt path now closed into a LOOP returning to its start.
+2 FORK EVOLVED: the gold Fork icon's three prongs, tips joined by a thin crosslink arc.
+3 PIERCE EVOLVED: the violet Pierce arrow through two rings, leaving a bright broken trail behind it.
+4 SATELLITE EVOLVED: the cyan Satellite electron and moons, moons connected by a closed bright ring.
+Row 2:
+5 THUNDER STORM (from Thunderstrike): the thick orange bolt, now THREE bolts falling side by side from the top.
+6 RAPID TYPING (from Repeat): the two parallel teal strokes, now a dense row of four strokes hitting in sequence.
+7 CHAIN BLAST (from Death Arc): the pink cracked sphere, its discharge branches each ending in a second smaller cracked sphere.
+8 DISCHARGE RING (from Capacitor): the gold twin-terminal capacitor at the center of a full expanding lightning ring.
+Row 3:
+9 ECHO (from Return Arc): the blue U-turn arrow, doubled into a back-and-forth zigzag that returns twice.
+10 FRENZY (from Surge): the gold core with its curving arcs, arcs now longer and spiraling outward.
+11 CONTAGION MARK (from Static Mark): the cyan tagged particles, a spark jumping from a popped one onto two new particles.
+12 PERFECT RESONANCE (from Tempo Coil): the pink coil, its sweep arc now a full closed circle.
+Row 4:
+13 REBOUND (from Charged Bolt): the lilac sparks bouncing off a curved wall line and coming back.
+14 OVERLOAD FIELD (from Static Field): the blue field dome, with two smaller domes left where particles popped.
+15 CRITICAL MASS (from Fission): the lime splitting chain, each split burst larger than the last.
+16 DOUBLE DISCHARGE (from Overcharge): the coral core, with two concentric discharge circles.
+Use case: stylized-concept. References show the original subjects: preserve their silhouette and color; new skill sheet takes precedence.
+Generate large PNG: square cells in the exact requested grid, at least 1024 pixels on the long edge. Keep all art strictly inside its cell with clear transparent edge margins. No labels.
+CORRECTION PASS: RAPID TYPING row2 col2 must contain exactly FOUR teal strokes, never three. CHAIN BLAST must have three clearly cracked smaller pink spheres. Add one visible small gold accent to EVERY icon, including Pierce, Thunder Storm, Death Arc, Return Arc, Static Mark, Tempo Coil, Static Field, Fission and Overcharge. Thunder storm has NO clouds, only three thick orange bolts and impact. Hard alpha-zero background with no faint pixels in gutters. Preserve subjects and ordering.
+```
+
+## 2026-11-04 — 3. stat-pact-source
+
+Tool: built-in image_gen.
+
+```text
+Polished pixel art for SINGULARITY, a dark electron survival game where lightning pops swarms of subatomic particles. Same artist as the attached style reference. Transparent background. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters with bold readable silhouettes. No text, letters, numbers, frames, panels, background, blur, glow mist, or scattered grain.
+
+Exactly FIVE equal columns and TWO equal rows: 10 isolated icons centered in equal cells with generous transparent gutters, 32x32 logical grid, readable at 24px.
+Row 1:
+1 CRITICAL (stat, warm yellow #ffdf78): a short sword tip striking a bright four-point impact star that cracks outward. Same weight as the reference Attack Power sword.
+2 LUCK (stat): one faceted gem with facets in four rarity colors (slate white, sky blue, violet, gold) and a single small sparkle.
+3 OVERHEAT (pact): a red-hot coil with rising heat chevrons and one small steam puff, warning red #ff536b dominant with charcoal.
+4 THUNDERBLAST (pact): a short lightning bolt ending in a round red explosion burst.
+5 RING OF GREED (pact): a clawed hand closing over a ring of small glowing particles.
+Row 2:
+6 STATIC (pact): a dark sealed box with a thin silent gap, one red flash bursting out of its seam.
+7 OVERCLOCK (pact): a circuit trace bent into a circular orbit with an arrow forced past a red zone mark.
+8 RESONANCE PACT (pact): a metronome whose beat tick is cracked in two.
+9 GAMBLER (pact): two dice whose pips are tiny lightning sparks, one die cracked.
+10 EVENT HORIZON (pact): a small black hole with a thin red accretion ring and a particle being pulled in.
+All pact icons (3-10) share warning red #ff536b as the dominant color with dark charcoal accents. The two stat icons (1-2) must not use warning red.
+Use case: stylized-concept. References are style only; do not copy their subjects or layout.
+Generate large PNG: square cells in the exact requested grid, at least 1024 pixels on the long edge. Keep all art strictly inside its cell with clear transparent edge margins. No labels.
+```
+
+재생성 1회: 여백 알파, 탐욕 손과 메트로놈 파손 개선 요청. 32/24px 최근접 육안 검사. 첫 후보 선택(손과 주사위가 더 명확). 남은 문제: 미세 알파 잔여, 24px에서 주사위 번개 눈과 메트로놈 균열이 약함.
+
+재생성 프롬프트 전문:
+
+```text
+Polished pixel art for SINGULARITY, a dark electron survival game where lightning pops swarms of subatomic particles. Same artist as the attached style reference. Transparent background. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters with bold readable silhouettes. No text, letters, numbers, frames, panels, background, blur, glow mist, or scattered grain.
+
+Exactly FIVE equal columns and TWO equal rows: 10 isolated icons centered in equal cells with generous transparent gutters, 32x32 logical grid, readable at 24px.
+Row 1:
+1 CRITICAL (stat, warm yellow #ffdf78): a short sword tip striking a bright four-point impact star that cracks outward. Same weight as the reference Attack Power sword.
+2 LUCK (stat): one faceted gem with facets in four rarity colors (slate white, sky blue, violet, gold) and a single small sparkle.
+3 OVERHEAT (pact): a red-hot coil with rising heat chevrons and one small steam puff, warning red #ff536b dominant with charcoal.
+4 THUNDERBLAST (pact): a short lightning bolt ending in a round red explosion burst.
+5 RING OF GREED (pact): a clawed hand closing over a ring of small glowing particles.
+Row 2:
+6 STATIC (pact): a dark sealed box with a thin silent gap, one red flash bursting out of its seam.
+7 OVERCLOCK (pact): a circuit trace bent into a circular orbit with an arrow forced past a red zone mark.
+8 RESONANCE PACT (pact): a metronome whose beat tick is cracked in two.
+9 GAMBLER (pact): two dice whose pips are tiny lightning sparks, one die cracked.
+10 EVENT HORIZON (pact): a small black hole with a thin red accretion ring and a particle being pulled in.
+All pact icons (3-10) share warning red #ff536b as the dominant color with dark charcoal accents. The two stat icons (1-2) must not use warning red.
+Use case: stylized-concept. References are style only; do not copy their subjects or layout.
+Generate large PNG: square cells in the exact requested grid, at least 1024 pixels on the long edge. Keep all art strictly inside its cell with clear transparent edge margins. No labels.
+Correction: no faint alpha noise. All cell gutters and margins must be exactly alpha 0; icons stay inside central 70% of each square. Clearly show Ring of Greed as a CLAW closing over a particle ring; the metronome's upper beat tick broken in two. Keep all ten other shapes and order.
+```
+
+### 2026-11-04 사용자 후처리 승인
+
+사용자: “완전 투명은 그냥 코드로 후처리하자”. 위 새 시트에만 알파 0~2/255 픽셀을 RGBA (0,0,0,0)으로 정리. 본체와 기존 소스는 보존. 이전 알파 잔여 문제 기록은 후처리 전 결과임.
+
+## 2026-11-04 — 7. app-icon-source
+
+Tool: built-in image_gen.
+
+```text
+Polished pixel art for SINGULARITY, a dark electron survival game where lightning pops swarms of subatomic particles. Same artist as the attached style reference. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters with bold readable silhouettes. No text, letters, numbers, frames, panels, blur, glow mist, or scattered grain.
+
+ONE app icon filling a square, on a solid near-black #080a0e background. A thin pale teal circular orbit with one bright cyan electron at the upper right, around a small faceted dark core at the center, with one short lightning strand from the electron popping a tiny rose particle. Bold and minimal, readable at 32x32.
+Use case: stylized-concept. References are style only; do not copy their subjects or layout.
+Generate large PNG: square cells in the exact requested grid, at least 1024 pixels on the long edge. Keep all art strictly inside its cell with clear transparent edge margins. No labels.
+```
+
+재생성 0회. 저장 전 32/180/512px 최근접 검사. 32px에서도 궤도/전자/핵 구분. 남은 문제: 작은 번개와 장미 입자는 32px에서 아주 작음.
+
+### 최종 캔버스 정렬 검사 (2026-11-04)
+
+새 이미지의 그림 픽셀을 확대/축소/다시 그리지 않고 투명 여백만 재배치하여 모든 칸을 같은 정사각형으로 정렬. 재생성 횟수에 해당하지 않는 캔버스 포장. 아이콘 448px/320px/400px 셀, 중간보스 512px 셀(2560×512), 일반 입자 384px 셀(2304×384). 최종 크기 최근접 미리보기 재검사. 이전의 알파/비율/눌림 문제는 해결됨. 일반 입자 민트 고리도 16px에서 식별됨. 이전 문제 기록은 포장 전 결과. 보스 경고 장식 개수, 진화 연속 3줄 및 작은 세부 요소는 여전히 남음. 그림 내용은 바뀌지 않아 기존 참조 이미지와 동일한 디자인을 유지함.
+
+## 2026-11-04 — 8. share-source
+
+Tool: built-in image_gen.
+
+```text
+Polished pixel art for SINGULARITY, a dark electron survival game where lightning pops swarms of subatomic particles. Same artist as the attached style reference. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters with bold readable silhouettes. No text, letters, numbers, frames, panels, blur, glow mist, or scattered grain.
+
+A wide 1200x630 pixel-art key image on a solid near-black #080a0e background. On the right, a thin teal circular orbit with one bright cyan electron firing a thick orange #ffbe69 lightning bolt (the Thunderstrike skill) down into a dense swarm of tiny particles: rose dots, orange plus-circles, violet ellipses, slate circles, pale mint rings and rose-lime dumbbells, several of them popping into pixel shards. One huge dark charcoal sphere with ember-red cracks approaches the small dark core at the center. Keep the LEFT 40% empty for a title added later. No text.
+Use case: stylized-concept. References are style only; do not copy their subjects or layout.
+Generate large PNG: square cells in the exact requested grid, at least 1024 pixels on the long edge. Keep all art strictly inside its cell with clear transparent edge margins. No labels.
+```
+
+재생성 1회: 첫 후보의 힉스가 왼쪽 40% 제목 영역 침범. 수정 후보 선택. 생성 크기 1731x909를 1200x630 최근접 샘플링으로 축소해 저장 전 육안 검사. 왼쪽 40%에 그림/글자 없음. 남은 문제: 배경에 약한 명암 차이가 있어 정확한 단색 #080a0e와는 다름.
+
+재생성 프롬프트 전문:
+
+```text
+Polished pixel art for SINGULARITY, a dark electron survival game where lightning pops swarms of subatomic particles. Same artist as the attached style reference. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters with bold readable silhouettes. No text, letters, numbers, frames, panels, blur, glow mist, or scattered grain.
+
+A wide 1200x630 pixel-art key image on a solid near-black #080a0e background. On the right, a thin teal circular orbit with one bright cyan electron firing a thick orange #ffbe69 lightning bolt (the Thunderstrike skill) down into a dense swarm of tiny particles: rose dots, orange plus-circles, violet ellipses, slate circles, pale mint rings and rose-lime dumbbells, several of them popping into pixel shards. One huge dark charcoal sphere with ember-red cracks approaches the small dark core at the center. Keep the LEFT 40% empty for a title added later. No text.
+Use case: stylized-concept. References are style only; do not copy their subjects or layout.
+Generate large PNG: square cells in the exact requested grid, at least 1024 pixels on the long edge. Keep all art strictly inside its cell with clear transparent edge margins. No labels.
+Correction: absolute title-safe region: x=0 through x=479 inclusive in a 1200px-wide image must be SOLID near-black #080a0e, with absolutely no boss, particles, orbit, light or texture. Every visible object including the entire Higgs sphere is confined to x>=520. Slightly reduce the Higgs if needed. Flat filled background, no vignette, gradient, grain, flames or red vortex. Dark core at orbit center, thin teal orbit and orange descending lightning on RIGHT. Output exactly 1200x630.
+```
+
+### 2번 최초 호출 프롬프트 전문(접미문 포함)
+
+```text
+Polished pixel art for SINGULARITY, a dark electron survival game where lightning pops swarms of subatomic particles. Same artist as the attached style reference. Transparent background. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters with bold readable silhouettes. No text, letters, numbers, frames, panels, background, blur, glow mist, or scattered grain.
+
+Exactly FOUR equal columns and FOUR equal rows: 16 isolated EVOLVED skill icons. Each one keeps the exact silhouette, orientation and dominant color of its original skill icon from the attached references, and adds ONE clear new element plus a small gold #f9d894 accent. Centered in equal cells with generous transparent gutters, 32x32 logical grid, readable at 24px.
+Row 1:
+1 CHAIN EVOLVED: the green Chain icon's two linked nodes, the bolt path now closed into a LOOP returning to its start.
+2 FORK EVOLVED: the gold Fork icon's three prongs, tips joined by a thin crosslink arc.
+3 PIERCE EVOLVED: the violet Pierce arrow through two rings, leaving a bright broken trail behind it.
+4 SATELLITE EVOLVED: the cyan Satellite electron and moons, moons connected by a closed bright ring.
+Row 2:
+5 THUNDER STORM (from Thunderstrike): the thick orange bolt, now THREE bolts falling side by side from the top.
+6 RAPID TYPING (from Repeat): the two parallel teal strokes, now a dense row of four strokes hitting in sequence.
+7 CHAIN BLAST (from Death Arc): the pink cracked sphere, its discharge branches each ending in a second smaller cracked sphere.
+8 DISCHARGE RING (from Capacitor): the gold twin-terminal capacitor at the center of a full expanding lightning ring.
+Row 3:
+9 ECHO (from Return Arc): the blue U-turn arrow, doubled into a back-and-forth zigzag that returns twice.
+10 FRENZY (from Surge): the gold core with its curving arcs, arcs now longer and spiraling outward.
+11 CONTAGION MARK (from Static Mark): the cyan tagged particles, a spark jumping from a popped one onto two new particles.
+12 PERFECT RESONANCE (from Tempo Coil): the pink coil, its sweep arc now a full closed circle.
+Row 4:
+13 REBOUND (from Charged Bolt): the lilac sparks bouncing off a curved wall line and coming back.
+14 OVERLOAD FIELD (from Static Field): the blue field dome, with two smaller domes left where particles popped.
+15 CRITICAL MASS (from Fission): the lime splitting chain, each split burst larger than the last.
+16 DOUBLE DISCHARGE (from Overcharge): the coral core, with two concentric discharge circles.
+Use case: stylized-concept. References show the original subjects: preserve their silhouette and color; new skill sheet takes precedence.
+Generate large PNG: square cells in the exact requested grid, at least 1024 pixels on the long edge. Keep all art strictly inside its cell with clear transparent edge margins. No labels.
+True transparent alpha-zero gutters, hard opaque pixel clusters. Keep each icon inside central 72% of its cell.
+```

@@ -489,7 +489,7 @@ svg {
 }
 .loadout {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--slots, 4), minmax(0, 1fr));
   gap: 8px;
 }
 .slot-cell {
@@ -1578,6 +1578,16 @@ b {
   background: #0c141d;
   border-bottom-color: #1a2837;
 }
+.slot.locked {
+  border-style: dashed;
+  border-color: #1d2833;
+  background: #080c11;
+}
+.slot.locked > i {
+  width: 6px;
+  height: 2px;
+  background: #2c3440;
+}
 .rank {
   gap: 3px;
 }
@@ -1753,7 +1763,8 @@ b {
   white-space: nowrap;
   pointer-events: none;
 }
-.event-banner[data-kind='boss-down'] {
+.event-banner[data-kind='boss-down'],
+.event-banner[data-kind='slot-open'] {
   color: #e8fff3;
   background: #0d2a1fe8;
   border-color: #79ecaa;

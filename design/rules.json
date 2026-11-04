@@ -4,7 +4,7 @@
   "collisionSeconds": 1.6,
   "successEndingSeconds": 3,
   "failureEndingSeconds": 0.9,
-  "energyGoal": 20000,
+  "energyGoal": 70000,
   "endless": {
     "entrySeconds": 2.4,
     "cycleSeconds": 30,
@@ -42,42 +42,134 @@
     "spawnScale": 0.65,
     "hpScale": 1.4,
     "speedScale": 1.15,
-    "xpScale": 0.6
+    "xpScale": 0.45
   },
   "boss": {
     "stages": [
-      { "energyFraction": 0.1, "hp": 250, "xp": 100, "mass": 10, "summonCount": 4 },
-      { "energyFraction": 0.3, "hp": 1000, "xp": 200, "mass": 20, "summonCount": 8 },
-      { "energyFraction": 0.5, "hp": 2500, "xp": 300, "mass": 40, "summonCount": 12 },
-      { "energyFraction": 0.7, "hp": 4500, "xp": 400, "mass": 50, "summonCount": 18 }
+      {
+        "kind": "gluon",
+        "energyFraction": 0.1,
+        "hp": 250,
+        "xp": 250,
+        "mass": 10,
+        "summonCount": 4
+      },
+      {
+        "kind": "w",
+        "energyFraction": 0.25,
+        "hp": 900,
+        "xp": 400,
+        "mass": 20,
+        "summonCount": 8
+      },
+      {
+        "kind": "z",
+        "energyFraction": 0.4,
+        "hp": 2000,
+        "xp": 600,
+        "mass": 30,
+        "summonCount": 12
+      },
+      {
+        "kind": "tau",
+        "energyFraction": 0.55,
+        "hp": 3500,
+        "xp": 800,
+        "mass": 40,
+        "summonCount": 16
+      },
+      {
+        "kind": "top",
+        "energyFraction": 0.7,
+        "hp": 5000,
+        "xp": 1000,
+        "mass": 90,
+        "summonCount": 20
+      }
     ],
     "final": {
-      "hp": 9000,
+      "hp": 16000,
       "speed": 2.5,
       "size": 18,
       "summonFractions": [0.75, 0.5, 0.25],
-      "summonCount": 24
+      "summonCount": 24,
+      "field": {
+        "radius": 48,
+        "wideRadius": 78,
+        "wideFraction": 0.25,
+        "speed": 0.7,
+        "hp": 1.6,
+        "mass": 2
+      }
     },
     "speed": 3.5,
     "turn": 0.06,
     "size": 14,
     "pushScale": 0.25,
     "feedSeconds": 6,
-    "summonFractions": [0.66, 0.33]
+    "summonFractions": [0.66, 0.33],
+    "slotKills": [2],
+    "behaviors": {
+      "gluon": {
+        "tethered": 6,
+        "damageScale": 0.35,
+        "distance": 22
+      },
+      "w": {
+        "seconds": 4,
+        "radius": 70,
+        "count": 5
+      },
+      "z": {
+        "period": 7,
+        "warnSeconds": 1,
+        "immuneSeconds": 2
+      },
+      "tau": {
+        "cycle": 4,
+        "chargeSeconds": 0.8,
+        "dashSeconds": 0.6,
+        "dashSpeed": 6,
+        "drops": 3
+      },
+      "top": {
+        "speed": 0.6
+      }
+    }
   },
   "evolution": {
     "energyFractions": [0.4, 0.7],
-    "chain": { "loopDamage": 0.5 },
-    "multi": { "linkDamage": 0.45 },
-    "pierce": { "trailDamage": 0.25, "trailSeconds": 1.2, "trailInterval": 0.3, "maxTrails": 4 },
-    "satellite": { "ringDamage": 0.45, "width": 10 }
+    "chain": {
+      "loopDamage": 0.5
+    },
+    "multi": {
+      "linkDamage": 0.45
+    },
+    "pierce": {
+      "trailDamage": 0.25,
+      "trailSeconds": 1.2,
+      "trailInterval": 0.3,
+      "maxTrails": 4
+    },
+    "satellite": {
+      "ringDamage": 0.45,
+      "width": 10
+    }
   },
   "pacts": {
     "interval": 5,
     "minSkills": 2,
-    "overload": { "power": 2, "mass": 40 },
-    "greed": { "xp": 0.3, "enemySpeed": 0.1 },
-    "overclock": { "rate": 1 }
+    "overload": {
+      "power": 2,
+      "mass": 40
+    },
+    "greed": {
+      "xp": 0.3,
+      "enemySpeed": 0.1
+    },
+    "overclock": {
+      "rate": 1
+    }
   },
   "bannerSeconds": 3,
   "recovery": {
@@ -106,19 +198,19 @@
     "introAngleMin": 0.1,
     "introAngleMax": 0.6
   },
-  "stageStarts": [0, 90, 210, 330, 450],
+  "stageStarts": [0, 180, 420, 660, 900],
   "smallBatchProbabilityByStage": [0.9, 0.6, 0.6, 0.2, 0.4],
-  "waves": [90, 210, 330, 450],
+  "waves": [180, 420, 660, 900],
   "waveWarningSeconds": 3,
   "waveRepeatSeconds": 90,
   "late": {
     "assaultSeconds": 18,
     "recoverySeconds": 10,
-    "hpPerMinute": 0.35,
+    "hpPerMinute": 0.6,
     "speedPerMinute": 0.04,
     "maxSpeedScale": 1.2,
     "smallBatchProbability": 0.25,
-    "muonProbability": 0.55,
+    "muonProbability": 0.4,
     "neutronProbability": 0.75,
     "recoverySpawnScale": 1.8
   },
@@ -128,7 +220,7 @@
   "denseBatchSize": 2,
   "targets": {
     "small": {
-      "hp": [2, 3, 12, 19, 48],
+      "hp": [2, 3, 18, 52, 150],
       "xp": 1,
       "mass": 1,
       "speed": 17.5,
@@ -136,7 +228,7 @@
       "size": 5
     },
     "dense": {
-      "hp": [8, 16, 72, 130, 400],
+      "hp": [8, 18, 110, 360, 1250],
       "xp": 5,
       "mass": 5,
       "speed": 11.25,
@@ -294,7 +386,53 @@
     "maxTargetsByStage": [10, 28, 64, 112, 190]
   },
   "maxRank": 5,
-  "batchScale": [0.6, 1.2, 2.8, 5, 7],
-  "waveScale": [1, 1.5, 2.8, 5, 7],
-  "spawnSecondsByStage": [3, 2.5, 2, 1.6, 1.3]
+  "batchScale": [0.6, 0.9, 2.8, 5, 7],
+  "waveScale": [1, 1.3, 2, 3.2, 5],
+  "spawnSecondsByStage": [3, 2.7, 2, 1.6, 1.3],
+  "particles": {
+    "muon": [0, 0.25, 0.25, 0.25, 0.25],
+    "neutrino": [0, 0, 0, 0.2, 0.2],
+    "meson": [0, 0, 0, 0, 0.15],
+    "neutron": [0, 0, 0.5, 0.5, 0.5],
+    "quarkPack": {
+      "size": [3, 5],
+      "spacing": 0.04,
+      "gap": 0.16
+    },
+    "heavy": {
+      "hp": 1.2,
+      "xp": 6,
+      "mass": 10,
+      "speed": 0.6
+    },
+    "split": {
+      "hp": 1.6,
+      "xp": 1,
+      "mass": 2,
+      "turn": 2.5,
+      "quarks": 2
+    }
+  },
+  "formations": {
+    "chance": 0.22,
+    "minCount": 4,
+    "previewSeconds": 0.8,
+    "stages": {
+      "line": 0,
+      "clump": 1,
+      "arrow": 1,
+      "ring": 2,
+      "star": 2,
+      "spiral": 3,
+      "pincer": 4
+    },
+    "ringScale": 0.8,
+    "lineSpacing": 9,
+    "clumpRadius": 16,
+    "clumpSpeed": 0.85,
+    "arrowStep": 8,
+    "arrowSpread": 0.05,
+    "spiralTurns": 1,
+    "spiralStep": 4
+  }
 }
