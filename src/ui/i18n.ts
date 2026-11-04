@@ -449,7 +449,7 @@ const en: Copy = {
   choices: 'Choose a skill',
   newSkill: 'New skill',
   instant: 'Restore now',
-  recoveryCount: (n) => `Mass release ×${n}`,
+  recoveryCount: (n) => `Mass Release ×${n}`,
   unlimited: 'No upgrade limit',
   level: 'Level',
   mass: 'Mass',
