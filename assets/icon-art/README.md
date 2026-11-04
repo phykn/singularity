@@ -2,10 +2,15 @@
 
 The built-in image generation tool created the current skill, stat, and control icons. All use stepped dark contours, compact beveled shading, small upper-left highlights, and clean transparent gaps. Colored gameplay symbols remain distinct from quieter slate-blue controls.
 
-| Source                 | Contents                                                        | Runtime atlas                                              |
-| ---------------------- | --------------------------------------------------------------- | ---------------------------------------------------------- |
-| `skill-source.png`     | Sixteen skills in a 4×4 grid                                    | `src/art/assets/skills.png`                                |
-| `interface-source.png` | Five upgrades and eight controls in a 7×2 grid; last cell empty | `src/art/assets/skills.png`, `src/art/assets/controls.png` |
+| Source                 | Contents                                                        | Runtime atlas                                                              |
+| ---------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `skill-source.png`     | The first sixteen skill icons in a 4×4 grid                     | `src/art/assets/skills.png`                                                |
+| `skill-new-source.png` | Later skill icons in a 4×2 grid                                 | `src/art/assets/skills.png`                                                |
+| `stat-pact-source.png` | Critical, Luck and the eight pacts in a 5×2 grid                | `src/art/assets/skills.png`                                                |
+| `evolution-source.png` | One evolved icon per skill in a 4×4 grid                        | `src/art/assets/skills.png`                                                |
+| `interface-source.png` | Five upgrades and eight controls in a 7×2 grid; last cell empty | `src/art/assets/skills.png`, `src/art/assets/controls.png`                 |
+| `app-icon-source.png`  | The app icon                                                    | `public/favicon.png`, `public/apple-touch-icon.png`, `public/icon-512.png` |
+| `share-source.png`     | The link preview image                                          | `public/share.png`                                                         |
 
 Run `npm run build:art` to reproduce the atlases with the project's Playwright browser. The packer trims transparent margins, preserves alpha and aspect ratio, and uses nearest-neighbor sampling into 32×32 cells with two-pixel padding. It only arranges and resamples completed artwork; it does not draw substitute glyphs. Only the packed atlases ship in the game bundle.
 
@@ -17,11 +22,7 @@ The user's selected set then received one complete image-generation edit to unif
 
 ## Runtime order
 
-`skills.png` contains seven columns and three rows:
-
-- Attack Power, Attack Speed, Range, Move Speed, Mass Vent, Repeat, Fork
-- Chain, Pierce, Death Arc, Thunderstrike, Repulsion, Focus, Satellite Electron
-- Capacitor, Orbit Barrier, Gather, Mass Reclaim, Pursuit Arc, Surge, Return Arc
+`skills.png` holds 32×32 cells in eight columns, in the order of `iconIds` in `src/art/skills.ts`: five stats, Mass Release, sixteen skills and eight pacts, then one evolved icon per skill. `scripts/art.mjs` maps each cell to its source sheet; some source cells belong to retired skills and are not packed.
 
 `controls.png` contains four columns and two rows:
 

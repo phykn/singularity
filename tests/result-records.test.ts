@@ -128,7 +128,6 @@ test('stored record metadata cannot change normal ranking or leak into endless r
     'level',
     'outcome',
     'seed',
-    'speed',
     'xp',
   ]);
   assert.deepEqual(Object.keys(records.beyond!).sort(), ['seconds', 'seed', 'xp']);

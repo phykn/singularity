@@ -31,7 +31,6 @@ export type Target = Point & {
   higgs?: boolean;
   summons?: number;
   summonCount?: number;
-  previousRadius?: number;
   // Next time the overclock current trail may zap this particle.
   trailReady?: number;
   marked?: boolean;
@@ -101,7 +100,6 @@ export type Result = {
   mass: number;
   radius: number;
   level: number;
-  speed: number;
   seed: number;
   ranks: Ranks;
   boosts: Boosts;

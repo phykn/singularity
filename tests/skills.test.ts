@@ -5,12 +5,26 @@ import { rules, skillIds } from '../src/game/rules.ts';
 import { createCheckpoint, restoreCheckpoint } from '../src/game/checkpoint.ts';
 import { Game } from '../src/game/Game.ts';
 
-test('the roster has sixteen skills and no removed ones', () => {
-  assert.equal(skillIds.length, 16);
-  for (const id of ['spark', 'field', 'fission', 'overcharge'])
-    assert.ok(skillIds.includes(id as never), id);
-  for (const id of ['focus', 'repel', 'gather', 'chase', 'bridge', 'vent', 'orb', 'stun'])
-    assert.ok(!Object.hasOwn(rules.skills, id), id);
+test('the roster is exactly the sixteen current skills', () => {
+  assert.deepEqual(skillIds, [
+    'repeat',
+    'multi',
+    'chain',
+    'pierce',
+    'burst',
+    'strike',
+    'satellite',
+    'charge',
+    'surge',
+    'return',
+    'mark',
+    'tempo',
+    'spark',
+    'field',
+    'fission',
+    'overcharge',
+  ]);
+  assert.deepEqual(Object.keys(rules.skills), skillIds);
 });
 
 test('return sweeps all enemies along its route without requiring pierce or duplicate damage', () => {
@@ -194,7 +208,8 @@ test('every evolution changes combat for its skill', () => {
     g.counts.quark.generated = g.targets.length;
     g.combatEnabled = true;
     (g as unknown as { nextSpawn: number }).nextSpawn = Infinity;
-    (g.combat as unknown as { heat: number }).heat = g.forms.overcharge.kills - 1;
+    (g.combat as unknown as { overchargeKills: number }).overchargeKills =
+      g.forms.overcharge.kills - 1;
     for (let i = 0; i < 600; i++) {
       g.choice = null;
       if (i % 20 === 0) g.resonate((((i / 20) % 3) + 1) as 1 | 2 | 3);

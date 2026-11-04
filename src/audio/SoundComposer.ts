@@ -1,4 +1,4 @@
-import { soundDefinitions, renderSound } from './samples.ts';
+import { contactSounds, soundDefinitions, renderSound } from './samples.ts';
 import type { SoundBus, SoundKind } from './samples.ts';
 
 export type SoundSpace = { pan: number; depth: number };
@@ -11,18 +11,17 @@ export type SoundCue = {
   // A fixed variant, such as how far a charge has built.
   variant?: number;
 };
-const contacts = new Set([
-  'hit',
-  'pop',
-  'slam',
-  'enter',
-  'roll',
-  'brush',
-  'space',
-  'lift',
-  'double',
-]);
-const contact = (kind: string) => contacts.has(kind);
+const contact = (kind: string) => contactSounds.has(kind);
+
+// Rhythm and transition sounds play up front: centred, close, never ducked under the rhythm.
+export const upfront = (bus: SoundBus) => bus === 'rhythm' || bus === 'transition';
+export function placement(bus: SoundBus, space?: SoundSpace): SoundSpace {
+  if (upfront(bus)) return { pan: 0, depth: 0 };
+  return {
+    pan: Math.max(-0.35, Math.min(0.35, space?.pan ?? 0)),
+    depth: Math.max(0, Math.min(1, space?.depth ?? 0)),
+  };
+}
 
 // Six particle voices: each owns a few keycaps and sits at its own pitch.
 export const voiceTones = [1.08, 1.16, 1, 0.84, 1.26, 0.93];
@@ -122,10 +121,8 @@ export class SoundComposer {
       if (cue.delay) offset += Math.round(cue.delay * this.context.sampleRate);
       if (cue.variant !== undefined) variant = cue.variant;
       else if (!contact(id)) this.variants[id] = (variant + 1) % spec.variants;
-      const important = spec.bus === 'rhythm' || spec.bus === 'transition';
-      const depth = important ? 0 : Math.max(0, Math.min(1, space?.depth ?? 0));
-      const angle =
-        (((important ? 0 : Math.max(-0.35, Math.min(0.35, space?.pan ?? 0))) + 1) * Math.PI) / 4;
+      const { pan, depth } = placement(spec.bus, space);
+      const angle = ((pan + 1) * Math.PI) / 4;
       const level = spec.gain * (1 - depth * 0.3) * weight;
       const left = level * Math.cos(angle),
         right = level * Math.sin(angle);

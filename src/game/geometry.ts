@@ -1,9 +1,7 @@
-import { rules } from './rules.ts';
-
 export type Point = { x: number; y: number };
 export const CENTER = { x: 180, y: 260 };
-export const orbitRadius = rules.orbitRadius;
-export const orbit = (angle: number, radius = orbitRadius): Point => ({
+export const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+export const orbit = (angle: number, radius: number): Point => ({
   x: CENTER.x + radius * Math.cos(angle),
   y: CENTER.y + radius * Math.sin(angle),
 });

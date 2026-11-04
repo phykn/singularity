@@ -23,6 +23,7 @@ export const controlIds = [
   'charge',
 ] as const;
 export type ControlId = (typeof controlIds)[number];
+export const controlAtlasSize = { width: 128, height: 64 };
 export const controlCells = Object.fromEntries(
   controlIds.map((id, index) => [id, { x: (index % 4) * 32, y: Math.floor(index / 4) * 32 }]),
 ) as Record<ControlId, { x: number; y: number }>;

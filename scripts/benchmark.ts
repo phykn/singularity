@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
-import { sourceHash } from './engine.ts';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { assertConserved, simulationHash, sourceHash } from './engine.ts';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { Game } from '../src/game/Game.ts';
 import { isSkill, rules, xpForLevel } from '../src/game/rules.ts';
 
@@ -60,8 +59,7 @@ for (let seed = 1701; seed <= 1730; seed++) {
     const { level, xp } = event.data as { level: number; xp: number };
     assert.ok(xp >= xpForLevel(level));
   }
-  for (const c of Object.values(row.counts))
-    assert.equal(c.generated, c.killed + c.absorbed + c.remaining);
+  assertConserved(row.counts);
   rows.push(row);
 }
 // This small cohort checks replay; the separate balance cohort measures clear rate.
@@ -82,9 +80,7 @@ writeFileSync(
   JSON.stringify(
     {
       sourceHash: sourceHash(),
-      simulationHash: createHash('sha256')
-        .update(readFileSync(new URL(import.meta.url)))
-        .digest('hex'),
+      simulationHash: simulationHash(new URL(import.meta.url)),
       rules,
       seeds: [1701, 1730],
       runs: rows.length,

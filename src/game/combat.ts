@@ -1,5 +1,5 @@
-import { timedSkills } from './skills.ts';
-import type { PopStyle, SkillValues, TimedSkill } from './skills.ts';
+import { linkedSkills, timedSkills } from './skills.ts';
+import type { LinkedSkill, PopStyle, SkillValues, TimedSkill } from './skills.ts';
 import { CENTER, distance, norm, orbit } from './geometry.ts';
 import type { Point } from './geometry.ts';
 import { closest, onSegment } from './targeting.ts';
@@ -11,7 +11,6 @@ import type { Game } from './Game.ts';
 type Anchor = boolean | number;
 
 export type Attack = {
-  id: number;
   ranks: Ranks;
   rarities: Rarities;
   evolved: Partial<Record<SkillId, boolean>>;
@@ -35,21 +34,26 @@ export type Attack = {
 };
 // How the kills of one hit pop; lines sweep outward from where they start.
 export type Pop = { style: PopStyle; from?: Point };
-type Pulse = {
-  at: number;
-  order: number;
-  attack: Attack;
-  target?: Target;
-  from?: Point;
-  reverse?: Point;
-  // Evolved Return: the bolt goes back out from the electron to `reverse`.
-  outward?: boolean;
-  // A delayed single hit that lets a group of particles pop one after another.
-  pop?: boolean;
-  fission?: Point;
-  remnant?: Point;
-  overcharge?: number;
-  anchored: Anchor;
+// Work that lands a few ticks later: repeat hits, staggered pops, returning bolts, splits.
+type Work = { attack: Attack } & (
+  | { kind: 'hit'; target?: Target; from: Point; anchored: Anchor }
+  // A single delayed hit that lets a group of particles pop one after another.
+  | { kind: 'pop'; target: Target; from?: Point }
+  // Evolved Return: an outward bolt goes back out from the electron to `point`.
+  | { kind: 'return'; point: Point; outward?: boolean }
+  | { kind: 'split'; point: Point }
+  | { kind: 'remnant'; point: Point }
+  | { kind: 'overcharge'; scale: number }
+);
+type Scheduled = Work & { at: number; order: number };
+type HitWork = Extract<Scheduled, { kind: 'hit' }>;
+type EffectStyle = {
+  radius?: number;
+  life?: number;
+  anchored?: Anchor;
+  source?: SkillId;
+  width?: number;
+  targetId?: number;
 };
 type Trail = {
   attack: Attack;
@@ -69,7 +73,6 @@ export class Combat {
   private firedAt: Partial<Record<SkillId, number>> = {};
   private nextLinked: Partial<Record<SkillId, number>> = {};
   private nextAttack: number;
-  private nextId = 0;
   private order = 0;
   private nextSkill: Record<TimedSkill, number> = {
     strike: Infinity,
@@ -77,7 +80,7 @@ export class Combat {
     spark: Infinity,
     field: Infinity,
   };
-  private pulses: Pulse[] = [];
+  private scheduled: Scheduled[] = [];
   private trails: Trail[] = [];
   private surgeCharge = 0;
   private storedCharge = 0;
@@ -90,7 +93,7 @@ export class Combat {
   private nextSurge = 0;
   private surgeAttack?: Attack;
   private marked = new Set<number>();
-  private heat = 0;
+  private overchargeKills = 0;
   private nextStorm = 0;
   private stormTurn = 0;
   // Pacts
@@ -125,17 +128,17 @@ export class Combat {
 
   update(): void {
     const g = this.game;
-    const due = this.pulses
-      .filter((p) => p.at <= g.tick + 1e-8)
+    const due = this.scheduled
+      .filter((w) => w.at <= g.tick + 1e-8)
       .sort((a, b) => a.at - b.at || a.order - b.order);
-    this.pulses = this.pulses.filter((p) => p.at > g.tick + 1e-8);
-    for (const pulse of due) {
-      if (pulse.reverse) this.reverse(pulse.attack, pulse.reverse, pulse.outward);
-      else if (pulse.pop) this.pop(pulse);
-      else if (pulse.fission) this.split(pulse.attack, pulse.fission);
-      else if (pulse.remnant) this.remnant(pulse.attack, pulse.remnant);
-      else if (pulse.overcharge) this.overcharge(pulse.overcharge, true);
-      else this.repeatHit(pulse);
+    this.scheduled = this.scheduled.filter((w) => w.at > g.tick + 1e-8);
+    for (const work of due) {
+      if (work.kind === 'return') this.reverse(work.attack, work.point, work.outward);
+      else if (work.kind === 'pop') this.pop(work.attack, work.target, work.from);
+      else if (work.kind === 'split') this.split(work.attack, work.point);
+      else if (work.kind === 'remnant') this.remnant(work.attack, work.point);
+      else if (work.kind === 'overcharge') this.overcharge(work.scale, true);
+      else this.repeatHit(work);
     }
     this.updateOverheat();
     const held = g.time < this.pausedUntil;
@@ -151,7 +154,7 @@ export class Combat {
     if (g.pacts.quiet && g.combatEnabled) this.release();
     for (const id of timedSkills) {
       if (held || this.nextSkill[id] > g.tick + 1e-8) continue;
-      if (this.fireSkill(id)) this.nextSkill[id] = g.tick + this.interval(id);
+      if (this.fireSkill(id)) this.nextSkill[id] = g.tick + this.periodTicks(id);
     }
     this.updateStorm();
     this.updateTrails();
@@ -174,32 +177,20 @@ export class Combat {
         active: g.phase === 'running' && this.surgeUntil > g.time,
         fired,
       };
-    if (id === 'charge')
-      return {
-        mode: 'charging',
-        progress: Math.min(1, this.storedCharge / (g.forms.charge.threshold || 1)),
-        active: false,
-        fired,
-      };
-    if (id === 'mark')
-      return {
-        mode: 'charging',
-        progress: Math.min(1, this.marked.size / g.forms.mark.threshold),
-        active: false,
-        fired,
-      };
-    if (id === 'overcharge')
-      return {
-        mode: 'charging',
-        progress: Math.min(1, this.heat / g.forms.overcharge.kills),
-        active: false,
-        fired,
-      };
+    if (id === 'charge' || id === 'mark' || id === 'overcharge') {
+      const [filled, needed] =
+        id === 'charge'
+          ? [this.storedCharge, g.forms.charge.threshold || 1]
+          : id === 'mark'
+            ? [this.marked.size, g.forms.mark.threshold]
+            : [this.overchargeKills, g.forms.overcharge.kills];
+      return { mode: 'charging', progress: Math.min(1, filled / needed), active: false, fired };
+    }
     if (id === 'burst' || id === 'tempo' || id === 'fission')
       return { mode: 'conditional', progress: 0, active: false, fired };
     const timed = timedSkills.includes(id as TimedSkill),
       skill = id as TimedSkill;
-    const interval = timed ? this.interval(skill) : g.attackInterval * g.rules.tickRate;
+    const interval = timed ? this.periodTicks(skill) : g.attackInterval * g.rules.tickRate;
     const next = timed ? this.nextSkill[skill] : (this.nextLinked[id] ?? g.tick);
     return {
       mode: timed ? 'timed' : 'linked',
@@ -214,7 +205,7 @@ export class Combat {
       this.nextSkill[id as TimedSkill] = this.game.tick + 1;
   }
 
-  private interval(id: TimedSkill): number {
+  private periodTicks(id: TimedSkill): number {
     const g = this.game;
     return (g.rules.skills[id].periodSeconds / g.rate) * g.rules.tickRate;
   }
@@ -224,6 +215,7 @@ export class Combat {
       ratio = oldRate / rate;
     this.nextAttack = tick + Math.max(0, this.nextAttack - tick) * ratio;
     this.nextSurge = tick + Math.max(0, this.nextSurge - tick) * ratio;
+    this.nextStorm = tick + Math.max(0, this.nextStorm - tick) * ratio;
     for (const id of Object.keys(this.nextLinked) as SkillId[])
       this.nextLinked[id] = tick + Math.max(0, this.nextLinked[id]! - tick) * ratio;
     for (const id of timedSkills)
@@ -232,7 +224,7 @@ export class Combat {
   }
 
   clear(): void {
-    this.pulses = [];
+    this.scheduled = [];
     this.trails = [];
     this.surgeCharge = 0;
     this.storedCharge = 0;
@@ -240,7 +232,7 @@ export class Combat {
     this.surgeUntil = 0;
     this.surgeAttack = undefined;
     this.marked.clear();
-    this.heat = 0;
+    this.overchargeKills = 0;
     this.streak = 0;
     this.banked = 0;
     for (const target of this.game.targets) {
@@ -281,10 +273,10 @@ export class Combat {
     }
     const point = { x: target.x, y: target.y };
     if (g.ranks.overcharge && attack?.source !== 'overcharge') {
-      this.heat++;
-      this.build('overcharge', this.heat / g.forms.overcharge.kills);
-      if (this.heat >= g.forms.overcharge.kills) {
-        this.heat = 0;
+      this.overchargeKills++;
+      this.build('overcharge', this.overchargeKills / g.forms.overcharge.kills);
+      if (this.overchargeKills >= g.forms.overcharge.kills) {
+        this.overchargeKills = 0;
         this.build('overcharge', 0);
         this.overcharge(1);
       }
@@ -293,22 +285,26 @@ export class Combat {
       const generation = attack?.source === 'fission' ? (attack.generation ?? 0) : 0;
       const depth = g.forms.fission.depth + (g.pacts.greed ? g.rules.pacts.greed.depth : 0);
       if (generation < depth)
-        this.pulses.push({
-          at: g.tick + g.rules.skills.fission.delaySeconds * g.rules.tickRate,
-          order: this.order++,
+        this.schedule(g.rules.skills.fission.delaySeconds, {
+          kind: 'split',
           attack: { ...this.begin('fission', g.forms.fission.damage), generation, depth: 2 },
-          fission: point,
-          anchored: false,
+          point,
         });
     }
     if (attack?.source === 'field' && !attack.spent && g.evolved.field)
-      this.pulses.push({
-        at: g.tick + g.rules.evolution.field.delaySeconds * g.rules.tickRate,
-        order: this.order++,
+      this.schedule(g.rules.evolution.field.delaySeconds, {
+        kind: 'remnant',
         attack: { ...attack, spent: true, depth: 2 },
-        remnant: point,
-        anchored: false,
+        point,
       });
+  }
+
+  private schedule(seconds: number, work: Work): void {
+    this.scheduled.push({
+      ...work,
+      at: this.game.tick + seconds * this.game.rules.tickRate,
+      order: this.order++,
+    });
   }
 
   // Charging skills sound each quarter they fill, so a release has a build-up before it.
@@ -335,20 +331,15 @@ export class Combat {
     this.nextSurge = g.tick + 1;
     this.surgeAttack = this.begin('surge', surge.damage);
     this.activate('surge');
-    this.effect(
-      this.surgeAttack,
-      'surge',
-      g.position,
-      g.position,
-      12,
-      this.surgeUntil - g.time,
-      true,
-    );
+    this.effect(this.surgeAttack, 'surge', g.position, g.position, {
+      radius: 12,
+      life: this.surgeUntil - g.time,
+      anchored: true,
+    });
   }
 
   fireBasic(origin: Point = this.game.position, multiplier = 1, count?: number): boolean {
-    const range = this.game.range;
-    if (!this.game.targets.some((t) => t.hp > 0 && distance(t, origin) <= range)) return false;
+    if (!this.reaches(origin, this.game.range)) return false;
     const attack = this.begin(undefined, multiplier),
       limit = count ?? attack.forms.multi.count;
     const selected = closest(this.game.targets, origin, limit, attack.range);
@@ -365,7 +356,7 @@ export class Combat {
   // Quiet pact: basic shots are held and released together on a fixed beat.
   private bank(): boolean {
     const g = this.game;
-    if (!g.targets.some((t) => t.hp > 0 && distance(t, g.position) <= g.range)) return false;
+    if (!this.reaches(g.position, g.range)) return false;
     this.banked++;
     return true;
   }
@@ -419,10 +410,7 @@ export class Combat {
 
   private sweepOrbit(source: SkillId | undefined, band: number, count: number, damage: number) {
     const g = this.game;
-    const targets = g.targets
-      .filter((t) => t.hp > 0 && t.radius <= g.radius + band)
-      .sort((a, b) => ahead(a.angle, g.angle) - ahead(b.angle, g.angle) || a.id - b.id)
-      .slice(0, count);
+    const targets = this.alongOrbit((t) => t.radius <= g.radius + band).slice(0, count);
     if (!targets.length) return false;
     const attack = { ...this.begin(source, damage), depth: 2 };
     this.popInOrder(attack, g.position, targets, g.rules.skills.tempo.popSeconds);
@@ -432,79 +420,51 @@ export class Combat {
   private popInOrder(attack: Attack, start: Point | undefined, targets: Target[], gap: number) {
     let from = start;
     for (const [i, target] of targets.entries()) {
-      this.pulses.push({
-        at: this.game.tick + i * gap * this.game.rules.tickRate,
-        order: this.order++,
-        attack,
-        target,
-        from: from && { ...from },
-        anchored: false,
-        pop: true,
-      });
+      this.schedule(i * gap, { kind: 'pop', attack, target, from: from && { ...from } });
       if (from) from = { x: target.x, y: target.y };
     }
   }
 
-  private pop(pulse: Pulse): void {
-    const g = this.game,
-      target = pulse.target!;
+  private pop(attack: Attack, target: Target, from?: Point): void {
+    const g = this.game;
     if (target.hp <= 0 || !g.targets.includes(target)) return;
-    if (pulse.from)
-      this.effect(
-        pulse.attack,
-        'bolt',
-        pulse.from,
-        target,
-        0,
-        0.14,
-        false,
-        // Sparks keep their own colour; other pops read as plain arcs.
-        pulse.attack.source === 'spark' ? 'spark' : undefined,
-        1.3,
-        target.id,
-      );
-    this.deal(pulse.attack, target, pulse.attack.damage);
+    if (from) this.effect(attack, 'bolt', from, target, { width: 1.3, targetId: target.id });
+    this.deal(attack, target, attack.damage);
     // Evolved Charged Bolt: each spark bounces once to a nearby particle.
-    const attack = pulse.attack;
     if (attack.source === 'spark' && attack.evolved.spark && !attack.spent) {
       const cfg = g.rules.evolution.spark;
       const next = closest(g.targets, target, 1, cfg.bounceRange, new Set([target.id]))[0];
       if (next)
-        this.pulses.push({
-          at: g.tick + g.rules.skills.spark.popSeconds * 2 * g.rules.tickRate,
-          order: this.order++,
+        this.schedule(g.rules.skills.spark.popSeconds * 2, {
+          kind: 'pop',
           attack: { ...attack, spent: true, damage: attack.damage * cfg.bounceDamage },
           target: next,
           from: { x: target.x, y: target.y },
-          anchored: false,
-          pop: true,
         });
     }
   }
 
-  private repeatHit(pulse: Pulse): void {
+  private repeatHit(work: HitWork): void {
     const g = this.game;
     const from =
-      typeof pulse.anchored === 'number'
-        ? (this.satellitePoints[pulse.anchored] ?? pulse.from!)
-        : pulse.anchored
+      typeof work.anchored === 'number'
+        ? (this.satellitePoints[work.anchored] ?? work.from)
+        : work.anchored
           ? g.position
-          : pulse.from!;
+          : work.from;
     const target =
-      pulse.target && pulse.target.hp > 0 && g.targets.includes(pulse.target)
-        ? pulse.target
-        : closest(g.targets, from, 1, pulse.attack.range)[0];
+      work.target && work.target.hp > 0 && g.targets.includes(work.target)
+        ? work.target
+        : closest(g.targets, from, 1, work.attack.range)[0];
     if (!target) return;
-    this.emit(pulse.attack, from, target, pulse.anchored, true);
+    this.emit(work.attack, from, target, work.anchored, true);
     this.activate('repeat');
     // Evolved Repeat: a kill adds one more hit, so the stream continues while kills continue.
-    const extra = pulse.attack.extra ?? 0;
-    if (target.hp <= 0 && pulse.attack.evolved.repeat && extra < g.rules.evolution.repeat.maxExtra)
-      this.pulses.push({
-        ...pulse,
-        at: g.tick + g.rules.skills.repeat.delaySeconds * g.rules.tickRate,
-        order: this.order++,
-        attack: { ...pulse.attack, extra: extra + 1 },
+    const extra = work.attack.extra ?? 0;
+    if (target.hp <= 0 && work.attack.evolved.repeat && extra < g.rules.evolution.repeat.maxExtra)
+      this.schedule(g.rules.skills.repeat.delaySeconds, {
+        ...work,
+        attack: { ...work.attack, extra: extra + 1 },
         target: undefined,
       });
   }
@@ -536,22 +496,43 @@ export class Combat {
     return this.game.targets.filter((t) => t.hp > 0 && distance(t, origin) <= range);
   }
 
+  private reaches(origin: Point, range: number): boolean {
+    return this.game.targets.some((t) => t.hp > 0 && distance(t, origin) <= range);
+  }
+
+  // Live particles matching `near`, in the order the electron reaches them going forward.
+  private alongOrbit(near: (target: Target) => boolean): Target[] {
+    const g = this.game;
+    return g.targets
+      .filter((t) => t.hp > 0 && near(t))
+      .sort((a, b) => ahead(a.angle, g.angle) - ahead(b.angle, g.angle) || a.id - b.id);
+  }
+
+  // Hits each particle on the segment once across a run of joined segments.
+  private hitSegment(attack: Attack, from: Point, to: Point, width: number, hit: Set<number>) {
+    for (const target of onSegment(this.game.targets, from, to, width)) {
+      if (hit.has(target.id)) continue;
+      hit.add(target.id);
+      this.deal(attack, target, attack.damage);
+    }
+  }
+
   // Thunderstrike at rank 5: the last bolt joins every impact point.
   private thunder(attack: Attack, targets: Target[]): void {
     const g = this.game;
     g.log('thunder', { count: targets.length });
     if (attack.ranks.strike < g.rules.maxRank || targets.length < 2) return;
     const cfg = g.rules.skills.strike.thunder,
-      link = { ...attack, damage: attack.damage * cfg.damage, depth: 2, firstKill: undefined };
+      link = this.derive(attack, attack.damage * cfg.damage, 2);
     const points = targets.map((t) => ({ x: t.x, y: t.y }));
     const hit = new Set<number>();
     for (let i = 1; i < points.length; i++) {
-      this.effect(link, 'bolt', points[i - 1], points[i], 0, 0.22, false, 'strike', 2.4);
-      for (const target of onSegment(g.targets, points[i - 1], points[i], cfg.width)) {
-        if (hit.has(target.id)) continue;
-        hit.add(target.id);
-        this.deal(link, target, link.damage);
-      }
+      this.effect(link, 'bolt', points[i - 1], points[i], {
+        life: 0.22,
+        source: 'strike',
+        width: 2.4,
+      });
+      this.hitSegment(link, points[i - 1], points[i], cfg.width, hit);
     }
   }
 
@@ -588,14 +569,11 @@ export class Combat {
       if (chosen.length < s.count) chosen.push(t);
     const spark = { ...attack, depth: 1 };
     for (const [i, target] of chosen.entries())
-      this.pulses.push({
-        at: g.tick + i * g.rules.skills.spark.popSeconds * g.rules.tickRate,
-        order: this.order++,
+      this.schedule(i * g.rules.skills.spark.popSeconds, {
+        kind: 'pop',
         attack: spark,
         target,
         from: { ...origin },
-        anchored: false,
-        pop: true,
       });
     this.activate('spark');
     return true;
@@ -608,7 +586,7 @@ export class Combat {
     const targets = this.within(origin, s.radius);
     if (!targets.length) return false;
     const field = { ...attack, depth: 1 };
-    this.effect(field, 'field', origin, origin, s.radius, 0.35, true);
+    this.effect(field, 'field', origin, origin, { radius: s.radius, life: 0.35, anchored: true });
     for (const target of targets) {
       const damage =
         target.kind === 'boss'
@@ -624,7 +602,7 @@ export class Combat {
     const g = this.game,
       cfg = g.rules.evolution.field;
     const damage = attack.power * attack.forms.field.damage * cfg.damage;
-    this.effect(attack, 'field', at, at, cfg.radius, 0.25, false);
+    this.effect(attack, 'field', at, at, { radius: cfg.radius, life: 0.25 });
     for (const target of closest(g.targets, at, 12, cfg.radius))
       this.deal({ ...attack, damage }, target, damage);
   }
@@ -645,7 +623,11 @@ export class Combat {
     if (!targets.length) return;
     const child = { ...attack, generation };
     for (const target of targets) {
-      this.effect(child, 'bolt', from, target, 0, 0.14, false, 'fission', 1.3, target.id);
+      this.effect(child, 'bolt', from, target, {
+        source: 'fission',
+        width: 1.3,
+        targetId: target.id,
+      });
       this.deal(child, target, child.damage);
     }
     this.activate('fission');
@@ -655,22 +637,14 @@ export class Combat {
   private overcharge(scale: number, echo = false): void {
     const g = this.game,
       s = g.forms.overcharge;
-    const targets = g.targets
-      .filter((t) => t.hp > 0 && Math.abs(t.radius - g.radius) <= s.band)
-      .sort((a, b) => ahead(a.angle, g.angle) - ahead(b.angle, g.angle) || a.id - b.id);
+    const targets = this.alongOrbit((t) => Math.abs(t.radius - g.radius) <= s.band);
     const attack = { ...this.begin('overcharge', s.damage * scale), depth: 2 };
-    this.effect(attack, 'field', CENTER, CENTER, g.radius, 0.4, false);
+    this.effect(attack, 'field', CENTER, CENTER, { radius: g.radius, life: 0.4 });
     this.popInOrder(attack, undefined, targets, g.rules.skills.overcharge.popSeconds);
     this.activate('overcharge');
     if (!echo && g.evolved.overcharge) {
       const cfg = g.rules.evolution.overcharge;
-      this.pulses.push({
-        at: g.tick + cfg.delaySeconds * g.rules.tickRate,
-        order: this.order++,
-        attack,
-        overcharge: cfg.damage,
-        anchored: false,
-      });
+      this.schedule(cfg.delaySeconds, { kind: 'overcharge', attack, scale: cfg.damage });
     }
   }
 
@@ -699,26 +673,24 @@ export class Combat {
         index,
       );
     }
-    if (fired && attack.evolved.satellite) this.fireRing(attack);
+    if (fired && attack.evolved.satellite) this.satelliteRing(attack);
     if (fired) this.activate('satellite');
     return fired > 0;
   }
 
+  // A follow-up hit carries the attack's modifiers but starts its own first kill.
+  private derive(attack: Attack, damage: number, depth = attack.depth): Attack {
+    return { ...attack, damage, depth, firstKill: undefined };
+  }
+
   private secondary(attack: Attack, source: SkillId, multiplier: number): Attack {
-    return {
-      ...attack,
-      source,
-      damage: attack.power * multiplier,
-      firstKill: undefined,
-      depth: attack.depth + 1,
-    };
+    return { ...this.derive(attack, attack.power * multiplier, attack.depth + 1), source };
   }
 
   private begin(source?: SkillId, multiplier = 1): Attack {
     const g = this.game,
       forms = g.forms;
     return {
-      id: this.nextId++,
       ranks: { ...g.ranks },
       rarities: { ...g.rarities },
       evolved: { ...g.evolved },
@@ -737,12 +709,14 @@ export class Combat {
     kind: Effect['kind'],
     from: Point,
     to: Point,
-    radius = 0,
-    life = 0.14,
-    anchored: Anchor = false,
-    source = attack.source,
-    width = 1.8,
-    targetId?: number,
+    {
+      radius = 0,
+      life = 0.14,
+      anchored = false,
+      source = attack.source,
+      width = 1.8,
+      targetId,
+    }: EffectStyle = {},
   ): void {
     this.game.addEffect({
       kind,
@@ -763,7 +737,7 @@ export class Combat {
 
   private branch(attack: Attack, index: number): Attack {
     return index && attack.ranks.multi
-      ? { ...attack, damage: attack.damage * attack.forms.multi.damage, firstKill: undefined }
+      ? this.derive(attack, attack.damage * attack.forms.multi.damage)
       : attack;
   }
 
@@ -774,16 +748,9 @@ export class Combat {
       if (target.hp <= 0) continue;
       const branch = this.branch(attack, i);
       for (let hit = 1; hit < attack.forms.repeat.hits; hit++)
-        this.pulses.push({
-          at:
-            this.game.tick +
-            hit * this.game.rules.skills.repeat.delaySeconds * this.game.rules.tickRate,
-          order: this.order++,
-          attack: {
-            ...branch,
-            damage: branch.damage * attack.forms.repeat.damage,
-            firstKill: undefined,
-          },
+        this.schedule(hit * this.game.rules.skills.repeat.delaySeconds, {
+          kind: 'hit',
+          attack: this.derive(branch, branch.damage * attack.forms.repeat.damage),
           target,
           from: { ...origin },
           anchored,
@@ -798,32 +765,27 @@ export class Combat {
 
   private linkTargets(attack: Attack, selected: Target[]): void {
     const damage = attack.damage * this.game.rules.evolution.multi.linkDamage,
-      link = { ...attack, damage, depth: 2, firstKill: undefined };
+      link = this.derive(attack, damage, 2);
     const alive = selected.filter((target) => target.hp > 0);
     for (const [i, target] of alive.entries()) {
       const next = alive[(i + 1) % alive.length];
       if (next === target || (alive.length === 2 && i === 1)) continue;
-      this.effect(link, 'bolt', target, next, 0, 0.14, false, 'multi', 1.3);
+      this.effect(link, 'bolt', target, next, { source: 'multi', width: 1.3 });
       this.deal(link, next, damage);
     }
   }
 
-  private fireRing(attack: Attack): void {
-    const g = this.game,
-      cfg = g.rules.evolution.satellite,
+  // Evolved Satellite: the satellites are joined into a ring of current.
+  private satelliteRing(attack: Attack): void {
+    const cfg = this.game.rules.evolution.satellite,
       points = this.satellitePoints;
-    const damage = attack.damage * cfg.ringDamage,
-      ring = { ...attack, damage, depth: 2, firstKill: undefined };
+    const ring = this.derive(attack, attack.damage * cfg.ringDamage, 2);
     const hit = new Set<number>();
     for (const [i, from] of points.entries()) {
       const to = points[(i + 1) % points.length];
       if (points.length < 2) break;
-      this.effect(ring, 'pierce', from, to, 0, 0.14, false, 'satellite', cfg.width);
-      for (const target of onSegment(g.targets, from, to, cfg.width)) {
-        if (hit.has(target.id)) continue;
-        hit.add(target.id);
-        this.deal(ring, target, damage);
-      }
+      this.effect(ring, 'pierce', from, to, { source: 'satellite', width: cfg.width });
+      this.hitSegment(ring, from, to, cfg.width, hit);
     }
   }
 
@@ -834,17 +796,10 @@ export class Combat {
     for (const trail of this.trails) {
       if (g.tick + 1e-8 < trail.next) continue;
       trail.next = g.tick + cfg.trailInterval * g.rules.tickRate;
-      this.effect(
-        trail.attack,
-        'pierce',
-        trail.from,
-        trail.to,
-        0,
-        0.14,
-        false,
-        'pierce',
-        trail.width,
-      );
+      this.effect(trail.attack, 'pierce', trail.from, trail.to, {
+        source: 'pierce',
+        width: trail.width,
+      });
       for (const target of onSegment(g.targets, trail.from, trail.to, trail.width))
         this.deal(trail.attack, target, trail.attack.damage);
     }
@@ -906,29 +861,21 @@ export class Combat {
       strike ? 'strike' : 'bolt',
       strike ? { x: target.x, y: target.y - 300 } : origin,
       target,
-      strike ? attack.forms.strike.splash : 0,
-      strike ? 0.3 : 0.14,
-      strike ? false : anchored,
-      source,
-      1.8,
-      target.id,
+      strike
+        ? { radius: attack.forms.strike.splash, life: 0.3, source, targetId: target.id }
+        : { anchored, source, targetId: target.id },
     );
     const point = { x: target.x, y: target.y };
     this.resolve(attack, target, origin, anchored);
     if (strike) this.splash(attack, point, target);
     if (attack.ranks.return && attack.depth === 0)
-      this.pulses.push({
-        at: this.game.tick + this.game.rules.skills.return.delaySeconds * this.game.rules.tickRate,
-        order: this.order++,
+      this.schedule(this.game.rules.skills.return.delaySeconds, {
+        kind: 'return',
         attack: {
-          ...attack,
+          ...this.derive(attack, attack.damage * attack.forms.return.damage, 1),
           source: 'return',
-          damage: attack.damage * attack.forms.return.damage,
-          depth: 1,
-          firstKill: undefined,
         },
-        reverse: point,
-        anchored: false,
+        point,
       });
   }
 
@@ -937,18 +884,12 @@ export class Combat {
     const g = this.game,
       radius = attack.forms.strike.splash;
     const damage = attack.damage * g.rules.skills.strike.splash.damage,
-      child = { ...attack, damage, depth: Math.max(1, attack.depth), firstKill: undefined };
+      child = this.derive(attack, damage, Math.max(1, attack.depth));
     for (const target of this.within(at, radius))
       if (target !== primary) this.deal(child, target, damage);
   }
 
-  private resolve(
-    attack: Attack,
-    primary: Target,
-    origin: Point,
-    anchored: Anchor = false,
-    end?: Point,
-  ): void {
+  private resolve(attack: Attack, primary: Target, origin: Point, anchored: Anchor = false): void {
     if (primary.hp <= 0) return;
     const s = attack.forms,
       visited = new Set<number>([primary.id]),
@@ -959,22 +900,16 @@ export class Combat {
         distance(contact, origin) > 0.001
           ? norm({ x: contact.x - origin.x, y: contact.y - origin.y })
           : norm({ x: this.game.position.x - origin.x, y: this.game.position.y - origin.y });
-      const to = end ?? {
+      const to = {
         x: origin.x + direction.x * s.pierce.length,
         y: origin.y + direction.y * s.pierce.length,
       };
       const damage = attack.damage * this.game.rules.skills.pierce.damage;
-      this.effect(
-        { ...attack, damage },
-        'pierce',
-        origin,
-        to,
-        0,
-        0.14,
+      this.effect({ ...attack, damage }, 'pierce', origin, to, {
         anchored,
-        'pierce',
-        s.pierce.width,
-      );
+        source: 'pierce',
+        width: s.pierce.width,
+      });
       this.activate('pierce', attack.ranks.pierce);
       for (const target of onSegment(this.game.targets, origin, to, s.pierce.width)) {
         if (visited.has(target.id)) continue;
@@ -984,12 +919,7 @@ export class Combat {
       const cfg = this.game.rules.evolution.pierce;
       if (attack.evolved.pierce && attack.depth === 0 && this.trails.length < cfg.maxTrails)
         this.trails.push({
-          attack: {
-            ...attack,
-            damage: attack.damage * cfg.trailDamage,
-            depth: 2,
-            firstKill: undefined,
-          },
+          attack: this.derive(attack, attack.damage * cfg.trailDamage, 2),
           from: { ...origin },
           to: { ...to },
           width: s.pierce.width,
@@ -1008,7 +938,7 @@ export class Combat {
       if (!next) break;
       visited.add(next.id);
       const damage = attack.damage * this.game.rules.skills.chain.falloff ** (hop + 1);
-      this.effect({ ...attack, damage }, 'bolt', previous, next, 0, 0.14, false, 'chain', 1.3);
+      this.effect({ ...attack, damage }, 'bolt', previous, next, { source: 'chain', width: 1.3 });
       this.activate('chain', attack.ranks.chain);
       previous = { x: next.x, y: next.y };
       this.deal(attack, next, damage, { style: 'tap' });
@@ -1026,7 +956,7 @@ export class Combat {
         attack.damage *
         this.game.rules.evolution.chain.loopDamage *
         this.game.rules.skills.chain.falloff ** (hop + 1);
-      this.effect({ ...attack, damage }, 'bolt', previous, next, 0, 0.14, false, 'chain', 1.3);
+      this.effect({ ...attack, damage }, 'bolt', previous, next, { source: 'chain', width: 1.3 });
       previous = { x: next.x, y: next.y };
       this.deal(attack, next, damage, { style: 'tap' });
     }
@@ -1047,7 +977,7 @@ export class Combat {
     g.damageTarget(target, damage, attack, crit, pop);
     if (g.pacts.blast && attack.depth === 0) {
       const splash = attack.power * pacts.blast.damage,
-        child = { ...attack, depth: 2, firstKill: undefined };
+        child = this.derive(attack, attack.damage, 2);
       for (const other of closest(g.targets, at, 8, pacts.blast.radius))
         if (other !== target) this.deal(child, other, splash);
     }
@@ -1071,32 +1001,39 @@ export class Combat {
         this.storedCharge = 0;
         this.build('charge', 0);
         const charged = this.secondary(attack, 'charge', attack.forms.charge.damage);
-        this.effect(charged, 'bolt', g.position, recipient, 0, 0.2, true, 'charge', 4);
+        this.effect(charged, 'bolt', g.position, recipient, {
+          life: 0.2,
+          anchored: true,
+          source: 'charge',
+          width: 4,
+        });
         this.activate('charge', attack.ranks.charge);
         this.resolve(charged, recipient, g.position, true);
-        if (attack.evolved.charge) this.ring(charged);
+        if (attack.evolved.charge) this.chargeRing(charged);
       } else
-        this.effect(
-          attack,
-          'charge',
-          g.position,
-          g.position,
-          10,
-          0.3,
-          true,
-          'charge',
-          this.storedCharge / attack.forms.charge.threshold,
-        );
+        // The charge glow's width carries how full the capacitor is.
+        this.effect(attack, 'charge', g.position, g.position, {
+          radius: 10,
+          life: 0.3,
+          anchored: true,
+          source: 'charge',
+          width: this.storedCharge / attack.forms.charge.threshold,
+        });
     }
   }
 
   // Evolved Capacitor: a full discharge also spreads as a ring around the electron.
-  private ring(charged: Attack): void {
+  private chargeRing(charged: Attack): void {
     const g = this.game,
       cfg = g.rules.evolution.charge,
       damage = charged.damage * cfg.damage,
-      ring = { ...charged, damage, depth: 2, firstKill: undefined };
-    this.effect(ring, 'field', g.position, g.position, cfg.ringRadius, 0.3, true, 'charge');
+      ring = this.derive(charged, damage, 2);
+    this.effect(ring, 'field', g.position, g.position, {
+      radius: cfg.ringRadius,
+      life: 0.3,
+      anchored: true,
+      source: 'charge',
+    });
     for (const target of this.within(g.position, cfg.ringRadius)) this.deal(ring, target, damage);
   }
 
@@ -1166,7 +1103,7 @@ export class Combat {
         : (this.satellitePoints[attack.satellite] ?? this.game.position);
     const [from, to] = outward ? [electron, point] : [point, electron];
     const targets = onSegment(this.game.targets, from, to, attack.forms.return.width);
-    this.effect(attack, 'return', from, to, 0, 0.2, false, 'return');
+    this.effect(attack, 'return', from, to, { life: 0.2, source: 'return' });
     this.activate('return', attack.ranks.return);
     // One shared visit set keeps the swept path and its chain branches from doubling hits.
     const visited = new Set(targets.map((t) => t.id));
@@ -1176,31 +1113,22 @@ export class Combat {
     this.discharge(attack);
     // Evolved Return: the bolt bounces back out once more.
     if (attack.evolved.return && !attack.spent)
-      this.pulses.push({
-        at: this.game.tick + this.game.rules.skills.return.delaySeconds * this.game.rules.tickRate,
-        order: this.order++,
+      this.schedule(this.game.rules.skills.return.delaySeconds, {
+        kind: 'return',
         attack: {
-          ...attack,
+          ...this.derive(attack, attack.damage * this.game.rules.evolution.return.echoDamage),
           spent: true,
-          damage: attack.damage * this.game.rules.evolution.return.echoDamage,
-          firstKill: undefined,
           budget: { burst: false },
         },
-        reverse: point,
+        point,
         outward: true,
-        anchored: false,
       });
   }
 
   private updateSurge(): void {
     const g = this.game;
     if (g.time >= this.surgeUntil || !this.surgeAttack || g.tick < this.nextSurge) return;
-    const attack = {
-      ...this.surgeAttack,
-      id: this.nextId++,
-      budget: { burst: false },
-      firstKill: undefined,
-    };
+    const attack = { ...this.surgeAttack, budget: { burst: false }, firstKill: undefined };
     this.volley(
       attack,
       g.position,
@@ -1215,7 +1143,7 @@ export class Combat {
     if (!rank) return;
     this.activations[id] ??= this.game.time;
     this.firedAt[id] = this.game.time;
-    if (['multi', 'repeat', 'chain', 'pierce', 'return'].includes(id))
+    if (linkedSkills.includes(id as LinkedSkill))
       this.nextLinked[id] = this.game.tick + this.game.attackInterval * this.game.rules.tickRate;
     this.game.log('skill-effect', { id, rank });
   }

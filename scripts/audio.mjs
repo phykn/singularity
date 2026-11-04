@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { base, launchBrowser } from './browser-support.mjs';
+import { base, launchBrowser, reportDirectory } from './browser-support.mjs';
 
-const dir = process.argv.slice(2).find((arg) => !arg.startsWith('--')) ?? 'artifacts/audio';
+const dir = reportDirectory('artifacts/audio');
 const plans = [
   {
     name: 'combat',
@@ -158,7 +158,7 @@ try {
             const ctx = new OfflineAudioContext(2, 24000, 48000);
             const mixer = new SoundMixer(ctx, 1701);
             if (batch) mixer.playBatch(cues, 0.1);
-            else for (const cue of cues) mixer.play(cue.kind, 0.1, 1, cue.space);
+            else for (const cue of cues) mixer.play(cue.kind, 0.1, cue.space);
             return ctx.startRendering();
           };
           const reference = await render(false),
@@ -196,7 +196,7 @@ try {
                 })),
                 event.at,
               );
-            else if (mixer.play(event.kind, event.at, event.pitch ?? 1, event.space)) played++;
+            else if (mixer.play(event.kind, event.at, event.space)) played++;
           }
           if (
             played !==

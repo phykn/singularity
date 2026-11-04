@@ -228,7 +228,7 @@ test('every lightning form can be offered from the first choice without a growth
       random,
     );
     cards.forEach((id) => opening.add(id));
-    ranks.repel = 1;
+    ranks.multi = 1;
     makeCards({ ranks, boosts, number: 2, danger: false, recoverable: true }, random).forEach(
       (id) => later.add(id),
     );
@@ -271,7 +271,7 @@ test('automatic choices take early attack stats, then the highest rarity with st
   game.boosts.power = rules.autoStatRank;
   assert.equal(game.automaticCard?.id, 'strike');
   offer([
-    { id: 'speed', rarity: 'common' },
+    { id: 'range', rarity: 'common' },
     { id: 'chain', rarity: 'epic' },
     { id: 'pierce', rarity: 'epic' },
   ]);
@@ -291,8 +291,7 @@ test('rarity roll boundaries and seeded base frequencies match published odds', 
   for (const id of rarityIds) close(counts[id] / 1000, rules.rarity[id].chance, 0.5);
 });
 
-test('new runs have sixteen lightning skills and always offer owned upgrades', () => {
-  assert.equal(skillIds.length, 16);
+test('new runs always offer owned upgrades', () => {
   const g = fixture();
   g.debugSetXp(18);
   for (let seed = 0; seed < 128; seed++) {

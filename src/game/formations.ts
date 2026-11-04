@@ -1,14 +1,21 @@
+import { goldenAngle } from './geometry.ts';
 import type { RuleSet } from './rules.ts';
 
 export const formationIds = ['line', 'clump', 'arrow', 'ring', 'star', 'spiral', 'pincer'] as const;
 export type FormationId = (typeof formationIds)[number];
 export type Slot = { theta: number; radius: number };
 
-const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-
 // Each shape debuts at its own time, so first sightings spread through the run.
 export function formationsAt(seconds: number, cfg: RuleSet['formations']): FormationId[] {
   return formationIds.filter((id) => seconds >= cfg.debuts[id]);
+}
+
+// Spreads the large members of a ring evenly among the small ones.
+export function interleave(dense: number, small: number): ('small' | 'dense')[] {
+  const total = dense + small;
+  return Array.from({ length: total }, (_, i) =>
+    Math.floor(((i + 1) * dense) / total) > Math.floor((i * dense) / total) ? 'dense' : 'small',
+  );
 }
 
 // Places `count` members of one shape around the core, centred on `angle` at `origin`.

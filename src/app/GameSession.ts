@@ -228,7 +228,7 @@ export class GameSession {
     }
   }
 
-  private advanceTime(ms: number, tickLimit = Infinity): void {
+  private advanceTime(ms: number, tickLimit: number): void {
     this.game.advance(
       this.pauseOnChoice && this.game.choice
         ? 0

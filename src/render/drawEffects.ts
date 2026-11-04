@@ -3,8 +3,8 @@ import { BLUE, WHITE, AMBER, skillColors } from '../art/palette.ts';
 import { beamStrength, effectOrigin } from './effects.ts';
 import type { EffectPainter } from './effects.ts';
 import { rarityIds } from '../game/rules.ts';
-import { particleColors as popColors } from '../art/particles.ts';
-import { lerp, clamp, orbit } from '../game/geometry.ts';
+import { particleColors } from '../art/particles.ts';
+import { CENTER, lerp, clamp, orbit } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
 import type { Effect } from '../game/types.ts';
 type Graphics = Phaser.GameObjects.Graphics;
@@ -179,8 +179,8 @@ export function drawEffect(
     const radius = (9 + t * (16 + strength * 8)) / scale;
     ring(g, from, radius, ink, alpha * 0.65, scale, 1);
   } else if (fx.kind === 'absorb') {
-    const x = lerp(from.x, 180, Math.min(1, t * 2)),
-      y = lerp(from.y, 260, Math.min(1, t * 2));
+    const x = lerp(from.x, CENTER.x, Math.min(1, t * 2)),
+      y = lerp(from.y, CENTER.y, Math.min(1, t * 2));
     g.fillStyle(AMBER, alpha);
     g.fillRect(x - 1 / scale, y - 1 / scale, 2 / scale, 2 / scale);
   } else if (fx.kind === 'kill') {
@@ -190,7 +190,7 @@ export function drawEffect(
       if (fx.particle) paint.particle(fx.particle, from, fx.boss);
       return;
     }
-    const color = fx.particle ? popColors[fx.particle] : BLUE,
+    const color = fx.particle ? particleColors[fx.particle] : BLUE,
       fade = (1 - local) ** 2;
     paint.sprite('dissolve', from, local, color, fade, Math.max(32, fx.radius * 2));
     // Shards fly out so every pop reads even inside a crowd.
@@ -210,7 +210,7 @@ export function drawEffect(
     }
   } else if (fx.kind === 'convert') {
     // A W boson's pulse turning nearby quarks into muons.
-    ring(g, from, fx.radius * (0.3 + 0.7 * t), popColors.muon, alpha * 0.7, scale, 1);
+    ring(g, from, fx.radius * (0.3 + 0.7 * t), particleColors.muon, alpha * 0.7, scale, 1);
   } else {
     ring(g, from, fx.radius * (0.25 + 0.75 * t), ink, alpha * 0.6, scale, 1);
   }

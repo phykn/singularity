@@ -1,3 +1,4 @@
+import type { Game } from '../game/Game.ts';
 import { skillValues } from '../game/skills.ts';
 import type { SkillValues } from '../game/skills.ts';
 import { numberText } from '../format.ts';
@@ -127,6 +128,10 @@ export function skillValue(
       return pactText(id, language, cfg).gain;
   }
 }
+
+// What an upgrade does in this run as it stands.
+export const currentSkillValue = (game: Game, id: UpgradeId, language: Language) =>
+  skillValue(id, game.rank(id), game.rarities[id], language, game.rules, game.reach, game.forms);
 
 export function skillChange(
   id: UpgradeId,

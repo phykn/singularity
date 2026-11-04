@@ -26,7 +26,8 @@ import {
   iconIds,
 } from '../src/art/skills.ts';
 import { close, target } from './helpers.ts';
-import { drawWaveWarning, WARNING_RED } from '../src/render/warning.ts';
+import { drawWaveWarning } from '../src/render/warning.ts';
+import { RED } from '../src/art/palette.ts';
 import { drawElectronField } from '../src/render/electronField.ts';
 import type { EffectPainter } from '../src/render/effects.ts';
 import { effectArtwork } from '../assets/effect-art/sprites.mjs';
@@ -187,7 +188,7 @@ test('wave warnings mark both incoming directions in red and pulse with simulati
   assert.equal(styles.length, 2);
   styles.forEach((c) => {
     assert.equal(c.args[0] * 0.5, 3);
-    assert.equal(c.args[1], WARNING_RED);
+    assert.equal(c.args[1], RED);
     close(c.args[2], 0.95);
   });
   dim.commands.filter((c) => c.method === 'lineStyle').forEach((c) => close(c.args[2], 0.3));
@@ -411,6 +412,28 @@ test('rapid charging hits display the newest charge level once while their attac
   );
   assert.ok(shown.includes(bolt));
   assert.deepEqual(effects, before);
+});
+
+test('every effect kind can reach the screen', () => {
+  const kinds: Effect['kind'][] = [
+    'bolt',
+    'pierce',
+    'strike',
+    'trail',
+    'charge',
+    'field',
+    'surge',
+    'return',
+    'kill',
+    'level',
+    'upgrade',
+    'absorb',
+    'convert',
+  ];
+  for (const kind of kinds) {
+    const fx: Effect = { ...effect, kind };
+    assert.deepEqual(visibleEffects([fx]), [fx], kind);
+  }
 });
 
 test('lightning beam heights use whole screen pixels at every viewport scale', () => {

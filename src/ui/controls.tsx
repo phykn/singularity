@@ -1,15 +1,6 @@
-import { rules } from '../game/rules.ts';
 import { copy, languages } from './i18n.ts';
 import type { Language } from './i18n.ts';
-export function Rank({
-  value,
-  max = rules.maxRank,
-  next,
-}: {
-  value: number;
-  max?: number;
-  next?: number;
-}) {
+export function Rank({ value, max, next }: { value: number; max: number; next?: number }) {
   return (
     <span className="rank" aria-hidden="true">
       {Array.from({ length: max }, (_, i) => i + 1).map((n) => (

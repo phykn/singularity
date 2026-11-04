@@ -116,31 +116,19 @@ export class GameAudio {
     if (game.paused || game.phase === 'ready') return;
     const crossing = beyondFrame(game);
     if (crossing) {
-      const stage = 'beyond-' + crossing.stage;
-      if (this.stage !== stage) {
-        this.stage = stage;
-        this.mixer.stop();
-        if (crossing.stage === 'contract') this.play('beyond-contract');
-        if (crossing.stage === 'open') this.play('beyond-open');
-      }
+      const stage = crossing.stage;
+      this.enter(
+        'beyond-' + stage,
+        stage === 'contract' || stage === 'open' ? 'beyond-' + stage : '',
+      );
       return;
     }
     const ending = endingFrame(game);
     if (ending) {
       if (ending.success) {
-        const stage = game.phase === 'collapse' && !ending.quiet ? 'singularity' : 'silence';
-        if (this.stage !== stage) {
-          this.stage = stage;
-          this.mixer.stop();
-          if (stage === 'singularity') this.play('singularity');
-        }
-        return;
-      }
-      if (this.stage !== ending.stage) {
-        this.stage = ending.stage;
-        this.mixer.stop();
-        if (ending.stage === 'impact') this.play('collision');
-      }
+        const singing = game.phase === 'collapse' && !ending.quiet;
+        this.enter(singing ? 'singularity' : 'silence', singing ? 'singularity' : '');
+      } else this.enter(ending.stage, ending.stage === 'impact' ? 'collision' : '');
       return;
     }
     this.stage = '';
@@ -190,10 +178,18 @@ export class GameAudio {
     this.mixer.playBatch(cues, ctx.currentTime);
   }
 
+  // Transitions stop whatever is still ringing and may open with their own sound.
+  private enter(stage: string, sound: string): void {
+    if (this.stage === stage) return;
+    this.stage = stage;
+    this.mixer!.stop();
+    if (sound) this.play(sound);
+  }
+
   play(kind: string, space?: SoundSpace): void {
     const ctx = this.context;
     if (!this.enabled || !ctx || ctx.state !== 'running') return;
     this.mixer ??= new SoundMixer(ctx);
-    this.mixer.play(kind, ctx.currentTime, 1, space);
+    this.mixer.play(kind, ctx.currentTime, space);
   }
 }

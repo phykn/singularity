@@ -109,7 +109,7 @@ try {
   const failed = await browser.newPage({ viewport: { width: 375, height: 812 } });
   failed.on('pageerror', (error) => errors.push(error.message));
   await failed.route('**/fonts/latin.woff2', (route) => route.abort());
-  await failed.goto(base + '/?seed=10004');
+  await failed.goto(base);
   await failed.getByRole('button', { name: 'START', exact: true }).click();
   await failed.locator('.hud').waitFor();
   assert.equal(await failed.locator('canvas').count(), 1);

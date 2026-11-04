@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { statIds } from '../game/rules.ts';
 import { particleIds } from '../game/particles.ts';
-import { particleNames, languages } from './i18n.ts';
+import { particleNames, htmlLang } from './i18n.ts';
 import { CollapseIcon, SingularityIcon, ParticleIcon, SkillIcon } from './icons.tsx';
 import { Rank } from './controls.tsx';
 import { Dialog } from './Dialog.tsx';
@@ -48,7 +48,8 @@ export function Result({
   const canContinue = !result.endless && result.outcome === 'success';
   const collapsed = result.outcome === 'collapse-failure';
   const showGoal = collapsed && !result.endless;
-  const number = new Intl.NumberFormat(languages.find((entry) => entry.id === language)!.html);
+  const number = new Intl.NumberFormat(htmlLang(language));
+  const recovered = result.selections.filter((s) => s.id === 'recover').length;
   return (
     <div style={{ opacity: 1 - departure }} inert={crossing}>
       <Dialog
@@ -127,8 +128,7 @@ export function Result({
                   : c.finish}
             </p>
             <p>
-              {c.score}{' '}
-              {result.score.toLocaleString(languages.find((entry) => entry.id === language)!.html)}
+              {c.score} {number.format(result.score)}
             </p>
             <table>
               <thead>
@@ -164,9 +164,7 @@ export function Result({
               {c.stats} ·{' '}
               {statIds.map((id) => c.upgrades[id].short + ' ' + game.rank(id)).join(' / ')}
             </p>
-            {result.selections.some((s) => s.id === 'recover') && (
-              <p>{c.recoveryCount(result.selections.filter((s) => s.id === 'recover').length)}</p>
-            )}
+            {recovered > 0 && <p>{c.recoveryCount(recovered)}</p>}
             {best && (
               <p>
                 {c.best} · {best.outcome === 'success' ? c.success : c.failure} · {c.energy}{' '}

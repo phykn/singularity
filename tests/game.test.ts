@@ -263,7 +263,7 @@ test('mass release recovery follows rarity, clamps removed mass and is independe
 
 test('gravity collapse fails at any energy, snapshots state and cancels combat and cards', () => {
   for (const xp of [rules.energyGoal - 1, rules.energyGoal]) {
-    const g = fixture({ repel: 3, focus: 3 });
+    const g = fixture({ chain: 3, strike: 3 });
     g.debugSetXp(xp);
     g.mass = 1000;
     g.radius = g.core + rules.electronRadius + 0.01;

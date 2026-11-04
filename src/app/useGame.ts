@@ -6,7 +6,7 @@ import { ResultRecords } from './ResultRecords.ts';
 import { newSeed } from './seed.ts';
 import { readLanguage, languageKey, save } from './storage.ts';
 import type { UpgradeId } from '../game/rules.ts';
-import { languages } from '../ui/i18n.ts';
+import { htmlLang } from '../ui/i18n.ts';
 import type { Language } from '../ui/i18n.ts';
 
 export function useGame() {
@@ -74,7 +74,7 @@ export function useGame() {
   );
 
   useEffect(() => {
-    document.documentElement.lang = languages.find((entry) => entry.id === language)!.html;
+    document.documentElement.lang = htmlLang(language);
   }, [language]);
 
   const toggleSound = useCallback(async () => {

@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict';
-import { median, sourceHash } from './engine.ts';
+import { assertConserved, checkCohort, median, simulationHash, sourceHash } from './engine.ts';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Game } from '../src/game/Game.ts';
 import { rarityIds, rules, isSkill } from '../src/game/rules.ts';
 import type { SkillId } from '../src/game/rules.ts';
 import { guidedCard, playRhythm } from './rhythm-bot.ts';
-import { createHash } from 'node:crypto';
 
 // node scripts/balance.ts [count=900] [firstSeed=92000] [report] [qte|qte-off|qte-guided|auto|guided] [rulesJson]
 // Tune on one seed cohort, then validate on an untouched cohort: qte 15–20%, qte-off 10–15%.
@@ -16,9 +15,7 @@ const count = Number(process.argv[2] ?? 900),
   output = process.argv[4] ?? 'artifacts/balance.json',
   rows = [];
 const policy = process.argv[5] ?? 'qte';
-assert.ok(Number.isSafeInteger(count) && count > 0, 'Count must be a positive safe integer');
-assert.ok(Number.isSafeInteger(start) && start >= 0, 'Start must be a nonnegative safe integer');
-assert.ok(start + count <= 2 ** 32, 'Seed cohort must fit the uint32 seed range');
+checkCohort(count, start);
 assert.ok(
   ['auto', 'guided', 'qte', 'qte-off', 'qte-guided'].includes(policy),
   'Unknown play policy',
@@ -28,10 +25,10 @@ const cfg = process.argv[6]
   : rules;
 const started = Date.now();
 const hash = sourceHash();
-const simulationHash = createHash('sha256')
-  .update(readFileSync(new URL('./balance.ts', import.meta.url)))
-  .update(readFileSync(new URL('./rhythm-bot.ts', import.meta.url)))
-  .digest('hex');
+const scripts = simulationHash(
+  new URL('./balance.ts', import.meta.url),
+  new URL('./rhythm-bot.ts', import.meta.url),
+);
 for (let seed = start; seed < start + count; seed++) {
   const g = new Game(seed, { rules: cfg });
   let rhythm = null;
@@ -52,9 +49,7 @@ for (let seed = start; seed < start + count; seed++) {
     }
   }
   assert.ok(g.result);
-  for (const c of Object.values(g.result.counts)) {
-    assert.equal(c.generated, c.killed + c.absorbed + c.remaining);
-  }
+  assertConserved(g.result.counts);
   assert.equal(g.result.trigger, g.result.outcome === 'success' ? 'boss' : 'gravity');
   const cards = g.events
     .filter((e) => e.kind === 'cards')
@@ -136,7 +131,7 @@ writeFileSync(
   JSON.stringify(
     {
       sourceHash: hash,
-      simulationHash,
+      simulationHash: scripts,
       policy,
       rulesOverride: process.argv[6] ?? null,
       target: policy === 'qte' ? [0.15, 0.2] : policy === 'qte-off' ? [0.1, 0.15] : null,

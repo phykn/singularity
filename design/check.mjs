@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
-import { rules as r, levelForXp, xpForLevel } from '../src/game/rules.ts';
-assert.equal('growthSeconds' in r, false);
+import { rules as r, levelForXp, skillIds, xpForLevel } from '../src/game/rules.ts';
 assert.equal(r.choiceCount, 3);
 assert.equal(r.skillSlots, 4);
 assert.ok(r.rangeBonus > 0 && r.rangeBonus < 1);
@@ -12,9 +11,7 @@ assert.ok(1 + r.powerBonus / (r.powerFalloff + 1) < 2);
 assert.ok(r.crit.perRank > 0 && r.crit.max <= 0.5 && r.crit.multiplier > 1);
 assert.ok(r.luck.rarityShift > 0 && r.luck.rarityShift * 10 < r.rarity.common.chance);
 assert.ok(r.introBatchSize > 0 && r.introBatches > 0);
-assert.equal(Object.keys(r.skills).length, 16);
-for (const removed of ['focus', 'repel', 'gather', 'chase', 'bridge', 'vent'])
-  assert.ok(!(removed in r.skills));
+assert.deepEqual(Object.keys(r.skills), skillIds);
 // Every skill evolves.
 for (const id of Object.keys(r.skills)) assert.ok(id in r.evolution, id);
 assert.ok(r.levelXp.every((n, i, a) => n > 0 && (!i || a[i - 1] < n)));
@@ -160,9 +157,6 @@ assert.ok(r.bannerSeconds > 0);
 console.log(
   JSON.stringify({
     status: 'passed',
-    timeLimit: null,
-    levelLimit: null,
-    statRankLimit: null,
     skillRankLimit: r.maxRank,
     requiredEnergy: r.energyGoal,
     scope: 'Rule arithmetic; game and browser behavior are checked separately.',

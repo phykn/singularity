@@ -1,8 +1,8 @@
-import type { SkillId, UpgradeId } from '../game/rules.ts';
+import type { SkillId } from '../game/rules.ts';
 import type { SkillStatus } from '../game/types.ts';
 import { SkillIcon } from './icons.tsx';
 import { Rank } from './controls.tsx';
-import { skillValue } from './skillText.ts';
+import { currentSkillValue } from './skillText.ts';
 import type { Game } from '../game/Game.ts';
 import { copy } from './i18n.ts';
 import type { Language } from './i18n.ts';
@@ -26,8 +26,6 @@ export function Loadout({
   const xpPercent = progress.required
     ? Math.min(100, (progress.current / progress.required) * 100)
     : 100;
-  const value = (id: UpgradeId, rank = game.rank(id)) =>
-    skillValue(id, rank, game.rarities[id], language, rules, game.reach, game.forms);
   return (
     <div className="play-footer">
       <div className="xp-status">
@@ -90,7 +88,11 @@ export function Loadout({
                       ? c.locked
                       : c.empty
                 }
-                title={id ? c.upgrades[id].name + ' · ' + value(id) : undefined}
+                title={
+                  id
+                    ? c.upgrades[id].name + ' · ' + currentSkillValue(game, id, language)
+                    : undefined
+                }
               >
                 {id && status ? (
                   <SkillSlot

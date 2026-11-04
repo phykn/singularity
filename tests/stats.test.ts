@@ -202,6 +202,19 @@ test('global cooldown reduction retains progress for every timed skill', () => {
   assert.ok(g.attackInterval < oldInterval);
 });
 
+test('a rate change keeps the evolved storm on the same cooldown progress', () => {
+  const g = stationarySkill({}, [target(0, 190, 128, 100000)]);
+  choose(g, 'strike');
+  g.evolved.strike = true;
+  const combat = g.combat as unknown as { nextStorm: number };
+  g.advance(250);
+  const left = combat.nextStorm - g.tick,
+    oldRate = g.rate;
+  assert.ok(left > 0, 'The storm must be between bolts');
+  choose(g, 'rate');
+  close(combat.nextStorm - g.tick, (left * oldRate) / g.rate);
+});
+
 test('replay restores manual range and recovery selections with the same future', () => {
   let found = false;
   for (let seed = 2000; seed < 2020 && !found; seed++) {

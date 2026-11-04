@@ -20,7 +20,7 @@ page.on('pageerror', (error) => {
 });
 try {
   await observeScene(page);
-  await page.goto(base + '/?seed=1705');
+  await page.goto(base);
   await page.waitForFunction(() => !!window.__gameDebug);
   await page.waitForSelector('canvas');
   await page.evaluate(() => document.fonts.ready);

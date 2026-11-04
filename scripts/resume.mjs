@@ -41,7 +41,7 @@ const open = async () => {
   if (base.includes('ngrok'))
     await page.setExtraHTTPHeaders({ 'ngrok-skip-browser-warning': 'true' });
   await observeScene(page);
-  await page.goto(base + '/?seed=10004');
+  await page.goto(base);
   await page.waitForFunction(() => !!window.__gameDebug);
   return page;
 };
@@ -233,7 +233,7 @@ try {
   await page.close();
   const failed = await browser.newPage({ ...devices['Pixel 7'] });
   failed.on('pageerror', (error) => errors.push(error.message));
-  await failed.goto(base + '/?seed=10004');
+  await failed.goto(base);
   await failed.getByRole('button', { name: 'START', exact: true }).click();
   await failed.evaluate(() => {
     const write = Storage.prototype.setItem;

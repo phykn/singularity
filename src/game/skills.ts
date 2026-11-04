@@ -3,6 +3,9 @@ import type { Ranks, Rarities, RuleSet, SkillId } from './rules.ts';
 
 export const timedSkills = ['strike', 'satellite', 'spark', 'field'] as const;
 export type TimedSkill = (typeof timedSkills)[number];
+// Skills that fire alongside the basic attack and share its cooldown.
+export const linkedSkills = ['multi', 'repeat', 'chain', 'pierce', 'return'] as const;
+export type LinkedSkill = (typeof linkedSkills)[number];
 
 export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rules, reach = 1) {
   const s = cfg.skills;

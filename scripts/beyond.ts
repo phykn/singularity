@@ -1,20 +1,15 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Game } from '../src/game/Game.ts';
-import { sourceHash } from './engine.ts';
+import { assertConserved, checkCohort, median, simulationHash, sourceHash } from './engine.ts';
 import { rules } from '../src/game/rules.ts';
 
 const count = Number(process.argv[2] ?? 300);
 const start = Number(process.argv[3] ?? 108000);
 const output = process.argv[4] ?? 'artifacts/beyond.json';
-assert.ok(Number.isSafeInteger(count) && count > 0, 'Count must be a positive safe integer');
-assert.ok(Number.isSafeInteger(start) && start >= 0, 'Start must be a nonnegative safe integer');
-assert.ok(start + count <= 2 ** 32, 'Seed cohort must fit the uint32 seed range');
-const simulationHash = createHash('sha256')
-  .update(readFileSync(new URL(import.meta.url)))
-  .digest('hex');
+checkCohort(count, start);
+const scripts = simulationHash(new URL(import.meta.url));
 const rows = [];
 for (let seed = start; seed < start + count; seed++) {
   const g = new Game(seed);
@@ -29,8 +24,7 @@ for (let seed = start; seed < start + count; seed++) {
   assert.ok(g.result?.endless, 'Endless bot run exceeded the observation window');
   assert.deepEqual(g.clearResult, clear);
   assert.ok(g.metrics.maxTargets <= rules.endless.maxTargets);
-  for (const c of Object.values(g.result.counts))
-    assert.equal(c.generated, c.killed + c.absorbed + c.remaining);
+  assertConserved(g.result.counts);
   const first = g.events.slice(from).find((e) => e.kind === 'absorb');
   rows.push({
     seed,
@@ -49,7 +43,7 @@ const summary = {
   normalRuns: count,
   continuations: rows.length,
   normalClearRate: rows.length / count,
-  medianSeconds: durations[Math.floor(durations.length / 2)] ?? null,
+  medianSeconds: median(durations),
   p90Seconds: durations[Math.floor(durations.length * 0.9)] ?? null,
   minSeconds: durations[0] ?? null,
   maxSeconds: durations.at(-1) ?? null,
@@ -61,7 +55,7 @@ writeFileSync(
   JSON.stringify(
     {
       sourceHash: sourceHash(),
-      simulationHash,
+      simulationHash: scripts,
       scope:
         'Highest-rarity automatic selection in normal and continued play; not a human survival estimate.',
       seeds: [start, start + count - 1],

@@ -1,6 +1,6 @@
 import type Phaser from 'phaser';
-import { clamp } from '../game/geometry.ts';
-import { WHITE } from '../art/palette.ts';
+import { CENTER, clamp } from '../game/geometry.ts';
+import { DUST, WHITE } from '../art/palette.ts';
 
 // One tilted disk, occluded by its dark center. All detail lands on screen pixels.
 export function drawSingularity(
@@ -17,8 +17,8 @@ export function drawSingularity(
     const x = Math.cos(angle) * r * (disk ? 1.6 : 1);
     const y = Math.sin(angle) * r * (disk ? 0.38 : 1);
     return {
-      x: 180 + Math.round((x * 0.94 + y * 0.342) * scale) / scale,
-      y: 260 + Math.round((-x * 0.342 + y * 0.94) * scale) / scale,
+      x: CENTER.x + Math.round((x * 0.94 + y * 0.342) * scale) / scale,
+      y: CENTER.y + Math.round((-x * 0.342 + y * 0.94) * scale) / scale,
     };
   };
   const band = (front: boolean) => {
@@ -30,7 +30,7 @@ export function drawSingularity(
       const sweep = glow > 0 ? Math.max(0, 1 - Math.abs(i / 48 - (1 - glow)) * 7) : 0;
       g.lineStyle(
         (front ? 2 + bright : 1) * pixel,
-        0xd7ad68,
+        DUST,
         light * (front ? 0.35 + bright * 0.35 : 0.3),
       );
       g.lineBetween(p.x, p.y, q.x, q.y);
@@ -42,7 +42,7 @@ export function drawSingularity(
   };
   band(false);
   g.fillStyle(0x020306, 1);
-  g.fillCircle(180, 260, r);
+  g.fillCircle(CENTER.x, CENTER.y, r);
   // A broken lensing crescent leaves the center readable without another outline.
   for (let i = 0; i < 40; i++) {
     const a = Math.PI * (1.02 + i * 0.024);
@@ -51,7 +51,7 @@ export function drawSingularity(
     const alpha = Math.sin((i / 40) * Math.PI);
     g.lineStyle(
       (1 + Math.round(alpha)) * pixel,
-      i < 25 ? WHITE : 0xd7ad68,
+      i < 25 ? WHITE : DUST,
       light * alpha * (0.65 + glow * 0.3),
     );
     g.lineBetween(p.x, p.y, q.x, q.y);
@@ -70,10 +70,10 @@ export function drawAccretion(g: Phaser.GameObjects.Graphics, time: number, scal
     if (p <= 0 || p >= 1) continue;
     const angle = i * 2.4 + p * 1.6;
     const radius = 24 + 20 * (1 - p) ** 2;
-    g.fillStyle(i % 2 ? WHITE : 0xd7ad68, Math.sin(p * Math.PI) * 0.6);
+    g.fillStyle(i % 2 ? WHITE : DUST, Math.sin(p * Math.PI) * 0.6);
     g.fillRect(
-      180 + Math.round(Math.cos(angle) * radius * scale) / scale,
-      260 + Math.round(Math.sin(angle) * radius * scale) / scale,
+      CENTER.x + Math.round(Math.cos(angle) * radius * scale) / scale,
+      CENTER.y + Math.round(Math.sin(angle) * radius * scale) / scale,
       1 / scale,
       1 / scale,
     );

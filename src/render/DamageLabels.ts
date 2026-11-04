@@ -1,8 +1,7 @@
-import { damageNumberSeconds } from '../game/rules.ts';
 import Phaser from 'phaser';
 import type { Game } from '../game/Game.ts';
-import { maxDamageNumbers } from '../game/rules.ts';
-import { clamp } from '../game/geometry.ts';
+import { damageNumberSeconds, maxDamageNumbers } from '../game/rules.ts';
+import { CENTER, clamp } from '../game/geometry.ts';
 import { createDamageFont, damageFonts } from './damageFont.ts';
 
 export class DamageLabels {
@@ -57,8 +56,8 @@ export class DamageLabels {
         }
         this.labels.set(damage.id, text);
       }
-      const x = width / 2 + (damage.x - 180) * scale;
-      const y = centerY + (damage.y - 260) * scale - 4 - age * 16;
+      const x = width / 2 + (damage.x - CENTER.x) * scale;
+      const y = centerY + (damage.y - CENTER.y) * scale - 4 - age * 16;
       // Critical hits print larger in the brightest digits.
       text.setText(String(Math.round(damage.value))).setScale(damage.crit ? 1.5 : 1);
       let placed = false;

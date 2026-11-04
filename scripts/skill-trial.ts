@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Game } from '../src/game/Game.ts';
-import { rules, skillIds } from '../src/game/rules.ts';
+import { rarityIds, rules, skillIds } from '../src/game/rules.ts';
 import type { Rarity, SkillId } from '../src/game/rules.ts';
 import type { Target } from '../src/game/types.ts';
-import { sourceHash } from './engine.ts';
+import { median, simulationHash, sourceHash } from './engine.ts';
 
 // node scripts/skill-trial.ts [seeds=4] [report] [rulesJson] [common,rare]
 // Fixed enemy streams and orbit; direct Combat diagnostics, not natural run clear rates.
@@ -15,11 +14,9 @@ const output = process.argv[3] ?? 'artifacts/skill-trial.json';
 const cfg = process.argv[4] ? JSON.parse(readFileSync(process.argv[4], 'utf8')) : rules;
 const rarities = (process.argv[5]?.split(',') ?? ['common', 'rare']) as Rarity[];
 assert.ok(Number.isSafeInteger(count) && count > 0);
-assert.ok(rarities.every((r) => ['common', 'rare', 'epic', 'legendary'].includes(r)));
+assert.ok(rarities.every((r) => rarityIds.includes(r)));
 const hash = sourceHash();
-const simulationHash = createHash('sha256')
-  .update(readFileSync(new URL(import.meta.url)))
-  .digest('hex');
+const scripts = simulationHash(new URL(import.meta.url));
 const duration = 30;
 const phases = [
   { name: 'early', time: 30, rank: 1, power: 1, rate: 1, range: 0, radius: 125, mass: 10 },
@@ -165,7 +162,7 @@ for (const context of [[], ['multi', 'chain', 'satellite']] as SkillId[][]) {
       context: context.join('+') || 'solo',
       id,
       killed: killed / count,
-      medianSeconds: times.sort((a, b) => a - b)[Math.floor(times.length / 2)] ?? null,
+      medianSeconds: median(times),
     });
   }
 }
@@ -205,7 +202,7 @@ writeFileSync(
   JSON.stringify(
     {
       sourceHash: hash,
-      simulationHash,
+      simulationHash: scripts,
       rules: cfg,
       duration,
       phases,

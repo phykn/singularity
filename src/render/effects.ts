@@ -78,43 +78,43 @@ export function effectOrigin(
   if (effect.anchor === 'electron') return electron;
   return effect.from;
 }
+// Bolts are counted by the skill that threw them, the basic attack's under 'primary'.
+const boltSources = ['chain', 'burst', 'fission', 'spark'] as const;
+type BoltSource = (typeof boltSources)[number];
+// How many of each kind stay on screen, newest first.
+const effectLimits: Record<Exclude<Effect['kind'], 'bolt'> | BoltSource | 'primary', number> = {
+  primary: 12,
+  chain: 18,
+  pierce: 3,
+  burst: 6,
+  strike: 8,
+  trail: 5,
+  charge: 1,
+  field: 8,
+  surge: 1,
+  return: 10,
+  fission: 12,
+  spark: 12,
+  kill: 32,
+  level: 2,
+  upgrade: 1,
+  absorb: 4,
+  convert: 4,
+};
+
 export function visibleEffects(effects: Effect[]): Effect[] {
-  const limits: Record<string, number> = {
-    primary: 12,
-    chain: 18,
-    pierce: 3,
-    burst: 6,
-    strike: 8,
-    trail: 5,
-    charge: 1,
-    field: 8,
-    surge: 1,
-    return: 10,
-    fission: 12,
-    spark: 12,
-    kill: 32,
-    level: 2,
-    upgrade: 1,
-    absorb: 4,
-  };
-  const counts: Record<string, number> = {};
-  const beams = new Set<string>();
+  const counts: Partial<Record<keyof typeof effectLimits, number>> = {};
   return [...effects]
     .reverse()
     .filter((effect) => {
-      if (effect.kind === 'charge' && effect.targetId !== undefined) {
-        const key = effect.kind + effect.targetId;
-        if (beams.has(key)) return false;
-        beams.add(key);
-      }
       const key =
-        effect.kind === 'bolt'
-          ? ['chain', 'burst', 'fission', 'spark'].includes(effect.source ?? '')
-            ? effect.source!
-            : 'primary'
-          : effect.kind;
+        effect.kind !== 'bolt'
+          ? effect.kind
+          : boltSources.includes(effect.source as BoltSource)
+            ? (effect.source as BoltSource)
+            : 'primary';
       counts[key] = (counts[key] ?? 0) + 1;
-      return counts[key] <= limits[key];
+      return counts[key] <= effectLimits[key];
     })
     .reverse();
 }

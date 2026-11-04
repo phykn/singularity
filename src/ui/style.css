@@ -247,7 +247,6 @@ svg {
 }
 .boost b {
   font-size: 12px;
-  font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
 .energy-full {
@@ -274,14 +273,14 @@ svg {
   color: var(--blue);
 }
 .choice-track {
+  margin-top: 4px;
   height: 2px;
-  border-radius: 0;
   background: #23272e;
   overflow: hidden;
 }
 .choice-track i {
   display: block;
-  background: var(--blue);
+  background: #70828c;
   height: 100%;
 }
 .arena {
@@ -311,11 +310,6 @@ svg {
   box-shadow: none;
   touch-action: none;
   user-select: none;
-}
-.rhythm-input:hover,
-.rhythm-input:active {
-  background: transparent;
-  transform: none;
 }
 .rhythm-input:focus-visible {
   outline: 1px solid var(--blue);
@@ -349,11 +343,9 @@ svg {
 }
 .arena-caption h1 {
   font-size: 36px;
-  font-weight: 400;
   line-height: 1.3;
-  letter-spacing: 0;
-  text-indent: 0;
-  color: #e5edf3;
+  letter-spacing: 2px;
+  color: #e5f8ff;
 }
 .sr-only {
   position: absolute;
@@ -450,19 +442,18 @@ svg {
   background: transparent;
   color: #7f8d9c;
   font-size: 12px;
-  border-radius: 0;
 }
 .language-picker button[aria-pressed='true'] {
   color: #d3e7f1;
   background: #151c24;
+  box-shadow: inset 0 -2px #8ce8fb;
 }
 .primary {
   background: var(--blue);
   color: #09212a;
-  font-weight: 400;
   width: 100%;
   min-height: 52px;
-  border-radius: 0;
+  box-shadow: inset 0 -4px #4e91a3;
 }
 .start {
   display: flex;
@@ -470,15 +461,10 @@ svg {
   align-items: center;
   padding: 0 22px;
   min-height: 56px;
-  font-size: 12px;
+  font-size: 24px;
   letter-spacing: 0;
   background: #d6f4fa;
   color: #12232c;
-  border-radius: 0;
-}
-.start svg {
-  width: 24px;
-  height: 24px;
 }
 .play-footer {
   height: 88px;
@@ -514,14 +500,15 @@ svg {
   justify-content: center;
   align-items: center;
   color: var(--blue);
+  background: #0d151d;
   border: 1px solid #23303b;
+  border-bottom-width: 2px;
   overflow: hidden;
 }
 .slot-art {
   position: relative;
   z-index: 1;
   display: block;
-  opacity: 1;
 }
 .slot-art svg {
   display: block;
@@ -548,24 +535,22 @@ svg {
   opacity: 0.55;
 }
 .slot.empty {
-  border-radius: 0;
-  background: #101318;
+  background: #0c141d;
+  border-bottom-color: #1a2837;
 }
 .slot.empty > i {
   width: 4px;
   height: 4px;
-  border-radius: 0;
   background: #474d59;
 }
 .rank {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 .rank i {
   width: 4px;
-  height: 4px;
-  border-radius: 0;
+  height: 3px;
   background: #383f4a;
 }
 .rank i.on {
@@ -589,12 +574,12 @@ svg {
 }
 .xp-status b {
   color: #dadfe5;
-  font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
 .xp-track {
-  height: 4px;
-  border-radius: 0;
+  height: 6px;
+  padding: 1px;
+  border: 1px solid #3d5866;
   overflow: hidden;
   background: #252d38;
 }
@@ -602,7 +587,6 @@ svg {
   display: block;
   height: 100%;
   background: var(--blue);
-  transition: width 0.15s ease-out;
 }
 .save-notice {
   position: absolute;
@@ -629,7 +613,8 @@ svg {
   inset: 0;
   padding: 6px var(--gutter);
   background: #0b141d;
-  border-radius: 0;
+  border-top: 2px solid #354e63;
+  box-shadow: 0 -4px #080a0e;
   animation: enter 0.12s steps(3, end);
 }
 .choice-header {
@@ -642,13 +627,6 @@ svg {
 }
 .choice-header strong {
   font-size: 12px;
-  font-weight: 400;
-}
-.choice-header > span {
-  color: var(--muted);
-  font-size: 12px;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
 }
 .choice-actions {
   display: flex;
@@ -716,7 +694,7 @@ svg {
   gap: 0;
   padding: 4px 6px;
   background: #101e2a;
-  border-radius: 0;
+  border-bottom: 2px solid var(--rarity);
   text-align: center;
   overflow: hidden;
 }
@@ -725,6 +703,10 @@ svg {
   box-shadow: inset 0 0 0 1px #79cbd760;
 }
 .card-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 3px;
   color: #9ca6b3;
   font-size: 12px;
   text-align: right;
@@ -736,7 +718,6 @@ svg {
 .card strong,
 .choice-echo strong {
   font-size: 12px;
-  font-weight: 400;
   line-height: 16px;
   white-space: nowrap;
   letter-spacing: 0;
@@ -781,13 +762,6 @@ svg {
 .card-icon .rank i.next {
   background: var(--rarity);
 }
-.choice-track {
-  margin-top: 4px;
-  height: 2px;
-}
-.choice-track i {
-  background: #70828c;
-}
 .card-icon {
   position: relative;
   display: grid;
@@ -818,7 +792,7 @@ svg {
   width: 100%;
   max-width: 440px;
   max-height: 100%;
-  border-radius: 0;
+  border: 2px solid #354e63;
   background: #12151b;
   display: flex;
   flex-direction: column;
@@ -983,7 +957,6 @@ svg {
   width: 32px;
   height: 20px;
   padding: 3px;
-  border-radius: 0;
   background: #333a46;
 }
 .switch::before {
@@ -992,7 +965,6 @@ svg {
   width: 14px;
   height: 14px;
   background: #a7b1bf;
-  border-radius: 0;
 }
 .setting-row[aria-pressed='true'] .switch,
 .title-sound[aria-pressed='true'] .switch {
@@ -1045,11 +1017,9 @@ svg {
 }
 .collapse-symbol {
   color: #ffd08a;
-  flex-shrink: 0;
 }
 .singularity-symbol {
   color: #ffda86;
-  flex-shrink: 0;
 }
 .result.success .result-heading h2 {
   color: #ffe1a0;
@@ -1066,7 +1036,6 @@ svg {
 }
 .result-goal b {
   color: #f1fcff;
-  font-weight: 400;
 }
 .result-goal-track {
   height: 6px;
@@ -1104,13 +1073,8 @@ svg {
 }
 .result-numbers strong {
   font-size: 24px;
-  font-weight: 400;
   letter-spacing: 0;
   font-variant-numeric: tabular-nums;
-}
-.result-numbers small {
-  color: #7d899a;
-  font-size: 12px;
 }
 .result-build {
   display: flex;
@@ -1126,7 +1090,6 @@ svg {
   gap: 6px;
   align-items: center;
   padding: 8px 4px;
-  border-radius: 0;
   background: #1b1f27;
   text-align: center;
 }
@@ -1194,9 +1157,6 @@ svg {
   gap: 6px;
   white-space: nowrap;
 }
-.result-particle svg {
-  flex-shrink: 0;
-}
 @media (max-width: 380px) {
   .boosts {
     gap: 4px;
@@ -1209,10 +1169,6 @@ svg {
   }
   .charge {
     gap: 2px;
-  }
-  .charge-icon {
-    width: 16px;
-    height: 16px;
   }
   .boost {
     flex-direction: column;
@@ -1228,16 +1184,6 @@ svg {
   .loadout {
     gap: 4px;
   }
-  .card,
-  .choice-echo {
-    padding-inline: 6px;
-  }
-  .dialog h2 {
-    font-size: 24px;
-  }
-  .result-heading h2 {
-    font-size: 24px;
-  }
 }
 @media (orientation: portrait) and (max-height: 680px) {
   .github-link {
@@ -1248,9 +1194,6 @@ svg {
   .github-link {
     top: 6px;
   }
-  .hud {
-    padding-inline: 8px;
-  }
   .hud-top {
     gap: 2px;
   }
@@ -1260,23 +1203,17 @@ svg {
   .charge {
     gap: 2px;
   }
-  .charge-icon {
-    width: 16px;
-    height: 16px;
-  }
   .boosts {
     gap: 4px;
   }
   .boost {
     flex-direction: column;
-    gap: 2px;
   }
   .app {
     max-width: 1040px;
   }
   .play-layout {
     grid-template-columns: minmax(0, 1fr) 320px;
-    grid-template-rows: 48px minmax(0, 1fr) 176px;
   }
   .hud {
     grid-column: 2;
@@ -1290,16 +1227,6 @@ svg {
     grid-column: 2;
     grid-row: 3;
   }
-  .choice-header {
-    margin-bottom: 8px;
-    height: 32px;
-  }
-  .choice-header strong {
-    font-size: 12px;
-  }
-  .choice-header > span {
-    font-size: 12px;
-  }
   .loadout {
     gap: 4px;
   }
@@ -1312,8 +1239,6 @@ svg {
     grid-row: 1 / -1;
   }
   .is-ready .footer {
-    position: absolute;
-    bottom: 24px;
     left: auto;
     width: 320px;
     right: 0;
@@ -1335,8 +1260,6 @@ svg {
   }
   .arena-caption h1 {
     font-size: 28px;
-    letter-spacing: 0;
-    text-indent: 0;
   }
   .title-sound {
     min-height: 48px;
@@ -1357,9 +1280,6 @@ svg {
     grid-column: 1;
     grid-row: 1;
     padding: 16px 16px 8px;
-  }
-  .result-heading h2 {
-    font-size: 24px;
   }
   .result .dialog-body {
     grid-column: 1;
@@ -1423,17 +1343,10 @@ svg {
   box-shadow: inset 0 0 0 1px var(--rarity);
   background: #182b3c;
 }
-.card-label {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 3px;
-}
 .card-label svg {
   margin-left: auto;
 }
 .card-label b {
-  font-weight: 400;
   color: var(--rarity);
 }
 .result-build [data-rarity] small {
@@ -1455,18 +1368,16 @@ svg {
   flex-direction: column;
   gap: 6px;
   padding: 10px 8px;
-  border-radius: 0;
   background: #1b2028;
 }
 .rarity-guide b {
   font-size: 12px;
-  font-weight: 400;
 }
 .result-build small {
   font-size: 12px;
 }
 
-/* Native 12px glyphs; headings use integer multiples of the source grid. */
+/* Each language uses its own cut of the pixel font. */
 :lang(ko) {
   font-family: 'Singularity Pixel KO', 'Singularity Pixel', monospace;
 }
@@ -1501,31 +1412,6 @@ b {
     0 calc(100% - 4px)
   );
 }
-.primary {
-  box-shadow: inset 0 -4px #4e91a3;
-}
-.start {
-  font-size: 24px;
-}
-.arena-caption h1 {
-  letter-spacing: 2px;
-  color: #e5f8ff;
-}
-.choices {
-  border-top: 2px solid #354e63;
-  box-shadow: 0 -4px #080a0e;
-}
-.dialog {
-  border: 2px solid #354e63;
-}
-.card,
-.choice-echo {
-  border-bottom: 2px solid var(--rarity);
-}
-.slot {
-  background: #0d151d;
-  border-bottom: 2px solid #23303b;
-}
 .slot[data-rarity] {
   border-color: var(--rarity);
 }
@@ -1541,9 +1427,6 @@ b {
   font-size: 12px;
   line-height: 12px;
   color: var(--skill);
-}
-.slot[data-acquired='true'] .slot-art {
-  opacity: 1;
 }
 .boost[data-acquired='true'] b {
   color: #e8f5fb;
@@ -1567,16 +1450,10 @@ b {
   line-height: 16px;
   white-space: nowrap;
   pointer-events: none;
+  animation: feedback-in 0.28s steps(4) both;
 }
 .upgrade-feedback span {
   color: var(--skill);
-}
-.upgrade-feedback svg {
-  flex-shrink: 0;
-}
-.slot.empty {
-  background: #0c141d;
-  border-bottom-color: #1a2837;
 }
 .slot.locked {
   border-style: dashed;
@@ -1587,24 +1464,6 @@ b {
   width: 6px;
   height: 2px;
   background: #2c3440;
-}
-.rank {
-  gap: 3px;
-}
-.rank i {
-  width: 4px;
-  height: 3px;
-}
-.xp-track {
-  height: 6px;
-  padding: 1px;
-  border: 1px solid #3d5866;
-}
-.xp-track i {
-  transition: none;
-}
-.language-picker button[aria-pressed='true'] {
-  box-shadow: inset 0 -2px #8ce8fb;
 }
 @media (max-height: 600px) and (min-width: 520px) {
   .upgrade-feedback {
@@ -1642,9 +1501,6 @@ b {
 }
 .slot[data-acquired='true'][data-new='true'] .slot-art {
   animation-name: slot-new;
-}
-.upgrade-feedback {
-  animation: feedback-in 0.28s steps(4) both;
 }
 .result-modal {
   animation: result-reveal 0.24s steps(6) both;
@@ -1796,10 +1652,6 @@ b {
   outline-offset: -1px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .boss-bar[data-final='true'] {
-    height: 10px;
-    outline: 1px solid #ffd76a;
-  }
   .hud[data-critical='true'] .charge {
     animation: none;
   }

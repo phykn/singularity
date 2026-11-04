@@ -1,6 +1,5 @@
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { chromium } from 'playwright';
 
 export const base = process.env.GAME_URL ?? 'http://localhost:8081';
 export const screenshotsDir = join(
@@ -30,7 +29,9 @@ export async function capture(page, path) {
   return archived;
 }
 
-export function launchBrowser() {
+// Playwright loads only when a check opens a browser, so unit tests can import this file without it.
+export async function launchBrowser() {
+  const { chromium } = await import('playwright');
   const executablePath =
     process.env.BROWSER_PATH ??
     [

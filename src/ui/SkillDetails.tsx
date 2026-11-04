@@ -1,12 +1,11 @@
 import type { Game } from '../game/Game.ts';
-import { isSkill } from '../game/rules.ts';
 import type { SkillId } from '../game/rules.ts';
 import { Dialog } from './Dialog.tsx';
 import { SkillIcon } from './icons.tsx';
 import { Rank } from './controls.tsx';
 import { copy } from './i18n.ts';
 import type { Language } from './i18n.ts';
-import { skillValue } from './skillText.ts';
+import { currentSkillValue } from './skillText.ts';
 
 export function SkillDetails({
   game,
@@ -36,14 +35,12 @@ export function SkillDetails({
       </div>
       <div className="dialog-body">
         <p>{c.upgrades[id].description}</p>
-        {game.evolved[id] && isSkill(id) && (
+        {game.evolved[id] && (
           <p className="skill-evolved">
             {c.evolutions[id].name} · {c.evolutions[id].description}
           </p>
         )}
-        <p className="skill-value">
-          {skillValue(id, rank, rarity, language, game.rules, game.reach, game.forms)}
-        </p>
+        <p className="skill-value">{currentSkillValue(game, id, language)}</p>
       </div>
       <div className="dialog-actions">
         <button className="primary" onClick={onClose}>

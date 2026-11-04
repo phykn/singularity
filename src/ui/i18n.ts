@@ -10,6 +10,8 @@ export const languages: { id: Language; label: string; html: string }[] = [
   { id: 'zh', label: '中文', html: 'zh-CN' },
   { id: 'ja', label: '日本語', html: 'ja' },
 ];
+export const htmlLang = (language: Language) =>
+  languages.find((entry) => entry.id === language)!.html;
 export type LinkEffect = 'repeat' | 'multi' | 'chain' | 'pierce' | 'return' | 'burst' | 'charge';
 type Info = { name: string; short: string; description: string };
 
@@ -236,9 +238,7 @@ const ko = {
   metric: {
     satellites: (n: string) => `${n}개`,
     charge: '충전',
-    health: '체력',
     kills: '처치',
-    duration: '초',
     radius: '반경',
     damage: '피해량',
     rate: '공격속도',
@@ -249,7 +249,6 @@ const ko = {
     targets: (n: string) => `동시에 ${n}개`,
     links: (n: string) => `${n}회 연쇄`,
     crit: '치명타',
-    luck: '행운',
     evolve: '진화',
   },
   change: {
@@ -272,7 +271,6 @@ const ko = {
   evolve: '진화',
   pact: '대가',
   bossName: '거대 입자',
-  finalBossName: '힉스 입자',
   bossNames: {
     gluon: '글루온',
     w: 'W 보손',
@@ -636,9 +634,7 @@ const en: Copy = {
   metric: {
     satellites: (n: string) => `${n} ${n === '1' ? 'satellite' : 'satellites'}`,
     charge: 'Charge',
-    health: 'HP',
     kills: 'Kills',
-    duration: 's',
     radius: 'Radius',
     damage: 'Damage',
     rate: 'Fire rate',
@@ -649,7 +645,6 @@ const en: Copy = {
     targets: (n) => `${n} targets`,
     links: (n) => `${n} jumps`,
     crit: 'Crit',
-    luck: 'Luck',
     evolve: 'Evolve',
   },
   change: {
@@ -672,7 +667,6 @@ const en: Copy = {
   evolve: 'EVOLVE',
   pact: 'PACT',
   bossName: 'Giant particle',
-  finalBossName: 'Higgs',
   bossNames: {
     gluon: 'Gluon',
     w: 'W boson',
@@ -960,9 +954,7 @@ const zh: Copy = {
   metric: {
     satellites: (n: string) => `${n}个`,
     charge: '蓄电',
-    health: '生命',
     kills: '击杀',
-    duration: '秒',
     radius: '半径',
     damage: '伤害',
     rate: '发射频率',
@@ -973,7 +965,6 @@ const zh: Copy = {
     targets: (n) => `${n}个目标`,
     links: (n) => `${n}次连接`,
     crit: '暴击',
-    luck: '幸运',
     evolve: '进化',
   },
   change: {
@@ -996,7 +987,6 @@ const zh: Copy = {
   evolve: '进化',
   pact: '代价',
   bossName: '巨型粒子',
-  finalBossName: '希格斯粒子',
   bossNames: {
     gluon: '胶子',
     w: 'W玻色子',
@@ -1340,9 +1330,7 @@ const ja: Copy = {
   metric: {
     satellites: (n: string) => `${n}個`,
     charge: '蓄電',
-    health: '体力',
     kills: '撃破',
-    duration: '秒',
     radius: '半径',
     damage: 'ダメージ',
     rate: '発射頻度',
@@ -1353,7 +1341,6 @@ const ja: Copy = {
     targets: (n) => `対象 ${n}体`,
     links: (n) => `${n}回連鎖`,
     crit: 'クリティカル',
-    luck: '幸運',
     evolve: '進化',
   },
   change: {
@@ -1376,7 +1363,6 @@ const ja: Copy = {
   evolve: '進化',
   pact: '代償',
   bossName: '巨大粒子',
-  finalBossName: 'ヒッグス粒子',
   bossNames: {
     gluon: 'グルーオン',
     w: 'Wボソン',

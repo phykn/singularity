@@ -187,15 +187,15 @@ test('each actual particle contact creates one sound, and a fatal hit pops', () 
 test('distance softens combat without burying its texture, while QTE stays centered', () => {
   const { ctx, gains, graph, pans, filters, advance } = audioContext();
   const mixer = new SoundMixer(ctx);
-  mixer.play('hit', 0, 1, { pan: -0.3, depth: 0 });
+  mixer.play('hit', 0, { pan: -0.3, depth: 0 });
   advance(0.3);
-  mixer.play('hit', 0.3, 1, { pan: 0.3, depth: 1 });
+  mixer.play('hit', 0.3, { pan: 0.3, depth: 1 });
   const levels = gains.slice(1).map((node) => node.gain.values[0].value);
   assert.ok(levels[1] < levels[0]);
   assert.ok(filters[2].frequency.values[0].value < filters[1].frequency.values[0].value);
   assert.ok(filters[2].frequency.values[0].value >= 3500, 'Far impacts keep their presence');
   advance(0.6);
-  mixer.play('rhythm-complete', 0.6, 1, { pan: -1, depth: 1 });
+  mixer.play('rhythm-complete', 0.6, { pan: -1, depth: 1 });
   assert.deepEqual(
     pans.map((node) => node.pan.values[0].value),
     [-0.3, 0.3, 0],

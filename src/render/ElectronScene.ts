@@ -13,15 +13,15 @@ import particlesUrl from '../art/assets/particles.png';
 import bossesUrl from '../art/assets/bosses.png';
 import { bossFrames, particleFrames } from '../art/particles.ts';
 import { DamageLabels } from './DamageLabels.ts';
-import { orbit, clamp } from '../game/geometry.ts';
+import { CENTER, orbit, clamp } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
 import type { Game } from '../game/Game.ts';
-import { BLUE, WHITE, AMBER, GOLD, VIOLET, skillColors } from '../art/palette.ts';
-import { drawWaveWarning, WARNING_RED } from './warning.ts';
+import { BLUE, WHITE, AMBER, GOLD, VIOLET, RED, GLUON, skillColors } from '../art/palette.ts';
+import { drawWaveWarning } from './warning.ts';
 import type { OrbitRhythm } from '../app/OrbitRhythm.ts';
 import { drawRhythm } from './rhythm.ts';
 import { arenaViewport } from '../presentation/viewport.ts';
-import { particleLook, GLUON } from './particleLook.ts';
+import { particleLook } from './particleLook.ts';
 export class ElectronScene extends Phaser.Scene {
   private graphics!: Phaser.GameObjects.Graphics;
   private effects!: EffectRenderer;
@@ -83,7 +83,7 @@ export class ElectronScene extends Phaser.Scene {
       this.lastModel = game;
       this.impactAt = -Infinity;
     }
-    g.setPosition(width / 2 - 180 * scale, this.centerY - 260 * scale);
+    g.setPosition(width / 2 - CENTER.x * scale, this.centerY - CENTER.y * scale);
     g.setScale(scale);
     this.effects.setViewport(g.x, g.y, scale);
     if (game.phase === 'ready') {
@@ -133,7 +133,7 @@ export class ElectronScene extends Phaser.Scene {
       const critical = game.critical && !ending;
       this.drawOrbit(
         radius,
-        danger ? AMBER : critical ? WARNING_RED : orbitColor,
+        danger ? AMBER : critical ? RED : orbitColor,
         critical ? Math.max(opacity, 0.45 + 0.3 * Math.sin(clock * 8)) : opacity,
         danger,
         scale,
@@ -158,34 +158,24 @@ export class ElectronScene extends Phaser.Scene {
       const p = ending?.success
         ? orbit(target.angle + absorb * absorb * Math.PI * 2, target.radius * (1 - absorb) ** 1.15)
         : target;
-      if (ending?.hole && Math.hypot(p.x - 180, p.y - 260) <= ending.hole) continue;
+      if (ending?.hole && Math.hypot(p.x - CENTER.x, p.y - CENTER.y) <= ending.hole) continue;
       const point = this.screen(p);
       if (point.x < -20 || point.x > width + 20 || point.y < -20 || point.y > height + 20) continue;
       const hit = !ending && target.hitAt !== undefined && game.time - target.hitAt < 0.06;
       const boss = target.kind === 'boss';
       const look = particleLook(game, target, clock);
-      const sprite = target.boss
-        ? this.sprites.draw(
-            point,
-            'bosses',
-            1,
-            (1 - absorb) * look.alpha,
-            0.5,
-            bossFrames[target.boss],
-            look.rotation,
-          )
-        : this.sprites.draw(
-            point,
-            'particles',
-            1,
-            (1 - absorb) * look.alpha,
-            0.5,
-            particleFrames[target.particle],
-            look.rotation,
-          );
+      const sprite = this.sprites.draw(
+        point,
+        target.boss ? 'bosses' : 'particles',
+        1,
+        (1 - absorb) * look.alpha,
+        0.5,
+        target.boss ? bossFrames[target.boss] : particleFrames[target.particle],
+        look.rotation,
+      );
       if (!ending) this.drawBehavior(game, target, clock, scale);
       if (boss && !ending) {
-        g.lineStyle((target.final ? 2 : 1) / scale, WARNING_RED, 0.55 + 0.35 * Math.sin(clock * 6));
+        g.lineStyle((target.final ? 2 : 1) / scale, RED, 0.55 + 0.35 * Math.sin(clock * 6));
         g.strokeCircle(p.x, p.y, target.size + 4);
       }
       if (ending?.success && absorb > 0 && target.id % 9 === 0) {
@@ -252,16 +242,13 @@ export class ElectronScene extends Phaser.Scene {
       );
       this.drawElectron(ending.electron, 1, BLUE);
     }
-    if (ending.stage === 'silence') {
-      g.fillStyle(WHITE, 0.85);
-      g.fillRect(180 - 1.5 / scale, 260 - 1.5 / scale, 3 / scale, 3 / scale);
-    }
+    if (ending.stage === 'silence') this.drawPoint(0.85, scale);
     if (ending.hole) this.drawSingularity(ending.hole, scale, ending.glow);
     if (ending.success && game.phase === 'ending')
       drawAccretion(g, game.phaseTicks / game.rules.tickRate, scale);
     if (ending.success && ending.flash) {
       g.fillStyle(WHITE, ending.flash * 0.6);
-      g.fillCircle(180, 260, 5 / scale);
+      g.fillCircle(CENTER.x, CENTER.y, 5 / scale);
     }
   }
   // Faint dots where a formation is about to appear.
@@ -303,7 +290,7 @@ export class ElectronScene extends Phaser.Scene {
       // Heavy particles light their rim as they near the core.
       const near = clamp(1 - (target.radius - game.core) / 60);
       if (near > 0) {
-        g.lineStyle(1 / scale, WARNING_RED, 0.6 * near);
+        g.lineStyle(1 / scale, RED, 0.6 * near);
         g.strokeCircle(target.x, target.y, target.size);
       }
     }
@@ -339,10 +326,12 @@ export class ElectronScene extends Phaser.Scene {
         this.drawElectron(orbit(frame.angle, frame.ring), frame.electron * frame.alpha);
       }
     }
-    if (frame.point > 0) {
-      g.fillStyle(WHITE, frame.point * 0.85);
-      g.fillRect(180 - 1.5 / scale, 260 - 1.5 / scale, 3 / scale, 3 / scale);
-    }
+    if (frame.point > 0) this.drawPoint(frame.point * 0.85, scale);
+  }
+  // The one bright pixel left at the center.
+  private drawPoint(alpha: number, scale: number): void {
+    this.graphics.fillStyle(WHITE, alpha);
+    this.graphics.fillRect(CENTER.x - 1.5 / scale, CENTER.y - 1.5 / scale, 3 / scale, 3 / scale);
   }
   private drawOrbit(
     radius: number,
@@ -353,7 +342,7 @@ export class ElectronScene extends Phaser.Scene {
   ): void {
     const g = this.graphics;
     g.lineStyle((danger ? 2 : 1) / scale, color, alpha);
-    g.strokeCircle(180, 260, radius);
+    g.strokeCircle(CENTER.x, CENTER.y, radius);
   }
   private drawTrail(
     angle: number,
@@ -378,8 +367,8 @@ export class ElectronScene extends Phaser.Scene {
       pixel = 2 / scale;
     const point = ([x, y]: number[]) =>
       new Phaser.Math.Vector2(
-        180 + Math.round((x * radius) / pixel) * pixel,
-        260 + Math.round((y * radius) / pixel) * pixel,
+        CENTER.x + Math.round((x * radius) / pixel) * pixel,
+        CENTER.y + Math.round((y * radius) / pixel) * pixel,
       );
     const hull = [
       [-0.84, -0.4],
@@ -434,13 +423,14 @@ export class ElectronScene extends Phaser.Scene {
     g.lineStyle(pixel, 0x62889b, 0.6);
     g.strokePoints([hull[5], hull[6], hull[7]].map(point), false);
   }
+  // A method rather than a direct call so `check:ending` can measure the hole it draws.
   private drawSingularity(radius: number, scale: number, glow: number): void {
     drawSingularity(this.graphics, radius, scale, glow);
   }
   private screen(point: Point): Point {
     return {
-      x: this.width / 2 + (point.x - 180) * this.worldScale + this.offset.x,
-      y: this.centerY + (point.y - 260) * this.worldScale + this.offset.y,
+      x: this.width / 2 + (point.x - CENTER.x) * this.worldScale + this.offset.x,
+      y: this.centerY + (point.y - CENTER.y) * this.worldScale + this.offset.y,
     };
   }
   private drawElectron(point: Point, alpha: number, color = BLUE, surging = false): void {

@@ -4,7 +4,13 @@ export const BLUE = 0x8ce8fb,
   WHITE = 0xf1fcff,
   AMBER = 0xffd08a,
   GOLD = 0xf9d894,
-  VIOLET = 0xb0a0ff;
+  VIOLET = 0xb0a0ff,
+  // Warnings, criticals and every pact.
+  RED = 0xff536b,
+  // The tether between bound particles.
+  GLUON = 0xffd27a,
+  // Warm dust in the singularity's disk.
+  DUST = 0xd7ad68;
 
 // Skill identity stays the same across attacks, cards and icons; rarity uses the frame.
 export const skillColors: Record<UpgradeId, number> = {
@@ -30,14 +36,14 @@ export const skillColors: Record<UpgradeId, number> = {
   crit: 0xffdf78,
   luck: 0xb9c8ff,
   recover: 0x79ecaa,
-  overheat: 0xff536b,
-  blast: 0xff536b,
-  greed: 0xff536b,
-  quiet: 0xff536b,
-  overclock: 0xff536b,
-  pulse: 0xff536b,
-  gamble: 0xff536b,
-  horizon: 0xff536b,
+  overheat: RED,
+  blast: RED,
+  greed: RED,
+  quiet: RED,
+  overclock: RED,
+  pulse: RED,
+  gamble: RED,
+  horizon: RED,
 };
 
 export const skillColor = (id: UpgradeId) => '#' + skillColors[id].toString(16).padStart(6, '0');

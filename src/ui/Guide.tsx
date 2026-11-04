@@ -1,9 +1,9 @@
-import { isPact, isSkill, isStat, pactIds, rarityIds, skillIds, statIds } from '../game/rules.ts';
-import type { UpgradeId } from '../game/rules.ts';
+import { isPact, isSkill, isStat, rarityIds } from '../game/rules.ts';
 import type { RuleSet } from '../game/rules.ts';
 import { particleIds } from '../game/particles.ts';
 import { particleNames, particleSymbols } from './i18n.ts';
 import { ParticleIcon, SkillIcon } from './icons.tsx';
+import { iconIds } from '../art/skills.ts';
 import { pactText, skillValue } from './skillText.ts';
 import { Dialog } from './Dialog.tsx';
 import { copy } from './i18n.ts';
@@ -55,7 +55,7 @@ export function Guide({
           ))}
         </div>
         <div className="skill-guide">
-          {([...statIds, 'recover', ...skillIds, ...pactIds] as UpgradeId[]).map((id) => (
+          {iconIds.map((id) => (
             <div key={id}>
               <details>
                 <summary>

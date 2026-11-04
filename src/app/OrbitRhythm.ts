@@ -28,7 +28,6 @@ export class OrbitRhythm {
   feedbackAge = Infinity;
   angle = 0;
   gateAngle = 0;
-  hitAngle = 0;
   judgmentAngle = 0;
   private velocity = 0.001;
   private lastHit = -Infinity;
@@ -101,7 +100,6 @@ export class OrbitRhythm {
       return 'miss';
     }
     this.hits++;
-    this.hitAngle = this.gateAngle;
     this.judgmentAngle = this.gateAngle;
     this.lastHit = this.age;
     this.feedbackAge = 0;

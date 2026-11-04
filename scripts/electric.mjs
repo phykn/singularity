@@ -38,7 +38,6 @@ try {
             debug.restart(421, false);
             const g = debug.getModel();
             g.angle = 0.5;
-            g.boosts.speed = 2;
             const origin = g.position;
             const enemy = target(700, origin.x - 70, origin.y - 18, 100000);
             g.targets = [enemy];

@@ -14,14 +14,18 @@ export function particleMix(
   progress = 1,
 ): ParticleMix {
   const blend = Math.min(1, progress / cfg.ramp);
-  const share = (values: readonly number[]) =>
-    stage ? values[stage - 1] + (values[stage] - values[stage - 1]) * blend : values[0];
+  const share = (values: readonly number[]) => rampedShare(values, stage, blend);
   return {
     muon: late ? late.muonProbability : share(cfg.muon),
     neutrino: share(cfg.neutrino),
     meson: share(cfg.meson),
     neutron: late ? late.neutronProbability : share(cfg.neutron),
   };
+}
+
+// A per-stage share partway (`blend`, 0 to 1) from the previous stage's value to this stage's.
+export function rampedShare(values: readonly number[], stage: number, blend: number): number {
+  return stage ? values[stage - 1] + (values[stage] - values[stage - 1]) * blend : values[0];
 }
 
 export function particleKind(

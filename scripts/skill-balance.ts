@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Game } from '../src/game/Game.ts';
 import { rules, skillIds } from '../src/game/rules.ts';
 import type { SkillId } from '../src/game/rules.ts';
-import { sourceHash } from './engine.ts';
+import { assertConserved, checkCohort, median, simulationHash, sourceHash } from './engine.ts';
 import { playRhythm } from './rhythm-bot.ts';
 
 // node scripts/skill-balance.ts [count=100] [firstSeed=300000] [report] [auto,skill,...] [rulesJson]
@@ -17,8 +16,7 @@ const start = Number(process.argv[3] ?? 300000);
 const output = process.argv[4] ?? 'artifacts/skill-balance.json';
 const policies = process.argv[5]?.split(',') ?? ['auto', ...skillIds];
 const cfg = process.argv[6] ? JSON.parse(readFileSync(process.argv[6], 'utf8')) : rules;
-assert.ok(Number.isSafeInteger(count) && count > 0);
-assert.ok(Number.isSafeInteger(start) && start >= 0 && start + count <= 2 ** 32);
+checkCohort(count, start);
 assert.ok(new Set(policies).size === policies.length);
 assert.ok(policies.every((id) => id === 'auto' || skillIds.includes(id as SkillId)));
 
@@ -34,10 +32,10 @@ const rows: {
 }[] = [];
 const started = Date.now();
 const hash = sourceHash();
-const simulationHash = createHash('sha256')
-  .update(readFileSync(new URL(import.meta.url)))
-  .update(readFileSync(new URL('./rhythm-bot.ts', import.meta.url)))
-  .digest('hex');
+const scripts = simulationHash(
+  new URL(import.meta.url),
+  new URL('./rhythm-bot.ts', import.meta.url),
+);
 console.log(
   'Perfect-QTE reference: automatic choice, or the preferred skill at its rarity. Not human clear rate.',
 );
@@ -50,8 +48,7 @@ for (const policy of policies) {
     });
     assert.equal(played.misses, 0);
     assert.ok(game.result, 'A simulated run must reach an ending');
-    for (const c of Object.values(game.result.counts))
-      assert.equal(c.generated, c.killed + c.absorbed + c.remaining);
+    assertConserved(game.result.counts);
     rows.push({
       policy,
       seed,
@@ -89,7 +86,7 @@ const summary = policies.map((policy) => {
     acquiredWins: wins(acquired),
     gained: baseline.length ? gained : null,
     lost: baseline.length ? lost : null,
-    medianXp: set.map((r) => r.xp).sort((a, b) => a - b)[Math.floor(set.length / 2)],
+    medianXp: median(set.map((r) => r.xp)),
   };
 });
 mkdirSync(dirname(output), { recursive: true });
@@ -98,7 +95,7 @@ writeFileSync(
   JSON.stringify(
     {
       sourceHash: hash,
-      simulationHash,
+      simulationHash: scripts,
       rulesOverride: process.argv[6] ?? null,
       scope:
         '60 Hz shipped GameSession at 1x; every available QTE hit successfully. Use the automatic choice; prefer the named skill when it matches that rarity. Not human clear rate.',

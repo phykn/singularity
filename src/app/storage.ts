@@ -1,24 +1,12 @@
 import type { Result } from '../game/types.ts';
-import { rules } from '../game/rules.ts';
 import { languages } from '../ui/i18n.ts';
 import type { Language } from '../ui/i18n.ts';
 
-export type BestRecord = Pick<
-  Result,
-  'outcome' | 'xp' | 'level' | 'speed' | 'seed' | 'collisionTime'
->;
-const pickRecord = ({
+export type BestRecord = Pick<Result, 'outcome' | 'xp' | 'level' | 'seed' | 'collisionTime'>;
+const pickRecord = ({ outcome, xp, level, seed, collisionTime }: BestRecord): BestRecord => ({
   outcome,
   xp,
   level,
-  speed,
-  seed,
-  collisionTime,
-}: BestRecord): BestRecord => ({
-  outcome,
-  xp,
-  level,
-  speed,
   seed,
   collisionTime,
 });
@@ -45,13 +33,7 @@ export function readRecord(storage: Storage): BestRecord | null {
       !['xp', 'level', 'seed'].every((key) => Number.isSafeInteger(value[key]) && value[key] >= 0)
     )
       return null;
-    if (
-      !Number.isFinite(value.speed) ||
-      value.speed < rules.baseSpeed ||
-      !Number.isFinite(value.collisionTime) ||
-      value.collisionTime < 0
-    )
-      return null;
+    if (!Number.isFinite(value.collisionTime) || value.collisionTime < 0) return null;
     if (value.level < 1 || value.seed > 0xffffffff) return null;
     return pickRecord(value);
   } catch {

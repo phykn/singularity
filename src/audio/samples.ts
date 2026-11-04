@@ -2,7 +2,7 @@ import bank from './keycaps.json' with { type: 'json' };
 import { rules } from '../game/rules.ts';
 import { singularitySilenceSeconds } from '../presentation/ending.ts';
 
-type Bus = 'preview' | 'hit' | 'rhythm' | 'transition';
+export type SoundBus = 'preview' | 'hit' | 'rhythm' | 'transition';
 type Recipe =
   | 'key'
   | 'impact'
@@ -20,7 +20,7 @@ type Recipe =
   | 'inhale'
   | 'exhale';
 type Definition = {
-  bus: Bus;
+  bus: SoundBus;
   recipe: Recipe;
   duration: number;
   gain: number;
@@ -177,7 +177,6 @@ export const soundDefinitions = {
 } satisfies Record<string, Definition>;
 
 export type SoundKind = keyof typeof soundDefinitions;
-export type SoundBus = Bus;
 
 const recordings = new Map<number, { press: Float32Array; release: Float32Array }>();
 function decode(encoded: string) {
@@ -200,8 +199,8 @@ function recording(at: number) {
   return key;
 }
 
-// Keycap palettes: contact sounds draw from every recorded key.
-const keyed = new Set<string>([
+// Sounds of a hit landing; a batch spreads them over a short strum.
+export const contactSounds: ReadonlySet<string> = new Set([
   'hit',
   'pop',
   'slam',
@@ -211,9 +210,9 @@ const keyed = new Set<string>([
   'space',
   'lift',
   'double',
-  'thunder',
-  'crit',
 ]);
+// Keycap palettes: contact sounds, thunder and crits draw from every recorded key.
+const keyed = new Set([...contactSounds, 'thunder', 'crit']);
 
 // `tone` shifts the whole cue in pitch; each particle kind pops at its own tone.
 export function renderSound(

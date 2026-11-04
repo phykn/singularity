@@ -4,7 +4,13 @@ import type { UpgradeId } from '../game/rules.ts';
 import { particleFrames } from '../art/particles.ts';
 import particleAtlas from '../art/assets/particles.png';
 import type { ParticleKind } from '../game/particles.ts';
-import { evolvedCells, iconAtlasSize, iconCells, controlCells } from '../art/skills.ts';
+import {
+  evolvedCells,
+  iconAtlasSize,
+  iconCells,
+  controlAtlasSize,
+  controlCells,
+} from '../art/skills.ts';
 import type { ControlId } from '../art/skills.ts';
 import skillAtlas from '../art/assets/skills.png';
 import controlAtlas from '../art/assets/controls.png';
@@ -112,17 +118,7 @@ export function SingularityIcon() {
 export function ChargeIcon({ progress }: { progress: number }) {
   const clip = useId();
   const y = 32 - Math.floor(Math.max(0, Math.min(1, progress)) * 16) * 2;
-  const cell = controlCells.charge;
-  const ring = (
-    <image
-      href={controlAtlas}
-      x={-cell.x}
-      y={-cell.y}
-      width={128}
-      height={64}
-      style={{ imageRendering: 'pixelated' }}
-    />
-  );
+  const ring = controlImage('charge');
   return (
     <svg
       className="charge-icon"
@@ -152,7 +148,6 @@ export function ControlIcon({
   className?: string;
   size?: number;
 }) {
-  const cell = controlCells[id];
   return (
     <svg
       className={className}
@@ -162,14 +157,22 @@ export function ControlIcon({
       overflow="hidden"
       aria-hidden="true"
     >
-      <image
-        href={controlAtlas}
-        x={-cell.x}
-        y={-cell.y}
-        width={128}
-        height={64}
-        style={{ imageRendering: 'pixelated' }}
-      />
+      {controlImage(id)}
     </svg>
+  );
+}
+
+// The control atlas shifted so one 32px cell fills the viewBox.
+function controlImage(id: ControlId) {
+  const cell = controlCells[id];
+  return (
+    <image
+      href={controlAtlas}
+      x={-cell.x}
+      y={-cell.y}
+      width={controlAtlasSize.width}
+      height={controlAtlasSize.height}
+      style={{ imageRendering: 'pixelated' }}
+    />
   );
 }

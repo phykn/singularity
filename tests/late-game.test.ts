@@ -403,6 +403,6 @@ test('every language describes pacts, evolutions and event banners', () => {
     for (const skill of skillIds)
       assert.ok(c.evolutions[skill].name && c.evolutions[skill].summary);
     assert.ok(c.banners.critical && c.banners.boss && c.banners['boss-down']);
-    assert.ok(c.banners['final-boss'] && c.finalBossName);
+    assert.ok(c.banners['final-boss'] && c.bossNames.higgs);
   }
 });

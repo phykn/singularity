@@ -1,14 +1,20 @@
 import type { PopStyle, SkillValues } from './skills.ts';
 import { popStyles, skillValues } from './skills.ts';
 import { Random } from './random.ts';
-import { particleIds, particleKind, particleMix, particleMotion } from './particles.ts';
+import {
+  particleIds,
+  particleKind,
+  particleMix,
+  particleMotion,
+  rampedShare,
+} from './particles.ts';
 import { bossPhase } from './bosses.ts';
 import type { BossKind } from './bosses.ts';
-import { formationSlots, formationsAt } from './formations.ts';
+import { formationSlots, formationsAt, interleave } from './formations.ts';
 import type { FormationId } from './formations.ts';
 import type { ParticleKind } from './particles.ts';
 import { eligibleUpgrades, makeCards } from './growth.ts';
-import { CENTER, distance, orbit } from './geometry.ts';
+import { CENTER, clamp, distance, goldenAngle, orbit } from './geometry.ts';
 import type { Point } from './geometry.ts';
 import {
   blankBoosts,
@@ -53,16 +59,6 @@ import type {
   Selection,
   Target,
 } from './types.ts';
-
-const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-
-// Spreads the large members of a ring evenly among the small ones.
-function interleave(dense: number, small: number): ('small' | 'dense')[] {
-  const total = dense + small;
-  return Array.from({ length: total }, (_, i) =>
-    Math.floor(((i + 1) * dense) / total) > Math.floor((i * dense) / total) ? 'dense' : 'small',
-  );
-}
 
 const blankCounts = () =>
   Object.fromEntries(
@@ -295,8 +291,7 @@ export class Game {
     return orbit(this.angle, this.radius);
   }
   get stage(): number {
-    if (this.endless) return this.rules.stageStarts.length - 1;
-    return this.rules.stageStarts.filter((start) => this.time >= start).length - 1;
+    return this.stageAt(this.time);
   }
   get wavePhase(): 'steady' | 'assault' | 'recovery' {
     if (this.endless) {
@@ -500,10 +495,14 @@ export class Game {
       this.expireEffects();
     }
     if (stopAtChoice && this.choice) this.pendingTicks = 0;
-    if (autoSelect && this.choice && this.time + 1e-8 >= this.choice.deadline) {
-      const card = this.automaticCard;
-      if (card) this.select(card.id, true);
-    }
+    if (autoSelect) this.selectAtDeadline(false);
+  }
+
+  // Unpaused choices pick themselves once their time runs out.
+  private selectAtDeadline(beforeCombat: boolean): void {
+    if (!this.choice || this.time + 1e-8 < this.choice.deadline) return;
+    const card = this.automaticCard;
+    if (card) this.select(card.id, true, this.choice.number, beforeCombat);
   }
 
   expireEffects(): void {
@@ -520,10 +519,7 @@ export class Game {
       return;
     }
     beforeCombat?.();
-    if (autoSelect && this.choice && this.time + 1e-8 >= this.choice.deadline) {
-      const card = this.automaticCard;
-      if (card) this.select(card.id, true, this.choice.number, true);
-    }
+    if (autoSelect) this.selectAtDeadline(true);
     this.enterMilestones();
     if (this.combatEnabled && this.tick + 1e-8 >= this.nextSpawn) {
       const rushing = this.rushing;
@@ -610,9 +606,7 @@ export class Game {
     let members: Member[];
     if (shape === 'ring') members = this.formation('ring', small * 2, dense * 2, angle, 1, stage);
     else {
-      const sides = shapes.filter((id) => id !== 'pincer' && id !== 'ring');
-      const first = shape === 'pincer' ? this.randomSpawn.pick(sides) : shape,
-        second = shape === 'pincer' ? this.randomSpawn.pick(sides) : shape;
+      const [first, second] = shape === 'pincer' ? this.pincerSides(shapes) : [shape, shape];
       members = [
         ...this.formation(first, small, dense, angle, 1, stage),
         ...this.formation(second, small, dense, angle + Math.PI, -1, stage),
@@ -620,6 +614,12 @@ export class Game {
     }
     this.pending.push({ planned: this.time, time, members, wave: this.waveCount });
     this.log('formation', { shape, wave: this.waveCount + 1, count: members.length });
+  }
+
+  // A pincer sends two shapes, never rings, from opposite sides.
+  private pincerSides(shapes: readonly FormationId[]) {
+    const sides = shapes.filter((id) => id !== 'pincer' && id !== 'ring');
+    return [this.randomSpawn.pick(sides), this.randomSpawn.pick(sides)] as const;
   }
 
   private stageAt(time: number): number {
@@ -636,21 +636,24 @@ export class Game {
     );
   }
 
-  // A per-stage share that moves from the previous stage's value over the
-  // first part of the stage, like a newcomer particle's share.
-  private entering(values: readonly number[]): number {
-    const stage = this.stage,
-      blend = Math.min(1, this.stageProgress() / this.rules.particles.ramp);
-    return stage ? values[stage - 1] + (values[stage] - values[stage - 1]) * blend : values[0];
+  // A per-stage share that moves linearly from the previous stage's value over
+  // the first part of the stage, like a newcomer particle's share.
+  private ramped(values: readonly number[]): number {
+    return rampedShare(
+      values,
+      this.stage,
+      Math.min(1, this.stageProgress() / this.rules.particles.ramp),
+    );
   }
 
   // How far through the current stage the run is; the last stage counts its
   // length like the one before it.
-  private stageProgress(stage = this.stage): number {
+  private stageProgress(): number {
     if (this.endless) return 1;
-    const starts = this.rules.stageStarts,
+    const stage = this.stage,
+      starts = this.rules.stageStarts,
       length = (starts[stage + 1] ?? 2 * starts[stage] - starts[stage - 1]) - starts[stage];
-    return Math.max(0, Math.min(1, (this.time - starts[stage]) / length));
+    return clamp((this.time - starts[stage]) / length);
   }
 
   private enterMilestones(): void {
@@ -797,11 +800,13 @@ export class Game {
         y = center.y - CENTER.y + spread * Math.sin(a);
       const member = this.member(
         kind,
-        particle,
         Math.atan2(y, x),
         Math.hypot(x, y),
         Math.sign(center.turn) || 1,
-        tether && { speed: tether.speed, turn: tether.turn },
+        {
+          particle,
+          shared: tether && { speed: tether.speed, turn: tether.turn },
+        },
       );
       if (tether) member.tether = tether.id;
       return member;
@@ -811,7 +816,6 @@ export class Game {
 
   moveTargets(): void {
     for (const target of this.targets) {
-      target.previousRadius = target.radius;
       const motion = particleMotion(target.particle, this.time - target.born),
         boss = this.bossPhase(target)?.speed ?? 1;
       target.radius = Math.max(
@@ -1074,7 +1078,7 @@ export class Game {
     const smallProbability =
       this.wavePhase === 'assault'
         ? this.rules.late.smallBatchProbability
-        : this.entering(this.rules.smallBatchProbabilityByStage);
+        : this.ramped(this.rules.smallBatchProbabilityByStage);
     const kind = intro || roll < smallProbability ? 'small' : 'dense';
     const size = kind === 'small' ? this.rules.smallBatchSize : this.rules.denseBatchSize;
     const count = intro
@@ -1111,9 +1115,7 @@ export class Game {
       dense = kind === 'dense' ? count : 0;
     let members: Member[];
     if (shape === 'pincer') {
-      const sides = available.filter((id) => id !== 'pincer' && id !== 'ring');
-      const first = this.randomSpawn.pick(sides),
-        second = this.randomSpawn.pick(sides);
+      const [first, second] = this.pincerSides(available);
       members = [
         ...this.formation(first, Math.ceil(small / 2), Math.ceil(dense / 2), center, direction),
         ...this.formation(
@@ -1172,7 +1174,7 @@ export class Game {
         shape === 'line' || shape === 'star' ? 0 : targets[kinds[0] ?? 'small'].turn * direction,
     };
     return kinds.map((kind, i) =>
-      this.member(kind, undefined, slots[i].theta, slots[i].radius, direction, shared, stage),
+      this.member(kind, slots[i].theta, slots[i].radius, direction, { shared, stage }),
     );
   }
 
@@ -1201,7 +1203,6 @@ export class Game {
     const members = offsets.map((offset) =>
       this.member(
         kind,
-        undefined,
         angle + offset - middle + (this.randomSpawn.next() * 2 - 1) * cfg.angleJitter,
         origin + this.randomSpawn.next() * cfg.radiusSpread,
         direction,
@@ -1210,21 +1211,25 @@ export class Game {
     this.placeMembers(members);
   }
 
+  // `particle` is drawn from the stage's mix unless given; `shared` keeps a
+  // formation or tether moving together.
   private member(
     kind: 'small' | 'dense',
-    particle: ParticleKind | undefined,
     angle: number,
     radius: number,
     direction: number,
-    shared?: { speed: number; turn: number },
-    stage = this.stage,
+    {
+      particle,
+      shared,
+      stage = this.stage,
+    }: { particle?: ParticleKind; shared?: { speed: number; turn: number }; stage?: number } = {},
   ): Member {
     const data = this.rules.targets[kind],
       p = this.rules.particles,
       strength = this.enemyStrength;
     particle ??= particleKind(kind, this.randomSpawn.next(), this.mix);
-    const heavy = particle === 'neutron',
-      split = particle === 'meson';
+    // Neutrons are the heavy dense particle, mesons the small one that splits.
+    const species = particle === 'neutron' ? p.heavy : particle === 'meson' ? p.split : undefined;
     const speed =
       shared?.speed ??
       data.speed *
@@ -1236,30 +1241,22 @@ export class Game {
       angle,
       radius,
       hp: Math.round(
-        this.baseHp(kind, stage) * (heavy ? p.heavy.hp : split ? p.split.hp : 1) * strength.hp,
+        this.staged(this.rules.targets[kind].hp, stage) * (species?.hp ?? 1) * strength.hp,
       ),
-      xp: heavy ? p.heavy.xp : split ? p.split.xp : data.xp,
-      mass: heavy ? p.heavy.mass : split ? p.split.mass : data.mass,
+      xp: species?.xp ?? data.xp,
+      mass: species?.mass ?? data.mass,
       size: data.size,
-      speed: speed * (heavy ? p.heavy.speed : 1),
-      turn: (shared?.turn ?? data.turn * direction) * (split ? p.split.turn : 1),
+      speed: speed * (particle === 'neutron' ? p.heavy.speed : 1),
+      turn: (shared?.turn ?? data.turn * direction) * (particle === 'meson' ? p.split.turn : 1),
     };
   }
 
-  // HP, group size and spawn pace climb through a stage toward the next stage's
-  // values, so stage starts and their waves are not a sudden wall.
-  private baseHp(kind: 'small' | 'dense', stage: number): number {
-    return this.staged(this.rules.targets[kind].hp, stage);
-  }
-
-  // A per-stage value that moves geometrically toward the next stage's value.
+  // HP, group size and spawn pace climb geometrically through a stage toward the
+  // next stage's values, so stage starts and their waves are not a sudden wall.
   private staged(values: readonly number[], stage = this.stage): number {
     const starts = this.rules.stageStarts;
     if (this.endless || stage >= values.length - 1) return values[stage];
-    const progress = Math.max(
-      0,
-      Math.min(1, (this.time - starts[stage]) / (starts[stage + 1] - starts[stage])),
-    );
+    const progress = clamp((this.time - starts[stage]) / (starts[stage + 1] - starts[stage]));
     return values[stage] * (values[stage + 1] / values[stage]) ** progress;
   }
 
@@ -1291,8 +1288,8 @@ export class Game {
 
   // Formations that have finished showing their dots.
   private releasePending(): void {
-    if (!this.pending.some((p) => p.wave === undefined && this.time + 1e-8 >= p.time)) return;
     const ready = this.pending.filter((p) => p.wave === undefined && this.time + 1e-8 >= p.time);
+    if (!ready.length) return;
     this.pending = this.pending.filter((p) => !ready.includes(p));
     for (const spawn of ready) this.placeMembers(spawn.members);
   }
@@ -1490,7 +1487,6 @@ export class Game {
       mass: this.mass,
       radius: this.radius,
       level: this.level,
-      speed: this.speed,
       seed: this.seed,
       ranks: { ...this.ranks },
       boosts: { ...this.boosts },
@@ -1514,7 +1510,7 @@ export class Game {
 
   addEffect(input: EffectInput): void {
     const { kind, from, to, radius, width, life, source, anchor, endAnchor, targetId } = input;
-    const { particle, delay } = input;
+    const { particle, boss, delay } = input;
     const rarity = input.rarity ?? (source ? this.rarities[source] : 'common');
     const rank = input.rank ?? (source ? this.rank(source) : 0);
     const effect = {
@@ -1534,6 +1530,7 @@ export class Game {
       targetId,
       arc: input.arc ? { ...input.arc } : undefined,
       particle,
+      boss,
       delay,
     };
     this.effects.push(effect);

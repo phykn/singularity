@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Game } from '../src/game/Game.ts';
 import { isPact, isSkill, rules } from '../src/game/rules.ts';
-import { median, sourceHash } from './engine.ts';
+import { checkCohort, median, simulationHash, sourceHash } from './engine.ts';
 import { guidedCard, playRhythm } from './rhythm-bot.ts';
 
 // node scripts/pacing.ts [count=600] [firstSeed=480000] [report] [qte|qte-off|qte-guided] [rulesJson]
@@ -12,7 +12,7 @@ const count = Number(process.argv[2] ?? 600),
   start = Number(process.argv[3] ?? 480000),
   output = process.argv[4] ?? 'artifacts/pacing.json',
   policy = process.argv[5] ?? 'qte-guided';
-assert.ok(Number.isSafeInteger(count) && count > 0);
+checkCohort(count, start);
 assert.ok(['qte', 'qte-off', 'qte-guided'].includes(policy), 'Unknown play policy');
 const cfg = process.argv[6]
   ? (JSON.parse(readFileSync(process.argv[6], 'utf8')) as typeof rules)
@@ -132,5 +132,23 @@ const summary = {
   ),
 };
 mkdirSync(dirname(output), { recursive: true });
-writeFileSync(output, JSON.stringify({ sourceHash: sourceHash(), summary, rows }, null, 2));
+writeFileSync(
+  output,
+  JSON.stringify(
+    {
+      sourceHash: sourceHash(),
+      simulationHash: simulationHash(
+        new URL(import.meta.url),
+        new URL('./rhythm-bot.ts', import.meta.url),
+      ),
+      policy,
+      rulesOverride: process.argv[6] ?? null,
+      seeds: [start, start + count - 1],
+      summary,
+      rows,
+    },
+    null,
+    2,
+  ),
+);
 console.log(JSON.stringify(summary));

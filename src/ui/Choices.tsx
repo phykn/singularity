@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Choice } from '../game/types.ts';
-import type { Card, UpgradeId } from '../game/rules.ts';
+import type { Card, RuleSet, UpgradeId } from '../game/rules.ts';
 import { isPact, isSkill, isStat } from '../game/rules.ts';
 import { pactText, skillChange, skillLinks } from './skillText.ts';
 import { SkillIcon, ControlIcon } from './icons.tsx';
@@ -11,6 +11,8 @@ import type { Language } from './i18n.ts';
 import { useChoiceInput } from './useChoiceInput.ts';
 
 type Links = ReturnType<typeof skillLinks>;
+// What a choice showed, kept so its cards can linger for a moment after the pick.
+type Shown = { choice: Choice; values: string[]; stages: number[]; links: Links[] };
 
 export function Choices({
   game,
@@ -41,19 +43,52 @@ export function Choices({
     evolve && isSkill(id) ? c.evolutions[id].name : c.upgrades[id].short;
   const tag = ({ id, rarity, evolve }: Card) =>
     evolve ? c.evolve : isPact(id) ? c.pact : isStat(id) ? '' : c.rarities[rarity];
-  const previous = useRef<{
-    choice: Choice;
-    values: string[];
-    stages: number[];
-    links: Links[];
-  } | null>(null);
-  const [receipt, setReceipt] = useState<{
-    choice: Choice;
-    values: string[];
-    stages: number[];
-    links: Links[];
-    selected: UpgradeId;
-  } | null>(null);
+  const label = (card: Card) => {
+    const { id, evolve } = card;
+    const rank = game.rank(id);
+    return [
+      (tag(card) && tag(card) + ' ') + title(card),
+      ...(id === 'recover'
+        ? [c.instant]
+        : evolve || isPact(id)
+          ? []
+          : [rank || !isSkill(id) ? c.rankUp(rank, rank + 1) : c.newSkill]),
+      change(card),
+      ...(isPact(id) ? [pactText(id, language, rules).cost] : []),
+      ...skillLinks(id, game.ownedSkills).map(
+        (link) => `${c.link}: ${c.upgrades[link.skill].name} ${c.links[link.effect]}`,
+      ),
+      ...(id === automatic ? [c.auto] : []),
+    ].join(', ');
+  };
+  // The face a card shows, live or lingering after the pick.
+  const face = (card: Card, value: string, rank: number, links: Links, auto = false) => {
+    const { id, evolve } = card;
+    return (
+      <>
+        <span className="card-label">
+          {tag(card) && <b>{tag(card)}</b>}
+          {auto && <ControlIcon id="next" size={12} />}
+        </span>
+        <span className="card-icon">
+          <SkillIcon id={id} size={32} evolved={evolve} />
+          {isSkill(id) && !evolve && <Rank value={rank} max={rules.maxRank} next={rank + 1} />}
+        </span>
+        <strong>{title(card)}</strong>
+        <span className="card-value">{value}</span>
+        <CardFoot
+          id={id}
+          evolve={evolve}
+          rank={rank}
+          links={links}
+          language={language}
+          rules={rules}
+        />
+      </>
+    );
+  };
+  const previous = useRef<Shown | null>(null);
+  const [receipt, setReceipt] = useState<(Shown & { selected: UpgradeId }) | null>(null);
   const selection = game.selections.at(-1);
   const { cards, pointerReady, accept, navigate } = useChoiceInput(choice, interactive);
   useLayoutEffect(() => {
@@ -123,50 +158,19 @@ export function Choices({
                   data-upgrade={id}
                   data-evolve={!!evolve}
                   data-pact={isPact(id)}
-                  aria-label={
-                    (tag(card) && tag(card) + ' ') +
-                    title(card) +
-                    ', ' +
-                    (id === 'recover' || evolve || isPact(id)
-                      ? c.instant
-                      : game.rank(id) || !isSkill(id)
-                        ? c.rankUp(game.rank(id), game.rank(id) + 1)
-                        : c.newSkill) +
-                    ', ' +
-                    change(card) +
-                    (isPact(id) ? ', ' + pactText(id, language, rules).cost : '') +
-                    skillLinks(id, game.ownedSkills)
-                      .map(
-                        (link) =>
-                          `, ${c.link}: ${c.upgrades[link.skill].name} ${c.links[link.effect]}`,
-                      )
-                      .join('') +
-                    (id === automatic ? ', ' + c.auto : '')
-                  }
+                  aria-label={label(card)}
                   onClick={(event) => {
                     if (accept(event)) onSelect(id, choice.number);
                   }}
                   disabled={!interactive || !game.canUpgrade(id)}
                 >
-                  <span className="card-label">
-                    {tag(card) && <b>{tag(card)}</b>}
-                    {id === automatic && <ControlIcon id="next" size={12} />}
-                  </span>
-                  <span className="card-icon">
-                    <SkillIcon id={id} size={32} evolved={evolve} />
-                    {isSkill(id) && !evolve && (
-                      <Rank value={game.rank(id)} max={rules.maxRank} next={game.rank(id) + 1} />
-                    )}
-                  </span>
-                  <strong>{title(card)}</strong>
-                  <span className="card-value">{change(card)}</span>
-                  <CardFoot
-                    id={id}
-                    evolve={evolve}
-                    rank={game.rank(id)}
-                    links={skillLinks(id, game.ownedSkills)}
-                    language={language}
-                  />
+                  {face(
+                    card,
+                    change(card),
+                    game.rank(id),
+                    skillLinks(id, game.ownedSkills),
+                    id === automatic,
+                  )}
                 </button>
               );
             })}
@@ -194,26 +198,7 @@ export function Choices({
                   data-pact={isPact(id)}
                   key={id}
                 >
-                  <span className="card-label">{tag(card) && <b>{tag(card)}</b>}</span>
-                  <span className="card-icon">
-                    <SkillIcon id={id} size={32} evolved={evolve} />
-                    {isSkill(id) && !evolve && (
-                      <Rank
-                        value={receipt.stages[i]}
-                        max={rules.maxRank}
-                        next={receipt.stages[i] + 1}
-                      />
-                    )}
-                  </span>
-                  <strong>{title(card)}</strong>
-                  <span className="card-value">{receipt.values[i]}</span>
-                  <CardFoot
-                    id={id}
-                    evolve={evolve}
-                    rank={receipt.stages[i]}
-                    links={receipt.links[i]}
-                    language={language}
-                  />
+                  {face(card, receipt.values[i], receipt.stages[i], receipt.links[i])}
                 </div>
               );
             })}
@@ -231,19 +216,21 @@ function CardFoot({
   rank,
   links,
   language,
+  rules,
 }: {
   id: UpgradeId;
   evolve?: boolean;
   rank: number;
   links: Links;
   language: Language;
+  rules: RuleSet;
 }) {
   const c = copy[language];
   if (evolve) return <span className="card-foot" aria-hidden="true" />;
   if (isPact(id))
     return (
       <span className="card-foot pact-cost" aria-hidden="true">
-        {pactText(id, language).cost}
+        {pactText(id, language, rules).cost}
       </span>
     );
   return (

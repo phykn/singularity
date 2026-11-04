@@ -19,7 +19,8 @@ for (let a = 0; a < skillIds.length; a++)
       g.mass = 40;
       ids.forEach((id) => choose(g, id));
       // Overcharge needs dozens of kills; start it one kill short.
-      (g.combat as unknown as { heat: number }).heat = g.forms.overcharge.kills - 1;
+      (g.combat as unknown as { overchargeKills: number }).overchargeKills =
+        g.forms.overcharge.kills - 1;
       const original = ts.length + 1;
       for (let tick = 0; tick < 240; tick++) {
         if (tick % 6 === 0) {

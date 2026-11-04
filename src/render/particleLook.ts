@@ -2,8 +2,6 @@ import { particleMotion } from '../game/particles.ts';
 import type { Game } from '../game/Game.ts';
 import type { Target } from '../game/types.ts';
 
-export const GLUON = 0xffd27a;
-
 // How a particle's own rule shows on its sprite: muons blink before a dash and face the
 // core, mesons spin, veiled neutrinos stay faint, and a Z boson fades while immune.
 export function particleLook(game: Game, target: Target, clock: number) {

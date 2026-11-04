@@ -2,16 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../src/game/Game.ts';
 import { timedSkills } from '../src/game/skills.ts';
-import { blankRanks, rarityIds, rules, skillIds, maxDamageNumbers } from '../src/game/rules.ts';
+import { rarityIds, rules, skillIds, maxDamageNumbers } from '../src/game/rules.ts';
 import { effectOrigin, visibleEffects } from '../src/render/effects.ts';
 import { close, choose, stationarySkill, target } from './helpers.ts';
 import { distance } from '../src/game/geometry.ts';
-
-test('the roster has exactly sixteen current skills and no removed attack forms', () => {
-  assert.equal(skillIds.length, 16);
-  for (const id of ['area', 'whip', 'wave', 'focus', 'repel', 'gather', 'chase', 'bridge', 'vent'])
-    assert.ok(!(id in blankRanks()), id);
-});
 
 test('repeat is weaker, retains its cast damage and rarity, and retargets a dead primary', () => {
   const p = target(0, 210, 128, 100),
