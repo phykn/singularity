@@ -29,8 +29,6 @@ Particles pour in. The core swells. The space around you closes in. Each run tur
 
 Requires Node.js 24 or later.
 
-For code ownership, time units, and targeted validation commands, see [Contributing](CONTRIBUTING.md).
-
 ```sh
 npm ci
 npm run dev

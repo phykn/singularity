@@ -1,7 +1,7 @@
 import { skillIds, statIds } from '../game/rules.ts';
 import type { PactId, UpgradeId } from '../game/rules.ts';
 
-// Static Mark and Tempo Coil borrow existing icons until their own art is made (IMAGE_GENERATION.md).
+// Static Mark and Tempo Coil borrow existing icons until their own art is made (docs/IMAGE_GENERATION.md).
 const borrowed = { mark: 'charge', tempo: 'repeat' } as const;
 export const iconIds = [
   ...statIds,

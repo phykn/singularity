@@ -11,3 +11,5 @@ artifacts/
 /design/*.md
 # Local game documents.
 /docs/
+/AGENTS.md
+/CLAUDE.md

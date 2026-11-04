@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 @AGENTS.md
 
-[CONTRIBUTING.md](CONTRIBUTING.md) maps each behavior to the file that owns it, defines the time units, and documents the audio and balance diagnostics. Read the relevant section before changing those areas.
+[docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) (local only, like all of `docs/`) maps each behavior to the file that owns it, defines the time units, and documents the audio and balance diagnostics. Read the relevant section before changing those areas.
 
 ## Commands
 
