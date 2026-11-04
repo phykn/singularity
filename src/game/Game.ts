@@ -636,6 +636,14 @@ export class Game {
     );
   }
 
+  // A per-stage share that moves from the previous stage's value over the
+  // first part of the stage, like a newcomer particle's share.
+  private entering(values: readonly number[]): number {
+    const stage = this.stage,
+      blend = Math.min(1, this.stageProgress() / this.rules.particles.ramp);
+    return stage ? values[stage - 1] + (values[stage] - values[stage - 1]) * blend : values[0];
+  }
+
   // How far through the current stage the run is; the last stage counts its
   // length like the one before it.
   private stageProgress(stage = this.stage): number {
@@ -1066,7 +1074,7 @@ export class Game {
     const smallProbability =
       this.wavePhase === 'assault'
         ? this.rules.late.smallBatchProbability
-        : this.rules.smallBatchProbabilityByStage[this.stage];
+        : this.entering(this.rules.smallBatchProbabilityByStage);
     const kind = intro || roll < smallProbability ? 'small' : 'dense';
     const size = kind === 'small' ? this.rules.smallBatchSize : this.rules.denseBatchSize;
     const count = intro

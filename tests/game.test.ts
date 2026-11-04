@@ -407,7 +407,10 @@ test('late assault composition increases durable and dashing enemies without inc
   const a = fixture(),
     b = fixture();
   a.tick = rules.stageStarts.at(-1)! * rules.tickRate;
-  b.tick = (rules.stageStarts.at(-1)! + 30) * rules.tickRate;
+  // A steady stretch once the final stage's batch mix has ramped in.
+  const [before, last] = rules.stageStarts.slice(-2);
+  b.tick = (last + (last - before) * rules.particles.ramp + 10) * rules.tickRate;
+  assert.equal(b.wavePhase, 'steady');
   for (let i = 0; i < 60; i++) {
     a.spawnBatch();
     b.spawnBatch();
