@@ -139,3 +139,87 @@ test('pops are full keystrokes on varied keycaps and share the hit timing', () =
   assert.deepEqual([...batch.buffers.keys()], ['hit']);
   assert.equal(batch.attacks.length, 3, 'Pops take their own staggered attack like hits');
 });
+
+// Combat's own attack builder, so a test hit carries a real attack.
+type Begin = { begin: (source: string) => never };
+const killDelays = (g: { effects: { kind: string; delay?: number }[] }) =>
+  g.effects.filter((fx) => fx.kind === 'kill').map((fx) => fx.delay);
+
+test('each pop style keeps its own rhythm and the kill names its style and particle', () => {
+  const { pops } = rules;
+  const row = (count: number) =>
+    [0, 1, 2, 3].slice(0, count).map((i) => target(i, 200 + i * 10, 140, 1));
+  const cases = [
+    ['strike', 'burst', [0, 0, 0]],
+    ['burst', 'domino', [0, pops.domino.stagger, 2 * pops.domino.stagger]],
+    ['charge', 'release', [0, pops.release.stagger, 2 * pops.release.stagger]],
+    ['repeat', 'tap', [0, pops.tap.stagger, 2 * pops.tap.stagger]],
+  ] as const;
+  for (const [source, style, expected] of cases) {
+    const ts = row(3);
+    const g = fixture({}, ts);
+    for (const t of [...ts]) g.damageTarget(t, 2, (g.combat as never as Begin).begin(source));
+    killDelays(g).forEach((delay, i) => close(delay!, expected[i]));
+    const kills = g.events
+      .filter((e) => e.kind === 'kill')
+      .map((e) => e.data as Record<string, unknown>);
+    assert.ok(
+      kills.every((k) => k.style === style && k.particle === 'quark'),
+      source,
+    );
+  }
+  const ts = row(3);
+  const g = fixture({}, [...ts]);
+  g.damageTarget(ts[0], 2, (g.combat as never as Begin).begin('strike'));
+  g.damageTarget(ts[1], 2, (g.combat as never as Begin).begin('burst'));
+  g.damageTarget(ts[2], 2, (g.combat as never as Begin).begin('burst'));
+  assert.deepEqual(killDelays(g), [0, 0, pops.domino.stagger], 'Styles count their own order');
+});
+
+test('swept lines pop in order of distance from where the line starts', () => {
+  const from = { x: 180, y: 128 };
+  const ts = [target(0, 180, 40, 1), target(1, 180, 100, 1), target(2, 180, 70, 1)];
+  const g = fixture({}, ts);
+  for (const t of [...ts]) g.damageTarget(t, 2, undefined, false, { style: 'sweep', from });
+  const delays = killDelays(g) as number[];
+  ts.forEach((t, i) =>
+    close(delays[i], Math.min(rules.pops.sweep.max, (from.y - t.y) / rules.pops.sweep.speed)),
+  );
+  assert.ok(delays[1] < delays[2] && delays[2] < delays[0]);
+});
+
+test('a forked volley pops its kills together', () => {
+  const g = stationarySkill({ multi: 3 }, []);
+  const p = (i: number) => orbit(g.angle + 0.05 * (i + 1), g.radius - 20);
+  g.targets = [0, 1, 2].map((i) => target(i, p(i).x, p(i).y, 0.5));
+  g.combat.fireBasic();
+  const kills = g.events
+    .filter((e) => e.kind === 'kill')
+    .map((e) => e.data as Record<string, unknown>);
+  assert.ok(kills.length >= 2, 'The fork reaches several particles');
+  assert.ok(kills.every((k) => k.style === 'burst' && !k.delay));
+});
+
+test('kill sounds follow the pop: delayed, styled and voiced by particle', async () => {
+  const { voiceKeys, voiceTones } = await import('../src/audio/SoundComposer.ts');
+  const keys = voiceTones.flatMap((_, v) => voiceKeys(v, 16));
+  assert.deepEqual(
+    [...keys].sort((a, b) => a - b),
+    Array.from({ length: 16 }, (_, i) => i),
+  );
+  assert.equal(new Set(voiceTones).size, 6, 'Each particle has its own tone');
+  for (const kind of ['slam', 'enter'] as const)
+    assert.notEqual(
+      renderSound(kind, 48000, 0).slice(0, 2000).join(),
+      renderSound('pop', 48000, 0).slice(0, 2000).join(),
+    );
+  assert.notEqual(
+    renderSound('pop', 48000, 0, voiceTones[3]).slice(0, 2000).join(),
+    renderSound('pop', 48000, 0).slice(0, 2000).join(),
+  );
+  const { ctx } = audioContext();
+  const composer = new SoundComposer(ctx, 1);
+  const now = composer.compose([{ kind: 'pop', voice: 0 }]).buffers.get('hit')!;
+  const later = composer.compose([{ kind: 'pop', voice: 0, delay: 0.2 }]).buffers.get('hit')!;
+  close(later.length - now.length, Math.round(0.2 * ctx.sampleRate), 2);
+});

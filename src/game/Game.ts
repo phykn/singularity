@@ -1,5 +1,5 @@
-import type { SkillValues } from './skills.ts';
-import { skillValues } from './skills.ts';
+import type { PopStyle, SkillValues } from './skills.ts';
+import { popStyles, skillValues } from './skills.ts';
 import { Random } from './random.ts';
 import { particleIds, particleKind, particleMix, particleMotion } from './particles.ts';
 import { bossPhase } from './bosses.ts';
@@ -34,7 +34,7 @@ import {
 import type { Card, PactId, RuleSet, SkillId, UpgradeId } from './rules.ts';
 
 import { Combat } from './combat.ts';
-import type { Attack } from './combat.ts';
+import type { Attack, Pop } from './combat.ts';
 import { damageNumberSeconds, maxDamageNumbers } from './rules.ts';
 import type {
   BannerKind,
@@ -55,8 +55,6 @@ import type {
 } from './types.ts';
 
 const goldenAngle = Math.PI * (3 - Math.sqrt(5));
-const popStagger = 0.03;
-const popStaggerMax = 0.24;
 
 // Spreads the large members of a ring evenly among the small ones.
 function interleave(dense: number, small: number): ('small' | 'dense')[] {
@@ -138,7 +136,8 @@ export class Game {
   private finalDown = false;
   private xpRemainder = 0;
   private popTick = -1;
-  private popOrder = 0;
+  // Kills already popped this tick, per style.
+  private popOrder: Partial<Record<PopStyle, number>> = {};
   banner: { kind: BannerKind; until: number; boss?: BossKind } | null = null;
   private endingOutcome: Outcome = 'collapse-failure';
   private readonly recordEvents: boolean;
@@ -1275,7 +1274,7 @@ export class Game {
     for (const spawn of ready) this.placeMembers(spawn.members);
   }
 
-  damageTarget(target: Target, damage: number, attack?: Attack, crit = false): void {
+  damageTarget(target: Target, damage: number, attack?: Attack, crit = false, pop?: Pop): void {
     if (target.hp <= 0) return;
     const index = this.targets.indexOf(target);
     if (index === -1) return;
@@ -1315,15 +1314,16 @@ export class Game {
       this.counts[target.particle].killed++;
       this.combat.killed(target, attack);
       this.targets.splice(index, 1);
-      // Kills in one tick pop one after another.
-      const order = this.popTick === this.tick ? ++this.popOrder : (this.popOrder = 0);
-      this.popTick = this.tick;
-      const delay = Math.min(popStaggerMax, order * popStagger);
+      const style = this.popStyle(attack, pop);
+      const delay = this.popDelay(style, target, pop?.from);
       this.addEffect({
         kind: 'kill',
         from: target,
         to: this.position,
-        radius: target.final ? 54 : target.kind === 'boss' ? 36 : target.kind === 'dense' ? 11 : 6,
+        // Kills that pop all at once throw bigger debris.
+        radius:
+          (target.final ? 54 : target.kind === 'boss' ? 36 : target.kind === 'dense' ? 11 : 6) *
+          (style === 'burst' ? this.rules.pops.burst.debris : 1),
         width: damage,
         life: 0.4 + delay,
         particle: target.particle,
@@ -1361,9 +1361,32 @@ export class Game {
         x: target.x,
         y: target.y,
         delay,
+        style,
+        particle: target.particle,
       });
       if (!before && this.energyFull) this.log('charged', { xp: this.xp });
     }
+  }
+
+  private popStyle(attack?: Attack, pop?: Pop): PopStyle {
+    if (pop) return pop.style;
+    if (attack?.source) return popStyles[attack.source];
+    return attack?.fork ? 'burst' : 'tap';
+  }
+
+  // Kills in one tick pop in the rhythm of their style: lines in order along
+  // the line, the others one after another at the style's interval.
+  private popDelay(style: PopStyle, target: Target, from?: Point): number {
+    const cfg = this.rules.pops;
+    if (style === 'sweep')
+      return Math.min(cfg.sweep.max, distance(target, from ?? this.position) / cfg.sweep.speed);
+    if (this.popTick !== this.tick) {
+      this.popTick = this.tick;
+      this.popOrder = {};
+    }
+    const order = this.popOrder[style] ?? 0;
+    this.popOrder[style] = order + 1;
+    return Math.min(cfg[style].max, order * cfg[style].stagger);
   }
 
   private recordKillEnergy(energy: number): void {

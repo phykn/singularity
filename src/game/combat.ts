@@ -1,5 +1,5 @@
 import { timedSkills } from './skills.ts';
-import type { SkillValues, TimedSkill } from './skills.ts';
+import type { PopStyle, SkillValues, TimedSkill } from './skills.ts';
 import { CENTER, distance, norm, orbit } from './geometry.ts';
 import type { Point } from './geometry.ts';
 import { closest, onSegment } from './targeting.ts';
@@ -30,7 +30,11 @@ export type Attack = {
   extra?: number;
   // A spark that already bounced, an echo that already returned, a field remnant.
   spent?: boolean;
+  // Fork split this volley; its basic hits pop all at once.
+  fork?: boolean;
 };
+// How the kills of one hit pop; lines sweep outward from where they start.
+export type Pop = { style: PopStyle; from?: Point };
 type Pulse = {
   at: number;
   order: number;
@@ -750,6 +754,7 @@ export class Combat {
 
   private volley(attack: Attack, origin: Point, selected: Target[], anchored: Anchor): number {
     let fired = 0;
+    if (attack.ranks.multi && selected.length > 1) attack.fork = true;
     for (const [i, target] of selected.entries()) {
       if (target.hp <= 0) continue;
       const branch = this.branch(attack, i);
@@ -959,7 +964,7 @@ export class Combat {
       for (const target of onSegment(this.game.targets, origin, to, s.pierce.width)) {
         if (visited.has(target.id)) continue;
         visited.add(target.id);
-        this.deal(attack, target, damage);
+        this.deal(attack, target, damage, { style: 'sweep', from: origin });
       }
       const cfg = this.game.rules.evolution.pierce;
       if (attack.evolved.pierce && attack.depth === 0 && this.trails.length < cfg.maxTrails)
@@ -991,7 +996,7 @@ export class Combat {
       this.effect({ ...attack, damage }, 'bolt', previous, next, 0, 0.14, false, 'chain', 1.3);
       this.activate('chain', attack.ranks.chain);
       previous = { x: next.x, y: next.y };
-      this.deal(attack, next, damage);
+      this.deal(attack, next, damage, { style: 'tap' });
     }
     if (!attack.evolved.chain || !attack.forms.chain.hops) return;
     // Evolved: the bolt turns back through the same stretch at reduced power.
@@ -1008,12 +1013,12 @@ export class Combat {
         this.game.rules.skills.chain.falloff ** (hop + 1);
       this.effect({ ...attack, damage }, 'bolt', previous, next, 0, 0.14, false, 'chain', 1.3);
       previous = { x: next.x, y: next.y };
-      this.deal(attack, next, damage);
+      this.deal(attack, next, damage, { style: 'tap' });
     }
   }
 
   // Pact and critical modifiers apply to every hit, then the hit feeds Mark, Surge and Capacitor.
-  private deal(attack: Attack, target: Target, base: number): void {
+  private deal(attack: Attack, target: Target, base: number, pop?: Pop): void {
     if (target.hp <= 0) return;
     const g = this.game,
       pacts = g.rules.pacts;
@@ -1024,7 +1029,7 @@ export class Combat {
     if (crit) damage *= g.pacts.gamble ? pacts.gamble.critMultiplier : g.rules.crit.multiplier;
     else if (g.pacts.gamble) damage *= pacts.gamble.normalScale;
     const at = { x: target.x, y: target.y };
-    g.damageTarget(target, damage, attack, crit);
+    g.damageTarget(target, damage, attack, crit, pop);
     if (g.pacts.blast && attack.depth === 0) {
       const splash = attack.power * pacts.blast.damage,
         child = { ...attack, depth: 2, firstKill: undefined };
@@ -1148,7 +1153,8 @@ export class Combat {
     this.activate('return', attack.ranks.return);
     // One shared visit set keeps the swept path and its chain branches from doubling hits.
     const visited = new Set(targets.map((t) => t.id));
-    for (const target of targets) this.deal(attack, target, attack.damage);
+    for (const target of targets)
+      this.deal(attack, target, attack.damage, { style: 'sweep', from });
     this.chain(attack, targets.at(-1) ?? from, visited);
     this.discharge(attack);
     // Evolved Return: the bolt bounces back out once more.

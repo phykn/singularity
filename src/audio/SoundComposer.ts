@@ -2,8 +2,15 @@ import { soundDefinitions, renderSound } from './samples.ts';
 import type { SoundBus, SoundKind } from './samples.ts';
 
 export type SoundSpace = { pan: number; depth: number };
-export type SoundCue = { kind: string; space?: SoundSpace };
-const contact = (kind: string) => kind === 'hit' || kind === 'pop';
+// `delay` holds a kill until its pop; `voice` picks the particle's keycaps and tone.
+export type SoundCue = { kind: string; space?: SoundSpace; delay?: number; voice?: number };
+const contact = (kind: string) =>
+  kind === 'hit' || kind === 'pop' || kind === 'slam' || kind === 'enter';
+
+// Six particle voices: each owns a few keycaps and sits at its own pitch.
+export const voiceTones = [1.08, 1.16, 1, 0.84, 1.26, 0.93];
+export const voiceKeys = (voice: number, keys: number) =>
+  Array.from({ length: keys }, (_, i) => i).filter((i) => i % voiceTones.length === voice);
 
 export const distanceCutoff = (depth: number) => 8000 - 4400 * depth;
 
@@ -21,6 +28,7 @@ export class SoundComposer {
   private seed: number;
   private hitPool: number[] = [];
   private recentHits: number[] = [];
+  private voiceTurns = voiceTones.map(() => 0);
 
   constructor(context: BaseAudioContext, seed: number) {
     this.context = context;
@@ -73,13 +81,15 @@ export class SoundComposer {
     >();
     let accepted = 0;
     let hitIndex = 0;
-    for (const { kind, space } of cues) {
+    for (const cue of cues) {
+      const { kind, space } = cue;
       if (!Object.hasOwn(soundDefinitions, kind)) continue;
       const id = kind as SoundKind,
         spec = soundDefinitions[id];
       let variant = this.variants[id] ?? 0,
         offset = 0,
-        weight = 1;
+        weight = 1,
+        tone = 1;
       if (contact(id)) {
         const position = positions[hitIndex],
           slot = Math.floor(position / 3);
@@ -88,6 +98,11 @@ export class SoundComposer {
         offset = delays[position];
         weight = hitIndex++ < offsets.length ? leads[slot] : support[slot];
       }
+      if (cue.voice !== undefined && id !== 'hit') {
+        variant = this.nextVoice(cue.voice, spec.variants);
+        tone = voiceTones[cue.voice];
+      }
+      if (cue.delay) offset += Math.round(cue.delay * this.context.sampleRate);
       if (!contact(id)) this.variants[id] = (variant + 1) % spec.variants;
       const important = spec.bus === 'rhythm' || spec.bus === 'transition';
       const depth = important ? 0 : Math.max(0, Math.min(1, space?.depth ?? 0));
@@ -105,12 +120,12 @@ export class SoundComposer {
         const key =
           id === 'hit'
             ? (offset * soundDefinitions.hit.variants + variant) * 9 + step
-            : id + ':' + variant + ':' + step + ':' + offset;
+            : id + ':' + variant + ':' + tone + ':' + step + ':' + offset;
         let layer = layers.get(key);
         if (!layer) {
           layer = {
             bus: spec.bus,
-            samples: this.distanceBuffer(id, variant, step),
+            samples: this.distanceBuffer(id, variant, step, tone),
             offset,
             left: 0,
             right: 0,
@@ -142,11 +157,11 @@ export class SoundComposer {
     return { count: accepted, buffers: buses, attacks: offsets };
   }
 
-  private buffer(kind: SoundKind, variant: number): AudioBuffer {
-    const key = kind + ':' + variant;
+  private buffer(kind: SoundKind, variant: number, tone = 1): AudioBuffer {
+    const key = kind + ':' + variant + (tone === 1 ? '' : ':' + tone);
     let buffer = this.buffers.get(key);
     if (!buffer) {
-      const data = renderSound(kind, this.context.sampleRate, variant);
+      const data = renderSound(kind, this.context.sampleRate, variant, tone);
       buffer = this.context.createBuffer(1, data.length, this.context.sampleRate);
       buffer.getChannelData(0).set(data);
       this.buffers.set(key, buffer);
@@ -177,11 +192,17 @@ export class SoundComposer {
     return variant;
   }
 
-  private distanceBuffer(kind: SoundKind, variant: number, step: number): Float32Array {
-    const key = kind + ':' + variant + ':' + step;
+  // Each particle voice cycles through its own keycaps.
+  private nextVoice(voice: number, variants: number): number {
+    const keys = voiceKeys(voice, variants);
+    return keys[this.voiceTurns[voice]++ % keys.length];
+  }
+
+  private distanceBuffer(kind: SoundKind, variant: number, step: number, tone = 1): Float32Array {
+    const key = kind + ':' + variant + ':' + tone + ':' + step;
     let filtered = this.filtered.get(key);
     if (filtered) return filtered;
-    const data = this.buffer(kind, variant).getChannelData(0);
+    const data = this.buffer(kind, variant, tone).getChannelData(0);
     const omega = (2 * Math.PI * distanceCutoff(step / 8)) / this.context.sampleRate;
     const cos = Math.cos(omega),
       alpha = Math.sin(omega) / (2 * 10 ** (0.5 / 20)),

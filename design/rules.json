@@ -319,6 +319,13 @@
       "size": 8
     }
   },
+  "pops": {
+    "tap": { "stagger": 0.03, "max": 0.24 },
+    "burst": { "stagger": 0, "max": 0, "debris": 1.35 },
+    "domino": { "stagger": 0.07, "max": 0.42 },
+    "release": { "stagger": 0.006, "max": 0.04 },
+    "sweep": { "speed": 900, "max": 0.3 }
+  },
   "skills": {
     "repeat": {
       "hits": [1, 2, 3, 4, 5, 6],

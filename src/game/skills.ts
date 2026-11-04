@@ -84,3 +84,25 @@ export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rul
   };
 }
 export type SkillValues = ReturnType<typeof skillValues>;
+
+// How a skill's kills pop: one by one, all at once, as a spreading cascade,
+// as a released charge, or in order along a line or orbit.
+export type PopStyle = 'tap' | 'burst' | 'domino' | 'release' | 'sweep';
+export const popStyles: Record<SkillId, PopStyle> = {
+  chain: 'tap',
+  repeat: 'tap',
+  mark: 'tap',
+  spark: 'tap',
+  multi: 'burst',
+  strike: 'burst',
+  field: 'burst',
+  burst: 'domino',
+  fission: 'domino',
+  charge: 'release',
+  surge: 'release',
+  overcharge: 'release',
+  pierce: 'sweep',
+  return: 'sweep',
+  satellite: 'sweep',
+  tempo: 'sweep',
+};

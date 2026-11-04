@@ -3,7 +3,7 @@ import { rules } from '../game/rules.ts';
 import { singularitySilenceSeconds } from '../presentation/ending.ts';
 
 type Bus = 'preview' | 'hit' | 'rhythm' | 'transition';
-type Recipe = 'key' | 'impact' | 'pop' | 'pair' | 'chord' | 'inhale' | 'exhale';
+type Recipe = 'key' | 'impact' | 'pop' | 'slam' | 'enter' | 'pair' | 'chord' | 'inhale' | 'exhale';
 type Definition = {
   bus: Bus;
   recipe: Recipe;
@@ -30,6 +30,24 @@ export const soundDefinitions = {
     duration: 0.075,
     gain: 0.34,
     color: 1.08,
+    variants: bank.keys.length,
+  },
+  // A kill that pops all at once with others: two keys slammed down together.
+  slam: {
+    bus: 'hit',
+    recipe: 'slam',
+    duration: 0.08,
+    gain: 0.3,
+    color: 0.96,
+    variants: bank.keys.length,
+  },
+  // A released charge: the enter key struck hard, low and with a long return.
+  enter: {
+    bus: 'hit',
+    recipe: 'enter',
+    duration: 0.12,
+    gain: 0.4,
+    color: 0.8,
     variants: bank.keys.length,
   },
   // Thunderstrike: several keys slammed together over one low space bar.
@@ -120,15 +138,21 @@ function recording(at: number) {
   return key;
 }
 
-export function renderSound(kind: SoundKind, sampleRate: number, variant = 0): Float32Array {
+// Keycap palettes: contact sounds draw from every recorded key.
+const keyed = new Set<string>(['hit', 'pop', 'slam', 'enter', 'thunder', 'crit']);
+
+// `tone` shifts the whole cue in pitch; each particle kind pops at its own tone.
+export function renderSound(
+  kind: SoundKind,
+  sampleRate: number,
+  variant = 0,
+  tone = 1,
+): Float32Array {
   const spec = soundDefinitions[kind];
   const data = new Float32Array(Math.ceil(spec.duration * sampleRate));
   let seed = 2166136261;
   for (const char of kind) seed = Math.imul(seed ^ char.charCodeAt(0), 16777619);
-  const palette =
-    kind === 'hit' || kind === 'pop' || kind === 'thunder' || kind === 'crit'
-      ? bank.keys.length
-      : soundDefinitions.preview.variants;
+  const palette = keyed.has(kind) ? bank.keys.length : soundDefinitions.preview.variants;
   const first = ((seed >>> 0) + variant * 5) % palette;
   seed ^= Math.imul(variant + 1, 0x9e3779b9);
   const random = () => {
@@ -137,7 +161,7 @@ export function renderSound(kind: SoundKind, sampleRate: number, variant = 0): F
     seed ^= seed << 5;
     return (seed >>> 0) / 4294967296;
   };
-  const color = spec.color * (0.97 + random() * 0.06);
+  const color = spec.color * tone * (0.97 + random() * 0.06);
   const add = (at: number, samples: Float32Array, amp: number, pitch: number) => {
     const start = Math.round(at * sampleRate),
       step = (bank.sampleRate * pitch) / sampleRate;
@@ -205,6 +229,16 @@ export function renderSound(kind: SoundKind, sampleRate: number, variant = 0): F
     case 'pop':
       add(0, recording(first).press, 1.2, color);
       add(0.026, recording(first).release, 0.45, color * 1.06);
+      break;
+    case 'slam':
+      add(0, recording(first).press, 1.05, color);
+      add(0.003, recording(first + 7).press, 0.85, color * 0.94);
+      add(0.03, recording(first).release, 0.4, color * 1.04);
+      break;
+    case 'enter':
+      add(0, recording(first).press, 1.35, color);
+      add(0.002, recording(first + 5).press, 0.55, color * 0.6);
+      add(0.058, recording(first).release, 0.6, color * 1.02);
       break;
     case 'inhale':
       flow(false);

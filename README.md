@@ -22,6 +22,7 @@ Particles pour in. The core swells. The space around you closes in. Each run tur
 - **Evolve or gamble** — Luck brings rarer cards and evolutions; up to three pacts trade a different kind of risk for a new way to pop.
 - **Go beyond** — Reach the singularity, then take your build into an ever-growing storm.
 - **Small pixels, big impact** — Bright electrical effects against a dark cosmic backdrop.
+- **Hear every pop** — Each skill pops in its own rhythm, one by one, all at once, as a cascade, a released charge or a sweep, and every particle kind clicks its own keycaps.
 - **Open a tab. Enter orbit.** — A fresh run every time, with preferences and best results saved on your device.
 - **Mobile and desktop** — Available in Korean, English, Chinese, and Japanese.
 

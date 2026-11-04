@@ -136,6 +136,16 @@ assert.ok(Number.isInteger(r.evolution.pity) && r.evolution.pity > 0);
 assert.ok(r.evolution.pierce.trailInterval < r.evolution.pierce.trailSeconds);
 assert.ok(Number.isInteger(r.pacts.interval) && r.pacts.interval > 1);
 assert.equal(r.pacts.max, 3);
+// Pop rhythms: taps one by one, bursts at once, dominoes slower than taps,
+// a release tighter than taps, and sweeps along their line.
+assert.deepEqual(Object.keys(r.pops), ['tap', 'burst', 'domino', 'release', 'sweep']);
+assert.equal(r.pops.burst.stagger, 0);
+assert.ok(r.pops.burst.debris > 1);
+assert.ok(r.pops.domino.stagger > r.pops.tap.stagger);
+assert.ok(r.pops.release.stagger < r.pops.tap.stagger);
+assert.ok(r.pops.sweep.speed > 0 && r.pops.sweep.max > 0);
+for (const style of ['tap', 'burst', 'domino', 'release'])
+  assert.ok(r.pops[style].max >= r.pops[style].stagger);
 assert.deepEqual(
   Object.keys(r.pacts).filter((k) => typeof r.pacts[k] === 'object'),
   ['overheat', 'blast', 'greed', 'quiet', 'overclock', 'pulse', 'gamble', 'horizon'],

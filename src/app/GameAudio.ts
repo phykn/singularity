@@ -5,10 +5,23 @@ import { SoundMixer } from '../audio/SoundMixer.ts';
 import type { SoundCue, SoundSpace } from '../audio/SoundComposer.ts';
 import { CENTER, distance } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
+import { particleIds } from '../game/particles.ts';
+import type { ParticleKind } from '../game/particles.ts';
+import type { PopStyle } from '../game/skills.ts';
 
 function soundSpace(point: Point, listener: Point): SoundSpace {
   return { pan: (point.x - CENTER.x) / 520, depth: Math.min(1, distance(point, listener) / 300) };
 }
+
+// Tap, domino and sweep pop with a full keystroke; a burst slams two keys
+// together and a released charge strikes the enter key.
+const popCues: Record<PopStyle, string> = {
+  tap: 'pop',
+  burst: 'slam',
+  domino: 'pop',
+  release: 'enter',
+  sweep: 'pop',
+};
 
 const eventCues: Record<string, string> = {
   wave: 'wave',
@@ -145,9 +158,20 @@ export class GameAudio {
       )
         cues.push({ kind: 'rare' });
       else if (event.kind === 'kill') {
-        // The killing hit becomes a full keystroke on the same shuffled keycaps.
-        const cue = hits.get((event.data as { id: number }).id);
-        if (cue) cue.kind = 'pop';
+        // The killing hit becomes its style's keystroke on the particle's keycaps,
+        // sounding when the particle pops.
+        const kill = event.data as {
+          id: number;
+          delay?: number;
+          style?: PopStyle;
+          particle?: ParticleKind;
+        };
+        const cue = hits.get(kill.id);
+        if (cue) {
+          cue.kind = popCues[kill.style ?? 'tap'];
+          if (kill.delay) cue.delay = kill.delay;
+          if (kill.particle) cue.voice = particleIds.indexOf(kill.particle);
+        }
       } else if (eventCues[event.kind]) cues.push({ kind: eventCues[event.kind] });
     }
     this.mixer.playBatch(cues, ctx.currentTime);
