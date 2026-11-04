@@ -9,6 +9,5 @@ artifacts/
 # Local planning and work notes (runtime rules and checks remain tracked).
 /plan.md
 /design/*.md
-# Local game documents; README images stay tracked.
-/docs/*
-!/docs/images/
+# Local game documents.
+/docs/

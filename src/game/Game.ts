@@ -50,7 +50,6 @@ import type {
 const goldenAngle = Math.PI * (3 - Math.sqrt(5));
 const popStagger = 0.03;
 const popStaggerMax = 0.24;
-const popStreakSeconds = 0.4;
 
 const blankCounts = () =>
   Object.fromEntries(
@@ -119,8 +118,6 @@ export class Game {
   private xpRemainder = 0;
   private popTick = -1;
   private popOrder = 0;
-  private popStreak = 0;
-  private lastPop = -Infinity;
   banner: { kind: BannerKind; until: number } | null = null;
   private endingOutcome: Outcome = 'collapse-failure';
   private readonly recordEvents: boolean;
@@ -957,11 +954,9 @@ export class Game {
       this.counts[target.particle].killed++;
       this.combat.killed();
       this.targets.splice(index, 1);
-      // Kills in one tick pop one after another, and quick kills build a rising streak.
+      // Kills in one tick pop one after another.
       const order = this.popTick === this.tick ? ++this.popOrder : (this.popOrder = 0);
       this.popTick = this.tick;
-      this.popStreak = this.time - this.lastPop <= popStreakSeconds ? this.popStreak + 1 : 0;
-      this.lastPop = this.time;
       const delay = Math.min(popStaggerMax, order * popStagger);
       this.addEffect({
         kind: 'kill',
@@ -992,7 +987,6 @@ export class Game {
         xp: this.xp,
         x: target.x,
         y: target.y,
-        streak: this.popStreak,
         delay,
       });
       if (!before && this.energyFull) this.log('charged', { xp: this.xp });

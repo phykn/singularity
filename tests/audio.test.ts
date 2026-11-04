@@ -155,7 +155,7 @@ test('each actual particle contact creates one sound, and a fatal hit pops', () 
     },
   });
   game.log('hit', { id: 0, kind: 'small', x: 220, y: 260 });
-  game.log('kill', { id: 0, kind: 'small', x: 220, y: 260, streak: 0 });
+  game.log('kill', { id: 0, kind: 'small', x: 220, y: 260 });
   game.log('skill-effect', { id: 'strike', rank: 1 });
   audio.update(game, 0);
   assert.deepEqual(played, ['pop']);

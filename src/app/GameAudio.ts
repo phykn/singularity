@@ -136,10 +136,9 @@ export class GameAudio {
         hits.set(point.id, cue);
         cues.push(cue);
       } else if (event.kind === 'kill') {
-        // The killing hit becomes a pop that climbs in pitch with the kill streak.
-        const { id, streak } = event.data as { id: number; streak: number };
-        const cue = hits.get(id);
-        if (cue) Object.assign(cue, { kind: 'pop', variant: streak });
+        // The killing hit becomes a full keystroke on the same shuffled keycaps.
+        const cue = hits.get((event.data as { id: number }).id);
+        if (cue) cue.kind = 'pop';
       } else if (eventCues[event.kind]) cues.push({ kind: eventCues[event.kind] });
     }
     this.mixer.playBatch(cues, ctx.currentTime);

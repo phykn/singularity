@@ -10,7 +10,7 @@ import { close, fixture, stationarySkill, target } from './helpers.ts';
 const hitsOn = (events: { kind: string; data: unknown; time: number }[], id: number) =>
   events.filter((e) => e.kind === 'hit' && (e.data as { id: number }).id === id);
 
-test('kills in one tick pop in sequence and quick kills build a streak', () => {
+test('kills in one tick pop in sequence', () => {
   const ts = [0, 1, 2, 3].map((i) => target(i, 200 + i * 10, 140, 1));
   const g = fixture({}, ts);
   for (const t of [...ts]) g.damageTarget(t, 2);
@@ -20,15 +20,11 @@ test('kills in one tick pop in sequence and quick kills build a streak', () => {
     [0, 0.03, 0.06, 0.09],
   );
   assert.ok(kills.every((fx) => fx.particle === 'quark' && fx.life === 0.4 + fx.delay!));
-  const streaks = () =>
-    g.events.filter((e) => e.kind === 'kill').map((e) => (e.data as { streak: number }).streak);
-  assert.deepEqual(streaks(), [0, 1, 2, 3]);
   g.advance(1000);
   const late = target(9, 220, 150, 1);
   g.targets.push(late);
   g.damageTarget(late, 2);
-  assert.equal(streaks().at(-1), 0, 'A pause between kills restarts the streak');
-  assert.equal(g.effects.find((fx) => fx.kind === 'kill')!.delay, 0);
+  assert.equal(g.effects.find((fx) => fx.kind === 'kill')!.delay, 0, 'A later tick starts over');
 });
 
 test('static marks detonate as a chain once enough live particles carry one', () => {
@@ -131,13 +127,14 @@ test('tempo answers accepted beats and stays silent without the skill', () => {
   }
 });
 
-test('pop sounds climb in pitch with the streak and share the hit timing', () => {
-  const low = renderSound('pop', 48000, 0),
-    high = renderSound('pop', 48000, 7);
-  assert.notDeepEqual(low, high);
+test('pops are full keystrokes on varied keycaps and share the hit timing', () => {
+  const keys = new Set(
+    Array.from({ length: 16 }, (_, i) => renderSound('pop', 48000, i).slice(0, 2000).join()),
+  );
+  assert.equal(keys.size, 16, 'Each keycap gives its own pop');
   const { ctx } = audioContext();
   const composer = new SoundComposer(ctx, 1);
-  const batch = composer.compose([{ kind: 'pop', variant: 3 }, { kind: 'hit' }, { kind: 'pop' }]);
+  const batch = composer.compose([{ kind: 'pop' }, { kind: 'hit' }, { kind: 'pop' }]);
   assert.equal(batch.count, 3);
   assert.deepEqual([...batch.buffers.keys()], ['hit']);
   assert.equal(batch.attacks.length, 3, 'Pops take their own staggered attack like hits');

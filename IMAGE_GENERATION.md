@@ -140,10 +140,10 @@ A wide 1200x630 pixel-art key image on a solid near-black #080a0e background. On
 
 아래는 코드로 그리거나 자동으로 만들어지므로 이미지 생성 대상이 아닙니다.
 
-| 대상                                       | 만드는 곳                                                     |
-| ------------------------------------------ | ------------------------------------------------------------- |
-| 번개 줄기, 타격, 강한 타격, 소멸 이펙트    | `assets/effect-art/sprites.mjs`에서 그린 뒤 스킬 색을 입힘    |
-| 일반 입자와 전자                           | `src/art/particles.ts`                                        |
-| 핵, 블랙홀, 궤도, 엔딩 연출                | `src/render/ElectronScene.ts`, `src/render/singularity.ts` 등 |
-| 데미지 숫자                                | `src/render/damageFont.ts`                                    |
-| README 스크린샷 (`docs/images/gameplay-*`) | 실제 게임 화면을 캡처한 것. 생성 이미지로 대체하지 않음       |
+| 대상                                         | 만드는 곳                                                     |
+| -------------------------------------------- | ------------------------------------------------------------- |
+| 번개 줄기, 타격, 강한 타격, 소멸 이펙트      | `assets/effect-art/sprites.mjs`에서 그린 뒤 스킬 색을 입힘    |
+| 일반 입자와 전자                             | `src/art/particles.ts`                                        |
+| 핵, 블랙홀, 궤도, 엔딩 연출                  | `src/render/ElectronScene.ts`, `src/render/singularity.ts` 등 |
+| 데미지 숫자                                  | `src/render/damageFont.ts`                                    |
+| README 스크린샷 (`assets/readme/gameplay-*`) | 실제 게임 화면을 캡처한 것. 생성 이미지로 대체하지 않음       |

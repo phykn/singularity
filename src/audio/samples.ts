@@ -23,14 +23,14 @@ export const soundDefinitions = {
     color: 1.05,
     variants: bank.keys.length,
   },
-  // A killing hit: one keycap whose pitch climbs with the kill streak (variant = streak step).
+  // A killing hit: a full keystroke, downstroke and return, on one of the same keycaps.
   pop: {
     bus: 'hit',
     recipe: 'pop',
     duration: 0.075,
     gain: 0.34,
     color: 1.08,
-    variants: 8,
+    variants: bank.keys.length,
   },
   wave: {
     bus: 'transition',
@@ -119,7 +119,7 @@ export function renderSound(kind: SoundKind, sampleRate: number, variant = 0): F
   for (const char of kind) seed = Math.imul(seed ^ char.charCodeAt(0), 16777619);
   const palette =
     kind === 'hit' || kind === 'pop' ? bank.keys.length : soundDefinitions.preview.variants;
-  const first = ((seed >>> 0) + (kind === 'pop' ? 0 : variant * 5)) % palette;
+  const first = ((seed >>> 0) + variant * 5) % palette;
   seed ^= Math.imul(variant + 1, 0x9e3779b9);
   const random = () => {
     seed ^= seed << 13;
@@ -187,12 +187,10 @@ export function renderSound(kind: SoundKind, sampleRate: number, variant = 0): F
     case 'impact':
       add(0, recording(first).press, kind === 'rhythm-complete' ? 1.65 : 1.25, color);
       break;
-    case 'pop': {
-      const pitch = color * (1 + variant * 0.045);
-      add(0, recording(first).press, 1.2, pitch);
-      add(0.026, recording(first).release, 0.45, pitch * 1.06);
+    case 'pop':
+      add(0, recording(first).press, 1.2, color);
+      add(0.026, recording(first).release, 0.45, color * 1.06);
       break;
-    }
     case 'inhale':
       flow(false);
       break;

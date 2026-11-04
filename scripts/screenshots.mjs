@@ -5,7 +5,7 @@ import { base, launchBrowser } from './browser-support.mjs';
 const browser = await launchBrowser();
 const shots = [],
   errors = [];
-mkdirSync('docs/images', { recursive: true });
+mkdirSync('assets/readme', { recursive: true });
 mkdirSync('artifacts', { recursive: true });
 try {
   const page = await browser.newPage({
@@ -21,7 +21,7 @@ try {
   const shoot = async (number) => {
     await page.waitForTimeout(300);
     await page.screenshot({
-      path: `docs/images/gameplay-${number}.jpg`,
+      path: `assets/readme/gameplay-${number}.jpg`,
       type: 'jpeg',
       quality: 92,
     });

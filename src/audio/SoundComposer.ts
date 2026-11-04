@@ -2,8 +2,7 @@ import { soundDefinitions, renderSound } from './samples.ts';
 import type { SoundBus, SoundKind } from './samples.ts';
 
 export type SoundSpace = { pan: number; depth: number };
-// `variant` picks a fixed sample variant, such as the streak step of a pop.
-export type SoundCue = { kind: string; space?: SoundSpace; variant?: number };
+export type SoundCue = { kind: string; space?: SoundSpace };
 const contact = (kind: string) => kind === 'hit' || kind === 'pop';
 
 export const distanceCutoff = (depth: number) => 8000 - 4400 * depth;
@@ -74,7 +73,7 @@ export class SoundComposer {
     >();
     let accepted = 0;
     let hitIndex = 0;
-    for (const { kind, space, variant: fixed } of cues) {
+    for (const { kind, space } of cues) {
       if (!Object.hasOwn(soundDefinitions, kind)) continue;
       const id = kind as SoundKind,
         spec = soundDefinitions[id];
@@ -84,11 +83,8 @@ export class SoundComposer {
       if (contact(id)) {
         const position = positions[hitIndex],
           slot = Math.floor(position / 3);
-        if (id === 'pop') variant = Math.max(0, Math.min(spec.variants - 1, fixed ?? 0));
-        else {
-          if (variants[position] < 0) variants[position] = this.nextHit();
-          variant = variants[position];
-        }
+        if (variants[position] < 0) variants[position] = this.nextHit();
+        variant = variants[position];
         offset = delays[position];
         weight = hitIndex++ < offsets.length ? leads[slot] : support[slot];
       }

@@ -7,9 +7,9 @@ A pixel-art survival game where a lone electron lights up the dark. The combat i
 **[Play now — singularity.phykn-kr.workers.dev](https://singularity.phykn-kr.workers.dev/)**
 
 <p align="center">
-  <img src="docs/images/gameplay-1.jpg" width="32%" alt="SINGULARITY title screen in English" />
-  <img src="docs/images/gameplay-2.jpg" width="32%" alt="A late-game lightning build facing a dense particle swarm with upgrade choices open" />
-  <img src="docs/images/gameplay-3.jpg" width="32%" alt="Singularity victory screen showing 20,000 XP and the completed skill build" />
+  <img src="assets/readme/gameplay-1.jpg" width="32%" alt="SINGULARITY title screen in English" />
+  <img src="assets/readme/gameplay-2.jpg" width="32%" alt="A late-game lightning build facing a dense particle swarm with upgrade choices open" />
+  <img src="assets/readme/gameplay-3.jpg" width="32%" alt="Singularity victory screen showing 20,000 XP and the completed skill build" />
 </p>
 
 ## About the game
