@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { launchBrowser } from './browser-support.mjs';
 import { effectArtwork, effectShades } from '../assets/effect-art/sprites.mjs';
 import { packIcons } from './icon-packing.mjs';
@@ -115,6 +115,32 @@ try {
     );
     writeFileSync('src/art/assets/bosses.png', Buffer.from(bosses, 'base64'));
     console.log('Packed 6 generated giant particles into the 384×64 transparent atlas.');
+    // Browser tab icon, home screen icons and the link preview image.
+    mkdirSync('public', { recursive: true });
+    for (const [source, width, height, output] of [
+      ['assets/icon-art/app-icon-source.png', 32, 32, 'public/favicon.png'],
+      ['assets/icon-art/app-icon-source.png', 180, 180, 'public/apple-touch-icon.png'],
+      ['assets/icon-art/app-icon-source.png', 512, 512, 'public/icon-512.png'],
+      ['assets/icon-art/share-source.png', 1200, 630, 'public/share.png'],
+    ]) {
+      const png = await page.evaluate(
+        async ({ data, width, height }) => {
+          const image = new Image();
+          image.src = 'data:image/png;base64,' + data;
+          await image.decode();
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(image, 0, 0, width, height);
+          return canvas.toDataURL('image/png').split(',')[1];
+        },
+        { data: readFileSync(source).toString('base64'), width, height },
+      );
+      writeFileSync(output, Buffer.from(png, 'base64'));
+    }
+    console.log('Scaled the app icon to 32, 180 and 512 pixels and the 1200×630 share image.');
   }
   for (const sheet of effectArtwork()) {
     const png = await page.evaluate(
