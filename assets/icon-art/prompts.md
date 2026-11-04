@@ -361,3 +361,49 @@ Use case: stylized-concept. References show the original subjects: preserve thei
 Generate large PNG: square cells in the exact requested grid, at least 1024 pixels on the long edge. Keep all art strictly inside its cell with clear transparent edge margins. No labels.
 True transparent alpha-zero gutters, hard opaque pixel clusters. Keep each icon inside central 72% of its cell.
 ```
+
+## 수정 — 2026-11-04 앱 아이콘
+
+궤도/핵/전자/장미 입자를 확대하고 선을 굵게 변경. 32/180/512px 최근접 비교 검사 완료. 추가 재생성0회. 원본 백업: /tmp/singularity-image-fixes-20261104/app-icon-source.png. 캔버스1254x1254 유지.
+
+```text
+Polished pixel art for SINGULARITY, a dark electron survival game. Same artist as the attached app icon, stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters, bold readable silhouettes. No text, letters, numbers, frames, panels, blur, glow mist, or scattered grain.
+Redesign this ONE square app icon for unmistakable readability at 32x32. Solid flat near-black #080a0e background. Keep composition: circular pale teal orbit, cyan electron at UPPER RIGHT, small dark faceted core in center, one short bright lightning segment from electron popping a rose particle on the right. MASSIVELY INCREASE SCALE AND WEIGHT: orbit outer diameter is 92% of square width, outer edges only 4% from canvas edges. Orbit band thickness 6% canvas width, equivalent TWO PIXELS at 32px. Cyan electron diameter20% of canvas, dark core diameter26%, rose particle diameter12%. Lightning is thick with only ONE bend. Design on TRUE 32x32 logical pixel grid, no fine details. This must fill almost the entire square, not a small centered emblem. Single square PNG at least1024px. All tiny detail removed in favor of chunky unmistakable pixel shapes.
+```
+
+## 수정 — 2026-11-04 치명타(1번 칸)
+
+공격력 칼과 혼동을 없애기 위해 칼을 제거하고 노란 네 갈래 충격 별+4개 파편으로 변경. 32/24px 최근접 비교 검사 완료. 추가 재생성0회. 다른9칸 픽셀동일 검증 통과. 백업:/tmp/singularity-image-fixes-20261104/stat-pact-source.png.
+
+```text
+Polished pixel art for SINGULARITY, same artist as attached style references. Transparent background. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters with bold readable silhouettes. No text, letters, numbers, frames, panels, background, blur, glow mist, or scattered grain.
+ONE isolated CRITICAL HIT stat icon centered in one square. NOT A SWORD: no sword, blade, hilt, handle, weapon, arrow or spear anywhere. A LARGE chunky FOUR-POINT IMPACT STAR, dominant warm yellow #ffdf78 with ivory center and ochre dark stepped contour. The four points form a bold cardinal-direction star, much thicker and more compact than a thin sparkle. Three or four cracked chunky shards fly a short distance radially outwards from the impact star. Only 3-4 shards total, no grain. Center star plus shards use about 80% of cell width, transparent margins. Designed on a true32x32 logical grid, unmistakable at24px. Same visual weight as the gem/stat icons in reference2. Warning red forbidden. Reference1 shows the OLD sword icon to replace completely; reference2 is STYLE/WEIGHT only. Large square PNG at least1024px.
+```
+
+## 수정 — 2026-11-04 전염 표식(11번 칸)
+
+가운데 입자를 파편으로 바꾸고 양쪽으로 옮겨 붙는 곡선 불꽃과 금색 장식을 추가하여 기본 정전기 표식과 구분. 32/24px 최근접 비교 확인. 추가 재생성0회. 합성 시 다른15칸 픽셀동일 검증 통과(후속 번짐 정리는 별도). 백업:/tmp/singularity-image-fixes-20261104/evolution-source.png.
+
+```text
+Polished pixel art for SINGULARITY. Same artist as the attached references. Transparent background. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters, bold readable silhouettes. No text, letters, numbers, frames, panels, background, blur, glow mist, or scattered grain.
+ONE isolated CONTAGION MARK EVOLVED skill icon. Reference1 is the old evolved icon to replace; reference2 is the original Static Mark skill whose cyan/teal colors and three-particle layout must remain identifiable. Three cyan particles across the lower half. Crucial evolution difference: the CENTER PARTICLE has EXPLODED and is now an obvious hollow gap filled by 3-4 chunky cyan fragments, NOT an intact round orb. From that central explosion TWO CURVING ELECTRICAL FLAME paths spread left and right, one arc to each intact side particle. Each side orb now wears a fresh tiny lightning/flame tag above it, showing infection jumping to both sides. Keep three-particle layout but center is clearly broken. ONE small gold #f9d894 diamond accent only at upper right. Bold cyan dominant color, chunky arc paths. No horizontal straight chain; use arching jumping arcs. 32x32 logical grid, legible at24px. Transparent margins and one single square sprite. Large PNG at least1024px.
+```
+
+## 수정 — 2026-11-04 스킬·진화 반투명 번짐 정리
+
+지침의 권장6번에 따라 이미지 생성 없이 투명도만 후처리. 알파240미만 픽셀을 RGBA(0,0,0,0)으로 제거, 알파240~255는 색/알파 모두 그대로 보존. 따라서 완전 불투명 픽셀은 전부 동일. 32/24px 최근접 축소 검사 통과. 칸 크기/좌표 유지.
+
+```json
+{
+  "skill-new-source": {
+    "removed_alpha_16_239": 52184,
+    "opaque_pixels_preserved": true
+  },
+  "evolution-source": {
+    "removed_alpha_16_239": 95018,
+    "opaque_pixels_preserved": true
+  }
+}
+```
+
+원본 및 검사용 파일: /tmp/singularity-image-fixes-20261104/. 게임 연결 및 build:art 실행 없음.

@@ -26,6 +26,7 @@ export class ElectronScene extends Phaser.Scene {
   private graphics!: Phaser.GameObjects.Graphics;
   private effects!: EffectRenderer;
   private sprites!: SpritePool;
+  private impactShake = 1;
   private impactAt = -Infinity;
   private lastModel: Game | null = null;
   private returnAt = -Infinity;
@@ -112,14 +113,17 @@ export class ElectronScene extends Phaser.Scene {
         if (clock - fx.born >= 0.05) break;
         if (fx.kind === 'strike' || (fx.source === 'charge' && fx.kind === 'bolt')) {
           this.impactAt = clock;
+          this.impactShake = fx.kind === 'strike' ? 2 : 1;
           break;
         }
       }
     }
-    const impactAge = clock - this.impactAt;
+    // Thunderstrike shakes harder and longer than a Capacitor discharge.
+    const impactAge = clock - this.impactAt,
+      shake = this.impactShake;
     this.offset =
-      !ending && !this.reducedMotion.matches && impactAge < 0.06
-        ? { x: impactAge < 0.03 ? 1 : -1, y: 1 }
+      !ending && !this.reducedMotion.matches && impactAge < 0.06 * shake
+        ? { x: (impactAge % 0.06 < 0.03 ? 1 : -1) * shake, y: shake }
         : { x: 0, y: 0 };
     g.setPosition(g.x + this.offset.x, g.y + this.offset.y);
     this.effects.graphics.setPosition(g.x, g.y);

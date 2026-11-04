@@ -13,7 +13,7 @@ type Checkpoint = {
   continuedAt: number | null;
   retired: boolean;
   choiceRemaining: number | null;
-  resonances: { tick: number; selectionCount: number; beat: 1 | 2 | 3 }[];
+  resonances: { tick: number; selectionCount: number; beat: 0 | 1 | 2 | 3 }[];
   inputs: {
     tick: number;
     id: UpgradeId;
@@ -99,7 +99,7 @@ function validCheckpoint(value: unknown): value is Checkpoint {
         integer(input.tick) &&
         input.tick <= ticks &&
         integer(input.selectionCount) &&
-        [1, 2, 3].includes(input.beat as number),
+        [0, 1, 2, 3].includes(input.beat as number),
     )
   );
 }

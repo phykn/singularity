@@ -6,10 +6,17 @@ assert.equal(r.skillSlots, 4);
 assert.ok(r.rangeBonus > 0 && r.rangeBonus < 1);
 assert.ok(r.rangeFalloff > 0);
 assert.ok(r.recovery.minMass > 0 && r.recovery.mass >= r.recovery.minMass);
-assert.ok(r.speedPerRank > 0);
+assert.ok(r.powerBonus > 0 && r.powerFalloff > 0);
+// Power grows gently: the first rank stays under double damage.
+assert.ok(1 + r.powerBonus / (r.powerFalloff + 1) < 2);
+assert.ok(r.crit.perRank > 0 && r.crit.max <= 0.5 && r.crit.multiplier > 1);
+assert.ok(r.luck.rarityShift > 0 && r.luck.rarityShift * 10 < r.rarity.common.chance);
 assert.ok(r.introBatchSize > 0 && r.introBatches > 0);
-assert.equal(Object.keys(r.skills).length, 18);
-assert.ok(!('area' in r.skills) && !('whip' in r.skills) && !('wave' in r.skills));
+assert.equal(Object.keys(r.skills).length, 16);
+for (const removed of ['focus', 'repel', 'gather', 'chase', 'bridge', 'vent'])
+  assert.ok(!(removed in r.skills));
+// Every skill evolves.
+for (const id of Object.keys(r.skills)) assert.ok(id in r.evolution, id);
 assert.ok(r.levelXp.every((n, i, a) => n > 0 && (!i || a[i - 1] < n)));
 assert.ok(r.levelXpStep > 0);
 for (const level of [2, 26, 27, 50, 100]) {
@@ -120,13 +127,21 @@ assert.ok(r.critical.pull > 0 && r.critical.spawnScale > 0 && r.critical.spawnSc
 assert.ok(r.critical.xpScale > 0 && r.critical.xpScale <= 1);
 assert.ok(r.critical.hpScale >= 1 && r.critical.speedScale >= 1);
 assert.ok(r.boss.speed > 0 && r.boss.size > 0);
-assert.ok(r.boss.pushScale > 0 && r.boss.pushScale < 1);
 assert.ok(Math.round(r.boss.feedSeconds * r.tickRate) > 0);
 for (const fractions of [r.boss.summonFractions, r.boss.final.summonFractions])
   assert.ok(fractions.every((n, i, a) => n > 0 && n < 1 && (!i || n < a[i - 1])));
-assert.ok(r.evolution.energyFractions.every((n, i, a) => n > 0 && n < 1 && (!i || n > a[i - 1])));
+assert.ok(r.evolution.chance > 0 && r.evolution.chance <= r.evolution.maxChance);
+assert.ok(r.evolution.maxChance < 1 && r.evolution.luckChance > 0);
+assert.ok(Number.isInteger(r.evolution.pity) && r.evolution.pity > 0);
 assert.ok(r.evolution.pierce.trailInterval < r.evolution.pierce.trailSeconds);
 assert.ok(Number.isInteger(r.pacts.interval) && r.pacts.interval > 1);
+assert.equal(r.pacts.max, 3);
+assert.deepEqual(
+  Object.keys(r.pacts).filter((k) => typeof r.pacts[k] === 'object'),
+  ['overheat', 'blast', 'greed', 'quiet', 'overclock', 'pulse', 'gamble', 'horizon'],
+);
+assert.ok(r.pacts.blast.damageScale < 1 && r.pacts.gamble.normalScale < 1);
+assert.ok(r.pacts.gamble.critMultiplier > r.crit.multiplier);
 assert.ok(r.bannerSeconds > 0);
 console.log(
   JSON.stringify({

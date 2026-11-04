@@ -68,7 +68,7 @@ try {
           game.recordEvents = false;
           game.mass = 80;
           game.radius = 100;
-          game.boosts = { power: 4, rate: 9 / game.rules.ratePerRank, range: 4, speed: 4 };
+          game.boosts = { power: 4, rate: 9 / game.rules.ratePerRank, range: 4, crit: 0, luck: 4 };
           for (const id of ['pierce', 'multi', 'repeat', 'chain']) {
             game.ranks[id] = 5;
             game.combat.learn(id, 0);

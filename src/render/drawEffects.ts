@@ -6,7 +6,7 @@ import { rarityIds } from '../game/rules.ts';
 import { particleColors as popColors } from '../art/particles.ts';
 import { lerp, clamp, orbit } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
-import type { Effect, Target } from '../game/types.ts';
+import type { Effect } from '../game/types.ts';
 type Graphics = Phaser.GameObjects.Graphics;
 function stroke(
   g: Graphics,
@@ -21,27 +21,6 @@ function stroke(
   g.moveTo(points[0].x, points[0].y);
   for (let i = 1; i < points.length; i++) g.lineTo(points[i].x, points[i].y);
   g.strokePath();
-}
-function arrow(g: Graphics, from: Point, to: Point, ink: number, alpha: number, scale: number) {
-  const dx = to.x - from.x,
-    dy = to.y - from.y,
-    length = Math.hypot(dx, dy);
-  if (!length) return;
-  const x = dx / length,
-    y = dy / length,
-    size = 4 / scale;
-  stroke(
-    g,
-    [
-      { x: to.x - (x + y) * size, y: to.y - (y - x) * size },
-      to,
-      { x: to.x - (x - y) * size, y: to.y - (y + x) * size },
-    ],
-    1,
-    ink,
-    alpha,
-    scale,
-  );
 }
 function ring(
   g: Graphics,
@@ -69,7 +48,6 @@ export function drawEffect(
   time: number,
   scale: number,
   electron: Point,
-  targets: Target[],
   paint: EffectPainter,
   orbitRadius = fx.radius,
   satellites: readonly Point[] = [],
@@ -82,13 +60,15 @@ export function drawEffect(
         ? electron
         : fx.kind === 'pierce'
           ? { x: from.x + fx.to.x - fx.from.x, y: from.y + fx.to.y - fx.from.y }
-          : fx.kind === 'focus'
-            ? (targets.find((target) => target.id === fx.targetId) ?? fx.to)
-            : fx.to;
+          : fx.to;
   const t = clamp((time - fx.born) / fx.life);
   if (t >= 1) return;
   const alpha = Math.pow(1 - t, 0.7);
-  const ink = fx.source ? skillColors[fx.source] : BLUE;
+  const ink = fx.source
+    ? skillColors[fx.source]
+    : fx.kind === 'trail'
+      ? skillColors.overclock
+      : BLUE;
   const strength = clamp(fx.rank / 5) + rarityIds.indexOf(fx.rarity) * 0.06;
   const rank = Math.max(1, Math.min(5, fx.rank));
   const power = beamStrength(fx.damage);
@@ -96,14 +76,14 @@ export function drawEffect(
   const impactPower = Math.min(power, 3);
   const impactSize = 20 + impactPower * 4;
   const clock = time + fx.born * 3 + (fx.kind === 'strike' ? ((fx.targetId ?? 0) % 4) / 12 : 0);
-  if (fx.kind === 'bridge') {
+  if (fx.kind === 'trail') {
     if (!fx.arc || fx.arc.sweep <= 0) return;
     const steps = Math.max(1, Math.ceil(fx.arc.sweep / 0.15));
     for (let i = 0; i < steps; i++) {
       const start = fx.arc.start + (fx.arc.sweep * i) / steps;
       const end = fx.arc.start + (fx.arc.sweep * (i + 1)) / steps;
       paint.beam(
-        'bridge',
+        'trail',
         orbit(start, orbitRadius),
         orbit(end, orbitRadius),
         clock + i * 0.07,
@@ -126,9 +106,9 @@ export function drawEffect(
     const point = orbit(fx.arc.start + fx.arc.sweep * ((time * 1.5) % 1), orbitRadius);
     g.fillStyle(WHITE, 0.7);
     g.fillRect(point.x - 1 / scale, point.y - 1 / scale, 2 / scale, 2 / scale);
-  } else if (fx.kind === 'vent') {
-    // The shockwave ring leaves the core (width holds its radius) and fades at its reach.
-    const wave = lerp(fx.width, fx.radius, clamp(t / 0.85));
+  } else if (fx.kind === 'field') {
+    // The field ring opens to its reach and fades there.
+    const wave = lerp(fx.radius * 0.4, fx.radius, clamp(t / 0.85));
     ring(g, from, wave, ink, alpha * 0.7, scale, 1);
     for (let i = 0; i < 6; i++) {
       const angle = (i * Math.PI) / 3 + [0, 0.09, -0.06, 0.04, -0.1, 0.08][i] + fx.born;
@@ -152,33 +132,38 @@ export function drawEffect(
     g.fillStyle(WHITE, alpha);
     g.fillRect(point.x - 1 / scale, point.y - 1 / scale, 2 / scale, 2 / scale);
     if (t >= 0.65) paint.contact(to, ink, (1 - t) / 0.35, (22 + impactPower * 2) / 2.5);
-  } else if (fx.kind === 'bolt' || fx.kind === 'strike' || fx.kind === 'focus') {
-    const opacity = fx.kind === 'focus' ? 1 : alpha;
+  } else if (fx.kind === 'bolt' || fx.kind === 'strike') {
     const id =
       fx.kind === 'strike'
         ? 'strike'
-        : fx.kind === 'focus'
-          ? 'focus'
-          : fx.source === 'charge'
-            ? 'charge'
-            : fx.source === 'repel'
-              ? 'pierce'
-              : ['chain', 'burst', 'gather'].includes(fx.source ?? '')
-                ? 'chain'
-                : 'basic';
-    paint.beam(id, from, to, clock, ink, light * opacity, id === 'strike' ? 24 : 16, power);
-    if (fx.source === 'charge') paint.contact(from, ink, opacity, 9.6);
-    if (fx.kind === 'focus') {
-      const flow = (time * 3 + (fx.targetId ?? 0) * 0.17) % 1;
-      g.fillStyle(WHITE, 0.8);
-      g.fillRect(lerp(from.x, to.x, flow), lerp(from.y, to.y, flow), 2 / scale, 2 / scale);
-    }
-    if (fx.source === 'repel') arrow(g, { x: 180, y: 260 }, to, ink, alpha, scale);
-    if (fx.kind !== 'focus' && fx.kind !== 'strike') {
-      paint.sprite(fx.source === 'charge' ? 'impact' : 'hit', to, t, ink, opacity, impactSize);
-    }
-    if (fx.kind === 'strike') {
-      paint.sprite('impact', to, t, ink, alpha, impactSize);
+        : fx.source === 'charge'
+          ? 'charge'
+          : fx.source === 'spark'
+            ? 'spark'
+            : ['chain', 'burst', 'fission'].includes(fx.source ?? '')
+              ? 'chain'
+              : 'basic';
+    // Thunderstrike lands hard: a wider bolt, a bright flash and shards across its splash.
+    const bolt = fx.kind === 'strike' ? Math.min(1, alpha * 1.6) : alpha;
+    paint.beam(id, from, to, clock, ink, light * bolt, id === 'strike' ? 24 : 16, power);
+    if (fx.source === 'charge') paint.contact(from, ink, alpha, 9.6);
+    if (fx.kind !== 'strike')
+      paint.sprite(fx.source === 'charge' ? 'impact' : 'hit', to, t, ink, alpha, impactSize);
+    else {
+      paint.sprite('impact', to, t, ink, alpha, impactSize * 1.6);
+      if (t < 0.25) paint.contact(to, WHITE, (1 - t / 0.25) * 0.9, 12);
+      ring(g, to, fx.radius * (0.3 + 0.7 * clamp(t / 0.6)), ink, alpha * 0.8, scale, 2);
+      for (let i = 0; i < 8; i++) {
+        const angle = (i * Math.PI) / 4 + (fx.targetId ?? 0) * 0.7,
+          reach = fx.radius * (0.4 + 0.8 * clamp(t / 0.7)) * (i % 2 ? 0.8 : 1);
+        g.fillStyle(i % 2 ? WHITE : ink, alpha);
+        g.fillRect(
+          to.x + Math.cos(angle) * reach - 1 / scale,
+          to.y + Math.sin(angle) * reach - 1 / scale,
+          2 / scale,
+          2 / scale,
+        );
+      }
     }
   } else if (fx.kind === 'pierce') {
     paint.beam('pierce', from, to, clock, ink, light * alpha, 16, power);

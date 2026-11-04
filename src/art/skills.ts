@@ -1,25 +1,16 @@
-import { skillIds, statIds } from '../game/rules.ts';
-import type { PactId, UpgradeId } from '../game/rules.ts';
+import { pactIds, skillIds, statIds } from '../game/rules.ts';
+import type { SkillId, UpgradeId } from '../game/rules.ts';
 
-// Static Mark and Tempo Coil borrow existing icons until their own art is made (docs/IMAGE_GENERATION.md).
-const borrowed = { mark: 'charge', tempo: 'repeat' } as const;
-export const iconIds = [
-  ...statIds,
-  'recover',
-  ...skillIds.filter((id) => !(id in borrowed)),
-] as Exclude<UpgradeId, PactId | keyof typeof borrowed>[];
-const cells = Object.fromEntries(
-  iconIds.map((id, index) => [id, { x: (index % 7) * 32, y: Math.floor(index / 7) * 32 }]),
-) as Record<(typeof iconIds)[number], { x: number; y: number }>;
-// Pacts wear the icon of the stat they strengthen.
-export const iconCells: Record<UpgradeId, { x: number; y: number }> = {
-  ...cells,
-  mark: cells[borrowed.mark],
-  tempo: cells[borrowed.tempo],
-  overload: cells.power,
-  greed: cells.speed,
-  overclock: cells.rate,
-};
+// `skills.png` holds every card icon in eight columns, then one evolved icon per skill.
+export const iconIds: UpgradeId[] = [...statIds, 'recover', ...skillIds, ...pactIds];
+const cell = (index: number) => ({ x: (index % 8) * 32, y: Math.floor(index / 8) * 32 });
+export const iconCells = Object.fromEntries(
+  iconIds.map((id, index) => [id, cell(index)]),
+) as Record<UpgradeId, { x: number; y: number }>;
+export const evolvedCells = Object.fromEntries(
+  skillIds.map((id, index) => [id, cell(iconIds.length + index)]),
+) as Record<SkillId, { x: number; y: number }>;
+export const iconAtlasSize = { width: 256, height: 192 };
 
 export const controlIds = [
   'github',

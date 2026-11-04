@@ -1,16 +1,7 @@
 import { rarityScale, rules } from './rules.ts';
 import type { Ranks, Rarities, RuleSet, SkillId } from './rules.ts';
 
-export const timedSkills = [
-  'strike',
-  'repel',
-  'focus',
-  'satellite',
-  'bridge',
-  'gather',
-  'chase',
-  'vent',
-] as const;
+export const timedSkills = ['strike', 'satellite', 'spark', 'field'] as const;
 export type TimedSkill = (typeof timedSkills)[number];
 
 export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rules, reach = 1) {
@@ -41,16 +32,7 @@ export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rul
       count: s.strike.counts[ranks.strike] + extra('strike'),
       range: s.strike.range * reach,
       damage: s.strike.damage[ranks.strike] * scale('strike'),
-    },
-    repel: {
-      count: s.repel.counts[ranks.repel] + extra('repel'),
-      range: s.repel.range * reach,
-      push: s.repel.push[ranks.repel] * scale('repel'),
-    },
-    focus: {
-      range: s.focus.ranges[ranks.focus] * scale('focus') * reach,
-      duration: s.focus.durations[ranks.focus],
-      damage: s.focus.damage * scale('focus'),
+      splash: s.strike.splash.radius[ranks.strike] * scale('strike'),
     },
     satellite: {
       count: s.satellite.counts[ranks.satellite],
@@ -60,32 +42,6 @@ export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rul
     charge: {
       threshold: s.charge.threshold[ranks.charge] / scale('charge'),
       damage: s.charge.damage[ranks.charge] * scale('charge'),
-    },
-    bridge: {
-      angle: Math.min(
-        s.bridge.maxAngle,
-        s.bridge.angles[ranks.bridge] * scale('bridge') * (1 + 0.035 * (multi - 1)),
-      ),
-      duration: s.bridge.duration[ranks.bridge],
-      damage: s.bridge.damage[ranks.bridge] * scale('bridge'),
-      width: s.bridge.width[ranks.bridge],
-    },
-    gather: {
-      radius: s.gather.radii[ranks.gather] * scale('gather') * reach,
-      count: s.gather.count[ranks.gather] + extra('gather'),
-      pull: s.gather.pull[ranks.gather] * scale('gather'),
-      damage: s.gather.damage[ranks.gather] * scale('gather'),
-    },
-    vent: {
-      mass: Math.round(s.vent.mass[ranks.vent] * scale('vent')),
-      radius: s.vent.radius[ranks.vent],
-      damage: s.vent.damage[ranks.vent] * scale('vent'),
-    },
-    chase: {
-      threshold: s.chase.threshold[ranks.chase],
-      jumps: s.chase.jumps[ranks.chase],
-      count: s.chase.count[ranks.chase] + extra('chase'),
-      damage: s.chase.damage[ranks.chase] * scale('chase'),
     },
     surge: {
       kills: Math.max(3, s.surge.kills[ranks.surge] - extra('surge')),
@@ -104,6 +60,26 @@ export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rul
       count: s.tempo.count[ranks.tempo] + extra('tempo'),
       band: s.tempo.band[ranks.tempo] * reach,
       damage: s.tempo.damage[ranks.tempo] * scale('tempo'),
+    },
+    spark: {
+      count: s.spark.count[ranks.spark] + extra('spark'),
+      range: s.spark.range * reach,
+      damage: s.spark.damage[ranks.spark] * scale('spark'),
+    },
+    field: {
+      radius: s.field.radius[ranks.field] * scale('field') * reach,
+      damage: s.field.damage[ranks.field] * scale('field'),
+      bossFraction: s.field.bossFraction[ranks.field] * scale('field'),
+    },
+    fission: {
+      depth: s.fission.depth[ranks.fission] + extra('fission'),
+      radius: s.fission.radius[ranks.fission] * scale('fission'),
+      damage: s.fission.damage[ranks.fission] * scale('fission'),
+    },
+    overcharge: {
+      kills: Math.max(10, s.overcharge.kills[ranks.overcharge] - 4 * extra('overcharge')),
+      band: s.overcharge.band[ranks.overcharge] * reach,
+      damage: s.overcharge.damage[ranks.overcharge] * scale('overcharge'),
     },
   };
 }

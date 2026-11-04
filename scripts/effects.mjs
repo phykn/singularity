@@ -119,7 +119,6 @@ try {
 
       debug.restart(17, false);
       const combat = debug.getModel();
-      combat.ranks.focus = 1;
       const tracked = {
         id: 701,
         x: combat.position.x + 40,
@@ -138,35 +137,39 @@ try {
         turn: 0,
       };
       combat.targets = [tracked];
-      if (!combat.combat.fireSkill('focus')) throw new Error('Focus did not cast');
+      if (!combat.combat.fireBasic()) throw new Error('Basic attack did not fire');
       combat.combat.update();
       combat.setHidden(true);
       const casts = combat.events.filter((event) => event.kind === 'hit').length;
-      if (!casts) throw new Error('Focus fixture must actually hit');
+      if (!casts) throw new Error('Basic fixture must actually hit');
       const near = (actual, expected) => {
         if (Math.abs(actual - expected) > 1.01)
           throw new Error(`Beam geometry drift: ${actual} vs ${expected}`);
       };
-      for (const [angle, dx, dy] of [
-        [0, 50, 0],
-        [1, 0, 50],
-        [2, -40, -30],
-        [3, 0, 0],
+      // The basic bolt starts at the live electron and ends where it struck.
+      const bolt = combat.effects.find((fx) => fx.kind === 'bolt');
+      const impact = { ...bolt.to };
+      for (const [angle, coincident] of [
+        [0, false],
+        [1, false],
+        [2, false],
+        [3, true],
       ]) {
         combat.angle = angle;
-        Object.assign(tracked, { x: combat.position.x + dx, y: combat.position.y + dy });
+        bolt.to = coincident ? { ...combat.position } : impact;
         scene.update();
         const beam = [...scene.sprites.images, ...scene.effects.sprites.images].find(
           (s) => s.visible && s.texture.key === 'beams',
         );
-        if (!dx && !dy) {
+        if (coincident) {
           if (beam) throw new Error('Coincident endpoints must skip the beam');
+          bolt.to = impact;
           continue;
         }
-        if (!beam || Number(beam.frame.name) < 16 || Number(beam.frame.name) >= 20)
-          throw new Error('Real focus cast lacks focused lightning');
+        if (!beam || Math.floor((Number(beam.frame.name) % 32) / 4) !== 0)
+          throw new Error('Real basic attack lacks its anchored bolt');
         const from = scene.screen(combat.position),
-          to = scene.screen(tracked);
+          to = scene.screen(impact);
         for (const [point, side] of [
           [from, -1],
           [to, 1],
@@ -221,7 +224,7 @@ try {
         );
         const tier = Math.max(1, Math.min(10, Math.ceil(damage / 10))) - 1;
         if (!beam || Math.floor(Number(beam.frame.name) / 32) !== tier)
-          throw Error(`Focus does not render its actual ${damage} damage`);
+          throw Error(`The basic bolt does not render its actual ${damage} damage`);
         powerFrames.push(Number(beam.frame.name));
         for (let rank = 1; rank <= 5; rank++) {
           combat.effects.forEach((fx) => (fx.rank = rank));

@@ -1,4 +1,4 @@
-import { statIds } from '../game/rules.ts';
+import { critChance, statIds } from '../game/rules.ts';
 import type { UpgradeId } from '../game/rules.ts';
 import { ChargeIcon, SkillIcon, ControlIcon } from './icons.tsx';
 import { skillValue } from './skillText.ts';
@@ -72,9 +72,12 @@ export function Hud({
                       ? game.rate
                       : id === 'range'
                         ? game.range
-                        : game.speed,
+                        : id === 'crit'
+                          ? critChance(game.boosts.crit, rules) * 100
+                          : game.boosts.luck,
                 )}
                 {id === 'rate' && '×'}
+                {id === 'crit' && '%'}
               </b>
             </div>
           ))}

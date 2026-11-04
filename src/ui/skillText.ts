@@ -1,31 +1,30 @@
 import { skillValues } from '../game/skills.ts';
 import type { SkillValues } from '../game/skills.ts';
 import { numberText } from '../format.ts';
-import { blankRanks, blankRarities, rangeScale, recoveryMass, rules } from '../game/rules.ts';
+import {
+  blankRanks,
+  blankRarities,
+  critChance,
+  evolutionChance,
+  powerScale,
+  rangeScale,
+  recoveryMass,
+  rules,
+} from '../game/rules.ts';
 import type { PactId, Rarity, RuleSet, SkillId, UpgradeId } from '../game/rules.ts';
 import { copy } from './i18n.ts';
 import type { Language, LinkEffect } from './i18n.ts';
 
-const attackers: SkillId[] = [
-  'strike',
-  'repel',
-  'focus',
-  'satellite',
-  'bridge',
-  'gather',
-  'chase',
-  'surge',
-];
+const attackers: SkillId[] = ['strike', 'satellite', 'surge'];
 // Each effect changes the attacks of these skills in combat.ts; tests/skill-links.test.ts checks them.
-// Bridge has no fork or return: its barrier hits skip Multi branches and fire at depth 1.
 const linkedAttackers: Record<LinkEffect, SkillId[]> = {
   repeat: attackers,
-  multi: attackers.filter((id) => id !== 'bridge'),
+  multi: attackers,
   chain: [...attackers, 'return', 'charge'],
   pierce: [...attackers, 'charge'],
-  return: attackers.filter((id) => id !== 'bridge'),
+  return: attackers,
   burst: [...attackers, 'return', 'charge'],
-  charge: ['repeat', 'multi', 'return', 'focus'],
+  charge: ['repeat', 'multi', 'return'],
 };
 
 export function skillLinks(id: UpgradeId, owned: SkillId[]) {
@@ -41,15 +40,20 @@ export function skillLinks(id: UpgradeId, owned: SkillId[]) {
 
 export function pactText(id: PactId, language: Language = 'ko', cfg: RuleSet = rules) {
   const terms = copy[language].pactTerms[id],
-    p = cfg.pacts;
-  if (id === 'overload')
-    return { gain: terms.gain(p.overload.power), cost: terms.cost(p.overload.mass) };
-  if (id === 'greed')
-    return {
-      gain: terms.gain(Math.round(p.greed.xp * 100)),
-      cost: terms.cost(Math.round(p.greed.enemySpeed * 100)),
-    };
-  return { gain: terms.gain(p.overclock.rate), cost: terms.cost(0) };
+    p = cfg.pacts,
+    percent = (n: number) => numberText(n * 100);
+  const values: Record<PactId, [number, number]> = {
+    overheat: [Number(percent(p.overheat.rateStep)), 0],
+    blast: [p.blast.damage, Number(percent(1 - p.blast.damageScale))],
+    greed: [Number(percent(p.greed.xp)), Number(percent(p.greed.spawn))],
+    quiet: [p.quiet.periodSeconds, 0],
+    overclock: [0, 0],
+    pulse: [0, p.pulse.missMass],
+    gamble: [p.gamble.critMultiplier, Number(percent(1 - p.gamble.normalScale))],
+    horizon: [Number(percent(p.horizon.damagePerMass)), p.horizon.massSeconds],
+  };
+  const [gain, cost] = values[id];
+  return { gain: terms.gain(gain), cost: terms.cost(cost) };
 }
 
 export function skillValue(
@@ -79,23 +83,11 @@ export function skillValue(
     case 'burst':
       return `${m.radius} ${n(s.burst.radius)} · ×${n(s.burst.damage)}`;
     case 'strike':
-      return `${m.targets(String(s.strike.count + s.multi.count - 1))} · ×${n(s.strike.damage)}`;
-    case 'repel':
-      return `${m.targets(String(s.repel.count + s.multi.count - 1))} · ${m.push} ${n(s.repel.push)}`;
-    case 'focus':
-      return `${n(s.focus.duration)}${c.seconds} · ×${n(s.focus.damage)}`;
+      return `${m.targets(String(s.strike.count + s.multi.count - 1))} · ×${n(s.strike.damage)} · ${m.radius} ${n(s.strike.splash)}`;
     case 'satellite':
       return `${m.satellites(String(s.satellite.count))} · ×${n(s.satellite.damage)}`;
     case 'charge':
       return `${m.charge} ${n(s.charge.threshold)} · ×${n(s.charge.damage)}`;
-    case 'bridge':
-      return `${n(s.bridge.angle)}° · ${n(s.bridge.duration)}${c.seconds}`;
-    case 'gather':
-      return `${m.targets(String(s.gather.count))} · ${m.radius} ${n(s.gather.radius)}`;
-    case 'vent':
-      return `${c.mass} -${s.vent.mass} · ×${n(s.vent.damage)}`;
-    case 'chase':
-      return `${m.health} <=${Math.round(s.chase.threshold * 100)}% · ×${n(s.chase.damage)}`;
     case 'surge':
       return `${m.charge} ${s.surge.kills} · ${n(s.surge.duration)}${c.seconds}`;
     case 'return':
@@ -104,19 +96,34 @@ export function skillValue(
       return `${m.charge} ${s.mark.threshold} · ×${n(s.mark.damage)}`;
     case 'tempo':
       return `${m.targets(String(s.tempo.count))} · ×${n(s.tempo.damage)}`;
+    case 'spark':
+      return `${m.targets(String(s.spark.count))} · ×${n(s.spark.damage)}`;
+    case 'field':
+      return `${m.radius} ${n(s.field.radius)} · ×${n(s.field.damage)}`;
+    case 'fission':
+      return `${m.links(String(s.fission.depth))} · ×${n(s.fission.damage)}`;
+    case 'overcharge':
+      return `${m.kills} ${s.overcharge.kills} · ×${n(s.overcharge.damage)}`;
     case 'power':
-      return `${m.damage} ${n(cfg.baseHitDamage + cfg.damagePerRank * rank)}`;
+      return `${m.damage} ${n(cfg.baseHitDamage * powerScale(rank, cfg))}`;
     case 'rate':
       return `${m.rate} +${Math.round(cfg.ratePerRank * rank * 100)}%`;
     case 'range':
       return `${m.range} +${n((rangeScale(rank, cfg) - 1) * 100)}%`;
-    case 'speed':
-      return `${m.speed} +${n(cfg.speedPerRank * rank * 100)}%`;
+    case 'crit':
+      return `${m.crit} ${n(critChance(rank, cfg) * 100)}%`;
+    case 'luck':
+      return `${m.evolve} ${n(evolutionChance(rank, cfg) * 100)}%`;
     case 'recover':
       return `${c.mass} -${recoveryMass(rarity, cfg)}`;
-    case 'overload':
+    case 'overheat':
+    case 'blast':
     case 'greed':
+    case 'quiet':
     case 'overclock':
+    case 'pulse':
+    case 'gamble':
+    case 'horizon':
       return pactText(id, language, cfg).gain;
   }
 }
@@ -145,18 +152,25 @@ export function skillChange(
   const count = (a: number, b: number, unit: string) => (current ? `${a}→${b}` : String(b)) + unit;
   switch (id) {
     case 'power':
-      return `${numberText(cfg.baseHitDamage + current * cfg.damagePerRank)}→${numberText(cfg.baseHitDamage + (current + 1) * cfg.damagePerRank)}`;
+      return `${numberText(cfg.baseHitDamage * powerScale(current, cfg))}→${numberText(cfg.baseHitDamage * powerScale(current + 1, cfg))}`;
     case 'rate':
       return text.rate;
     case 'range':
       return `${c.metric.range} +${numberText((rangeScale(current + 1, cfg) / rangeScale(current, cfg) - 1) * 100)}%`;
-    case 'speed':
-      return `${numberText(cfg.baseSpeed * (1 + current * cfg.speedPerRank))}→${numberText(cfg.baseSpeed * (1 + (current + 1) * cfg.speedPerRank))}`;
+    case 'crit':
+      return `${c.metric.crit} ${numberText(critChance(current, cfg) * 100)}→${numberText(critChance(current + 1, cfg) * 100)}%`;
+    case 'luck':
+      return `${c.metric.evolve} ${numberText(evolutionChance(current, cfg) * 100)}→${numberText(evolutionChance(current + 1, cfg) * 100)}%`;
     case 'recover':
       return `${c.mass} -${numberText(Math.min(mass, recoveryMass(rarity, cfg)))}`;
-    case 'overload':
+    case 'overheat':
+    case 'blast':
     case 'greed':
+    case 'quiet':
     case 'overclock':
+    case 'pulse':
+    case 'gamble':
+    case 'horizon':
       return pactText(id, language, cfg).gain;
     case 'repeat':
       return count(before.repeat.hits, after.repeat.hits, text.repeat);
@@ -178,17 +192,15 @@ export function skillChange(
           ? `${before.satellite.count}→${after.satellite.count}`
           : String(after.satellite.count),
       );
-    case 'repel':
-    case 'focus':
     case 'charge':
-    case 'bridge':
-    case 'gather':
-    case 'vent':
-    case 'chase':
     case 'surge':
     case 'return':
     case 'mark':
     case 'tempo':
+    case 'spark':
+    case 'field':
+    case 'fission':
+    case 'overcharge':
       return text[id][current ? 1 : 0];
   }
 }

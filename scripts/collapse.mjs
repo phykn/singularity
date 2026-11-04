@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { base, capture, launchBrowser, observeScene } from './browser-support.mjs';
 import { copy } from '../src/ui/i18n.ts';
+import { rules } from '../src/game/rules.ts';
 import { languageKey } from '../src/app/storage.ts';
 
 const browser = await launchBrowser();
@@ -83,7 +84,7 @@ try {
     assert.equal(await page.locator('.collapse-symbol').count(), 1);
     const bar = page.locator('.result').getByRole('progressbar');
     assert.equal(await bar.getAttribute('aria-valuenow'), String(result.xp));
-    assert.equal(await bar.getAttribute('aria-valuemax'), '20000');
+    assert.equal(await bar.getAttribute('aria-valuemax'), String(rules.energyGoal));
     assert.equal(await page.locator('.result-numbers > div').count(), 2);
     const issues = await page.evaluate(() => {
       const issues = [];

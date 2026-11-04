@@ -42,3 +42,29 @@ Correction: generate a SIX TO ONE wide canvas (3072x512), six SQUARE equal cells
 새 이미지의 그림 픽셀을 확대/축소/다시 그리지 않고 투명 여백만 재배치하여 모든 칸을 같은 정사각형으로 정렬. 재생성 횟수에 해당하지 않는 캔버스 포장. 아이콘 448px/320px/400px 셀, 중간보스 512px 셀(2560×512), 일반 입자 384px 셀(2304×384). 최종 크기 최근접 미리보기 재검사. 이전의 알파/비율/눌림 문제는 해결됨. 일반 입자 민트 고리도 16px에서 식별됨. 이전 문제 기록은 포장 전 결과. 보스 경고 장식 개수, 진화 연속 3줄 및 작은 세부 요소는 여전히 남음. 그림 내용은 바뀌지 않아 기존 참조 이미지와 동일한 디자인을 유지함.
 
 최종 남은 문제: 민트 고리의 반투명 표현은 약함. 16px 형태 구분과 고리의 투명한 중심은 확인됨.
+
+## 수정 — 2026-11-04 proton
+
+16px의 크림색 +를 굵기2/길이6으로 확대. 추가 재생성1회(첫 후보의 +가4px).
+참고: /tmp/singularity-image-fixes-20261104/proton-before.png. 최종 크기 최근접 비교 확인. 지정 칸 외 픽셀 동일 검증 통과.
+
+```text
+Polished pixel art for SINGULARITY, a dark electron survival game. Same artist as the attached reference. Transparent background. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters with bold readable silhouettes. No text, letters, numbers, frames, panels, background, blur, glow mist, or scattered grain.
+EDIT ONLY this single PROTON sprite. Keep its centered position and orange circular body silhouette, diameter 12 pixels within a TRUE 16x16 logical square (75% of canvas width), and the orange palette of the reference. Replace the tiny center mark by a VERY CLEAR pale ivory cream PLUS SIGN #fff1cc, brighter than #f6c48a. The plus sign has exactly 2 logical pixels thickness and 6 logical pixels length in BOTH directions, centered. At 16px output it must unmistakably be a PLUS, not one bright dot. No other inner markings. Large 1024px square PNG but every shape aligned to a 16x16 logical grid. Transparent outer margin. One sprite only.
+```
+
+```text
+Polished pixel art for SINGULARITY, a dark electron survival game. Same artist as the attached reference. Transparent background. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. Clean deliberate low-resolution pixel clusters with bold readable silhouettes. No text, letters, numbers, frames, panels, background, blur, glow mist, or scattered grain.
+EDIT ONLY this single PROTON sprite. Keep its centered position and orange circular body silhouette, diameter 12 pixels within a TRUE 16x16 logical square (75% of canvas width), and the orange palette of the reference. Replace the tiny center mark by a VERY CLEAR pale ivory cream PLUS SIGN #fff1cc, brighter than #f6c48a. The plus sign has exactly 2 logical pixels thickness and 6 logical pixels length in BOTH directions, centered. At 16px output it must unmistakably be a PLUS, not one bright dot. No other inner markings. Large 1024px square PNG but every shape aligned to a 16x16 logical grid. Transparent outer margin. One sprite only.
+CORRECTION: the PLUS in the reference is much too small. Make the cross overall HALF THE DIAMETER OF THE ORANGE BODY, explicitly six of the sixteen logical pixels across and six tall, with a two pixel wide stem. The cross footprint is a 6x6 logical square: top two rows '..++..', middle two rows '++++++', bottom two rows '..++..'. Every '+' in this footprint is solid bright ivory #fff1cc, not orange. The body is 12 pixels diameter. Preserve body dimensions. Very large cream plus dominates the center.
+```
+
+## 수정 — 2026-11-04 neutron
+
+16px의 어두운 2px 테두리와 밝은 회청 몸통. 추가 재생성0회.
+참고: /tmp/singularity-image-fixes-20261104/neutron-before.png. 최종 크기 최근접 비교 확인. 지정 칸 외 픽셀 동일 검증 통과.
+
+```text
+Polished pixel art for SINGULARITY. Same artist as the attached sprite reference. Transparent background. Clean deliberate 16x16 logical pixel clusters, stepped dark contours, 3 body shades, one small ivory upper-left highlight. No text, letters, numbers, frames, panels, background, blur, glow mist, scattered grain.
+EDIT this ONE NEUTRON sprite only. Keep the same center and size, a plain round slate-blue circle diameter 13 pixels in a TRUE 16x16 logical square. Absolutely no plus sign or internal marking. Give it a continuous TWO LOGICAL PIXEL THICK extremely dark blue-grey rim #111e29, clearly darker than #24323e, around the entire circular body. Body inside must be one tone brighter slate blue #819fb3 so the dark 2px rim contrasts strongly at 16px. Dark border is a defining massive thick shell, never thin 1px. Preserve round silhouette and current visual scale. Generate large 1024px square transparent PNG, aligned to only 16x16 logical pixels. One sprite, no other objects.
+```

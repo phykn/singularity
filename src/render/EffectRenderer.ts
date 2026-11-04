@@ -40,17 +40,7 @@ export class EffectRenderer {
     const g = this.graphics;
     const position = game.position;
     for (const fx of visibleEffects(game.effects))
-      drawEffect(
-        g,
-        fx,
-        game.seconds,
-        scale,
-        position,
-        game.targets,
-        this.paint,
-        game.radius,
-        satellites,
-      );
+      drawEffect(g, fx, game.seconds, scale, position, this.paint, game.radius, satellites);
     for (const { point, color, alpha, radius } of this.contacts.values()) {
       g.lineStyle(1 / scale, color, alpha * 0.65);
       g.strokeCircle(point.x, point.y, radius / scale);

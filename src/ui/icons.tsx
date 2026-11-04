@@ -1,16 +1,25 @@
 import { useId } from 'react';
+import { isSkill } from '../game/rules.ts';
 import type { UpgradeId } from '../game/rules.ts';
 import { particleFrames } from '../art/particles.ts';
 import particleAtlas from '../art/assets/particles.png';
 import type { ParticleKind } from '../game/particles.ts';
-import { iconCells, controlCells } from '../art/skills.ts';
+import { evolvedCells, iconAtlasSize, iconCells, controlCells } from '../art/skills.ts';
 import type { ControlId } from '../art/skills.ts';
 import skillAtlas from '../art/assets/skills.png';
 import controlAtlas from '../art/assets/controls.png';
 
-export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
+export function SkillIcon({
+  id,
+  size = 24,
+  evolved = false,
+}: {
+  id: UpgradeId;
+  size?: number;
+  evolved?: boolean;
+}) {
   const pixels = size >= 24 ? 32 : 16;
-  const cell = iconCells[id];
+  const cell = evolved && isSkill(id) ? evolvedCells[id] : iconCells[id];
   return (
     <svg
       className="skill-icon"
@@ -24,8 +33,8 @@ export function SkillIcon({ id, size = 24 }: { id: UpgradeId; size?: number }) {
         href={skillAtlas}
         x={-cell.x}
         y={-cell.y}
-        width={224}
-        height={96}
+        width={iconAtlasSize.width}
+        height={iconAtlasSize.height}
         style={{ imageRendering: 'pixelated' }}
       />
     </svg>

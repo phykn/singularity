@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Game } from '../src/game/Game.ts';
 import { createCheckpoint, restoreCheckpoint } from '../src/game/checkpoint.ts';
-import { rules } from '../src/game/rules.ts';
-import type { Ranks } from '../src/game/rules.ts';
+import { isPact, pactIds, rules, skillIds, xpForLevel } from '../src/game/rules.ts';
+import type { PactId, Ranks } from '../src/game/rules.ts';
 import { pactText } from '../src/ui/skillText.ts';
 import { copy, languages } from '../src/ui/i18n.ts';
-import { choose, fixture, stationarySkill, target } from './helpers.ts';
+import { choose, close, fixture, stationarySkill, target } from './helpers.ts';
 import { playRhythm } from '../scripts/rhythm-bot.ts';
 
 const tick = (g: Game) => g.advance(1000 / rules.tickRate);
@@ -48,7 +48,7 @@ test('critical breach slows energy without losing fractions and ends at the norm
 
 const firstStage = rules.boss.stages[0];
 
-test('the boss arrives once at its energy with a warning, resists control and reports its fate', () => {
+test('the boss arrives once at its energy with a warning and reports its fate', () => {
   const g = spawned();
   g.selections.length = 100;
   g.xp = energy(firstStage.energyFraction);
@@ -60,7 +60,6 @@ test('the boss arrives once at its energy with a warning, resists control and re
   g.targets = g.targets.filter((t) => t === boss);
   tick(g);
   assert.equal(g.events.filter((event) => event.kind === 'boss').length, 1);
-  assert.equal(g.combat.movementScale({ ...boss, bridgeUntil: Infinity }), 1);
   boss.radius = g.core;
   const mass = g.mass;
   g.absorbTargets();
@@ -196,32 +195,34 @@ test('the boss and critical breach stay out of endless play', () => {
   assert.equal(g.events.filter((event) => event.kind === 'boss').length, seen);
 });
 
-test('evolution cards need maximum rank and an unused energy threshold', () => {
-  const g = fixture({ chain: 5 });
+test('evolution cards need maximum rank, roll each choice and guarantee one after misses', () => {
+  const g = fixture({ chain: 4 });
   g.selections = Array.from({ length: 3 }, () => ({ id: 'chain', tick: 0, time: 0 }) as never);
-  g.xp = energy(rules.evolution.energyFractions[0]) - 1;
-  const privateOpen = g as unknown as { openChoice(): void };
-  privateOpen.openChoice();
-  assert.ok(g.choice);
-  assert.equal(
-    g.choice!.cards.some((card) => card.evolve),
-    false,
-  );
-  g.choice = null;
-  g.xp = energy(rules.evolution.energyFractions[0]);
-  privateOpen.openChoice();
-  const card = g.choice!.cards[0];
-  assert.deepEqual([card.id, card.evolve], ['chain', true]);
+  const privateOpen = g as unknown as { openChoice(): void; evolutionMisses: number };
+  g.xp = xpForLevel(200);
+  const open = () => {
+    g.choice = null;
+    privateOpen.openChoice();
+    return g.choice!.cards.find((card) => card.evolve);
+  };
+  // Rank four never evolves.
+  for (let i = 0; i < 20; i++) assert.equal(open(), undefined);
+  g.ranks.chain = 5;
+  let misses = 0;
+  let offered: ReturnType<typeof open>;
+  while (!(offered = open())) misses++;
+  assert.ok(misses <= rules.evolution.pity);
+  assert.deepEqual([offered.id, g.choice!.cards[0].evolve], ['chain', true]);
   assert.equal(g.automaticCard?.id, 'chain');
+  // Pity: after the configured misses the next offer is certain.
+  privateOpen.evolutionMisses = rules.evolution.pity;
+  assert.ok(open());
+  g.choice!.cards = [{ id: 'chain', rarity: 'common', evolve: true }];
   assert.ok(g.select('chain'));
   assert.equal(g.evolved.chain, true);
   assert.equal(g.ranks.chain, 5);
   assert.equal(g.selections.at(-1)!.evolve, true);
-  privateOpen.openChoice();
-  assert.equal(
-    g.choice!.cards.some((entry) => entry.evolve),
-    false,
-  );
+  for (let i = 0; i < 20; i++) assert.equal(open(), undefined);
 });
 
 test('skills without an evolution never offer one', () => {
@@ -271,54 +272,78 @@ test('each evolution adds damage to the skill it changes', () => {
   assert.ok(total(true) > total(false));
 });
 
-test('pacts apply their gain and cost once and are never picked automatically', () => {
+const pactGame = (...ids: PactId[]) => {
+  const g = stationarySkill({}, []);
+  for (const id of ids) {
+    g.choice = { number: 1, opened: 0, deadline: 8, cards: [{ id, rarity: 'common' }] };
+    assert.ok(g.select(id));
+  }
+  return g;
+};
+
+test('pacts are never picked automatically and a run takes at most three', () => {
   const g = fixture();
-  g.mass = 0;
   g.choice = {
     number: 1,
     opened: 0,
     deadline: 8,
     cards: [
-      { id: 'overload', rarity: 'common' },
+      { id: 'greed', rarity: 'common' },
       { id: 'range', rarity: 'common' },
     ],
   };
   assert.equal(g.automaticCard?.id, 'range');
-  assert.ok(g.select('overload'));
-  assert.equal(g.boosts.power, rules.pacts.overload.power);
-  assert.equal(g.mass, rules.pacts.overload.mass);
-  assert.equal(g.rank('overload'), 1);
+  const full = pactGame('greed', 'gamble', 'blast');
+  assert.equal(full.pactCount, rules.pacts.max);
+  assert.equal(full.canUpgrade('quiet'), false);
+  assert.equal(full.rank('greed'), 1);
+});
 
-  const fast = fixture();
-  fast.mass = 200;
-  assert.equal(fast.recoverable, true);
-  fast.choice = {
-    number: 1,
-    opened: 0,
-    deadline: 8,
-    cards: [{ id: 'overclock', rarity: 'common' }],
+test('pact gains and costs change combat as their cards say', () => {
+  const hit = (g: Game, hp = 1e9) => {
+    g.targets = [target(0, g.position.x + 10, g.position.y, hp)];
+    g.combat.fireBasic();
+    return hp - g.targets[0].hp;
   };
-  assert.ok(fast.select('overclock'));
-  assert.equal(fast.boosts.rate, rules.pacts.overclock.rate);
-  assert.equal(fast.recoverable, false);
+  const plain = hit(pactGame());
+  // Gamble weakens normal hits; Blast weakens the hit but splashes.
+  close(hit(pactGame('gamble')), plain * rules.pacts.gamble.normalScale);
+  close(hit(pactGame('blast')), plain * rules.pacts.blast.damageScale);
+  const horizon = pactGame('horizon');
+  horizon.mass = 100;
+  close(hit(horizon), plain * (1 + 100 * rules.pacts.horizon.damagePerMass));
 
-  const greedy = fixture();
-  greedy.choice = { number: 1, opened: 0, deadline: 8, cards: [{ id: 'greed', rarity: 'common' }] };
-  assert.ok(greedy.select('greed'));
+  const greedy = pactGame('greed');
   for (let i = 0; i < 20; i++) {
-    greedy.targets = [target(i, 180, 128, 1)];
-    greedy.combat.fireBasic(greedy.targets[0]);
+    greedy.targets = [target(i, greedy.position.x + 10, greedy.position.y, 1)];
+    greedy.combat.fireBasic();
   }
   assert.equal(greedy.xp, Math.floor(20 * (1 + rules.pacts.greed.xp)));
-  const walker = target(99, 180, 100, 1000);
-  walker.speed = 10;
-  greedy.targets = [walker];
-  const before = walker.radius;
-  greedy.moveTargets();
-  assert.ok(
-    Math.abs(before - walker.radius - (10 * (1 + rules.pacts.greed.enemySpeed)) / rules.tickRate) <
-      1e-9,
-  );
+
+  const overclock = pactGame('overclock');
+  overclock.mass = 200;
+  assert.equal(overclock.recoverable, false);
+
+  const pulse = pactGame('pulse');
+  const mass = pulse.mass;
+  pulse.resonate(0);
+  assert.equal(pulse.mass, mass + rules.pacts.pulse.missMass);
+  const calm = pactGame();
+  calm.resonate(0);
+  assert.equal(calm.mass, mass);
+});
+
+test('the quiet pact holds basic shots and releases them together', () => {
+  const g = pactGame('quiet');
+  const t = target(0, g.position.x + 10, g.position.y, 1e9);
+  g.targets = [t];
+  // Let the basic attack run, without spawns.
+  g.combatEnabled = true;
+  (g as unknown as { nextSpawn: number }).nextSpawn = Infinity;
+  g.advance(rules.pacts.quiet.periodSeconds * 500);
+  assert.equal(t.hp, 1e9);
+  g.advance(rules.pacts.quiet.periodSeconds * 600);
+  assert.ok(t.hp < 1e9);
 });
 
 test('pact cards appear on their interval, never in danger and at most once each', () => {
@@ -334,9 +359,7 @@ test('pact cards appear on their interval, never in danger and at most once each
     return g;
   };
   const safe = offers(0);
-  const pact = safe.choice!.cards.find((card) =>
-    ['overload', 'greed', 'overclock'].includes(card.id),
-  );
+  const pact = safe.choice!.cards.find((card) => isPact(card.id));
   assert.ok(pact);
   assert.ok(safe.select(pact.id));
   assert.equal(safe.canUpgrade(pact.id), false);
@@ -345,7 +368,7 @@ test('pact cards appear on their interval, never in danger and at most once each
   danger.choice = null;
   (danger as unknown as { openChoice(): void }).openChoice();
   assert.equal(
-    danger.choice!.cards.some((card) => ['overload', 'greed', 'overclock'].includes(card.id)),
+    danger.choice!.cards.some((card) => isPact(card.id)),
     false,
   );
 });
@@ -356,7 +379,7 @@ test('checkpoints replay evolutions and pacts under current rules', () => {
     const cards = game.choice!.cards;
     return (
       cards.find((card) => card.evolve) ??
-      cards.find((card) => card.id === 'greed' || card.id === 'overload') ??
+      cards.find((card) => isPact(card.id)) ??
       game.automaticCard!
     );
   });
@@ -372,12 +395,12 @@ test('checkpoints replay evolutions and pacts under current rules', () => {
 test('every language describes pacts, evolutions and event banners', () => {
   for (const { id } of languages) {
     const c = copy[id];
-    for (const pact of ['overload', 'greed', 'overclock'] as const) {
+    for (const pact of pactIds) {
       const { gain, cost } = pactText(pact, id);
       assert.ok(gain.length && cost.length, pact);
       assert.ok(c.upgrades[pact].description.length);
     }
-    for (const skill of ['chain', 'multi', 'pierce', 'satellite'] as const)
+    for (const skill of skillIds)
       assert.ok(c.evolutions[skill].name && c.evolutions[skill].summary);
     assert.ok(c.banners.critical && c.banners.boss && c.banners['boss-down']);
     assert.ok(c.banners['final-boss'] && c.finalBossName);

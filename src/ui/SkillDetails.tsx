@@ -1,5 +1,5 @@
 import type { Game } from '../game/Game.ts';
-import { isEvolvable } from '../game/rules.ts';
+import { isSkill } from '../game/rules.ts';
 import type { SkillId } from '../game/rules.ts';
 import { Dialog } from './Dialog.tsx';
 import { SkillIcon } from './icons.tsx';
@@ -25,7 +25,7 @@ export function SkillDetails({
   return (
     <Dialog titleId="skill-title" className="skill-details">
       <div className="dialog-title" data-rarity={rarity}>
-        <SkillIcon id={id} size={32} />
+        <SkillIcon id={id} size={32} evolved={!!game.evolved[id]} />
         <div>
           <h2 id="skill-title">{c.upgrades[id].name}</h2>
           <span className="skill-rarity">{c.rarities[rarity]}</span>
@@ -36,7 +36,7 @@ export function SkillDetails({
       </div>
       <div className="dialog-body">
         <p>{c.upgrades[id].description}</p>
-        {game.evolved[id] && isEvolvable(id) && (
+        {game.evolved[id] && isSkill(id) && (
           <p className="skill-evolved">
             {c.evolutions[id].name} · {c.evolutions[id].description}
           </p>

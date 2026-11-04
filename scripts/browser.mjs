@@ -413,31 +413,20 @@ const showSkill = async (page, id, rank = 5, rarity = 'common') =>
       const nearest = [...g.targets].sort(
         (a, b) => Math.hypot(a.x - 180, a.y - 128) - Math.hypot(b.x - 180, b.y - 128),
       )[0];
-      if (id === 'burst') nearest.hp = nearest.maxHp = 1;
-      if (id === 'chase') g.targets.forEach((t) => (t.hp = 15));
+      if (['burst', 'fission', 'overcharge'].includes(id)) nearest.hp = nearest.maxHp = 1;
+      if (id === 'overcharge') g.combat.heat = g.forms.overcharge.kills - 1;
       if (id === 'surge') {
         for (const t of g.targets.slice(0, g.forms.surge.kills)) {
           t.hp = 1;
           g.combat.fireBasic(t);
         }
-      } else if (id === 'bridge') {
-        // Place a crossing on the actual orbital arc, away from the electron.
-        nearest.angle = g.angle + 0.2;
-        nearest.radius = g.radius;
-        nearest.x = 180 + Math.cos(nearest.angle) * nearest.radius;
-        nearest.y = 260 + Math.sin(nearest.angle) * nearest.radius;
-        g.combat.fireSkill('bridge');
-      } else if (id === 'vent') {
-        g.mass = 40;
-        g.combat.fireSkill('vent');
       } else if (id === 'charge') {
         for (let i = 0; i < Math.ceil(g.forms.charge.threshold); i++) g.combat.fireBasic();
       } else if (id === 'mark') {
         for (const t of g.targets.slice(0, g.forms.mark.threshold)) g.combat.fireBasic(t);
       } else if (id === 'tempo') {
         g.combat.sweep(3);
-      } else if (['strike', 'repel', 'focus', 'satellite', 'gather', 'chase'].includes(id))
-        g.combat.fireSkill(id);
+      } else if (['strike', 'satellite', 'spark', 'field'].includes(id)) g.combat.fireSkill(id);
       else g.combat.fireBasic();
       if (id === 'return') g.angle += 0.65;
       window.__gameDebug.advance(
@@ -445,9 +434,12 @@ const showSkill = async (page, id, rank = 5, rarity = 'common') =>
           ? 300
           : id === 'repeat'
             ? 150
-            : id === 'satellite' || id === 'bridge'
+            : id === 'satellite'
               ? 400
-              : 50,
+              : // Fission splits 0.06 s after the kill.
+                id === 'fission'
+                ? 100
+                : 50,
       );
       g.setHidden(true);
       return {
@@ -467,7 +459,7 @@ const skillFlow = async () => {
   for (const id of skillIds) {
     const result = await showSkill(page, id, 5, 'epic');
     assert.ok(
-      (id === 'vent' || result.damage.length > 0) &&
+      result.damage.length > 0 &&
         (id === 'satellite' ? result.satellites.length > 0 : result.effects.length > 0),
       'No visible skill impact: ' + id,
     );
@@ -485,7 +477,7 @@ const visualFlow = async () => {
       const result = await showSkill(page, id, rank);
       assert.ok(
         (id === 'satellite' ? result.satellites.length > 0 : result.effects.length > 0) &&
-          (id === 'vent' || result.hits > 0),
+          result.hits > 0,
         id + ' must produce an actual visible attack',
       );
       assert.ok(result.effects.every((fx) => fx.rank === rank));
@@ -701,7 +693,11 @@ const interfaceFlow = async () => {
   await page.evaluate(() => window.__gameDebug.advance(10000));
   await page.waitForTimeout(120);
   assert.deepEqual(await bounds(), after);
-  await step(1800);
+  // Step one strike period past the first cast, so the next cast has just fired.
+  const period = await page.evaluate(
+    () => window.__gameDebug.getModel().rules.skills.strike.periodSeconds,
+  );
+  await step(Math.round(period * 1000) - 1800);
   const fired = await bounds();
   assert.ok(fired.value < after.value);
   assert.equal(await strike.getAttribute('data-fired'), 'true');
@@ -758,12 +754,13 @@ const interfaceFlow = async () => {
   await page.evaluate(() => {
     const g = window.__gameDebug.getModel();
     g.setHidden(false);
-    g.ranks = { ...g.ranks, charge: 5, chain: 5, repel: 5, strike: 5 };
-    g.boosts = { power: 6, rate: 6, range: 6, speed: 6 };
-    g.evolved = { chain: true };
+    g.ranks = { ...g.ranks, charge: 5, chain: 5, field: 5, strike: 5 };
+    g.boosts = { power: 6, rate: 6, range: 6, crit: 6, luck: 6 };
+    // Every maxed skill is already evolved, so only stat cards remain.
+    g.evolved = { charge: true, chain: true, field: true, strike: true };
     g.selections = Array.from({ length: 20 }, (_, i) => ({
       time: i,
-      id: ['charge', 'chain', 'repel', 'strike'][i % 4],
+      id: ['charge', 'chain', 'field', 'strike'][i % 4],
       rank: Math.floor(i / 4) + 1,
       rarity: 'common',
       automatic: false,
@@ -775,7 +772,7 @@ const interfaceFlow = async () => {
   const statCards = (await snapshot(page)).choice.cards.map((c) => c.id);
   assert.equal(statCards.length, 3);
   assert.equal(new Set(statCards).size, 3);
-  assert.ok(statCards.every((id) => ['power', 'rate', 'range', 'speed'].includes(id)));
+  assert.ok(statCards.every((id) => ['power', 'rate', 'range', 'crit', 'luck'].includes(id)));
   assert.equal(await page.locator('.slot-max').count(), 4);
   await inspect(page);
   await inspectCards(page);
@@ -804,7 +801,7 @@ const polishFlow = async () => {
       cards: [
         { id: 'range', rarity: 'common' },
         { id: 'strike', rarity: 'legendary' },
-        { id: 'speed', rarity: 'common' },
+        { id: 'luck', rarity: 'common' },
       ],
     };
     g.setHidden(true);
@@ -933,7 +930,7 @@ const qaFlow = async () => {
         opened: 0,
         deadline: 8,
         cards: [
-          { id: 'bridge', rarity: 'rare' },
+          { id: 'field', rarity: 'rare' },
           { id: 'multi', rarity: 'common' },
           { id: 'recover', rarity: 'common' },
         ],
@@ -1501,7 +1498,7 @@ try {
     assert.equal(recovered.mass, before.mass - rules.recovery.mass);
     assert.equal(recovered.xp, before.xp);
     await screenshot(page, 'gravity-recovery');
-    report('mass vent removes mass and restores the orbit while keeping XP', {
+    report('mass release removes mass and restores the orbit while keeping XP', {
       before: before.radius,
       after: recovered.radius,
       mass: recovered.mass,
@@ -1549,7 +1546,7 @@ try {
       g.nextSpawn = g.tick;
       g.mass = 60;
       g.radius = 108;
-      Object.assign(g.boosts, { power: 4, rate: 4, range: 4, speed: 4 });
+      Object.assign(g.boosts, { power: 4, rate: 4, range: 4, crit: 4, luck: 4 });
       for (let i = 0; i < 20; i++) g.spawnBatch();
       for (const target of g.targets) target.hp = target.maxHp = 1000;
       window.__gameDebug.advance(0);

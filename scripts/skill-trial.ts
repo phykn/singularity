@@ -26,7 +26,7 @@ const phases = [
   { name: 'middle', time: 240, rank: 3, power: 3, rate: 2, range: 1, radius: 100, mass: 50 },
   { name: 'late', time: 480, rank: 5, power: 5, rate: 3, range: 2, radius: 75, mass: 90 },
 ];
-const contexts: SkillId[][] = [[], ['multi', 'chain', 'satellite'], ['focus', 'repeat', 'charge']];
+const contexts: SkillId[][] = [[], ['multi', 'chain', 'satellite'], ['spark', 'repeat', 'charge']];
 const rows = [];
 for (const phase of phases) {
   for (const rarity of rarities) {
@@ -60,7 +60,6 @@ for (const phase of phases) {
             power: phase.power,
             rate: phase.rate,
             range: phase.range,
-            speed: 1,
           });
           for (const skill of [...context, ...(id === 'none' ? [] : [id as SkillId])]) {
             g.ranks[skill] = phase.rank;
@@ -69,8 +68,7 @@ for (const phase of phases) {
           g.combat.reset();
           let damage = 0,
             overkill = 0,
-            hits = 0,
-            removed = 0;
+            hits = 0;
           const activations: Partial<Record<SkillId, number>> = {};
           const originalHit = g.damageTarget.bind(g);
           g.damageTarget = (target, value, attack) => {
@@ -83,7 +81,6 @@ for (const phase of phases) {
           };
           const originalLog = g.log.bind(g);
           g.log = (kind, data) => {
-            if (kind === 'vent') removed += (data as { removed: number }).removed;
             if (kind === 'skill-effect') {
               const skill = (data as { id: SkillId }).id;
               activations[skill] = (activations[skill] ?? 0) + 1;
@@ -123,7 +120,6 @@ for (const phase of phases) {
             killed,
             absorbed,
             mass: g.mass,
-            removed,
             damage,
             overkill,
             hits,
@@ -147,7 +143,7 @@ for (const context of [[], ['multi', 'chain', 'satellite']] as SkillId[][]) {
       g.start();
       g.tick = g.elapsedTicks = 390 * cfg.tickRate;
       g.selections.length = 1000;
-      Object.assign(g.boosts, { power: late.power, rate: late.rate, range: late.range, speed: 1 });
+      Object.assign(g.boosts, { power: late.power, rate: late.rate, range: late.range });
       for (const skill of [...context, id]) g.ranks[skill] = late.rank;
       g.combat.reset();
       g.bossCount = cfg.boss.stages.length - 1;
@@ -183,7 +179,7 @@ for (const phase of phases)
           r.rarity === rarity &&
           r.context === (context.join('+') || 'solo'),
       );
-      const avg = (set: typeof rows, key: 'killed' | 'absorbed' | 'mass' | 'damage' | 'removed') =>
+      const avg = (set: typeof rows, key: 'killed' | 'absorbed' | 'mass' | 'damage') =>
         set.reduce((s, r) => s + r[key], 0) / set.length;
       const base = group.filter((r) => r.id === 'none');
       for (const id of [...new Set(group.map((r) => r.id))]) {
@@ -196,7 +192,6 @@ for (const phase of phases)
           kills: avg(set, 'killed'),
           extraKills: avg(set, 'killed') - avg(base, 'killed'),
           avoidedMass: avg(base, 'mass') - avg(set, 'mass'),
-          removed: avg(set, 'removed'),
           effectiveDamage: avg(set, 'damage'),
           extraDamage: avg(set, 'damage') - avg(base, 'damage'),
           activations:

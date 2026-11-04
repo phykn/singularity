@@ -18,6 +18,8 @@ for (let a = 0; a < skillIds.length; a++)
       const g = stationarySkill({}, ts);
       g.mass = 40;
       ids.forEach((id) => choose(g, id));
+      // Overcharge needs dozens of kills; start it one kill short.
+      (g.combat as unknown as { heat: number }).heat = g.forms.overcharge.kills - 1;
       const original = ts.length + 1;
       for (let tick = 0; tick < 240; tick++) {
         if (tick % 6 === 0) {
@@ -46,7 +48,8 @@ for (let a = 0; a < skillIds.length; a++)
     });
   }
 
-for (const id of timedSkills.filter((id) => id !== 'vent' && id !== 'bridge')) {
+// Spark and Static Field scatter their own pops and ignore Repeat and Fork.
+for (const id of timedSkills.filter((id) => id === 'strike' || id === 'satellite')) {
   test(`Repeat and Fork modify ${id} hits without recursive cast duplication`, () => {
     const run = (modifiers: Partial<Record<SkillId, number>>) => {
       const ts = Array.from({ length: 10 }, (_, i) => {

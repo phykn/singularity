@@ -167,7 +167,7 @@ try {
     const g = window.__gameDebug.getModel();
     g.mass = 100;
     g.radius = 67;
-    g.boosts.speed = 25;
+    g.rules = { ...g.rules, baseSpeed: g.rules.baseSpeed * 3 };
   });
   for (let i = 0; i < 2; i++)
     await fast.getByRole('button', { name: new RegExp('^' + copy.ko.playbackSpeed) }).click();

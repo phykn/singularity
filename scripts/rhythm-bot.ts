@@ -10,17 +10,17 @@ const strength: Record<SkillId, number> = {
   repeat: 8,
   pierce: 8,
   burst: 7,
+  spark: 7,
   strike: 6,
-  focus: 6,
   satellite: 6,
-  bridge: 6,
+  field: 6,
+  fission: 6,
+  overcharge: 5,
   charge: 4,
   surge: 4,
   return: 4,
-  repel: 4,
-  chase: 4,
-  vent: 3,
-  gather: 3,
+  mark: 4,
+  tempo: 4,
 };
 function value(g: Game, card: Card) {
   const { id, rarity } = card;
@@ -31,7 +31,8 @@ function value(g: Game, card: Card) {
   if (id === 'power') return (g.boosts.power < 3 ? 12 : 7) * scale;
   if (id === 'rate') return (g.boosts.rate < 3 ? 9 : 5) * scale;
   if (id === 'range') return (g.boosts.range < 2 ? 6 : 3) * scale;
-  if (id === 'speed') return 2 * scale;
+  if (id === 'crit') return (g.boosts.crit < 4 ? 7 : 2) * scale;
+  if (id === 'luck') return 3 * scale;
   if (isSkill(id)) return strength[id] * scale * (g.ranks[id] ? 1.15 : 1);
   return 0;
 }
@@ -77,7 +78,7 @@ export function playRhythm(
   session.dispose();
   return {
     completed: session.rhythm.completed,
-    hits: game.resonances.length,
+    hits: game.resonances.filter((input) => input.beat > 0).length,
     misses,
     wallSeconds: wall / 1000,
   };

@@ -25,9 +25,10 @@ try {
         const g = debug.getModel();
         g.setHidden(true);
         g.xp = g.rules.energyGoal - 1;
-        Object.assign(g.boosts, { power: rank, rate: rank, range: rank, speed: rank });
+        Object.assign(g.boosts, { power: rank, rate: rank, range: rank, crit: rank, luck: rank });
         debug.advance(0);
-        return { damage: g.damage, rate: g.rate, range: g.range, speed: g.speed };
+        const crit = Math.min(g.rules.crit.max, g.rules.crit.perRank * rank) * 100;
+        return { damage: g.damage, rate: g.rate, range: g.range, crit, luck: rank };
       }, rank);
       const expected = String(Number(stats.rate.toFixed(2))) + '\u00d7';
       await page.waitForFunction(
@@ -40,7 +41,8 @@ try {
           String(Math.round(stats.damage)),
           expected,
           String(Math.round(stats.range)),
-          String(Math.round(stats.speed)),
+          String(Math.round(stats.crit)) + '%',
+          String(stats.luck),
         ]);
       }
       const bounds = await page.evaluate(() => {

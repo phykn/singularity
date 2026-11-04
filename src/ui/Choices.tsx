@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Choice } from '../game/types.ts';
 import type { Card, UpgradeId } from '../game/rules.ts';
-import { isEvolvable, isPact, isSkill, isStat } from '../game/rules.ts';
+import { isPact, isSkill, isStat } from '../game/rules.ts';
 import { pactText, skillChange, skillLinks } from './skillText.ts';
 import { SkillIcon, ControlIcon } from './icons.tsx';
 import { Rank } from './controls.tsx';
@@ -32,13 +32,13 @@ export function Choices({
     choice = game.choice,
     automatic = game.automaticCard?.id;
   const change = ({ id, rarity, evolve }: Card) =>
-    evolve && isEvolvable(id)
+    evolve && isSkill(id)
       ? c.evolutions[id].summary
       : isPact(id)
         ? pactText(id, language, rules).gain
         : skillChange(id, game.rank(id), rarity, game.rarities[id], language, rules, game.mass);
   const title = ({ id, evolve }: Card) =>
-    evolve && isEvolvable(id) ? c.evolutions[id].name : c.upgrades[id].short;
+    evolve && isSkill(id) ? c.evolutions[id].name : c.upgrades[id].short;
   const tag = ({ id, rarity, evolve }: Card) =>
     evolve ? c.evolve : isPact(id) ? c.pact : isStat(id) ? '' : c.rarities[rarity];
   const previous = useRef<{
@@ -153,7 +153,7 @@ export function Choices({
                     {id === automatic && <ControlIcon id="next" size={12} />}
                   </span>
                   <span className="card-icon">
-                    <SkillIcon id={id} size={32} />
+                    <SkillIcon id={id} size={32} evolved={evolve} />
                     {isSkill(id) && !evolve && (
                       <Rank value={game.rank(id)} max={rules.maxRank} next={game.rank(id) + 1} />
                     )}
@@ -196,7 +196,7 @@ export function Choices({
                 >
                   <span className="card-label">{tag(card) && <b>{tag(card)}</b>}</span>
                   <span className="card-icon">
-                    <SkillIcon id={id} size={32} />
+                    <SkillIcon id={id} size={32} evolved={evolve} />
                     {isSkill(id) && !evolve && (
                       <Rank
                         value={receipt.stages[i]}

@@ -84,6 +84,8 @@ for (let seed = start; seed < start + count; seed++) {
     rarities: g.rarities,
     ranks: g.ranks,
     boosts: g.boosts,
+    pacts: g.pacts,
+    evolved: g.evolved,
     offers,
     selections: g.selections,
     lateSeconds,

@@ -38,7 +38,7 @@ try {
       game.tick = game.elapsedTicks = 27000;
       game.mass = 80;
       game.radius = 100;
-      game.boosts = { power: 4, rate: 4, range: 4, speed: 4 };
+      game.boosts = { power: 4, rate: 4, range: 4, crit: 4, luck: 4 };
       Object.assign(game.ranks, { pierce: 5, multi: 5, repeat: 5, chain: 5 });
       const particles = ['quark', 'muon', 'proton', 'neutron'];
       game.targets = Array.from({ length: count }, (_, id) => {
@@ -157,9 +157,9 @@ try {
   const scenarios = [
     { count: 200, skills: ['pierce', 'multi', 'repeat', 'chain'], name: '200' },
     { count: 800, skills: ['pierce', 'multi', 'repeat', 'chain'], name: '800' },
-    { count: 800, skills: ['satellite', 'bridge', 'multi', 'repeat'], name: 'persistent' },
-    { count: 800, skills: ['gather', 'vent', 'return', 'repel'], name: 'control' },
-    { count: 800, skills: ['focus', 'charge', 'repeat', 'chain'], name: 'charge' },
+    { count: 800, skills: ['satellite', 'strike', 'multi', 'repeat'], name: 'persistent' },
+    { count: 800, skills: ['spark', 'field', 'fission', 'overcharge'], name: 'pops' },
+    { count: 800, skills: ['mark', 'charge', 'repeat', 'chain'], name: 'charge' },
   ];
   for (const { count, skills, name } of process.argv.includes('--frozen') ? [] : scenarios) {
     await page.evaluate(
@@ -170,7 +170,7 @@ try {
         game.setHidden(true);
         game.mass = 80;
         game.radius = 100;
-        game.boosts = { power: 4, rate: 4, range: 4, speed: 4 };
+        game.boosts = { power: 4, rate: 4, range: 4, crit: 4, luck: 4 };
         for (const id of skills) {
           game.ranks[id] = 5;
           game.combat.learn(id, 0);

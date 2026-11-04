@@ -17,7 +17,14 @@ import { healthBar } from '../src/render/healthBars.ts';
 import { drawEffect } from '../src/render/drawEffects.ts';
 import type { Effect } from '../src/game/types.ts';
 import { skillIds, upgradeIds } from '../src/game/rules.ts';
-import { iconCells, iconIds, controlCells, controlIds } from '../src/art/skills.ts';
+import {
+  controlCells,
+  controlIds,
+  evolvedCells,
+  iconAtlasSize,
+  iconCells,
+  iconIds,
+} from '../src/art/skills.ts';
 import { close, target } from './helpers.ts';
 import { drawWaveWarning, WARNING_RED } from '../src/render/warning.ts';
 import { drawElectronField } from '../src/render/electronField.ts';
@@ -68,16 +75,17 @@ test('native sprites paint only palette pixels within their texture bounds', () 
 
 test('generated icon atlases have transparent-capable PNGs and unique in-bounds cells', () => {
   assert.deepEqual(Object.keys(iconCells).sort(), [...upgradeIds].sort());
-  assert.deepEqual(iconCells.overload, iconCells.power);
-  assert.deepEqual(iconCells.greed, iconCells.speed);
-  assert.deepEqual(iconCells.overclock, iconCells.rate);
+  assert.deepEqual(Object.keys(evolvedCells), [...skillIds]);
   const cells = new Set<string>();
-  for (const id of iconIds) {
-    const { x, y } = iconCells[id],
-      cell = `${x},${y}`;
+  const { width: atlasWidth, height: atlasHeight } = iconAtlasSize;
+  for (const [id, { x, y }] of [
+    ...iconIds.map((id) => [id, iconCells[id]] as const),
+    ...skillIds.map((id) => ['evolved ' + id, evolvedCells[id]] as const),
+  ]) {
+    const cell = `${x},${y}`;
     assert.ok(!cells.has(cell), id);
     cells.add(cell);
-    assert.ok(x >= 0 && y >= 0 && x + 32 <= 224 && y + 32 <= 96, id);
+    assert.ok(x >= 0 && y >= 0 && x + 32 <= atlasWidth && y + 32 <= atlasHeight, id);
     assert.equal((x % 32) + (y % 32), 0, id);
   }
   assert.equal(
@@ -89,7 +97,7 @@ test('generated icon atlases have transparent-capable PNGs and unique in-bounds 
     assert.equal((x % 32) + (y % 32), 0);
   }
   for (const [path, width, height] of [
-    ['../src/art/assets/skills.png', 224, 96],
+    ['../src/art/assets/skills.png', iconAtlasSize.width, iconAtlasSize.height],
     ['../src/art/assets/controls.png', 128, 64],
   ] as const) {
     const png = readFileSync(new URL(path, import.meta.url));
@@ -190,9 +198,9 @@ test('wave warnings mark both incoming directions in red and pulse with simulati
 });
 
 const effect: Effect = {
-  kind: 'focus',
+  kind: 'bolt',
   arc: { start: 0, sweep: 0.6 },
-  source: 'focus',
+  source: 'chain',
   from: { x: 10, y: 20 },
   to: { x: 90, y: 100 },
   radius: 50,
@@ -216,54 +224,37 @@ test('a staggered kill holds its particle, then pops with shards in the particle
     particle: 'muon',
   } as Effect;
   const held = drawing();
-  drawEffect(held.graphics, fx, 1.05, 1, fx.from, [], held.paint);
+  drawEffect(held.graphics, fx, 1.05, 1, fx.from, held.paint);
   assert.deepEqual(
     held.commands.map((c) => c.method),
     ['particle:muon'],
   );
   const popped = drawing();
-  drawEffect(popped.graphics, fx, 1.2, 1, fx.from, [], popped.paint);
+  drawEffect(popped.graphics, fx, 1.2, 1, fx.from, popped.paint);
   const methods = popped.commands.map((c) => c.method);
   assert.ok(methods.includes('stamp:dissolve') && !methods.includes('particle:muon'));
   assert.equal(methods.filter((m) => m === 'fillRect').length, 6, 'One pixel per shard');
   const boss = drawing();
-  drawEffect(boss.graphics, { ...fx, radius: 36, delay: 0 }, 1.1, 1, fx.from, [], boss.paint);
+  drawEffect(boss.graphics, { ...fx, radius: 36, delay: 0 }, 1.1, 1, fx.from, boss.paint);
   const stamp = boss.commands.find((c) => c.method === 'stamp:dissolve')!;
   assert.equal(stamp.args.at(-1), 72, 'Boss pops scale with the boss');
 });
 
 test('lightning remains finite at mobile scales and never changes combat data', () => {
   for (const id of skillIds) {
-    const kind = [
-      'multi',
-      'repeat',
-      'chain',
-      'burst',
-      'repel',
-      'gather',
-      'chase',
-      'satellite',
-      'mark',
-      'tempo',
-    ].includes(id)
-      ? 'bolt'
-      : id;
+    const kind = ['pierce', 'strike', 'charge', 'surge', 'return'].includes(id)
+      ? id
+      : id === 'field' || id === 'overcharge'
+        ? 'field'
+        : 'bolt';
     const fx = { ...effect, source: id, kind } as Effect;
     const before = structuredClone(fx);
     for (const scale of [0.65, 1, 1.75]) {
       const active = drawing();
-      drawEffect(
-        active.graphics,
-        fx,
-        kind === 'surge' ? 1.05 : 1.5,
-        scale,
-        fx.from,
-        [],
-        active.paint,
-      );
+      drawEffect(active.graphics, fx, kind === 'surge' ? 1.05 : 1.5, scale, fx.from, active.paint);
       assert.ok(active.commands.length > 0, id + ' must have a visible attack');
       const expired = drawing();
-      drawEffect(expired.graphics, fx, 2, scale, fx.from, [], expired.paint);
+      drawEffect(expired.graphics, fx, 2, scale, fx.from, expired.paint);
       assert.equal(expired.commands.length, 0);
       const coincident = drawing();
       drawEffect(
@@ -272,7 +263,6 @@ test('lightning remains finite at mobile scales and never changes combat data', 
         1.5,
         scale,
         fx.from,
-        [],
         coincident.paint,
       );
     }
@@ -299,21 +289,6 @@ test('effect frames stay inside their row, clamp transient animation and freeze 
   }
 });
 
-test('focused lightning follows the current electron and tracked particle', () => {
-  const enemy = target(7, 160, 210, 100);
-  const electron = { x: 40, y: 60 };
-  const fx = { ...effect, anchor: 'electron' as const, targetId: enemy.id };
-  const before = structuredClone({ fx, enemy, electron });
-  {
-    const { graphics, commands, paint } = drawing();
-    drawEffect(graphics, fx, 1.5, 1, electron, [enemy], paint);
-    const focused = commands.find(({ method }) => method === 'beam:focus');
-    assert.ok(focused);
-    assert.deepEqual(focused.args.slice(0, 4), [electron.x, electron.y, enemy.x, enemy.y]);
-  }
-  assert.deepEqual({ fx, enemy, electron }, before);
-});
-
 test('returning lightning reconnects to the live electron instead of its old position', () => {
   const fx = {
     ...effect,
@@ -323,7 +298,7 @@ test('returning lightning reconnects to the live electron instead of its old pos
   };
   const electron = { x: 220, y: 280 };
   const { graphics, commands, paint } = drawing();
-  drawEffect(graphics, fx, 1.8, 1, electron, [], paint);
+  drawEffect(graphics, fx, 1.8, 1, electron, paint);
   const returned = commands.find(({ method }) => method === 'beam:return')!;
   assert.deepEqual(returned.args.slice(0, 4), [fx.from.x, fx.from.y, electron.x, electron.y]);
   const contact = commands.find(({ method }) => method === 'contact')!;
@@ -335,7 +310,6 @@ test('returning lightning reconnects to the live electron instead of its old pos
     1.8,
     1,
     electron,
-    [],
     piercing.paint,
   );
   assert.deepEqual(piercing.commands.find((c) => c.method === 'beam:pierce')!.args.slice(0, 4), [
@@ -361,7 +335,6 @@ test('satellite echoes and returns follow the actual emitting satellite, includi
       1.5,
       1,
       electron,
-      [],
       outbound.paint,
       132,
       satellites,
@@ -372,7 +345,6 @@ test('satellite echoes and returns follow the actual emitting satellite, includi
       1.8,
       1,
       electron,
-      [],
       inbound.paint,
       132,
       satellites,
@@ -443,9 +415,9 @@ test('rapid charging hits display the newest charge level once while their attac
 
 test('lightning beam heights use whole screen pixels at every viewport scale', () => {
   for (const scale of [0.65, 1, 1.75]) {
-    for (const kind of ['bolt', 'strike', 'focus', 'pierce', 'return'] as const) {
+    for (const kind of ['bolt', 'strike', 'trail', 'pierce', 'return'] as const) {
       const { graphics, commands, paint } = drawing();
-      drawEffect(graphics, { ...effect, kind }, 1.5, scale, effect.from, [], paint);
+      drawEffect(graphics, { ...effect, kind }, 1.5, scale, effect.from, paint);
       const widths = commands
         .filter(({ method }) => method.startsWith('beam:'))
         .map(({ args }) => args[7]);
@@ -554,8 +526,8 @@ test('strike artwork keeps a slender white trunk and stronger golden forks inste
 });
 
 test('equal single-hit damage keeps beam thickness and brightness across all skill levels', () => {
-  for (const source of skillIds.filter((id) => id !== 'vent')) {
-    const kind = ['strike', 'focus', 'bridge', 'return'].includes(source) ? source : 'bolt';
+  for (const source of skillIds.filter((id) => !['field', 'overcharge'].includes(id))) {
+    const kind = ['strike', 'return'].includes(source) ? source : 'bolt';
     const commands = [];
     for (let rank = 1; rank <= 5; rank++) {
       const a = drawing();
@@ -565,7 +537,6 @@ test('equal single-hit damage keeps beam thickness and brightness across all ski
         1.02,
         1,
         effect.from,
-        [],
         a.paint,
       );
       const beams = a.commands.filter((c) => c.method.startsWith('beam:'));
@@ -596,7 +567,7 @@ test('single-hit damage adds ten beam widths up to 100 damage without growing im
     [1e100, 10],
   ]) {
     const a = drawing();
-    drawEffect(a.graphics, { ...effect, kind: 'bolt', damage }, 1.02, 1, effect.from, [], a.paint);
+    drawEffect(a.graphics, { ...effect, kind: 'bolt', damage }, 1.02, 1, effect.from, a.paint);
     const beam = a.commands.find((c) => c.method.startsWith('beam:'))!;
     assert.equal(beam.args[8], width);
     assert.equal(beamStrength(damage), width);
@@ -610,7 +581,6 @@ test('single-hit damage adds ten beam widths up to 100 damage without growing im
       1.7,
       1,
       effect.from,
-      [],
       returning.paint,
     );
     const contact = returning.commands.find((c) => c.method === 'contact')!;
@@ -618,7 +588,7 @@ test('single-hit damage adds ten beam widths up to 100 damage without growing im
   }
   const beams = [5, 13, 100].map((damage) => {
     const a = drawing();
-    drawEffect(a.graphics, { ...effect, kind: 'bolt', damage }, 1.02, 1, effect.from, [], a.paint);
+    drawEffect(a.graphics, { ...effect, kind: 'bolt', damage }, 1.02, 1, effect.from, a.paint);
     return a.commands.find((c) => c.method.startsWith('beam:'))!.args;
   });
   assert.deepEqual(

@@ -15,9 +15,9 @@ export const beamRows = {
   chain: 1,
   pierce: 2,
   strike: 3,
-  focus: 4,
+  spark: 4,
   charge: 5,
-  bridge: 6,
+  trail: 6,
   return: 7,
 } as const;
 type BeamId = keyof typeof beamRows;
@@ -85,12 +85,13 @@ export function visibleEffects(effects: Effect[]): Effect[] {
     pierce: 3,
     burst: 6,
     strike: 8,
-    bridge: 5,
+    trail: 5,
     charge: 1,
-    vent: 8,
+    field: 8,
     surge: 1,
     return: 10,
-    focus: 8,
+    fission: 12,
+    spark: 12,
     kill: 32,
     level: 2,
     upgrade: 1,
@@ -101,14 +102,14 @@ export function visibleEffects(effects: Effect[]): Effect[] {
   return [...effects]
     .reverse()
     .filter((effect) => {
-      if (['focus', 'bridge', 'charge'].includes(effect.kind) && effect.targetId !== undefined) {
+      if (effect.kind === 'charge' && effect.targetId !== undefined) {
         const key = effect.kind + effect.targetId;
         if (beams.has(key)) return false;
         beams.add(key);
       }
       const key =
         effect.kind === 'bolt'
-          ? ['chain', 'burst'].includes(effect.source ?? '')
+          ? ['chain', 'burst', 'fission', 'spark'].includes(effect.source ?? '')
             ? effect.source!
             : 'primary'
           : effect.kind;

@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { devices } from 'playwright';
 import { base, capture, launchBrowser, observeScene, reporter } from './browser-support.mjs';
 import { copy } from '../src/ui/i18n.ts';
-import { rules } from '../src/game/rules.ts';
+import { powerScale, rules } from '../src/game/rules.ts';
 
 const browser = await launchBrowser();
 const context = await browser.newContext({ ...devices['Pixel 7'] });
@@ -209,7 +209,7 @@ try {
     window.__gameDebug.advance(0);
   });
   const damage = await page.evaluate(() => window.__gameDebug.getModel().damageNumbers);
-  const power = rules.baseHitDamage + 3 * rules.damagePerRank;
+  const power = rules.baseHitDamage * powerScale(3);
   const expectedDamage = [power, power / (1 + rules.skills.multi.spreadCost)];
   assert.equal(damage.length, 2);
   assert.ok(damage.every((n, i) => Math.abs(n.value - expectedDamage[i]) < 1e-8));

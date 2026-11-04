@@ -4,16 +4,17 @@ import { distance } from '../src/game/geometry.ts';
 import { rules } from '../src/game/rules.ts';
 import { close, stationarySkill, target } from './helpers.ts';
 
-test('gather branches share Multi damage scaling with their repeated hits', () => {
-  const enemies = [target(0, 200, 128, 1000), target(1, 230, 128, 1000)];
-  const g = stationarySkill({ gather: 1, multi: 1, repeat: 1 }, enemies);
-  const damage = g.damage * g.forms.gather.damage;
-  g.combat.fireSkill('gather');
-  close(1000 - enemies[0].hp, damage);
-  close(1000 - enemies[1].hp, damage * g.forms.multi.damage);
+test('strike branches share Multi damage scaling with their repeated hits', () => {
+  const enemies = [target(0, 200, 128, 1000), target(1, 230, 128, 900)];
+  const g = stationarySkill({ strike: 1, multi: 1, repeat: 1 }, enemies);
+  g.combat.fireSkill('strike');
+  g.advance(60);
+  const first = 1000 - enemies[0].hp,
+    second = 900 - enemies[1].hp;
+  assert.ok(first > 0 && second > 0, 'Fork adds a second strike target');
   g.advance(500);
-  close(1000 - enemies[0].hp, damage * (1 + g.forms.repeat.damage));
-  close(1000 - enemies[1].hp, damage * g.forms.multi.damage * (1 + g.forms.repeat.damage));
+  assert.ok(1000 - enemies[0].hp > first, 'Repeat follows the strike');
+  assert.ok(900 - enemies[1].hp > second, 'Repeat follows the forked strike');
 });
 
 test('satellites distribute fire before sharing a target and repeats follow their live emitter', () => {
@@ -78,63 +79,4 @@ test('satellite hits feed Charge and Surge; satellite kills can release Burst', 
   h.combat.fireSkill('satellite');
   assert.ok(h.combat.activations.burst !== undefined);
   assert.ok(h.targets[0].hp < 1000);
-});
-
-test('pursuit continues when a repeat finishes its wounded target, using the same jump budget', () => {
-  const first = target(0, 190, 128, 100),
-    second = target(1, 225, 128, 100);
-  second.hp = 30;
-  const g = stationarySkill({ chase: 1, repeat: 1 }, [first, second]);
-  first.hp = g.damage * g.forms.chase.damage * (1 + g.forms.repeat.damage / 2);
-  g.combat.fireSkill('chase');
-  assert.ok(first.hp > 0);
-  g.advance(150);
-  assert.ok(first.hp <= 0);
-  close(second.hp, 30);
-  g.advance(110);
-  assert.ok(second.hp < 30, 'The repeat kill must unlock the next pursuit');
-  const jumps = g.events.filter(
-    (e) => e.kind === 'skill-effect' && (e.data as { id: string }).id === 'chase',
-  );
-  assert.equal(jumps.length, 3, 'Initial delivery, cast activation and one follow-up');
-});
-
-test('pursuit repeats never retarget healthy enemies after a kill', () => {
-  const g = stationarySkill({ chase: 5, repeat: 5 }, [
-    target(0, 190, 128, 1),
-    target(1, 205, 128, 1000),
-  ]);
-  // Mark the fragile target wounded without making the healthy neighbor eligible.
-  g.targets[0].maxHp = 100;
-  g.combat.fireSkill('chase');
-  g.advance(1200);
-  assert.equal(g.targets[0].hp, 1000);
-});
-
-test('gather and repel preserve safe radius while creating follow-up opportunities', () => {
-  const enemies = [target(0, 190, 128, 1000), target(1, 230, 145, 1000), target(2, 245, 100, 1000)];
-  const g = stationarySkill({ gather: 3, repel: 3, chain: 2, satellite: 3 }, enemies);
-  const before = enemies.map((p) => p.radius);
-  const spread = distance(enemies[0], enemies[1]);
-  g.combat.fireSkill('gather');
-  assert.ok(distance(enemies[0], enemies[1]) < spread);
-  g.combat.fireSkill('repel');
-  g.combat.fireSkill('satellite');
-  enemies.forEach((p, i) => assert.ok(p.radius >= before[i]));
-  assert.ok(g.combat.activations.chain !== undefined);
-});
-
-test('mass vent buys orbital room without multiplying healing through offensive modifiers', () => {
-  const g = stationarySkill({ vent: 3, repeat: 5, multi: 5, charge: 5 }, [
-    target(0, 200, 128, 1000),
-  ]);
-  g.mass = 80;
-  g.radius = g.targetRadius;
-  const before = g.radius;
-  g.combat.fireSkill('vent');
-  g.advance(1000);
-  assert.equal(g.mass, 80 - rules.skills.vent.mass[3]);
-  assert.ok(g.radius > before);
-  assert.equal(g.targets[0].hp, 1000);
-  assert.equal(g.combat.status('charge').progress, 0);
 });

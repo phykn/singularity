@@ -8,25 +8,56 @@ const browser = await launchBrowser();
 try {
   const page = await browser.newPage();
   if (!process.argv.includes('--effects')) {
-    const png = await packIcons(page, [
-      {
-        path: 'assets/icon-art/interface-source.png',
-        columns: 7,
-        rows: 2,
-        cells: Array.from({ length: 5 }, (_, i) => [i, i]),
-      },
-      {
-        path: 'assets/icon-art/skill-source.png',
-        columns: 4,
-        rows: 4,
-        cells: Array.from({ length: 16 }, (_, i) => [i, i + 5]),
-      },
-    ]);
+    // Order follows src/art/skills.ts: stats, recover, 16 skills, 8 pacts, then 16 evolutions.
+    const skill = (cell) => ['assets/icon-art/skill-source.png', 4, 4, cell];
+    const added = (cell) => ['assets/icon-art/skill-new-source.png', 4, 2, cell];
+    const statPact = (cell) => ['assets/icon-art/stat-pact-source.png', 5, 2, cell];
+    const face = (cell) => ['assets/icon-art/interface-source.png', 7, 2, cell];
+    const sources = [
+      face(0), // power
+      face(1), // rate
+      face(2), // range
+      statPact(0), // crit
+      statPact(1), // luck
+      face(4), // recover
+      skill(0), // repeat
+      skill(1), // multi
+      skill(2), // chain
+      skill(3), // pierce
+      skill(4), // burst
+      added(6), // strike
+      skill(8), // satellite
+      skill(9), // charge
+      skill(14), // surge
+      skill(15), // return
+      added(4), // mark
+      added(5), // tempo
+      added(0), // spark
+      added(1), // field
+      added(2), // fission
+      added(3), // overcharge
+      ...Array.from({ length: 8 }, (_, i) => statPact(i + 2)),
+      ...Array.from({ length: 16 }, (_, i) => [
+        'assets/icon-art/evolution-source.png',
+        4,
+        4,
+        // Evolution sheet order: chain, multi, pierce, satellite, strike, repeat, burst, charge,
+        // return, surge, mark, tempo, spark, field, fission, overcharge.
+        [5, 1, 0, 2, 6, 4, 3, 7, 9, 8, 10, 11, 12, 13, 14, 15][i],
+      ]),
+    ];
+    const layers = new Map();
+    sources.forEach(([path, columns, rows, cell], destination) => {
+      const layer = layers.get(path) ?? { path, columns, rows, cells: [] };
+      layer.cells.push([cell, destination]);
+      layers.set(path, layer);
+    });
+    const png = await packIcons(page, [...layers.values()], 8, 6);
     const buffer = Buffer.from(png, 'base64');
-    assert.equal(buffer.readUInt32BE(16), 224);
-    assert.equal(buffer.readUInt32BE(20), 96);
+    assert.equal(buffer.readUInt32BE(16), 256);
+    assert.equal(buffer.readUInt32BE(20), 192);
     writeFileSync('src/art/assets/skills.png', buffer);
-    console.log('Packed 21 generated icons into the 224×96 transparent atlas.');
+    console.log(`Packed ${sources.length} generated icons into the 256×192 transparent atlas.`);
     const controls = await packIcons(
       page,
       [

@@ -3,7 +3,7 @@ import { rules } from '../game/rules.ts';
 import { singularitySilenceSeconds } from '../presentation/ending.ts';
 
 type Bus = 'preview' | 'hit' | 'rhythm' | 'transition';
-type Recipe = 'key' | 'impact' | 'pop' | 'pair' | 'inhale' | 'exhale';
+type Recipe = 'key' | 'impact' | 'pop' | 'pair' | 'chord' | 'inhale' | 'exhale';
 type Definition = {
   bus: Bus;
   recipe: Recipe;
@@ -32,6 +32,12 @@ export const soundDefinitions = {
     color: 1.08,
     variants: bank.keys.length,
   },
+  // Thunderstrike: several keys slammed together over one low space bar.
+  thunder: { bus: 'hit', recipe: 'chord', duration: 0.16, gain: 0.5, color: 0.9, variants: 4 },
+  // A critical hit: one key struck hard and low.
+  crit: { bus: 'hit', recipe: 'impact', duration: 0.08, gain: 0.44, color: 0.86, variants: 4 },
+  // A rare or better card in the offer: one clear high key.
+  rare: { bus: 'rhythm', recipe: 'key', duration: 0.12, gain: 0.3, color: 1.3, variants: 2 },
   wave: {
     bus: 'transition',
     recipe: 'pair',
@@ -103,7 +109,9 @@ function decode(encoded: string) {
   }
   return samples;
 }
-function recording(index: number) {
+function recording(at: number) {
+  // A chord can reach past the last key; wrap around the bank.
+  const index = at % bank.keys.length;
   let key = recordings.get(index);
   if (!key) {
     key = { press: decode(bank.keys[index].press), release: decode(bank.keys[index].release) };
@@ -118,7 +126,9 @@ export function renderSound(kind: SoundKind, sampleRate: number, variant = 0): F
   let seed = 2166136261;
   for (const char of kind) seed = Math.imul(seed ^ char.charCodeAt(0), 16777619);
   const palette =
-    kind === 'hit' || kind === 'pop' ? bank.keys.length : soundDefinitions.preview.variants;
+    kind === 'hit' || kind === 'pop' || kind === 'thunder' || kind === 'crit'
+      ? bank.keys.length
+      : soundDefinitions.preview.variants;
   const first = ((seed >>> 0) + variant * 5) % palette;
   seed ^= Math.imul(variant + 1, 0x9e3779b9);
   const random = () => {
@@ -183,6 +193,11 @@ export function renderSound(kind: SoundKind, sampleRate: number, variant = 0): F
       break;
     case 'pair':
       strokes(2, 1.05);
+      break;
+    case 'chord':
+      for (let i = 0; i < 4; i++) add(0.002 * i, recording(first + i * 4).press, 0.8, color);
+      add(0.004, recording(first + 2).press, 1.1, color * 0.62);
+      add(0.07, recording(first + 2).release, 0.35, color * 0.66);
       break;
     case 'impact':
       add(0, recording(first).press, kind === 'rhythm-complete' ? 1.65 : 1.25, color);

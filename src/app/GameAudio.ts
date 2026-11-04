@@ -128,14 +128,23 @@ export class GameAudio {
     const cues: SoundCue[] = [];
     const listener = game.position;
     const hits = new Map<number, SoundCue>();
+    let accents = 0;
     for (let i = Math.max(0, from - game.eventOffset); i < game.events.length; i++) {
       const event = game.events[i];
       if (event.kind === 'hit') {
-        const point = event.data as Point & { id: number };
+        const point = event.data as Point & { id: number; crit?: boolean };
         const cue = { kind: 'hit', space: soundSpace(point, listener) };
         hits.set(point.id, cue);
         cues.push(cue);
-      } else if (event.kind === 'kill') {
+        // A critical hit adds one hard stroke; a few per batch keep them as accents.
+        if (point.crit && accents++ < 2) cues.push({ kind: 'crit', space: cue.space });
+      } else if (event.kind === 'thunder') cues.push({ kind: 'thunder' });
+      else if (
+        event.kind === 'cards' &&
+        (event.data as { cards: { rarity: string }[] }).cards.some((c) => c.rarity !== 'common')
+      )
+        cues.push({ kind: 'rare' });
+      else if (event.kind === 'kill') {
         // The killing hit becomes a full keystroke on the same shuffled keycaps.
         const cue = hits.get((event.data as { id: number }).id);
         if (cue) cue.kind = 'pop';

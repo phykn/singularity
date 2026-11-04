@@ -59,7 +59,8 @@ export class DamageLabels {
       }
       const x = width / 2 + (damage.x - 180) * scale;
       const y = centerY + (damage.y - 260) * scale - 4 - age * 16;
-      text.setText(String(Math.round(damage.value))).setScale(1);
+      // Critical hits print larger in the brightest digits.
+      text.setText(String(Math.round(damage.value))).setScale(damage.crit ? 1.5 : 1);
       let placed = false;
       const saved = this.offsets.get(damage.id);
       for (const [dx, dy] of saved
@@ -101,7 +102,7 @@ export class DamageLabels {
       if (!text.active) text.setActive(true);
       if (!text.visible) text.setVisible(true);
       const font =
-        damage.value >= 5
+        damage.crit || damage.value >= 5
           ? damageFonts.high
           : damage.value > 2
             ? damageFonts.normal

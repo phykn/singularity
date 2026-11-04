@@ -38,7 +38,9 @@ test('first two beats deal real small hits and scale Charge children without inf
 
   const heavy = target(2, 180, 128, 100000);
   const charged = stationarySkill({ charge: 1 }, [heavy]);
-  for (let i = 0; i < 3; i++) charged.combat.fireBasic();
+  // Leave the capacitor one hit short, so the beat completes it.
+  for (let i = 0; i < Math.ceil(charged.forms.charge.threshold) - 1; i++)
+    charged.combat.fireBasic();
   const before = heavy.hp;
   assert.ok(charged.resonate(1));
   close(

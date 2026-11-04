@@ -24,7 +24,7 @@ function scene(skills: SkillId[], cfg: RuleSet = rules, hp?: (index: number) => 
   game.ranks = { ...blankRanks(), ...Object.fromEntries(skills.map((id) => [id, 1])) };
   const { x, y } = game.position;
   const targets: Target[] = [];
-  // Wounded and fragile enemies along the orbit: Pursuit can aim, kills can arc, barriers can touch.
+  // Wounded and fragile enemies along the orbit, so kills can arc and strikes can aim.
   for (let i = 0; i < 24; i++) {
     const angle = game.angle + (i - 6) * 0.08,
       radius = game.radius + (i % 3) * 14;
@@ -45,7 +45,8 @@ function scene(skills: SkillId[], cfg: RuleSet = rules, hp?: (index: number) => 
 
 function fire(game: Game, id: SkillId) {
   if (id === 'surge') {
-    for (let i = 0; i < 100 && !game.combat.status('surge').active; i++) game.combat.killed();
+    for (let i = 0; i < 100 && !game.combat.status('surge').active; i++)
+      game.combat.killed(target(-1, 0, 0, 1));
   } else game.combat.fireSkill(id as TimedSkill);
   game.advance(800);
 }
@@ -58,18 +59,15 @@ function hits(game: Game) {
 
 const chargeProgress = (skills: SkillId[]) => {
   const game = scene(['charge', ...skills], slowCharge);
-  if (skills[0] === 'focus') fire(game, 'focus');
-  else {
-    game.combat.fireBasic();
-    game.advance(800);
-  }
+  game.combat.fireBasic();
+  game.advance(800);
   return game.combat.status('charge').progress;
 };
 
 function linked(effect: SkillId, attacker: SkillId): void {
   const label = `${effect} on ${attacker}`;
   if (effect === 'charge') {
-    const baseline = attacker === 'focus' ? 0 : chargeProgress([]);
+    const baseline = chargeProgress([]);
     assert.ok(chargeProgress([attacker]) > baseline, label);
     return;
   }
@@ -118,16 +116,18 @@ test('every link shown on a card is a real combat interaction', () => {
   assert.ok(pairs > 0);
 });
 
-test('links are selective: Barrier cannot fork or return, and Reclaim has no combat link', () => {
-  for (const effect of ['multi', 'return'] as const) {
-    assert.deepEqual(skillLinks(effect, ['bridge']), []);
-    const game = scene([effect, 'bridge']);
-    fire(game, 'bridge');
-    assert.equal(game.combat.activations[effect], undefined, effect);
-  }
-  assert.deepEqual(skillLinks('vent', skillIds), []);
+test('links are selective: Spark and Static Field ignore Fork and Repeat', () => {
+  for (const attacker of ['spark', 'field'] as const)
+    for (const effect of ['multi', 'repeat'] as const) {
+      assert.deepEqual(skillLinks(effect, [attacker]), []);
+      const game = scene([effect, attacker]);
+      fire(game, attacker);
+      assert.equal(game.combat.activations[effect], undefined, `${effect} on ${attacker}`);
+    }
+  for (const id of ['fission', 'overcharge', 'tempo'] as const)
+    assert.deepEqual(skillLinks(id, skillIds), []);
   assert.deepEqual(skillLinks('power', skillIds), []);
-  assert.deepEqual(skillLinks('strike', ['satellite', 'focus']), []);
+  assert.deepEqual(skillLinks('strike', ['satellite', 'spark']), []);
   assert.deepEqual(skillLinks('chain', ['chain']), []);
 });
 

@@ -86,7 +86,7 @@ test('XP thresholds continue beyond level 26 with exact boundaries and carried p
 test('maxed skills leave three repeatable stat choices and upgrades work above rank five', () => {
   const g = fixture({ burst: 5, repeat: 5, chain: 5, pierce: 5 });
   for (const rank of [5, 20, 100]) {
-    g.boosts = { power: rank, rate: rank, range: rank, speed: rank };
+    g.boosts = { power: rank, rate: rank, range: rank, crit: rank, luck: rank };
     for (const danger of [false, true]) {
       const cards = makeCards(
         { ranks: g.ranks, boosts: g.boosts, number: 100, danger, recoverable: danger },
@@ -96,13 +96,13 @@ test('maxed skills leave three repeatable stat choices and upgrades work above r
       else assert.ok(cards.every((id) => statIds.includes(id as (typeof statIds)[number])));
       assert.equal(cards.length, 3);
     }
-    const before = [g.damage, g.rate, g.range, g.speed];
+    const before = [g.damage, g.rate, g.range];
     statIds.forEach((id) => choose(g, id));
     assert.deepEqual(
       statIds.map((id) => g.boosts[id]),
-      [rank + 1, rank + 1, rank + 1, rank + 1],
+      statIds.map(() => rank + 1),
     );
-    [g.damage, g.rate, g.range, g.speed].forEach((value, i) => assert.ok(value > before[i]));
+    [g.damage, g.rate, g.range].forEach((value, i) => assert.ok(value > before[i]));
     assert.deepEqual(g.ranks, { ...blankRanks(), burst: 5, repeat: 5, chain: 5, pierce: 5 });
   }
 });
@@ -291,40 +291,20 @@ test('rarity roll boundaries and seeded base frequencies match published odds', 
   for (const id of rarityIds) close(counts[id] / 1000, rules.rarity[id].chance, 0.5);
 });
 
-test('automatic selection skips recovery made unavailable by mass release', () => {
-  const game = new Game(1654, { combat: false });
-  game.start();
-  game.debugSetXp(14);
-  assert.ok(game.select('vent'));
-  game.mass = 31;
-  game.debugSetXp(85);
-  assert.deepEqual(game.choice!.cards, [
-    { id: 'power', rarity: 'common' },
-    { id: 'vent', rarity: 'common' },
-    { id: 'recover', rarity: 'rare' },
-  ]);
-  game.advance(6000);
-  assert.ok(game.mass < game.rules.recovery.minMass);
-  assert.equal(game.choice, null);
-  assert.equal(game.boosts.power, 1);
-  assert.equal(game.selections.at(-1)!.id, 'power');
-  assert.equal(game.selections.at(-1)!.automatic, true);
-});
-
-test('new runs have eighteen lightning skills and always offer owned upgrades', () => {
-  assert.equal(skillIds.length, 18);
+test('new runs have sixteen lightning skills and always offer owned upgrades', () => {
+  assert.equal(skillIds.length, 16);
   const g = fixture();
   g.debugSetXp(18);
   for (let seed = 0; seed < 128; seed++) {
     for (const danger of [false, true]) {
-      const ranks = { ...blankRanks(), strike: 2, focus: 1 },
+      const ranks = { ...blankRanks(), strike: 2, spark: 1 },
         boosts = blankBoosts();
       const cards = makeCards(
         { ranks, boosts, number: 8, danger, recoverable: danger },
         new Random(seed),
       );
       assert.equal(cards.length, new Set(cards).size);
-      assert.ok(cards.some((id) => id === 'strike' || id === 'focus'));
+      assert.ok(cards.some((id) => id === 'strike' || id === 'spark'));
     }
   }
 });

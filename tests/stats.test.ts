@@ -2,45 +2,85 @@ import { createCheckpoint, restoreCheckpoint } from '../src/game/checkpoint.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Game } from '../src/game/Game.ts';
-import { rules, recoveryMass, rangeScale, skillIds } from '../src/game/rules.ts';
+import {
+  critChance,
+  evolutionChance,
+  powerScale,
+  rarityChances,
+  rules,
+  recoveryMass,
+  rangeScale,
+  skillIds,
+} from '../src/game/rules.ts';
 import { choose, close, fixture, stationarySkill, target } from './helpers.ts';
 
-test('movement speed upgrades increase orbital travel without changing orbit size or attack timing', () => {
+test('power grows with diminishing returns and leaves movement and timing alone', () => {
+  const values = [0, 1, 2, 5, 10, 100].map((rank) => powerScale(rank));
+  for (let i = 1; i < values.length; i++) {
+    assert.ok(values[i] > values[i - 1]);
+    if (i > 1) assert.ok(values[i] - values[i - 1] < (values[i - 1] - values[0]) * 2);
+  }
+  assert.ok(values.at(-1)! < 1 + rules.powerBonus);
   const normal = fixture(),
-    fast = fixture();
-  const start = fast.angle;
-  choose(fast, 'speed');
-  close(fast.speed, 165);
-  normal.advance(1000);
-  fast.advance(1000);
-  close(fast.angle - start, (normal.angle - start) * 1.1);
-  close(fast.radius, normal.radius);
-  close(fast.damage, normal.damage);
-  close(fast.attackInterval, normal.attackInterval);
-  choose(fast, 'speed', 'legendary');
-  close(fast.speed, 180);
-  assert.equal(fast.rank('speed'), 2);
+    strong = fixture();
+  choose(strong, 'power');
+  close(strong.damage, normal.damage * powerScale(1));
+  close(strong.speed, normal.speed);
+  close(strong.attackInterval, normal.attackInterval);
 });
 
-test('a manually selected movement upgrade survives replay with identical future positions', () => {
+test('critical hits follow their own random stream and multiply damage', () => {
+  assert.equal(critChance(0), 0);
+  assert.equal(critChance(1000), rules.crit.max);
+  const run = (crit: number) => {
+    const g = stationarySkill({}, [target(0, 190, 128, 1e9)]);
+    g.boosts.crit = crit;
+    for (let i = 0; i < 400; i++) g.combat.fireBasic();
+    return g.events.flatMap((e) =>
+      e.kind === 'hit' ? [e.data as { damage: number; crit?: boolean }] : [],
+    );
+  };
+  assert.ok(run(0).every((hit) => !hit.crit));
+  const hits = run(3),
+    crits = hits.filter((hit) => hit.crit);
+  const share = crits.length / hits.length;
+  assert.ok(Math.abs(share - critChance(3)) < 0.07, `crit share ${share}`);
+  const normal = hits.find((hit) => !hit.crit)!.damage;
+  close(crits[0].damage, normal * rules.crit.multiplier);
+  // Crit rolls never disturb card or spawn draws.
+  assert.deepEqual(run(3), hits);
+});
+
+test('luck moves rarity chance from common to the higher rarities and raises evolution odds', () => {
+  const base = rarityChances(0),
+    lucky = rarityChances(3);
+  close(
+    Object.values(lucky).reduce((a, b) => a + b, 0),
+    100,
+  );
+  assert.ok(lucky.common < base.common);
+  for (const id of ['rare', 'epic', 'legendary'] as const) assert.ok(lucky[id] > base[id]);
+  assert.ok(evolutionChance(3) > evolutionChance(0));
+  assert.equal(evolutionChance(1000), rules.evolution.maxChance);
+});
+
+test('a manually selected crit upgrade survives replay with identical future hits', () => {
   const game = new Game(96002);
   game.start();
-  while (game.phase === 'running' && game.rank('speed') === 0 && game.time < 600) {
+  while (game.phase === 'running' && game.rank('crit') === 0 && game.time < 600) {
     game.advance(1000 / rules.tickRate);
-    if (game.choice?.cards.some((card) => card.id === 'speed')) game.select('speed');
+    if (game.choice?.cards.some((card) => card.id === 'crit')) game.select('crit');
   }
-  assert.ok(game.rank('speed') > 0);
+  assert.ok(game.rank('crit') > 0);
   const restored = restoreCheckpoint(createCheckpoint(game)!)!;
   assert.ok(restored);
-  assert.equal(restored.speed, game.speed);
   game.advance(10000);
   restored.advance(10000);
-  assert.equal(restored.angle, game.angle);
   assert.deepEqual(restored.events, game.events);
 });
 
 test('field reach acquires distant targets without changing damage, speed or damage geometry', () => {
-  const g = fixture({ pierce: 1, burst: 1, repel: 1 }, [target(0, 280, 128)]);
+  const g = fixture({ pierce: 1, burst: 1 }, [target(0, 280, 128)]);
   const before = { forms: g.forms, damage: g.damage, speed: g.speed, radius: g.targetRadius };
   g.combat.fireBasic();
   assert.equal(g.xp, 0);
@@ -51,7 +91,6 @@ test('field reach acquires distant targets without changing damage, speed or dam
   assert.equal(g.speed, before.speed);
   assert.equal(g.targetRadius, before.radius);
   assert.deepEqual(g.forms.burst, before.forms.burst);
-  assert.deepEqual(g.forms.repel.push, before.forms.repel.push);
   assert.equal(g.forms.pierce.width, before.forms.pierce.width);
 });
 
@@ -88,9 +127,9 @@ test('reach extends chain jumps, piercing beams while keeping beam widths', () =
   }
 });
 
-test('strike and focus acquire farther targets; focus has no implicit slow', () => {
-  for (const id of ['strike', 'focus'] as const) {
-    const offset = id === 'strike' ? 170 : 100;
+test('strike and spark acquire farther targets with range', () => {
+  for (const id of ['strike', 'spark'] as const) {
+    const offset = id === 'strike' ? 170 : rules.skills.spark.range + 5;
     const t = target(0, 180 + offset, 128, 100);
     const g = stationarySkill({ [id]: 1 }, [t]);
     g.combat.fireSkill(id);
@@ -101,7 +140,6 @@ test('strike and focus acquire farther targets; focus has no implicit slow', () 
     g.combat.fireSkill(id);
     g.advance(50);
     assert.ok(t.hp < 100);
-    assert.equal(g.combat.movementScale(t), 1);
   }
 });
 
@@ -155,7 +193,7 @@ test('recovery is absent in safe orbits and remains available alongside maxed sk
 
 test('global cooldown reduction retains progress for every timed skill', () => {
   const g = stationarySkill({}, [target(0, 190, 128, 100000)]);
-  for (const id of ['strike', 'repel', 'satellite', 'focus'] as const) choose(g, id);
+  for (const id of ['strike', 'satellite', 'spark', 'field'] as const) choose(g, id);
   g.advance(250);
   const before = skillIds.map((id) => g.combat.status(id).progress);
   const oldInterval = g.attackInterval;

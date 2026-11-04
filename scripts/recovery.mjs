@@ -85,33 +85,6 @@ try {
     assert.equal(recovered.phase, 'running');
     await capture(page, `artifacts/recovery/${width}.png`);
     checks.push({ width, height, before, selected, recovered });
-    const reclaim = await page.evaluate(() => {
-      const debug = window.__gameDebug;
-      debug.restart(42, false);
-      const g = debug.getModel();
-      g.ranks.vent = 3;
-      g.combat.learn('vent', 0);
-      g.mass = 100;
-      g.radius = 110;
-      const before = g.radius;
-      debug.advance(1000);
-      g.setHidden(true);
-      window.__gameScene.update();
-      return {
-        before,
-        radius: g.radius,
-        target: g.targetRadius,
-        mass: g.mass,
-        removed: g.forms.vent.mass,
-        xp: g.xp,
-      };
-    });
-    assert.ok(reclaim.radius > reclaim.before);
-    assert.ok(reclaim.target < reclaim.before);
-    assert.equal(reclaim.mass, 100 - reclaim.removed);
-    assert.equal(reclaim.xp, 0);
-    await capture(page, `artifacts/recovery/reclaim-${width}.png`);
-    checks.push({ width, height, reclaim });
     await page.close();
   }
   assert.deepEqual(errors, []);

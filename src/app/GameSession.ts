@@ -146,12 +146,17 @@ export class GameSession {
     if (!this.rhythmAvailable || this.game.resonances.at(-1)?.tick === this.game.elapsedTicks)
       return;
     const result = this.rhythm.tap();
+    if (result === 'miss') this.missBeat();
     if (result === 'hit' || result === 'complete') {
       this.game.resonate(this.rhythm.hits as 1 | 2 | 3);
       this.hitStop = result === 'complete' ? 90 : 35;
       if (result === 'complete') this.audio.play?.('rhythm-complete');
     }
     this.effects.redraw();
+  }
+
+  private missBeat(): void {
+    if (this.game.pacts.pulse && this.rhythmAvailable) this.game.resonate(0);
   }
 
   setHidden(hidden: boolean, wall: number): void {
@@ -192,6 +197,8 @@ export class GameSession {
       (game.speed / game.radius / 1000) * this.playbackSpeed,
       Boolean(game.choice) && game.phase === 'running' && !game.paused,
     );
+    // A beat that passes unanswered is a miss, which costs mass under the pulse pact.
+    if (this.rhythm.feedback === 'miss' && this.rhythm.feedbackAge === 0) this.missBeat();
     this.lastWall = wall;
     if (this.audio.enabled) this.audio.update(game, this.audioCursor);
     this.audioCursor = game.eventCount;

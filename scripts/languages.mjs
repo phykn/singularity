@@ -65,7 +65,11 @@ const inspect = async (page) => {
       issues.push('Offscreen HUD');
     return issues;
   });
-  assert.deepEqual(issues, []);
+  assert.deepEqual(
+    issues,
+    [],
+    `${page.url()} ${JSON.stringify(page.viewportSize())} ${await page.evaluate(() => document.documentElement.lang)}`,
+  );
 };
 const screenshot = async (page, path) => {
   await page.waitForTimeout(220);
@@ -115,7 +119,7 @@ try {
       await page.evaluate(() => {
         const g = window.__gameDebug.getModel();
         g.setHidden(true);
-        for (const id of ['power', 'rate', 'range', 'speed']) {
+        for (const id of ['power', 'rate', 'range', 'crit', 'luck']) {
           g.boosts[id] = 1000;
           g.rarities[id] = 'legendary';
         }

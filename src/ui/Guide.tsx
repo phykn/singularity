@@ -44,7 +44,7 @@ export function Guide({
         <p>
           {c.guideLate(rules.boss.stages.map((stage) => Math.round(stage.energyFraction * 100)))}
         </p>
-        <p>{c.guideEvolve}</p>
+        <p>{c.guideEvolve(rules.evolution.pity, rules.pacts.max)}</p>
         <div className="particle-guide">
           {particleIds.map((id) => (
             <div key={id}>

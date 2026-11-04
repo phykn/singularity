@@ -143,7 +143,7 @@ function SkillSlot({
         />
       )}
       <span className="slot-art">
-        <SkillIcon id={id} size={32} />
+        <SkillIcon id={id} size={32} evolved={evolved} />
       </span>
       {rank >= max ? (
         <span className="slot-max" aria-hidden="true">

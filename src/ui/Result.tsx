@@ -107,7 +107,7 @@ export function Result({
           <div className="result-build">
             {owned.map((id) => (
               <div key={id} data-rarity={game.rarities[id]} data-evolved={!!game.evolved[id]}>
-                <SkillIcon id={id} size={32} />
+                <SkillIcon id={id} size={32} evolved={!!game.evolved[id]} />
                 <span>{c.upgrades[id].short}</span>
                 <small>{c.rarities[game.rarities[id]]}</small>
                 <span role="img" aria-label={`${c.rank} ${game.rank(id)}/${rules.maxRank}`}>

@@ -21,7 +21,6 @@ export type Target = Point & {
   speed: number;
   turn: number;
   hitAt?: number;
-  bridgeUntil?: number;
   final?: boolean;
   boss?: BossKind;
   // The gluon that holds this quark; the gluon takes less damage while any are held.
@@ -32,11 +31,9 @@ export type Target = Point & {
   higgs?: boolean;
   summons?: number;
   summonCount?: number;
-  bridgeReady?: number;
   previousRadius?: number;
-  pushReady?: number;
-  gatherReady?: number;
-  controlCount?: number;
+  // Next time the overclock current trail may zap this particle.
+  trailReady?: number;
   marked?: boolean;
 };
 export type Effect = {
@@ -44,12 +41,11 @@ export type Effect = {
     | 'bolt'
     | 'pierce'
     | 'strike'
-    | 'bridge'
+    | 'trail'
     | 'charge'
-    | 'vent'
+    | 'field'
     | 'surge'
     | 'return'
-    | 'focus'
     | 'kill'
     | 'level'
     | 'upgrade'
@@ -76,7 +72,7 @@ export type Effect = {
 };
 export type EffectInput = Omit<Effect, 'born' | 'rank' | 'rarity' | 'damage'> &
   Partial<Pick<Effect, 'rank' | 'rarity' | 'damage'>>;
-export type DamageNumber = Point & { id: number; value: number; born: number };
+export type DamageNumber = Point & { id: number; value: number; born: number; crit?: boolean };
 export type Choice = { cards: Card[]; number: number; opened: number; deadline: number };
 export type Count = { generated: number; killed: number; absorbed: number };
 export type Outcome = 'success' | 'collapse-failure' | 'retired';
