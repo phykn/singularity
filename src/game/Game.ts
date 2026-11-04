@@ -605,7 +605,7 @@ export class Game {
     const small = Math.round((this.rules.waveSmall / 2) * scale),
       dense = Math.round((this.rules.waveDense / 2) * scale),
       stage = this.stageAt(time);
-    const shapes = formationsAt(stage, this.rules.formations);
+    const shapes = formationsAt(this.endless ? Infinity : time, this.rules.formations);
     const shape = this.randomSpawn.pick(shapes);
     let members: Member[];
     if (shape === 'ring') members = this.formation('ring', small * 2, dense * 2, angle, 1, stage);
@@ -632,7 +632,17 @@ export class Game {
       this.stage,
       this.rules.particles,
       this.wavePhase === 'assault' ? this.rules.late : undefined,
+      this.stageProgress(),
     );
+  }
+
+  // How far through the current stage the run is; the last stage counts its
+  // length like the one before it.
+  private stageProgress(stage = this.stage): number {
+    if (this.endless) return 1;
+    const starts = this.rules.stageStarts,
+      length = (starts[stage + 1] ?? 2 * starts[stage] - starts[stage - 1]) - starts[stage];
+    return Math.max(0, Math.min(1, (this.time - starts[stage]) / length));
   }
 
   private enterMilestones(): void {
@@ -1077,13 +1087,18 @@ export class Game {
         this.randomSpawn.next() * (cfg.introAngleMax - cfg.introAngleMin)
       : angle;
     this.batchCount++;
-    if (intro || count < shapes.minCount || this.randomSpawn.next() >= shapes.chance) {
+    const available = formationsAt(this.endless ? Infinity : this.time, shapes);
+    if (
+      intro ||
+      !available.length ||
+      count < shapes.minCount ||
+      this.randomSpawn.next() >= shapes.chance
+    ) {
       this.spawnGroup(kind, count, center, direction);
       return;
     }
     // Sometimes a batch arrives as a formation, shown first as faint dots.
-    const available = formationsAt(this.stage, shapes),
-      shape = this.randomSpawn.pick(available),
+    const shape = this.randomSpawn.pick(available),
       small = kind === 'small' ? count : 0,
       dense = kind === 'dense' ? count : 0;
     let members: Member[];

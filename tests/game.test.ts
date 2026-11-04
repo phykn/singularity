@@ -1,3 +1,4 @@
+import { particleMix } from '../src/game/particles.ts';
 import { createCheckpoint, restoreCheckpoint } from '../src/game/checkpoint.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -557,7 +558,10 @@ test('later stages increase group size, wave size and intake rate without changi
     first.spawnBatch();
     late.spawnBatch();
   }
-  assert.ok(late.targets.length > first.targets.length * 3);
+  // Formation members wait as faint dots before they enter.
+  const arrived = (g: Game) =>
+    g.targets.length + g.pending.reduce((n, p) => n + p.members.length, 0);
+  assert.ok(arrived(late) > arrived(first) * 3);
   assert.ok(rules.spawnSecondsByStage[4] < rules.spawnSecondsByStage[0]);
   assert.ok(rules.rush.spawnSecondsByStage[4] < rules.rush.spawnSecondsByStage[0]);
   const existing = first.targets[0],
@@ -572,7 +576,9 @@ test('later stages increase group size, wave size and intake rate without changi
 test('particle species enter gradually and heavy neutrons trade speed for health and mass', () => {
   for (let stage = 0; stage < 3; stage++) {
     const g = fixture();
-    g.tick = (stage ? rules.stageStarts[stage] : 0) * rules.tickRate;
+    // Sample once the newcomer has fully ramped in.
+    const length = rules.stageStarts[stage + 1] - rules.stageStarts[stage];
+    g.tick = (rules.stageStarts[stage] + length * rules.particles.ramp) * rules.tickRate;
     for (let i = 0; i < 80; i++) g.spawnBatch();
     const species = [...new Set(g.targets.map((t) => t.particle))].sort();
     assert.deepEqual(
@@ -598,6 +604,14 @@ test('particle species enter gradually and heavy neutrons trade speed for health
       assert.equal(g.xp, 0);
     }
   }
+  // A newcomer's share starts from the previous stage and grows over the ramp.
+  const cfg = rules.particles;
+  assert.equal(particleMix(2, cfg, undefined, 0).neutron, cfg.neutron[1]);
+  close(
+    particleMix(2, cfg, undefined, cfg.ramp / 2).neutron,
+    (cfg.neutron[1] + cfg.neutron[2]) / 2,
+  );
+  assert.equal(particleMix(2, cfg, undefined, cfg.ramp).neutron, cfg.neutron[2]);
 });
 
 test('seeded spawns vary formation, radius, speed and batch size within designer bounds', () => {

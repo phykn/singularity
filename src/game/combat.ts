@@ -81,6 +81,8 @@ export class Combat {
   private trails: Trail[] = [];
   private surgeCharge = 0;
   private storedCharge = 0;
+  // Quarters already sounded while each charge skill builds toward its release.
+  private building: Partial<Record<'charge' | 'surge' | 'overcharge', number>> = {};
   private lastSurgeCharge = -Infinity;
   private nextSurgeHit = 0;
   private surgeUntil = 0;
@@ -234,6 +236,7 @@ export class Combat {
     this.trails = [];
     this.surgeCharge = 0;
     this.storedCharge = 0;
+    this.building = {};
     this.surgeUntil = 0;
     this.surgeAttack = undefined;
     this.marked.clear();
@@ -279,8 +282,10 @@ export class Combat {
     const point = { x: target.x, y: target.y };
     if (g.ranks.overcharge && attack?.source !== 'overcharge') {
       this.heat++;
+      this.build('overcharge', this.heat / g.forms.overcharge.kills);
       if (this.heat >= g.forms.overcharge.kills) {
         this.heat = 0;
+        this.build('overcharge', 0);
         this.overcharge(1);
       }
     }
@@ -306,6 +311,14 @@ export class Combat {
       });
   }
 
+  // Charging skills sound each quarter they fill, so a release has a build-up before it.
+  private build(id: 'charge' | 'surge' | 'overcharge', progress: number): void {
+    const step = Math.floor(progress * 4 + 1e-8),
+      last = this.building[id] ?? 0;
+    if (step > last && step < 4) this.game.log('build', { id, step });
+    this.building[id] = step;
+  }
+
   private chargeSurge(amount: number): void {
     const g = this.game;
     if (!g.ranks.surge || g.time < this.surgeUntil) return;
@@ -313,8 +326,10 @@ export class Combat {
     this.lastSurgeCharge = g.time;
     this.surgeCharge += amount;
     const surge = g.forms.surge;
+    this.build('surge', this.surgeCharge / surge.kills);
     if (this.surgeCharge < surge.kills) return;
     this.surgeCharge = 0;
+    this.build('surge', 0);
     this.surgeUntil = g.time + surge.duration;
     this.surgeExtended = 0;
     this.nextSurge = g.tick + 1;
@@ -1050,9 +1065,11 @@ export class Combat {
         attack.forms.charge.threshold,
         this.storedCharge + Math.min(1, damage / attack.power),
       );
+      this.build('charge', this.storedCharge / attack.forms.charge.threshold);
       const recipient = target.hp > 0 ? target : closest(g.targets, g.position, 1, attack.range)[0];
       if (recipient && this.storedCharge + 1e-8 >= attack.forms.charge.threshold) {
         this.storedCharge = 0;
+        this.build('charge', 0);
         const charged = this.secondary(attack, 'charge', attack.forms.charge.damage);
         this.effect(charged, 'bolt', g.position, recipient, 0, 0.2, true, 'charge', 4);
         this.activate('charge', attack.ranks.charge);

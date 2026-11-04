@@ -129,10 +129,13 @@ test('the top quark splits into mesons and the Higgs field weighs particles down
   assert.equal(h.higgsField(higgs), field.wideRadius);
 });
 
-test('formations unlock by stage and keep their shape', () => {
+test('formations debut one at a time and keep their shape', () => {
   const cfg = rules.formations;
-  assert.deepEqual(formationsAt(0, cfg), ['line']);
-  assert.deepEqual(formationsAt(4, cfg).length, 7);
+  assert.deepEqual(formationsAt(0, cfg), []);
+  assert.deepEqual(formationsAt(cfg.debuts.line, cfg), ['line']);
+  assert.deepEqual(formationsAt(cfg.debuts.arrow, cfg), ['line', 'clump', 'arrow']);
+  assert.deepEqual(formationsAt(cfg.debuts.star, cfg), ['line', 'clump', 'arrow', 'star']);
+  assert.deepEqual(formationsAt(cfg.debuts.pincer, cfg).length, 7);
   const line = formationSlots('line', 5, 1, 170, cfg);
   assert.ok(line.every((s) => s.theta === 1));
   const ring = formationSlots('ring', 8, 0, 170, cfg);
@@ -140,7 +143,7 @@ test('formations unlock by stage and keep their shape', () => {
   // Members of one formation share speed and turn, so moving keeps the shape.
   const g = new Game(7);
   g.start();
-  for (let i = 0; i < 4000 && !g.pending.length; i++) g.advance(1000 / 60);
+  for (let i = 0; i < 12000 && !g.pending.length; i++) g.advance(1000 / 60);
   assert.ok(g.pending.length, 'A formation is planned');
   const spawn = g.pending[0];
   assert.equal(new Set(spawn.members.map((m) => m.turn)).size, 1);

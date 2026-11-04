@@ -60,7 +60,9 @@ export async function showSuccess(page, seed = 96048) {
     const debug = window.__gameDebug;
     debug.restart(seed, false);
     const g = debug.getModel();
-    g.tick = g.rules.stageStarts.at(-1) * g.rules.tickRate;
+    // Past the final stage's ramp, so every species is mixed in.
+    const [before, last] = g.rules.stageStarts.slice(-2);
+    g.tick = (last + (last - before) * g.rules.particles.ramp) * g.rules.tickRate;
     g.elapsedTicks = g.tick;
     for (let i = 0; i < 80; i++) g.spawnBatch();
     g.ranks.multi = 3;

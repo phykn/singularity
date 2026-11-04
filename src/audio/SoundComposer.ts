@@ -3,9 +3,26 @@ import type { SoundBus, SoundKind } from './samples.ts';
 
 export type SoundSpace = { pan: number; depth: number };
 // `delay` holds a kill until its pop; `voice` picks the particle's keycaps and tone.
-export type SoundCue = { kind: string; space?: SoundSpace; delay?: number; voice?: number };
-const contact = (kind: string) =>
-  kind === 'hit' || kind === 'pop' || kind === 'slam' || kind === 'enter';
+export type SoundCue = {
+  kind: string;
+  space?: SoundSpace;
+  delay?: number;
+  voice?: number;
+  // A fixed variant, such as how far a charge has built.
+  variant?: number;
+};
+const contacts = new Set([
+  'hit',
+  'pop',
+  'slam',
+  'enter',
+  'roll',
+  'brush',
+  'space',
+  'lift',
+  'double',
+]);
+const contact = (kind: string) => contacts.has(kind);
 
 // Six particle voices: each owns a few keycaps and sits at its own pitch.
 export const voiceTones = [1.08, 1.16, 1, 0.84, 1.26, 0.93];
@@ -103,7 +120,8 @@ export class SoundComposer {
         tone = voiceTones[cue.voice];
       }
       if (cue.delay) offset += Math.round(cue.delay * this.context.sampleRate);
-      if (!contact(id)) this.variants[id] = (variant + 1) % spec.variants;
+      if (cue.variant !== undefined) variant = cue.variant;
+      else if (!contact(id)) this.variants[id] = (variant + 1) % spec.variants;
       const important = spec.bus === 'rhythm' || spec.bus === 'transition';
       const depth = important ? 0 : Math.max(0, Math.min(1, space?.depth ?? 0));
       const angle =

@@ -120,8 +120,11 @@ assert.ok(p.heavy.mass > r.targets.dense.mass && p.heavy.speed < 1 && p.split.qu
 // Formations unlock by stage, the first on stage one.
 const f = r.formations;
 assert.ok(f.chance > 0 && f.chance < 1 && f.previewSeconds > 0 && f.minCount >= 3);
-assert.equal(Math.min(...Object.values(f.stages)), 0);
-assert.ok(Object.values(f.stages).every((s) => s < r.stageStarts.length));
+// Debuts are in seconds, one shape at a time: the first before the first wave,
+// the last within the final stage's first wave cycle.
+const debuts = Object.values(f.debuts).sort((a, b) => a - b);
+assert.ok(debuts.every((s, i) => s >= 0 && (!i || s > debuts[i - 1])));
+assert.ok(debuts[0] < r.waves[0] && debuts.at(-1) < r.stageStarts.at(-1) + r.waveRepeatSeconds);
 assert.ok(f.previewSeconds < r.waveWarningSeconds);
 assert.ok(r.critical.pull > 0 && r.critical.spawnScale > 0 && r.critical.spawnScale < 1);
 assert.ok(r.critical.xpScale > 0 && r.critical.xpScale <= 1);
@@ -136,6 +139,7 @@ assert.ok(Number.isInteger(r.evolution.pity) && r.evolution.pity > 0);
 assert.ok(r.evolution.pierce.trailInterval < r.evolution.pierce.trailSeconds);
 assert.ok(Number.isInteger(r.pacts.interval) && r.pacts.interval > 1);
 assert.equal(r.pacts.max, 3);
+assert.ok(r.particles.ramp > 0 && r.particles.ramp <= 1);
 // Pop rhythms: taps one by one, bursts at once, dominoes slower than taps,
 // a release tighter than taps, and sweeps along their line.
 assert.deepEqual(Object.keys(r.pops), ['tap', 'burst', 'domino', 'release', 'sweep']);

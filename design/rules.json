@@ -468,6 +468,7 @@
     "neutrino": [0, 0, 0, 0.2, 0.2],
     "meson": [0, 0, 0, 0, 0.15],
     "neutron": [0, 0, 0.5, 0.5, 0.5],
+    "ramp": 0.5,
     "quarkPack": {
       "size": [3, 5],
       "spacing": 0.04,
@@ -491,14 +492,14 @@
     "chance": 0.22,
     "minCount": 4,
     "previewSeconds": 0.8,
-    "stages": {
-      "line": 0,
-      "clump": 1,
-      "arrow": 1,
-      "ring": 2,
-      "star": 2,
-      "spiral": 3,
-      "pincer": 4
+    "debuts": {
+      "line": 90,
+      "clump": 180,
+      "arrow": 270,
+      "ring": 480,
+      "star": 360,
+      "spiral": 600,
+      "pincer": 960
     },
     "ringScale": 0.8,
     "lineSpacing": 9,

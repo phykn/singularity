@@ -4,16 +4,23 @@ export const particleIds = ['quark', 'muon', 'proton', 'neutron', 'neutrino', 'm
 export type ParticleKind = (typeof particleIds)[number];
 export type ParticleMix = { muon: number; neutrino: number; meson: number; neutron: number };
 
+// `progress` is how far the run is through the stage (0 to 1). A species'
+// share grows from the previous stage's over the first `ramp` of the stage,
+// so a newcomer arrives gradually instead of all at once.
 export function particleMix(
   stage: number,
   cfg: RuleSet['particles'],
   late?: RuleSet['late'],
+  progress = 1,
 ): ParticleMix {
+  const blend = Math.min(1, progress / cfg.ramp);
+  const share = (values: readonly number[]) =>
+    stage ? values[stage - 1] + (values[stage] - values[stage - 1]) * blend : values[0];
   return {
-    muon: late ? late.muonProbability : cfg.muon[stage],
-    neutrino: cfg.neutrino[stage],
-    meson: cfg.meson[stage],
-    neutron: late ? late.neutronProbability : cfg.neutron[stage],
+    muon: late ? late.muonProbability : share(cfg.muon),
+    neutrino: share(cfg.neutrino),
+    meson: share(cfg.meson),
+    neutron: late ? late.neutronProbability : share(cfg.neutron),
   };
 }
 

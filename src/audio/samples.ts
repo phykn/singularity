@@ -3,7 +3,22 @@ import { rules } from '../game/rules.ts';
 import { singularitySilenceSeconds } from '../presentation/ending.ts';
 
 type Bus = 'preview' | 'hit' | 'rhythm' | 'transition';
-type Recipe = 'key' | 'impact' | 'pop' | 'slam' | 'enter' | 'pair' | 'chord' | 'inhale' | 'exhale';
+type Recipe =
+  | 'key'
+  | 'impact'
+  | 'pop'
+  | 'slam'
+  | 'enter'
+  | 'roll'
+  | 'brush'
+  | 'space'
+  | 'lift'
+  | 'double'
+  | 'build'
+  | 'pair'
+  | 'chord'
+  | 'inhale'
+  | 'exhale';
 type Definition = {
   bus: Bus;
   recipe: Recipe;
@@ -50,6 +65,53 @@ export const soundDefinitions = {
     color: 0.8,
     variants: bank.keys.length,
   },
+  // A domino pop: the finger rolls from one key onto its neighbour.
+  roll: {
+    bus: 'hit',
+    recipe: 'roll',
+    duration: 0.08,
+    gain: 0.32,
+    color: 1,
+    variants: bank.keys.length,
+  },
+  // A sweep pop: a light brush over the key with a quick return.
+  brush: {
+    bus: 'hit',
+    recipe: 'brush',
+    duration: 0.07,
+    gain: 0.3,
+    color: 1.05,
+    variants: bank.keys.length,
+  },
+  // A neutron: the wide space bar, low with a rattling stabiliser.
+  space: {
+    bus: 'hit',
+    recipe: 'space',
+    duration: 0.12,
+    gain: 0.36,
+    color: 0.7,
+    variants: bank.keys.length,
+  },
+  // A neutrino: its first hit pressed the key; the pop only lets it go.
+  lift: {
+    bus: 'hit',
+    recipe: 'lift',
+    duration: 0.06,
+    gain: 0.34,
+    color: 1.04,
+    variants: bank.keys.length,
+  },
+  // A meson: two quick strokes, one per quark it splits into.
+  double: {
+    bus: 'hit',
+    recipe: 'double',
+    duration: 0.13,
+    gain: 0.32,
+    color: 1.02,
+    variants: bank.keys.length,
+  },
+  // A charge building toward its release: one key pressed a little harder each quarter.
+  build: { bus: 'hit', recipe: 'build', duration: 0.07, gain: 0.2, color: 0.86, variants: 3 },
   // Thunderstrike: several keys slammed together over one low space bar.
   thunder: { bus: 'hit', recipe: 'chord', duration: 0.16, gain: 0.5, color: 0.9, variants: 4 },
   // A critical hit: one key struck hard and low.
@@ -139,7 +201,19 @@ function recording(at: number) {
 }
 
 // Keycap palettes: contact sounds draw from every recorded key.
-const keyed = new Set<string>(['hit', 'pop', 'slam', 'enter', 'thunder', 'crit']);
+const keyed = new Set<string>([
+  'hit',
+  'pop',
+  'slam',
+  'enter',
+  'roll',
+  'brush',
+  'space',
+  'lift',
+  'double',
+  'thunder',
+  'crit',
+]);
 
 // `tone` shifts the whole cue in pitch; each particle kind pops at its own tone.
 export function renderSound(
@@ -234,6 +308,32 @@ export function renderSound(
       add(0, recording(first).press, 1.05, color);
       add(0.003, recording(first + 7).press, 0.85, color * 0.94);
       add(0.03, recording(first).release, 0.4, color * 1.04);
+      break;
+    case 'roll':
+      add(0, recording(first).press, 1.1, color);
+      add(0.014, recording(first + 2).press, 0.55, color * 1.03);
+      add(0.032, recording(first + 2).release, 0.4, color * 1.06);
+      break;
+    case 'brush':
+      add(0, recording(first).press, 0.9, color);
+      add(0.016, recording(first).release, 0.5, color * 1.06);
+      break;
+    case 'space':
+      add(0, recording(first).press, 1.3, color);
+      add(0.004, recording(first + 3).press, 0.6, color * 1.06);
+      add(0.07, recording(first).release, 0.5, color * 1.02);
+      break;
+    case 'build':
+      add(0, recording(5).press, 0.55 + 0.3 * variant, color);
+      break;
+    case 'lift':
+      add(0, recording(first).release, 1.15, color);
+      break;
+    case 'double':
+      add(0, recording(first).press, 1.1, color);
+      add(0.026, recording(first).release, 0.4, color * 1.06);
+      add(0.06, recording(first + 1).press, 1, color * 1.04);
+      add(0.086, recording(first + 1).release, 0.4, color * 1.08);
       break;
     case 'enter':
       add(0, recording(first).press, 1.35, color);

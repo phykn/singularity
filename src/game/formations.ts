@@ -6,8 +6,9 @@ export type Slot = { theta: number; radius: number };
 
 const goldenAngle = Math.PI * (3 - Math.sqrt(5));
 
-export function formationsAt(stage: number, cfg: RuleSet['formations']): FormationId[] {
-  return formationIds.filter((id) => stage >= cfg.stages[id]);
+// Each shape debuts at its own time, so first sightings spread through the run.
+export function formationsAt(seconds: number, cfg: RuleSet['formations']): FormationId[] {
+  return formationIds.filter((id) => seconds >= cfg.debuts[id]);
 }
 
 // Places `count` members of one shape around the core, centred on `angle` at `origin`.

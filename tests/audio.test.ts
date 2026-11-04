@@ -809,3 +809,57 @@ test('a delayed audio resume cannot undo suspension or affect a replacement cont
   assert.equal(audio.enabled, true);
   audio.destroy();
 });
+
+test('a kill sounds like its style, or like its own key for special particles', () => {
+  const game = new Game(17, { combat: false });
+  game.start();
+  const played: SoundCue[] = [];
+  const audio = new GameAudio();
+  Object.assign(audio, {
+    enabled: true,
+    context: { state: 'running', currentTime: 10 },
+    mixer: {
+      stop() {},
+      playBatch(cues: SoundCue[]) {
+        played.push(...cues);
+      },
+    },
+  });
+  const kills: [string, string, string, string][] = [
+    ['small', 'quark', 'tap', 'pop'],
+    ['small', 'quark', 'burst', 'slam'],
+    ['small', 'quark', 'domino', 'roll'],
+    ['small', 'proton', 'release', 'enter'],
+    ['small', 'muon', 'sweep', 'brush'],
+    ['dense', 'neutron', 'tap', 'space'],
+    ['small', 'neutrino', 'burst', 'lift'],
+    ['small', 'meson', 'sweep', 'double'],
+    ['boss', 'quark', 'tap', 'enter'],
+  ];
+  kills.forEach(([kind, particle, style], id) => {
+    game.log('hit', { id, kind, x: 220, y: 260 });
+    game.log('kill', { id, kind, x: 220, y: 260, delay: 0.05, style, particle });
+  });
+  audio.update(game, 0);
+  assert.deepEqual(
+    played.map((cue) => cue.kind),
+    kills.map((k) => k[3]),
+  );
+  assert.ok(played.every((cue) => cue.delay === 0.05 && cue.voice !== undefined));
+  const from = game.eventCount;
+  game.log('build', { id: 'charge', step: 2 });
+  played.length = 0;
+  audio.update(game, from);
+  assert.deepEqual(played, [{ kind: 'build', variant: 1 }], 'A charge builds before it releases');
+  assert.ok(
+    Math.max(...renderSound('build', 48000, 2).map(Math.abs)) >
+      Math.max(...renderSound('build', 48000, 0).map(Math.abs)),
+    'Each quarter is struck harder, not higher',
+  );
+  for (const kind of ['slam', 'enter', 'roll', 'brush', 'space', 'lift', 'double'] as const)
+    assert.notEqual(
+      renderSound(kind, 48000, 0).slice(0, 3000).join(),
+      renderSound('pop', 48000, 0).slice(0, 3000).join(),
+      kind,
+    );
+});

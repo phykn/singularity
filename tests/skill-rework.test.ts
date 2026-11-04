@@ -111,6 +111,22 @@ test('overcharge discharges the orbit only after enough kills', () => {
   assert.ok(g.combat.activations.overcharge !== undefined);
   assert.ok(ring.hp < 1000);
   close(g.combat.status('overcharge').progress, 0);
+  const builds = g.events
+    .filter((e) => e.kind === 'build')
+    .map((e) => (e.data as { id: string; step: number }).step);
+  const quarters = [1, 2, 3].filter((q) =>
+    Array.from({ length: g.forms.overcharge.kills }, (_, i) => i + 1).some(
+      (n) =>
+        Math.floor((n * 4) / g.forms.overcharge.kills) === q &&
+        Math.floor(((n - 1) * 4) / g.forms.overcharge.kills) < q,
+    ),
+  );
+  assert.deepEqual(
+    [...new Set(builds)],
+    quarters,
+    'The build-up sounds each quarter once before the release',
+  );
+  assert.ok(builds.every((step, i) => !i || step > builds[i - 1]));
 });
 
 test('thunderstrike splashes its impact and links impact points at rank five', () => {
