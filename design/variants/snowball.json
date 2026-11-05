@@ -1,0 +1,45 @@
+{
+  "note": "눈덩이: 길이는 그대로, 첫 3분부터 화면이 차고 등급 높은 카드가 흔하다. 진화는 매우 드물다(1%, 보장 없음). 후반 입자는 그만큼 튼튼하다.",
+  "spawnSecondsByStage": [1.8, 1.6, 1.4, 1.2, 1.0],
+  "batchScale": [1.2, 2.0, 3.5, 5.5, 8],
+  "targets": {
+    "small": {
+      "hp": [2, 3, 20, 85, 300]
+    },
+    "dense": {
+      "hp": [8, 18, 122, 580, 2500]
+    }
+  },
+  "evolution": {
+    "chance": 0.01,
+    "luckChance": 0.002,
+    "maxChance": 0.02,
+    "pity": 1000
+  },
+  "rarity": {
+    "common": {
+      "chance": 45,
+      "scale": 1,
+      "extra": 0
+    },
+    "rare": {
+      "chance": 30,
+      "scale": 1.1,
+      "extra": 0
+    },
+    "epic": {
+      "chance": 18,
+      "scale": 1.225,
+      "extra": 1
+    },
+    "legendary": {
+      "chance": 7,
+      "scale": 1.3,
+      "extra": 1
+    }
+  },
+  "energyGoal": 50000,
+  "late": {
+    "hpPerMinute": 1.0
+  }
+}

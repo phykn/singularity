@@ -1,0 +1,112 @@
+@font-face {
+  font-family: 'Singularity Pixel';
+  src: url('/fonts/latin.woff2') format('woff2');
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Singularity Pixel KO';
+  src: url('/fonts/ko.woff2') format('woff2');
+  font-display: swap;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #080a0e;
+  color: #dff8ff;
+  font-family: 'Singularity Pixel KO', 'Singularity Pixel', monospace;
+  overscroll-behavior: none;
+}
+#proto {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.bar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #1a2230;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.bar a {
+  color: #7fe7ff;
+  text-decoration: none;
+}
+.bar .help {
+  color: #9fb8c8;
+  flex: 1;
+  min-width: 200px;
+}
+.bar .mute {
+  background: none;
+  border: 1px solid #2a3647;
+  color: #9fb8c8;
+  font: inherit;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.arena {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+.proto-canvas {
+  display: block;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+  cursor: crosshair;
+}
+.picker {
+  max-width: 560px;
+  margin: 32px auto;
+  padding: 0 16px;
+}
+.picker h1 {
+  font-size: 20px;
+  letter-spacing: 2px;
+  margin: 0 0 8px;
+}
+.picker > p {
+  color: #9fb8c8;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0 0 20px;
+}
+.picker a.card {
+  display: block;
+  border: 1px solid #2a3647;
+  padding: 14px 16px;
+  margin: 12px 0;
+  color: inherit;
+  text-decoration: none;
+}
+.picker a.card:hover {
+  border-color: #7fe7ff;
+}
+.picker a.card b {
+  color: #7fe7ff;
+  font-size: 16px;
+}
+.picker a.card i {
+  color: #dff8ff;
+  font-style: normal;
+  margin-left: 8px;
+}
+.picker a.card p {
+  color: #9fb8c8;
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.picker a.card.plain {
+  color: #6f8696;
+  text-align: center;
+}
