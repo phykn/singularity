@@ -182,7 +182,7 @@ export class GameAudio {
   private enter(stage: string, sound: string): void {
     if (this.stage === stage) return;
     this.stage = stage;
-    this.mixer!.stop();
+    this.mixer?.stop();
     if (sound) this.play(sound);
   }
 

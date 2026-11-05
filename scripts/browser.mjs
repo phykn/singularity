@@ -1228,7 +1228,8 @@ const waveWarningFlow = async () => {
   }
 };
 
-// Each run flag writes its own report; the default run writes `browser.json`.
+// The run flags, each with its own report; the dispatch below reads `mode`, so a flow
+// missing here cannot run. The default run writes `browser.json`.
 const reports = {
   speed: 'speed-browser',
   warning: 'warning-browser',
@@ -1245,28 +1246,28 @@ const reports = {
 };
 const mode = Object.keys(reports).find((flag) => process.argv.includes('--' + flag));
 try {
-  if (process.argv.includes('--speed')) {
+  if (mode === 'speed') {
     await speedFlow();
-  } else if (process.argv.includes('--warning')) {
+  } else if (mode === 'warning') {
     await waveWarningFlow();
-  } else if (process.argv.includes('--satellite')) {
+  } else if (mode === 'satellite') {
     await satelliteFlow();
-  } else if (process.argv.includes('--qa')) {
+  } else if (mode === 'qa') {
     await qaFlow();
-  } else if (process.argv.includes('--polish')) {
+  } else if (mode === 'polish') {
     await polishFlow();
-  } else if (process.argv.includes('--audio')) {
+  } else if (mode === 'audio') {
     await audioFlow();
-  } else if (process.argv.includes('--skills')) {
+  } else if (mode === 'skills') {
     await waveWarningFlow();
     await skillFlow();
-  } else if (process.argv.includes('--visuals')) {
+  } else if (mode === 'visuals') {
     await visualFlow();
-  } else if (process.argv.includes('--interface')) {
+  } else if (mode === 'interface') {
     await interfaceFlow();
-  } else if (process.argv.includes('--rarity')) {
+  } else if (mode === 'rarity') {
     await rarityFlow();
-  } else if (process.argv.includes('--production')) {
+  } else if (mode === 'production') {
     const page = await pageFor(375, 812);
     const seed = await page.evaluate(() => localStorage.getItem('singularity.seed'));
     assert.equal(await page.evaluate(() => typeof window.__gameDebug), 'undefined');
@@ -1285,7 +1286,7 @@ try {
     assert.match(await page.locator('.xp-status').innerText(), /0\s*\/\s*14/);
     report('production reload returns to a fresh run', {});
     await page.close();
-  } else if (process.argv.includes('--realtime')) {
+  } else if (mode === 'realtime') {
     const seed = 96048;
     const page = await pageFor(375, 812, seed);
     await page.getByRole('button', { name: 'START' }).click();
