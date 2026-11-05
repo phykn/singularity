@@ -7,6 +7,7 @@ import { iconIds } from '../art/skills.ts';
 import { pactText, skillValue } from './skillText.ts';
 import { Dialog } from './Dialog.tsx';
 import { copy } from './i18n.ts';
+import { numberText } from '../format.ts';
 import type { Language } from './i18n.ts';
 export function Guide({
   rules,
@@ -44,7 +45,13 @@ export function Guide({
         <p>
           {c.guideLate(rules.boss.stages.map((stage) => Math.round(stage.energyFraction * 100)))}
         </p>
-        <p>{c.guideEvolve(rules.evolution.pity, rules.pacts.max)}</p>
+        <p>
+          {c.guideEvolve(
+            numberText(rules.evolution.chance * 100),
+            numberText(rules.evolution.maxChance * 100),
+            rules.pacts.max,
+          )}
+        </p>
         <div className="particle-guide">
           {particleIds.map((id) => (
             <div key={id}>

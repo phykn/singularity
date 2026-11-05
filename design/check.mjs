@@ -132,7 +132,8 @@ for (const fractions of [r.boss.summonFractions, r.boss.final.summonFractions])
   assert.ok(fractions.every((n, i, a) => n > 0 && n < 1 && (!i || n < a[i - 1])));
 assert.ok(r.evolution.chance > 0 && r.evolution.chance <= r.evolution.maxChance);
 assert.ok(r.evolution.maxChance < 1 && r.evolution.luckChance > 0);
-assert.ok(Number.isInteger(r.evolution.pity) && r.evolution.pity > 0);
+// Evolution is a rare windfall with no guarantee: at most a few percent per level up.
+assert.ok(r.evolution.chance <= 0.05);
 assert.ok(r.evolution.pierce.trailInterval < r.evolution.pierce.trailSeconds);
 assert.ok(Number.isInteger(r.pacts.interval) && r.pacts.interval > 1);
 assert.equal(r.pacts.max, 3);

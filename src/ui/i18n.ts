@@ -281,8 +281,8 @@ const ko = {
   } as Record<BossKind, string>,
   guideLate: (bosses: number[]) =>
     `에너지 ${bosses.join('·')}%마다 거대 입자가 핵으로 다가옵니다. 살아 있는 동안 핵이 자라고, 놓치면 큰 질량이 쌓입니다. 80%부터는 임계 돌파로 궤도가 좁아지고 입자가 몰려옵니다. 100%에 나타나는 힉스 입자가 핵에 닿으면 실패합니다.`,
-  guideEvolve: (pity: number, max: number) =>
-    `5단계가 된 스킬은 레벨 업 때마다 확률로 진화 카드가 나옵니다. 행운이 높을수록 자주 나오고, ${pity}번 연속 안 나오면 다음엔 반드시 나옵니다. 자동 선택은 진화 카드를 가장 먼저 고릅니다. 대가 카드는 강한 효과에 위험이 따르며 한 판에 ${max}장까지 가질 수 있고, 자동 선택되지 않습니다.`,
+  guideEvolve: (chance: string, top: string, max: number) =>
+    `5단계가 된 스킬은 레벨 업 때마다 ${chance}% 확률로만 진화 카드가 나옵니다. 행운이 높으면 조금 더 자주(최대 ${top}%) 나오지만, 여러 번 안 나와도 보장되지 않는 드문 대박입니다. 자동 선택은 진화 카드를 가장 먼저 고릅니다. 대가 카드는 강한 효과에 위험이 따르며 한 판에 ${max}장까지 가질 수 있고, 자동 선택되지 않습니다.`,
   banners: {
     critical: '임계 돌파',
     boss: '{name} 접근',
@@ -677,8 +677,8 @@ const en: Copy = {
   } as Record<BossKind, string>,
   guideLate: (bosses) =>
     `At ${bosses.slice(0, -1).join(', ')} and ${bosses.at(-1)}% energy a giant particle closes on the core; the core grows while it lives, and letting it through adds heavy mass. From 80% the critical breach tightens your orbit and draws more particles. The Higgs appears at 100%; if it reaches the core, the run fails.`,
-  guideEvolve: (pity, max) =>
-    `A rank 5 skill may offer its evolution card at each level up. Luck makes it more likely, and after ${pity} misses in a row the next one is certain. Automatic selection takes evolutions first. Pact cards trade risk for power, up to ${max} per run, and are never picked automatically.`,
+  guideEvolve: (chance, top, max) =>
+    `A rank 5 skill offers its evolution card at each level up with only a ${chance}% chance. Luck raises it a little, up to ${top}%, but no run of misses guarantees one: it is a rare windfall. Automatic selection takes evolutions first. Pact cards trade risk for power, up to ${max} per run, and are never picked automatically.`,
   banners: {
     critical: 'CRITICAL BREACH',
     boss: '{NAME} INBOUND',
@@ -997,8 +997,8 @@ const zh: Copy = {
   } as Record<BossKind, string>,
   guideLate: (bosses) =>
     `能量达到${bosses.join('、')}%时巨型粒子逼近核心,存活期间核心持续增长,漏掉会增加大量质量。80%起进入临界突破,轨道收缩且粒子涌来。100%时出现希格斯粒子,它触及核心则失败。`,
-  guideEvolve: (pity, max) =>
-    `达到5级的技能在每次升级时有几率出现进化卡。幸运越高越常出现，连续${pity}次未出现则下次必定出现。自动选择优先选进化卡。代价卡以风险换取强力效果，每局最多${max}张，不会被自动选择。`,
+  guideEvolve: (chance, top, max) =>
+    `达到5级的技能在每次升级时只有${chance}%的几率出现进化卡。幸运越高越常出现（最高${top}%），但连续未出现也不会保证出现，是难得的大奖。自动选择优先选进化卡。代价卡以风险换取强力效果，每局最多${max}张，不会被自动选择。`,
   banners: {
     critical: '临界突破',
     boss: '{name}接近',
@@ -1373,8 +1373,8 @@ const ja: Copy = {
   } as Record<BossKind, string>,
   guideLate: (bosses) =>
     `エネルギー${bosses.join('・')}%で巨大粒子が核に迫ります。生きている間は核が成長し、逃すと大きな質量が加わります。80%からは臨界突破で軌道が狭まり、粒子が押し寄せます。100%で現れるヒッグス粒子が核に届くと失敗です。`,
-  guideEvolve: (pity, max) =>
-    `ランク5のスキルはレベルアップごとに確率で進化カードが出ます。幸運が高いほど出やすく、${pity}回続けて出なければ次は必ず出ます。自動選択は進化カードを最優先します。代償カードは危険と引き換えに強力で、1回に${max}枚まで、自動選択されません。`,
+  guideEvolve: (chance, top, max) =>
+    `ランク5のスキルはレベルアップごとに${chance}%の確率でだけ進化カードが出ます。幸運が高いと少し出やすくなります（最大${top}%）が、何度出なくても保証はない、まれな大当たりです。自動選択は進化カードを最優先します。代償カードは危険と引き換えに強力で、1回に${max}枚まで、自動選択されません。`,
   banners: {
     critical: '臨界突破',
     boss: '{name}接近',

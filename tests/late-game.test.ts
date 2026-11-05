@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Game } from '../src/game/Game.ts';
 import { createCheckpoint, restoreCheckpoint } from '../src/game/checkpoint.ts';
-import { isPact, pactIds, rules, skillIds, xpForLevel } from '../src/game/rules.ts';
+import {
+  evolutionChance,
+  isPact,
+  pactIds,
+  rules,
+  skillIds,
+  xpForLevel,
+} from '../src/game/rules.ts';
 import type { PactId, Ranks } from '../src/game/rules.ts';
 import { pactText } from '../src/ui/skillText.ts';
 import { copy, languages } from '../src/ui/i18n.ts';
@@ -195,34 +202,52 @@ test('the boss and critical breach stay out of endless play', () => {
   assert.equal(g.events.filter((event) => event.kind === 'boss').length, seen);
 });
 
-test('evolution cards need maximum rank, roll each choice and guarantee one after misses', () => {
+// Pins every card draw to one value, so a test decides the evolution roll.
+const evolutionFixture = () => {
   const g = fixture({ chain: 4 });
   g.selections = Array.from({ length: 3 }, () => ({ id: 'chain', tick: 0, time: 0 }) as never);
-  const privateOpen = g as unknown as { openChoice(): void; evolutionMisses: number };
   g.xp = xpForLevel(200);
-  const open = () => {
+  const inner = g as unknown as { openChoice(): void; randomCards: { next(): number } };
+  const open = (roll: number) => {
+    inner.randomCards.next = () => roll;
     g.choice = null;
-    privateOpen.openChoice();
+    inner.openChoice();
     return g.choice!.cards.find((card) => card.evolve);
   };
-  // Rank four never evolves.
-  for (let i = 0; i < 20; i++) assert.equal(open(), undefined);
+  return { g, open };
+};
+
+test('evolution cards need maximum rank and never follow from a run of misses', () => {
+  const { g, open } = evolutionFixture();
+  // Rank four never evolves, even on a winning roll.
+  for (let i = 0; i < 20; i++) assert.equal(open(0), undefined);
   g.ranks.chain = 5;
-  let misses = 0;
-  let offered: ReturnType<typeof open>;
-  while (!(offered = open())) misses++;
-  assert.ok(misses <= rules.evolution.pity);
-  assert.deepEqual([offered.id, g.choice!.cards[0].evolve], ['chain', true]);
+  const chance = evolutionChance(g.boosts.luck);
+  for (let i = 0; i < 20; i++) assert.equal(open(chance), undefined);
+  for (let i = 0; i < 20; i++) assert.equal(open(0.99), undefined);
+  const offered = open(chance / 2);
+  assert.deepEqual([offered?.id, g.choice!.cards[0].evolve], ['chain', true]);
   assert.equal(g.automaticCard?.id, 'chain');
-  // Pity: after the configured misses the next offer is certain.
-  privateOpen.evolutionMisses = rules.evolution.pity;
-  assert.ok(open());
   g.choice!.cards = [{ id: 'chain', rarity: 'common', evolve: true }];
   assert.ok(g.select('chain'));
   assert.equal(g.evolved.chain, true);
   assert.equal(g.ranks.chain, 5);
   assert.equal(g.selections.at(-1)!.evolve, true);
-  for (let i = 0; i < 20; i++) assert.equal(open(), undefined);
+  for (let i = 0; i < 20; i++) assert.equal(open(0), undefined);
+});
+
+test('a roll under the luck-raised chance offers an evolution, capped at the maximum chance', () => {
+  const { g, open } = evolutionFixture();
+  g.ranks.chain = 5;
+  for (const luck of [0, 3, 1000]) {
+    g.boosts.luck = luck;
+    const chance = evolutionChance(luck);
+    assert.ok(chance <= rules.evolution.maxChance);
+    assert.equal(open(chance * 0.999)?.id, 'chain');
+    assert.equal(open(chance), undefined);
+  }
+  assert.equal(evolutionChance(1000), rules.evolution.maxChance);
+  assert.equal(open(rules.evolution.maxChance), undefined);
 });
 
 test('skills without an evolution never offer one', () => {
@@ -374,7 +399,8 @@ test('pact cards appear on their interval, never in danger and at most once each
 });
 
 test('checkpoints replay evolutions and pacts under current rules', () => {
-  const g = new Game(900000);
+  // Evolution is rare, so this seed is one whose run evolves a skill under current rules.
+  const g = new Game(900001);
   playRhythm(g, (game) => {
     const cards = game.choice!.cards;
     return (

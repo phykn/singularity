@@ -118,7 +118,6 @@ export class Game {
   private randomCards: Random;
   private randomRarity: Random;
   private randomCrit: Random;
-  private evolutionMisses = 0;
   private nextHorizon = 0;
   private nextSpawn = 0;
   private batchCount = 0;
@@ -951,21 +950,13 @@ export class Game {
   }
 
   // While a maximum-rank skill is unevolved, each choice may offer its evolution; luck raises
-  // the chance and a run of misses guarantees the next one.
+  // the chance up to its maximum, and no run of misses forces one.
   private evolutionOffer(): SkillId | undefined {
     const ready = this.ownedSkills.filter(
       (id) => this.ranks[id] >= this.rules.maxRank && !this.evolved[id],
     );
     if (!ready.length) return undefined;
-    const roll = this.randomCards.next();
-    if (
-      this.evolutionMisses < this.rules.evolution.pity &&
-      roll >= evolutionChance(this.boosts.luck, this.rules)
-    ) {
-      this.evolutionMisses++;
-      return undefined;
-    }
-    this.evolutionMisses = 0;
+    if (this.randomCards.next() >= evolutionChance(this.boosts.luck, this.rules)) return undefined;
     return ready[Math.floor(this.randomCards.next() * ready.length)];
   }
 

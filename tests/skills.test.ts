@@ -26,7 +26,7 @@ test('the roster is exactly the sixteen current skills', () => {
   ]);
   assert.deepEqual(Object.keys(rules.skills), skillIds);
   // The evolution table also holds its odds; every other key must be a current skill.
-  const odds = ['chance', 'luckChance', 'maxChance', 'pity'];
+  const odds = ['chance', 'luckChance', 'maxChance'];
   assert.deepEqual(
     Object.keys(rules.evolution)
       .filter((key) => !odds.includes(key))

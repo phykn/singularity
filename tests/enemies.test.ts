@@ -143,7 +143,11 @@ test('formations debut one at a time and keep their shape', () => {
   // Members of one formation share speed and turn, so moving keeps the shape.
   const g = new Game(7);
   g.start();
-  for (let i = 0; i < 12000 && !g.pending.length; i++) g.advance(1000 / 60);
+  // An idle run collapses before the first debut; an empty core keeps it running.
+  for (let i = 0; i < 12000 && !g.pending.length; i++) {
+    g.mass = 0;
+    g.advance(1000 / 60);
+  }
   assert.ok(g.pending.length, 'A formation is planned');
   const spawn = g.pending[0];
   assert.equal(new Set(spawn.members.map((m) => m.turn)).size, 1);

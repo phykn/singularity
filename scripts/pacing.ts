@@ -24,8 +24,11 @@ for (let seed = start; seed < start + count; seed++) {
   const g = new Game(seed, { rules: cfg });
   const samples: { t: number; margin: number; mass: number; xp: number }[] = [];
   let next = 0,
-    lateMargin = Infinity;
+    lateMargin = Infinity,
+    targetsAt120: number | null = null;
   playRhythm(g, policy === 'qte-guided' ? guidedCard : undefined, policy !== 'qte-off', () => {
+    if (targetsAt120 === null && g.phase === 'running' && g.time >= 120)
+      targetsAt120 = g.targets.length;
     if (g.phase === 'running' && g.time >= 360) lateMargin = Math.min(lateMargin, g.margin);
     if (g.phase !== 'running' || g.time < next) return;
     samples.push({ t: next, margin: g.margin, mass: g.mass, xp: g.xp });
@@ -49,6 +52,10 @@ for (let seed = start; seed < start + count; seed++) {
     win: g.result.outcome === 'success',
     seconds: g.collisionTime,
     samples,
+    targetsAt120,
+    level10At:
+      g.events.find((e) => e.kind === 'level' && (e.data as { level: number }).level >= 10)?.time ??
+      null,
     lateMargin,
     slotsFull,
     developed,
@@ -104,6 +111,10 @@ const summary = {
   medianWinSeconds: median(wins.map((r) => r.seconds)),
   medianSlotsFull: median(wins.flatMap((r) => (r.slotsFull === null ? [] : [r.slotsFull]))),
   medianDeveloped: median(wins.flatMap((r) => (r.developed === null ? [] : [r.developed]))),
+  // Early density and growth over every run that got that far; evolution over all runs.
+  targetsAt120: median(rows.flatMap((r) => (r.targetsAt120 === null ? [] : [r.targetsAt120]))),
+  level10At: median(rows.flatMap((r) => (r.level10At === null ? [] : [r.level10At]))),
+  evolutionRuns: ratio(rows.filter((r) => r.evolutions > 0).length, rows.length),
   noCoreGrowth: {
     '360-390': growth(360),
     '390-420': growth(390),
