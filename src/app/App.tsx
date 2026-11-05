@@ -232,9 +232,11 @@ export default function App() {
         <small className="title-meta">
           <span>© 2026 phykn</span>
           <span>v{version}</span>
-          <a href="/proto.html" style={{ pointerEvents: 'auto', color: 'inherit' }}>
-            시제품
-          </a>
+          {import.meta.env.DEV && (
+            <a href="/proto.html" style={{ pointerEvents: 'auto', color: 'inherit' }}>
+              시제품
+            </a>
+          )}
           {window.__rulesVariant && <span>규칙: {window.__rulesVariant}</span>}
         </small>
       )}
