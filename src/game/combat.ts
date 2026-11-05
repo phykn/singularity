@@ -258,8 +258,10 @@ export class Combat {
   // Called by Game for every particle that pops, with the attack that popped it.
   killed(target: Target, attack?: Attack): void {
     const g = this.game;
+    // A kill either charges the surge or, once it runs, extends an evolved one; never both.
+    const surging = g.time < this.surgeUntil;
     this.chargeSurge(1);
-    if (g.evolved.surge && g.time < this.surgeUntil) {
+    if (g.evolved.surge && surging) {
       const cfg = g.rules.evolution.surge,
         add = Math.min(cfg.extendSeconds, cfg.maxExtend - this.surgeExtended);
       if (add > 0) {
