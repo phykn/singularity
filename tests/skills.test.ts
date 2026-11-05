@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { stationarySkill, target, close, choose } from './helpers.ts';
+import { fixture, stationarySkill, target, close, choose } from './helpers.ts';
 import { rules, skillIds } from '../src/game/rules.ts';
 import { createCheckpoint, restoreCheckpoint } from '../src/game/checkpoint.ts';
 import { Game } from '../src/game/Game.ts';
@@ -233,4 +233,14 @@ test('every evolution changes combat for its skill', () => {
     [0, 1, 2].every((durable) => run(id, true, durable) === run(id, false, durable)),
   );
   assert.deepEqual(same, []);
+});
+
+test('the kill that starts an evolved surge does not also extend it', () => {
+  const g = fixture({ surge: 1 }, [target(0, 190, 128)]);
+  g.evolved.surge = true;
+  const combat = g.combat as unknown as { surgeUntil: number };
+  for (let i = 0; i < g.forms.surge.kills; i++) g.combat.killed(g.targets[0]);
+  close(combat.surgeUntil, g.time + g.forms.surge.duration);
+  g.combat.killed(g.targets[0]);
+  close(combat.surgeUntil, g.time + g.forms.surge.duration + rules.evolution.surge.extendSeconds);
 });
