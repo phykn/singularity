@@ -264,7 +264,7 @@ test('successful input briefly stops combat while judgment keeps animating, then
   }
 });
 
-test('a successful QTE that reaches the XP goal keeps its visible judgment through charging', () => {
+test('a successful QTE as the Higgs arrives keeps its visible judgment through charging', () => {
   const s = session();
   let wall = 0;
   for (let beat = 1; beat <= 3; beat++) {
@@ -275,13 +275,16 @@ test('a successful QTE that reaches the XP goal keeps its visible judgment throu
     }
     assert.ok(s.rhythm.open);
     if (beat === 3) {
-      s.game.xp = s.game.rules.energyGoal - 1;
-      s.game.targets = [target(900, s.game.position.x, s.game.position.y, 1, 'dense')];
-      s.game.counts.proton.generated++;
+      // Every giant particle has come; the next tick is the Higgs time.
+      s.game.bossCount = s.game.rules.boss.stages.length;
+      s.game.tick = s.game.rules.boss.final.time * s.game.rules.tickRate - 1;
+      s.game.targets = [];
     }
     s.tapRhythm(wall);
   }
-  assert.equal(s.game.energyFull, true);
+  s.game.advance(1000 / s.game.rules.tickRate);
+  assert.equal(s.game.finalProgress, 1);
+  assert.equal(s.game.events.filter((event) => event.kind === 'charged').length, 1);
   s.step(wall + 5);
   assert.equal(s.rhythm.active, false);
   assert.equal(s.rhythm.feedback, 'complete');

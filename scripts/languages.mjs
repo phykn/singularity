@@ -123,7 +123,8 @@ try {
           g.boosts[id] = 1000;
           g.rarities[id] = 'legendary';
         }
-        g.xp = g.rules.energyGoal;
+        g.xp = 50000;
+        g.tick = g.rules.boss.final.time * g.rules.tickRate;
         g.elapsedTicks = 3661 * g.rules.tickRate;
         window.__gameDebug.advance(0);
       });
@@ -219,14 +220,13 @@ try {
       );
       if (width === 375) await screenshot(page, `artifacts/screens/result-${language.id}.png`);
       await page.getByRole('button', { name: c.finish, exact: true }).click();
-      await page.evaluate((goal) => {
+      await page.evaluate(() => {
         window.__gameDebug.restart(1, false);
-        window.__gameDebug.xp(goal - 1);
         const g = window.__gameDebug.getModel();
         g.mass = 1000;
         g.radius = g.core + 4;
         window.__gameDebug.advance(16000);
-      }, rules.energyGoal);
+      });
       await page.getByRole('heading', { name: c.failure, exact: true }).waitFor();
       await inspect(page);
       await page.getByRole('button', { name: c.retry, exact: true }).click();

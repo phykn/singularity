@@ -52,7 +52,7 @@ for (let seed = 1701; seed <= 1730; seed++) {
   assert.ok(row.choices <= game.level - 1);
   assert.equal(game.result!.trigger, game.result!.outcome === 'success' ? 'boss' : 'gravity');
   if (game.result!.outcome === 'success') {
-    assert.ok(game.xp >= rules.energyGoal);
+    assert.ok(game.collisionTime >= rules.boss.final.time);
     assert.ok(row.maxChoiceGap! <= 90);
   }
   for (const event of game.events.filter((e) => e.kind === 'level')) {

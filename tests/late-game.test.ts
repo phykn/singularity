@@ -17,20 +17,31 @@ import { choose, close, fixture, stationarySkill, target } from './helpers.ts';
 import { playRhythm } from '../scripts/rhythm-bot.ts';
 
 const tick = (g: Game) => g.advance(1000 / rules.tickRate);
-const energy = (fraction: number) => Math.ceil(rules.energyGoal * fraction);
+// Moves the clock so the next tick lands exactly on `seconds`.
+const before = (g: Game, seconds: number) => {
+  g.tick = Math.round(seconds * rules.tickRate) - 1;
+};
+// Plays the tick on which `seconds` arrives.
+const reach = (g: Game, seconds: number) => {
+  before(g, seconds);
+  g.choice = null;
+  tick(g);
+};
+const bossesSeen = (g: Game) => g.events.filter((event) => event.kind === 'boss');
 const spawned = () => {
   const g = new Game(5);
   g.start();
   return g;
 };
 
-test('critical breach starts once at its energy, tightens the orbit and strengthens spawns', () => {
+test('critical breach starts once at its time, tightens the orbit and strengthens spawns', () => {
   const g = fixture();
   const relaxed = g.targetRadius;
-  g.debugSetXp(energy(rules.critical.energyFraction) - 1);
+  g.debugSetXp(xpForLevel(200));
   g.choice = null;
+  before(g, rules.critical.time);
   assert.equal(g.critical, false);
-  g.xp = energy(rules.critical.energyFraction);
+  g.tick++;
   assert.equal(g.critical, true);
   assert.equal(g.targetRadius, relaxed - rules.critical.pull);
   assert.equal(g.enemyStrength.hp, rules.critical.hpScale);
@@ -41,9 +52,9 @@ test('critical breach starts once at its energy, tightens the orbit and strength
   assert.equal(g.banner?.kind, 'critical');
 });
 
-test('critical breach slows energy without losing fractions and ends at the normal goal', () => {
+test('critical breach slows XP without losing fractions', () => {
   const g = fixture();
-  g.xp = energy(rules.critical.energyFraction);
+  g.tick = rules.critical.time * rules.tickRate;
   g.selections.length = 100;
   const start = g.xp;
   for (let i = 0; i < 5; i++) {
@@ -55,11 +66,61 @@ test('critical breach slows energy without losing fractions and ends at the norm
 
 const firstStage = rules.boss.stages[0];
 
-test('the boss arrives once at its energy with a warning and reports its fate', () => {
+test('each giant particle arrives on the tick its time comes, whatever the XP', () => {
+  for (const xp of [0, xpForLevel(200)]) {
+    const g = spawned();
+    g.selections.length = 100;
+    g.xp = xp;
+    rules.boss.stages.forEach((stage, i) => {
+      before(g, stage.time - 1 / rules.tickRate);
+      g.choice = null;
+      tick(g);
+      assert.equal(bossesSeen(g).length, i, `${stage.kind} waits for ${stage.time}s`);
+      tick(g);
+      assert.equal(g.time, stage.time);
+      assert.equal(bossesSeen(g).length, i + 1);
+      assert.equal((bossesSeen(g).at(-1)!.data as { boss: string }).boss, stage.kind);
+    });
+  }
+});
+
+test('the next giant particle keeps its time while an earlier one still lives', () => {
   const g = spawned();
   g.selections.length = 100;
-  g.xp = energy(firstStage.energyFraction);
+  reach(g, rules.boss.stages[0].time);
+  const first = g.boss!;
+  reach(g, rules.boss.stages[1].time);
+  const live = g.targets.filter((t) => t.kind === 'boss');
+  assert.ok(live.includes(first));
+  assert.deepEqual(
+    live.map((t) => t.boss),
+    [rules.boss.stages[0].kind, rules.boss.stages[1].kind],
+  );
+});
+
+test('the critical breach and the Higgs arrive at their times with their banner and cue', () => {
+  const g = spawned();
+  g.selections.length = 100;
+  for (const stage of rules.boss.stages) reach(g, stage.time);
+  before(g, rules.critical.time);
+  g.choice = null;
+  assert.equal(g.events.filter((event) => event.kind === 'critical').length, 0);
   tick(g);
+  assert.equal(g.events.filter((event) => event.kind === 'critical').length, 1);
+  assert.equal(g.banner?.kind, 'critical');
+  before(g, rules.boss.final.time);
+  g.choice = null;
+  assert.equal(g.events.filter((event) => event.kind === 'charged').length, 0);
+  tick(g);
+  assert.equal(g.events.filter((event) => event.kind === 'final-boss').length, 1);
+  assert.equal(g.events.filter((event) => event.kind === 'charged').length, 1);
+  assert.equal(g.boss?.final, true);
+});
+
+test('the boss arrives once at its time with a warning and reports its fate', () => {
+  const g = spawned();
+  g.selections.length = 100;
+  reach(g, firstStage.time);
   const boss = g.boss!;
   assert.equal(boss.kind, 'boss');
   assert.equal(g.banner?.kind, 'boss');
@@ -93,8 +154,7 @@ test('the core grows while the boss lives and stops once it is gone', () => {
 test('damaging the boss summons each escort group once and a kill pays its reward', () => {
   const g = spawned();
   g.selections.length = 100;
-  g.xp = energy(firstStage.energyFraction);
-  tick(g);
+  reach(g, firstStage.time);
   const boss = g.boss!;
   g.targets = [boss];
   g.damageTarget(boss, boss.maxHp * 0.4);
@@ -113,7 +173,7 @@ test('damaging the boss summons each escort group once and a kill pays its rewar
 const bossesAtGoal = () => {
   const g = spawned();
   g.selections.length = 100;
-  g.xp = rules.energyGoal;
+  before(g, rules.boss.final.time);
   for (let i = 0; i <= rules.boss.stages.length; i++) {
     g.choice = null;
     tick(g);
@@ -139,16 +199,17 @@ test('every middle boss arrives in order before the final boss, numbered and ind
   assert.equal(g.targets.length, 2 + first.summonCount! + second.summonCount!);
 });
 
-test('full energy alone never ends the run and choices keep coming during the final fight', () => {
+test('the Higgs time alone never ends the run and choices keep coming during the final fight', () => {
   const g = fixture();
-  g.xp = rules.energyGoal;
+  g.xp = xpForLevel(200);
   g.selections.length = 100;
+  before(g, rules.boss.final.time);
   for (let i = 0; i < 300; i++) {
     g.choice = null;
     tick(g);
   }
   assert.equal(g.phase, 'running');
-  assert.equal(g.energyFull, true);
+  assert.equal(g.finalProgress, 1);
   const level = g.level;
   g.selections.length = 0;
   (g as unknown as { openChoice(): void }).openChoice();
@@ -253,7 +314,7 @@ test('a roll under the luck-raised chance offers an evolution, capped at the max
 test('skills without an evolution never offer one', () => {
   const g = fixture({ repeat: 5 });
   g.selections = Array.from({ length: 3 }, () => ({ id: 'repeat', tick: 0, time: 0 }) as never);
-  g.xp = rules.energyGoal - 1;
+  g.xp = xpForLevel(200);
   (g as unknown as { openChoice(): void }).openChoice();
   assert.equal(
     g.choice!.cards.some((card) => card.evolve),

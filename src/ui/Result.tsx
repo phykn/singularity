@@ -48,6 +48,8 @@ export function Result({
   const canContinue = !result.endless && result.outcome === 'success';
   const collapsed = result.outcome === 'collapse-failure';
   const showGoal = collapsed && !result.endless;
+  const finalTime = rules.boss.final.time,
+    reached = Math.min(finalTime, Math.floor(result.collisionTime));
   const number = new Intl.NumberFormat(htmlLang(language));
   const recovered = result.selections.filter((s) => s.id === 'recover').length;
   return (
@@ -71,19 +73,19 @@ export function Result({
           {showGoal && (
             <div className="result-goal">
               <div aria-hidden="true">
-                <b>{number.format(result.xp)}</b>
-                <span> / {number.format(rules.energyGoal)}</span>
+                <b>{formatTime(reached)}</b>
+                <span> / {formatTime(finalTime)}</span>
               </div>
               <div
                 className="result-goal-track"
                 role="progressbar"
-                aria-label={c.energy}
+                aria-label={c.finalTime}
                 aria-valuemin={0}
-                aria-valuemax={rules.energyGoal}
-                aria-valuenow={Math.min(rules.energyGoal, result.xp)}
-                aria-valuetext={`${number.format(result.xp)} / ${number.format(rules.energyGoal)}`}
+                aria-valuemax={finalTime}
+                aria-valuenow={reached}
+                aria-valuetext={`${formatTime(reached)} / ${formatTime(finalTime)}`}
               >
-                <i style={{ width: `${Math.min(1, result.xp / rules.energyGoal) * 100}%` }} />
+                <i style={{ width: `${(reached / finalTime) * 100}%` }} />
               </div>
             </div>
           )}

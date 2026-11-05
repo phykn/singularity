@@ -65,11 +65,11 @@ test('best records handle malformed or unavailable storage', () => {
   g.advance(610000);
   const success = bestRecord(null, g.result!);
   assert.ok(success);
-  const fail = { ...g.result!, outcome: 'collapse-failure' as const, xp: rules.energyGoal - 1 };
+  const fail = { ...g.result!, outcome: 'collapse-failure' as const, xp: g.result!.xp + 1000 };
   assert.equal(bestRecord(success, fail), success);
-  const improved = bestRecord(success, { ...g.result!, xp: rules.energyGoal + 1 });
+  const improved = bestRecord(success, { ...g.result!, xp: g.result!.xp + 1 });
   assert.ok(improved);
-  assert.equal(improved.xp, rules.energyGoal + 1);
+  assert.equal(improved.xp, g.result!.xp + 1);
   const failedRecord = bestRecord(null, fail);
   assert.ok(failedRecord);
   const map = new Map<string, string>();
@@ -189,18 +189,18 @@ test('checkpoints preserve manual pause but omit background pause; ready games h
 });
 
 test('checkpoints and records accept a run past ten minutes and a manual choice beyond number 25', (t) => {
-  // Isolate long-save behavior from the current difficulty: extend the goal and
+  // Isolate long-save behavior from the current difficulty: delay the Higgs and
   // remove gravity so this fixture can reach choice 26 and ten minutes even as
   // late enemies continue to strengthen.
-  const goal = rules.energyGoal,
+  const final = rules.boss.final.time,
     gravity = rules.gravityPerMass,
     damage = rules.baseHitDamage;
   t.after(() => {
-    rules.energyGoal = goal;
+    rules.boss.final.time = final;
     rules.gravityPerMass = gravity;
     rules.baseHitDamage = damage;
   });
-  rules.energyGoal = 100000;
+  rules.boss.final.time = 100000;
   rules.gravityPerMass = 0;
   rules.baseHitDamage = 100;
   const map = new Map<string, string>();

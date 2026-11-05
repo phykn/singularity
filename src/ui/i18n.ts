@@ -51,6 +51,7 @@ const ko = {
   xp: '경험치',
   charge: '특이점',
   energy: '누적 경험치',
+  finalTime: '힉스 입자까지',
   finalBossDue: '힉스 입자를 격파하라',
   danger: '충돌 위험',
   collapse: '궤도 붕괴',
@@ -83,8 +84,8 @@ const ko = {
   retry: '다시하기',
   guideTitle: '플레이 방법',
   guideEnergy: '적 처치로 XP 획득. 레벨이 오르면 강화 선택.',
-  guideGoal: (goal: number) =>
-    `${goal} XP를 모으면 힉스 입자가 나타나고, 격파하면 특이점 형성. 놓친 입자가 핵에 쌓이면 궤도가 좁아지고, 충돌 시 전자 소멸. 시간 제한 없음.`,
+  guideGoal: (time: string) =>
+    `${time}에 힉스 입자가 나타나고, 격파하면 특이점 형성. 놓친 입자가 핵에 쌓이면 궤도가 좁아지고, 충돌 시 전자 소멸. XP는 레벨에만 쓰이고, 힉스 입자를 격파하는 데 시간 제한은 없음.`,
   guideChoice:
     '이동·공격은 자동. 선택 중에는 정지하며, 진행하면 5초 뒤 공격력·공격속도를 우선하고, 그다음 최고 등급을 자동 선택합니다.',
   guideRarity:
@@ -279,8 +280,8 @@ const ko = {
     top: '톱 쿼크',
     higgs: '힉스 입자',
   } as Record<BossKind, string>,
-  guideLate: (bosses: number[]) =>
-    `에너지 ${bosses.join('·')}%마다 거대 입자가 핵으로 다가옵니다. 살아 있는 동안 핵이 자라고, 놓치면 큰 질량이 쌓입니다. 80%부터는 임계 돌파로 궤도가 좁아지고 입자가 몰려옵니다. 100%에 나타나는 힉스 입자가 핵에 닿으면 실패합니다.`,
+  guideLate: (bosses: string[], critical: string) =>
+    `${bosses.join('·')}에 거대 입자가 핵으로 다가옵니다. 살아 있는 동안 핵이 자라고, 놓치면 큰 질량이 쌓입니다. ${critical}부터는 임계 돌파로 궤도가 좁아지고 입자가 몰려옵니다. 힉스 입자가 핵에 닿으면 실패합니다.`,
   guideEvolve: (chance: string, top: string, max: number) =>
     `5단계가 된 스킬은 레벨 업 때마다 ${chance}% 확률로만 진화 카드가 나옵니다. 행운이 높으면 조금 더 자주(최대 ${top}%) 나오지만, 여러 번 안 나와도 보장되지 않는 드문 대박입니다. 자동 선택은 진화 카드를 가장 먼저 고릅니다. 대가 카드는 강한 효과에 위험이 따르며 한 판에 ${max}장까지 가질 수 있고, 자동 선택되지 않습니다.`,
   banners: {
@@ -434,6 +435,7 @@ const en: Copy = {
   xp: 'XP',
   charge: 'Singularity',
   energy: 'Total XP',
+  finalTime: 'Time to the Higgs',
   finalBossDue: 'Destroy the Higgs',
   danger: 'Collision risk',
   collapse: 'Collision',
@@ -466,8 +468,8 @@ const en: Copy = {
   retry: 'Retry',
   guideTitle: 'Lightning & gravity',
   guideEnergy: 'Defeat particles for XP. Level up to choose an upgrade.',
-  guideGoal: (goal) =>
-    `Reach ${goal} XP to summon the Higgs, then destroy it to form a black hole. Missed particles gather at the center and pull your orbit inward; hitting the core ends the run. There is no time limit.`,
+  guideGoal: (time) =>
+    `The Higgs appears at ${time}; destroy it to form a black hole. Missed particles gather at the center and pull your orbit inward; hitting the core ends the run. XP only raises your level, and there is no time limit to beat the Higgs.`,
   guideChoice:
     'Movement and attacks are automatic. Choices pause combat. Switch to play to auto-pick after 5 seconds: Attack Power and Speed first, then highest rarity.',
   guideRarity:
@@ -675,8 +677,8 @@ const en: Copy = {
     top: 'Top quark',
     higgs: 'Higgs',
   } as Record<BossKind, string>,
-  guideLate: (bosses) =>
-    `At ${bosses.slice(0, -1).join(', ')} and ${bosses.at(-1)}% energy a giant particle closes on the core; the core grows while it lives, and letting it through adds heavy mass. From 80% the critical breach tightens your orbit and draws more particles. The Higgs appears at 100%; if it reaches the core, the run fails.`,
+  guideLate: (bosses, critical) =>
+    `At ${bosses.slice(0, -1).join(', ')} and ${bosses.at(-1)} a giant particle closes on the core; the core grows while it lives, and letting it through adds heavy mass. From ${critical} the critical breach tightens your orbit and draws more particles. If the Higgs reaches the core, the run fails.`,
   guideEvolve: (chance, top, max) =>
     `A rank 5 skill offers its evolution card at each level up with only a ${chance}% chance. Luck raises it a little, up to ${top}%, but no run of misses guarantees one: it is a rare windfall. Automatic selection takes evolutions first. Pact cards trade risk for power, up to ${max} per run, and are never picked automatically.`,
   banners: {
@@ -826,6 +828,7 @@ const zh: Copy = {
   xp: '经验',
   charge: '奇点',
   energy: '总经验',
+  finalTime: '距希格斯粒子',
   finalBossDue: '击破希格斯粒子',
   danger: '碰撞危险',
   collapse: '碰撞',
@@ -858,8 +861,8 @@ const zh: Copy = {
   retry: '重试',
   guideTitle: '闪电与引力',
   guideEnergy: '击败粒子获得经验，升级时选择强化。',
-  guideGoal: (goal) =>
-    `积累 ${goal} 经验后希格斯粒子出现，击破它即可形成黑洞。漏掉的粒子会聚集在中心，缩小轨道；撞上核心则对局结束。没有时间限制。`,
+  guideGoal: (time) =>
+    `希格斯粒子在 ${time} 出现，击破它即可形成黑洞。漏掉的粒子会聚集在中心，缩小轨道；撞上核心则对局结束。经验只用于升级，击破希格斯粒子没有时间限制。`,
   guideChoice:
     '移动和攻击自动进行。选择时暂停，开启进行模式后5秒自动选择：优先攻击力和攻击速度，其次最高品质。',
   guideRarity:
@@ -995,8 +998,8 @@ const zh: Copy = {
     top: '顶夸克',
     higgs: '希格斯粒子',
   } as Record<BossKind, string>,
-  guideLate: (bosses) =>
-    `能量达到${bosses.join('、')}%时巨型粒子逼近核心,存活期间核心持续增长,漏掉会增加大量质量。80%起进入临界突破,轨道收缩且粒子涌来。100%时出现希格斯粒子,它触及核心则失败。`,
+  guideLate: (bosses, critical) =>
+    `${bosses.join('、')}时巨型粒子逼近核心,存活期间核心持续增长,漏掉会增加大量质量。${critical}起进入临界突破,轨道收缩且粒子涌来。希格斯粒子触及核心则失败。`,
   guideEvolve: (chance, top, max) =>
     `达到5级的技能在每次升级时只有${chance}%的几率出现进化卡。幸运越高越常出现（最高${top}%），但连续未出现也不会保证出现，是难得的大奖。自动选择优先选进化卡。代价卡以风险换取强力效果，每局最多${max}张，不会被自动选择。`,
   banners: {
@@ -1146,6 +1149,7 @@ const ja: Copy = {
   xp: '経験値',
   charge: '特異点',
   energy: '累計経験値',
+  finalTime: 'ヒッグス粒子まで',
   finalBossDue: 'ヒッグス粒子を撃破せよ',
   danger: '衝突の危険',
   collapse: '衝突',
@@ -1178,8 +1182,8 @@ const ja: Copy = {
   retry: '再挑戦',
   guideTitle: '雷と重力',
   guideEnergy: '敵を倒して経験値を獲得。レベルアップで強化を選択。',
-  guideGoal: (goal) =>
-    `経験値を ${goal} 集めるとヒッグス粒子が現れ、撃破するとブラックホールが生まれます。逃した粒子が中心に集まると軌道が狭まり、核にぶつかると消滅します。時間制限はありません。`,
+  guideGoal: (time) =>
+    `${time} にヒッグス粒子が現れ、撃破するとブラックホールが生まれます。逃した粒子が中心に集まると軌道が狭まり、核にぶつかると消滅します。経験値はレベルにだけ使われ、ヒッグス粒子の撃破に時間制限はありません。`,
   guideChoice:
     '移動と攻撃は自動。選択中は停止し、続行すると5秒後に自動選択。攻撃力・攻撃速度を優先し、次に最高レア度。',
   guideRarity:
@@ -1371,8 +1375,8 @@ const ja: Copy = {
     top: 'トップクォーク',
     higgs: 'ヒッグス粒子',
   } as Record<BossKind, string>,
-  guideLate: (bosses) =>
-    `エネルギー${bosses.join('・')}%で巨大粒子が核に迫ります。生きている間は核が成長し、逃すと大きな質量が加わります。80%からは臨界突破で軌道が狭まり、粒子が押し寄せます。100%で現れるヒッグス粒子が核に届くと失敗です。`,
+  guideLate: (bosses, critical) =>
+    `${bosses.join('・')}に巨大粒子が核に迫ります。生きている間は核が成長し、逃すと大きな質量が加わります。${critical}からは臨界突破で軌道が狭まり、粒子が押し寄せます。ヒッグス粒子が核に届くと失敗です。`,
   guideEvolve: (chance, top, max) =>
     `ランク5のスキルはレベルアップごとに${chance}%の確率でだけ進化カードが出ます。幸運が高いと少し出やすくなります（最大${top}%）が、何度出なくても保証はない、まれな大当たりです。自動選択は進化カードを最優先します。代償カードは危険と引き換えに強力で、1回に${max}枚まで、自動選択されません。`,
   banners: {

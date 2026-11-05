@@ -24,7 +24,7 @@ try {
         debug.restart(42, false);
         const g = debug.getModel();
         g.setHidden(true);
-        g.xp = g.rules.energyGoal - 1;
+        g.xp = 49999;
         Object.assign(g.boosts, { power: rank, rate: rank, range: rank, crit: rank, luck: rank });
         debug.advance(0);
         const crit = Math.min(g.rules.crit.max, g.rules.crit.perRank * rank) * 100;

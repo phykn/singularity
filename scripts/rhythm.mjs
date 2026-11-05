@@ -227,7 +227,9 @@ try {
   await beat(page, 1, 'Enter');
   await page.evaluate(() => {
     const g = window.__gameDebug.getModel();
-    g.rules = { ...g.rules, energyGoal: 1 };
+    // Every giant particle has come; the next tick is the Higgs time.
+    g.bossCount = g.rules.boss.stages.length;
+    g.tick = g.rules.boss.final.time * g.rules.tickRate - 1;
     g.targets[0].hp = 1;
   });
   await beat(page, 2, 'Space');
@@ -247,12 +249,21 @@ try {
     } finally {
       graphics.lineStyle = lineStyle;
     }
-    return { charged: g.energyFull, feedback: r.feedback, feedbackAge: r.feedbackAge, markers };
+    return {
+      charged: g.finalProgress >= 1,
+      feedback: r.feedback,
+      feedbackAge: r.feedbackAge,
+      markers,
+    };
   });
   assert.equal(chargedFeedback.charged, true);
   assert.equal(chargedFeedback.feedback, 'complete');
   assert.ok(chargedFeedback.feedbackAge < 650);
-  assert.equal(chargedFeedback.markers, 1, 'XP completion must still render QTE success feedback');
+  assert.equal(
+    chargedFeedback.markers,
+    1,
+    'The Higgs arrival must still render QTE success feedback',
+  );
   await capture(page, 'artifacts/rhythm/charged-complete.png');
   checks.push({
     keyboard: 'Space and Enter complete once',

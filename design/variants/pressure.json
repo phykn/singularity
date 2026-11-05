@@ -17,6 +17,6 @@
   },
   "dangerMargin": 36,
   "critical": {
-    "energyFraction": 0.6
+    "time": 630
   }
 }

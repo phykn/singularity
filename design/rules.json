@@ -4,7 +4,6 @@
   "collisionSeconds": 1.6,
   "successEndingSeconds": 3,
   "failureEndingSeconds": 0.9,
-  "energyGoal": 50000,
   "endless": {
     "entrySeconds": 2.4,
     "cycleSeconds": 30,
@@ -45,7 +44,7 @@
   "rangeBonus": 0.8,
   "rangeFalloff": 5,
   "critical": {
-    "energyFraction": 0.8,
+    "time": 840,
     "pull": 32,
     "spawnScale": 0.65,
     "hpScale": 1.4,
@@ -56,7 +55,7 @@
     "stages": [
       {
         "kind": "gluon",
-        "energyFraction": 0.1,
+        "time": 270,
         "hp": 350,
         "xp": 250,
         "mass": 10,
@@ -64,7 +63,7 @@
       },
       {
         "kind": "w",
-        "energyFraction": 0.25,
+        "time": 405,
         "hp": 1260,
         "xp": 400,
         "mass": 20,
@@ -72,7 +71,7 @@
       },
       {
         "kind": "z",
-        "energyFraction": 0.4,
+        "time": 525,
         "hp": 2800,
         "xp": 600,
         "mass": 30,
@@ -80,7 +79,7 @@
       },
       {
         "kind": "tau",
-        "energyFraction": 0.55,
+        "time": 630,
         "hp": 4900,
         "xp": 800,
         "mass": 40,
@@ -88,7 +87,7 @@
       },
       {
         "kind": "top",
-        "energyFraction": 0.7,
+        "time": 735,
         "hp": 7000,
         "xp": 1000,
         "mass": 90,
@@ -96,6 +95,7 @@
       }
     ],
     "final": {
+      "time": 930,
       "hp": 22400,
       "speed": 2.5,
       "size": 18,

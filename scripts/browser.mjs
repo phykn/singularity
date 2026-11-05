@@ -765,7 +765,7 @@ const interfaceFlow = async () => {
       rarity: 'common',
       automatic: false,
     }));
-    window.__gameDebug.xp(g.rules.energyGoal - 1);
+    window.__gameDebug.xp(50000);
     g.setHidden(true);
   });
   await page.locator('.card').first().waitFor();
@@ -1521,14 +1521,20 @@ try {
       mass: recovered.mass,
     });
 
-    await page.evaluate((energy) => {
+    await page.evaluate(() => {
       window.__gameDebug.restart(1, false);
-      window.__gameDebug.xp(energy);
-    }, rules.energyGoal);
-    assert.equal(await page.locator('.charge b').textContent(), '100%');
+      const g = window.__gameDebug.getModel();
+      g.tick = g.rules.boss.final.time * g.rules.tickRate;
+      window.__gameDebug.advance(0);
+    });
+    await page.waitForFunction(() => document.querySelector('.charge b')?.textContent === '100%');
     assert.equal(await page.locator('.charge').getAttribute('aria-label'), copy.ko.finalBossDue);
     await advance(page, 1000);
-    assert.equal((await snapshot(page)).phase, 'running', 'Full energy alone must not end the run');
+    assert.equal(
+      (await snapshot(page)).phase,
+      'running',
+      'The Higgs time alone must not end the run',
+    );
     await page.evaluate(() => window.__gameDebug.clear());
     await advance(page, 100);
     await screenshot(page, 'energy-collapse');
@@ -1536,17 +1542,16 @@ try {
     await screenshot(page, 'black-hole');
     await advance(page, 10000);
     assert.equal((await snapshot(page)).result.outcome, 'success');
-    await page.evaluate((energy) => {
+    await page.evaluate(() => {
       window.__gameDebug.restart(1, false);
-      window.__gameDebug.xp(energy);
       const g = window.__gameDebug.getModel();
       g.mass = 1000;
       g.radius = g.core + 4;
       window.__gameDebug.advance(16000);
-    }, rules.energyGoal - 1);
+    });
     await page.getByRole('heading', { name: copy.ko.failure, exact: true }).waitFor();
     await screenshot(page, 'collapse-failure');
-    report('readiness and both endings', { energyBoundary: rules.energyGoal });
+    report('readiness and both endings', { higgsTime: rules.boss.final.time });
 
     await page.evaluate(() => {
       window.__gameDebug.restart(96031);

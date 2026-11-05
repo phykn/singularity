@@ -217,11 +217,12 @@ export class Game {
   get margin(): number {
     return this.radius - this.core - this.rules.electronRadius;
   }
-  get energyFull(): boolean {
-    return !this.endless && this.xp >= this.rules.energyGoal;
+  // How far the run is toward the final boss's arrival time, from 0 to 1.
+  get finalProgress(): number {
+    return Math.min(1, this.time / this.rules.boss.final.time);
   }
   get critical(): boolean {
-    return !this.endless && this.xp >= this.rules.energyGoal * this.rules.critical.energyFraction;
+    return !this.endless && this.time >= this.rules.critical.time;
   }
   get boss(): Target | undefined {
     return (
@@ -657,18 +658,19 @@ export class Game {
 
   private enterMilestones(): void {
     if (this.endless) return;
-    const energy = this.xp / this.rules.energyGoal,
-      stage = this.rules.boss.stages[this.bossCount];
-    if (stage && energy >= stage.energyFraction) {
+    // Bosses keep their times even while an earlier one is still alive.
+    const stage = this.rules.boss.stages[this.bossCount];
+    if (stage && this.time >= stage.time) {
       this.bossCount++;
       if (this.combatEnabled) this.spawnBoss(stage);
-    } else if (!stage && !this.finalEntered && this.energyFull) {
+    } else if (!stage && !this.finalEntered && this.time >= this.rules.boss.final.time) {
       this.finalEntered = true;
       if (this.combatEnabled) this.spawnFinalBoss();
+      this.log('charged', { time: this.time });
     }
     if (!this.criticalEntered && this.critical) {
       this.criticalEntered = true;
-      this.log('critical', { xp: this.xp });
+      this.log('critical', { time: this.time });
       this.banner = { kind: 'critical', until: this.time + this.rules.bannerSeconds };
     }
   }
@@ -884,7 +886,6 @@ export class Game {
   }
 
   debugClear(): void {
-    this.debugSetXp(Math.max(this.xp, this.rules.energyGoal));
     this.finalDown = true;
   }
 
@@ -1345,7 +1346,6 @@ export class Game {
         const { quarks } = this.rules.particles.split;
         this.spawnAround(target, 'quark', quarks, 3);
       }
-      const before = this.energyFull;
       const previous = this.level;
       this.gainXp(target.xp);
       this.levelUp(previous);
@@ -1375,7 +1375,6 @@ export class Game {
         style,
         particle: target.particle,
       });
-      if (!before && this.energyFull) this.log('charged', { xp: this.xp });
     }
   }
 

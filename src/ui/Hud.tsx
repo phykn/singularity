@@ -29,7 +29,8 @@ export function Hud({
 }) {
   const c = copy[language],
     rules = game.rules;
-  const energyPercent = Math.min(100, Math.floor((game.xp / rules.energyGoal) * 100));
+  const percent = Math.floor(game.finalProgress * 100),
+    due = game.finalProgress >= 1;
   const boss = game.phase === 'running' ? game.boss : undefined;
   return (
     <section className="hud" aria-label={c.hud} data-critical={game.critical}>
@@ -40,15 +41,15 @@ export function Hud({
           </div>
         ) : (
           <div
-            className={`charge ${game.energyFull ? 'energy-full' : ''}`}
+            className={`charge ${due ? 'energy-full' : ''}`}
             role="progressbar"
-            aria-label={game.energyFull ? c.finalBossDue : c.charge}
-            aria-valuenow={Math.min(game.xp, rules.energyGoal)}
+            aria-label={due ? c.finalBossDue : c.charge}
+            aria-valuenow={Math.min(Math.floor(game.time), rules.boss.final.time)}
             aria-valuemin={0}
-            aria-valuemax={rules.energyGoal}
+            aria-valuemax={rules.boss.final.time}
           >
-            <ChargeIcon progress={energyPercent / 100} />
-            <b>{energyPercent}%</b>
+            <ChargeIcon progress={percent / 100} />
+            <b>{percent}%</b>
           </div>
         )}
         <div className="boosts" aria-label={c.stats}>

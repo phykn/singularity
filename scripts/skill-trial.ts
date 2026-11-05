@@ -143,13 +143,13 @@ for (const context of [[], ['multi', 'chain', 'satellite']] as SkillId[][]) {
       Object.assign(g.boosts, { power: late.power, rate: late.rate, range: late.range });
       for (const skill of [...context, id]) g.ranks[skill] = late.rank;
       g.combat.reset();
-      g.bossCount = cfg.boss.stages.length - 1;
-      g.xp = Math.ceil(cfg.energyGoal * cfg.boss.stages.at(-1)!.energyFraction);
+      // The last giant particle joins the 6:30 stream; no timed boss follows within the trial.
+      g.bossCount = cfg.boss.stages.length;
+      (g as unknown as { spawnBoss(stage: unknown): void }).spawnBoss(cfg.boss.stages.at(-1));
       g.advance(1000 / cfg.tickRate);
       const boss = g.boss!;
       const spawned = g.time;
       while (g.targets.includes(boss) && g.phase === 'running' && g.time - spawned < 120) {
-        g.xp = Math.ceil(cfg.energyGoal * cfg.boss.stages.at(-1)!.energyFraction);
         g.mass = 0;
         g.advance(1000 / cfg.tickRate);
       }

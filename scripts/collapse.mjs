@@ -83,8 +83,12 @@ try {
     assert.equal(await page.locator('#result-title').innerText(), copy[language].failure);
     assert.equal(await page.locator('.collapse-symbol').count(), 1);
     const bar = page.locator('.result').getByRole('progressbar');
-    assert.equal(await bar.getAttribute('aria-valuenow'), String(result.xp));
-    assert.equal(await bar.getAttribute('aria-valuemax'), String(rules.energyGoal));
+    const final = rules.boss.final.time;
+    assert.equal(
+      await bar.getAttribute('aria-valuenow'),
+      String(Math.min(final, Math.floor(result.collisionTime))),
+    );
+    assert.equal(await bar.getAttribute('aria-valuemax'), String(final));
     assert.equal(await page.locator('.result-numbers > div').count(), 2);
     const issues = await page.evaluate(() => {
       const issues = [];

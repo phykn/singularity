@@ -7,7 +7,7 @@ import { iconIds } from '../art/skills.ts';
 import { pactText, skillValue } from './skillText.ts';
 import { Dialog } from './Dialog.tsx';
 import { copy } from './i18n.ts';
-import { numberText } from '../format.ts';
+import { formatTime, numberText } from '../format.ts';
 import type { Language } from './i18n.ts';
 export function Guide({
   rules,
@@ -29,7 +29,7 @@ export function Guide({
       </div>
       <div className="dialog-body">
         <p>{c.guideEnergy}</p>
-        <p>{c.guideGoal(rules.energyGoal)}</p>
+        <p>{c.guideGoal(formatTime(rules.boss.final.time))}</p>
         <p>{c.guideChoice}</p>
         <p>{c.guideRhythm}</p>
         <div className="rarity-guide">
@@ -43,7 +43,10 @@ export function Guide({
         <p>{c.guideRarity}</p>
         <p>{c.guideCombo}</p>
         <p>
-          {c.guideLate(rules.boss.stages.map((stage) => Math.round(stage.energyFraction * 100)))}
+          {c.guideLate(
+            rules.boss.stages.map((stage) => formatTime(stage.time)),
+            formatTime(rules.critical.time),
+          )}
         </p>
         <p>
           {c.guideEvolve(

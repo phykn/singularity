@@ -67,14 +67,12 @@ for (const data of Object.values(r.skills))
       assert.ok(array.every(Number.isFinite));
     }
   }
-assert.ok(r.critical.energyFraction > 0 && r.critical.energyFraction < 1);
 assert.ok(r.boss.stages.length > 0);
 assert.ok(
   r.boss.stages.every(
     (s, i, a) =>
-      s.energyFraction > 0 &&
-      s.energyFraction < 1 &&
-      (!i || s.energyFraction > a[i - 1].energyFraction) &&
+      s.time > 0 &&
+      (!i || s.time > a[i - 1].time) &&
       s.hp > 0 &&
       s.xp > 0 &&
       s.mass > 0 &&
@@ -83,6 +81,8 @@ assert.ok(
   ),
 );
 assert.ok(r.boss.final.hp > r.boss.stages.at(-1).hp);
+// Bosses come by time: the last giant particle, then the critical breach, then the Higgs.
+assert.ok(r.boss.stages.at(-1).time < r.critical.time && r.critical.time < r.boss.final.time);
 assert.ok(
   r.boss.slotKills.every(
     (n, i, a) => Number.isInteger(n) && n > 0 && n <= r.boss.stages.length && (!i || n > a[i - 1]),
@@ -159,7 +159,7 @@ console.log(
   JSON.stringify({
     status: 'passed',
     skillRankLimit: r.maxRank,
-    requiredEnergy: r.energyGoal,
+    bossTimes: [...r.boss.stages.map((s) => s.time), r.critical.time, r.boss.final.time],
     scope: 'Rule arithmetic; game and browser behavior are checked separately.',
   }),
 );

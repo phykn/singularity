@@ -54,6 +54,8 @@ test('rush energy expires at its window boundary and remains correct through lon
       ...rules,
       late: { ...rules.late, recoverySeconds: 0 },
       rush: { ...rules.rush, windowSeconds: 1, energyThreshold: 2 },
+      // Keep the critical breach's XP cut out of this long clock.
+      critical: { ...rules.critical, time: 1e9 },
     },
   });
   g.start();
@@ -261,8 +263,8 @@ test('mass release recovery follows rarity, clamps removed mass and is independe
   close(g.radius, rules.orbitRadius);
 });
 
-test('gravity collapse fails at any energy, snapshots state and cancels combat and cards', () => {
-  for (const xp of [rules.energyGoal - 1, rules.energyGoal]) {
+test('gravity collapse fails at any XP, snapshots state and cancels combat and cards', () => {
+  for (const xp of [1000, 100000]) {
     const g = fixture({ chain: 3, strike: 3 });
     g.debugSetXp(xp);
     g.mass = 1000;
@@ -296,7 +298,8 @@ test('gravity collapse fails at any energy, snapshots state and cancels combat a
 
 test('elapsed time never ends a run and a debug clear starts a successful collapse', () => {
   const g = fixture();
-  g.debugSetXp(rules.energyGoal - 1);
+  const xp = 40000;
+  g.debugSetXp(xp);
   g.advance(3600000);
   assert.equal(g.phase, 'running');
   assert.equal(g.seconds, 3600);
@@ -306,10 +309,7 @@ test('elapsed time never ends a run and a debug clear starts a successful collap
   g.targets = [enemy];
   g.counts.proton.generated++;
   g.combat.fireBasic(enemy);
-  assert.equal(
-    g.xp,
-    rules.energyGoal - 1 + Math.floor(rules.targets.dense.xp * rules.critical.xpScale),
-  );
+  assert.equal(g.xp, xp + Math.floor(rules.targets.dense.xp * rules.critical.xpScale));
   g.debugClear();
   g.choice = null;
   const choices = g.selections.length;
@@ -371,8 +371,9 @@ test('recovery stops kill-triggered rush even when the build clears a whole grou
   const g = fixture({ multi: 5, chain: 5 });
   g.tick = (rules.stageStarts.at(-1)! + rules.late.assaultSeconds) * rules.tickRate;
   g.spawnBatch();
+  const energy = g.targets.reduce((sum, t) => sum + t.xp, 0);
   while (g.targets.length) g.combat.fireBasic(g.targets[0]);
-  assert.ok(g.xp >= rules.rush.energyThreshold);
+  assert.ok(energy >= rules.rush.energyThreshold);
   assert.equal(g.wavePhase, 'recovery');
   assert.equal(g.rushing, false);
 });
@@ -394,6 +395,7 @@ test('late enemy strength grows at spawn with a speed cap and preserves existing
       rules.targets[target.kind].speed *
       (target.particle === 'neutron' ? 0.85 : 1) *
       rules.late.maxSpeedScale *
+      rules.critical.speedScale *
       (1 + rules.spawnVariation.speedFraction);
     assert.ok(b.targets[i].speed <= cap);
   }
@@ -424,14 +426,11 @@ test('late assault composition increases durable and dashing enemies without inc
 });
 
 test('checkpoint replay preserves the late assault, spawned strength and recovery schedule', (t) => {
-  const goal = rules.energyGoal,
-    gravity = rules.gravityPerMass;
+  const gravity = rules.gravityPerMass;
   t.after(() => {
-    rules.energyGoal = goal;
     rules.gravityPerMass = gravity;
   });
   // Reach the late phase independently of whether this seed can win the current balance.
-  rules.energyGoal = 100000;
   rules.gravityPerMass = 0;
   const g = new Game(107005);
   g.start();

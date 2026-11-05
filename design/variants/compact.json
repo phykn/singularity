@@ -15,9 +15,58 @@
       "hp": [8, 16, 36, 80, 280]
     }
   },
-  "energyGoal": 18000,
   "late": {
     "hpPerMinute": 0.75,
     "speedPerMinute": 0.05
+  },
+  "critical": {
+    "time": 420
+  },
+  "boss": {
+    "stages": [
+      {
+        "kind": "gluon",
+        "time": 135,
+        "hp": 350,
+        "xp": 250,
+        "mass": 10,
+        "summonCount": 4
+      },
+      {
+        "kind": "w",
+        "time": 202,
+        "hp": 1260,
+        "xp": 400,
+        "mass": 20,
+        "summonCount": 8
+      },
+      {
+        "kind": "z",
+        "time": 262,
+        "hp": 2800,
+        "xp": 600,
+        "mass": 30,
+        "summonCount": 12
+      },
+      {
+        "kind": "tau",
+        "time": 315,
+        "hp": 4900,
+        "xp": 800,
+        "mass": 40,
+        "summonCount": 16
+      },
+      {
+        "kind": "top",
+        "time": 368,
+        "hp": 7000,
+        "xp": 1000,
+        "mass": 90,
+        "summonCount": 20
+      }
+    ],
+    "final": {
+      "time": 465
+    }
   }
 }

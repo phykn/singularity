@@ -38,7 +38,7 @@ try {
           beforeCombat: false,
           evolve: false,
         }));
-        g.xp = g.rules.energyGoal * g.rules.boss.stages[0].energyFraction;
+        g.tick = g.rules.boss.stages[0].time * g.rules.tickRate - 1;
         for (let i = 0; i < 4; i++) d.advance(50);
       });
       await page.locator('.boss-bar').waitFor();
@@ -47,7 +47,7 @@ try {
         const d = window.__gameDebug,
           g = d.getModel();
         g.bossCount = g.rules.boss.stages.length;
-        g.xp = g.rules.energyGoal * g.rules.critical.energyFraction;
+        g.tick = g.rules.critical.time * g.rules.tickRate - 1;
         d.advance(50);
       });
       await page.locator('.event-banner[data-kind="critical"]').waitFor();
@@ -58,7 +58,7 @@ try {
         const d = window.__gameDebug,
           g = d.getModel();
         g.choice = null;
-        g.xp = g.rules.energyGoal;
+        g.tick = g.rules.boss.final.time * g.rules.tickRate - 1;
         d.advance(50);
       });
       await page.locator('.event-banner[data-kind="final-boss"]').waitFor();
