@@ -111,8 +111,14 @@ try {
     assert.ok(layout.sound.bottom < layout.start.top);
     assert.equal(layout.clipped, false);
     const soundButton = page.locator('.title-sound');
+    assert.equal(await soundButton.getAttribute('aria-pressed'), 'true', 'Sound starts on');
+    assert.equal(
+      await page.evaluate(() => window.titleAudio.contexts.length),
+      0,
+      'The title opens no audio before a gesture',
+    );
+    await soundButton.tap();
     assert.equal(await soundButton.getAttribute('aria-pressed'), 'false');
-    assert.equal(await page.evaluate(() => window.titleAudio.contexts.length), 0);
     await soundButton.tap();
     await page.waitForFunction(() => window.titleAudio.started === 1);
     assert.equal(await soundButton.getAttribute('aria-pressed'), 'true');
@@ -140,14 +146,21 @@ try {
         exact: true,
       })
       .click();
-    await page.reload();
-    await page.waitForFunction(
-      () => window.__gameScene && !document.querySelector('.start')?.disabled,
-    );
+    const reload = async () => {
+      await page.reload();
+      await page.waitForFunction(
+        () => window.__gameScene && !document.querySelector('.start')?.disabled,
+      );
+    };
+    await reload();
+    assert.equal(await soundButton.getAttribute('aria-pressed'), 'true', 'Reload keeps sound on');
+    assert.equal(await page.evaluate(() => window.titleAudio.contexts.length), 0);
+    await soundButton.tap();
+    await reload();
     assert.equal(
       await soundButton.getAttribute('aria-pressed'),
       'false',
-      'Reload starts muted after enabling sound',
+      'Reload remembers sound off',
     );
     assert.equal(await page.evaluate(() => window.titleAudio.contexts.length), 0);
     assert.equal(
@@ -158,18 +171,10 @@ try {
     await page.getByRole('button', { name: '한국어', exact: true }).click();
     for (const language of languages) {
       await page.getByRole('button', { name: language.label, exact: true }).click();
-      assert.equal(
-        await page.locator('.sound-recommendation').innerText(),
-        copy[language.id].soundRecommended,
-      );
       await page.evaluate(() => document.fonts.ready);
       assert.deepEqual(
         await page.evaluate(() =>
-          [
-            ...document.querySelectorAll(
-              '.title-sound, .title-sound-label, .sound-recommendation, .arena-caption h1',
-            ),
-          ]
+          [...document.querySelectorAll('.title-sound, .title-sound-label, .arena-caption h1')]
             .filter((node) => {
               const r = node.getBoundingClientRect();
               return (

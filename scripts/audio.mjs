@@ -290,6 +290,8 @@ try {
       }
     };
   });
+  // Sound starts on; turning it off and on again plays the preview.
+  await page.locator('.title-sound').click();
   await page.locator('.title-sound').click();
   await page.waitForFunction(
     () => window.audioBurst.started === 1 && window.audioBurst.active === 0,

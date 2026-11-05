@@ -7,9 +7,12 @@ import {
   bestRecord,
   readLanguage,
   readRecord,
+  readSound,
+  writeSound,
   languageKey,
   recordKey,
   save,
+  soundKey,
 } from '../src/app/storage.ts';
 import { fixture, run } from './helpers.ts';
 import { GameSession } from '../src/app/GameSession.ts';
@@ -121,6 +124,34 @@ test('language preferences persist, invalid or unavailable storage falls back to
     } as unknown as Storage),
     'ko',
   );
+});
+
+test('sound is on without a saved choice, remembers off and treats bad values as on', () => {
+  const map = new Map<string, string>();
+  const storage = {
+    getItem: (key: string) => map.get(key) ?? null,
+    setItem: (key: string, value: string) => map.set(key, value),
+  } as Storage;
+  assert.equal(readSound(storage), true);
+  assert.ok(writeSound(storage, false));
+  assert.equal(map.get(soundKey), 'false');
+  assert.equal(readSound(storage), false);
+  assert.ok(writeSound(storage, true));
+  assert.equal(readSound(storage), true);
+  for (const bad of ['"off"', '0', '{', 'null']) {
+    map.set(soundKey, bad);
+    assert.equal(readSound(storage), true, bad);
+  }
+  const blocked = {
+    getItem: () => {
+      throw new Error('blocked');
+    },
+    setItem: () => {
+      throw new Error('blocked');
+    },
+  } as unknown as Storage;
+  assert.equal(readSound(blocked), true);
+  assert.equal(writeSound(blocked, false), false);
 });
 
 test('saved runs restore pending cards, moving enemies and reserved attacks with the same future', () => {

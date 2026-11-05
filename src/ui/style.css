@@ -400,14 +400,6 @@ svg {
   gap: 8px;
   flex: 1;
 }
-.sound-recommendation {
-  padding: 3px 5px;
-  border: 1px solid #335160;
-  color: #aad9e1;
-  background: #192d37;
-  font-size: 10px;
-  line-height: 14px;
-}
 .title-sound-state {
   font-size: 10px;
   color: #81929e;

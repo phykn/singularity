@@ -320,6 +320,9 @@ const audioFlow = async () => {
     await page.waitForFunction((index) => window.audioTrial.requests[index].completed, index);
     await page.waitForTimeout(100);
   };
+  assert.equal(await pressed(), 'true', 'Sound starts on');
+  await sound().click();
+  assert.equal(await pressed(), 'false');
   await sound().click();
   assert.equal(await pressed(), 'true');
   await sound().click();
@@ -377,6 +380,47 @@ const audioFlow = async () => {
   report('automatic audio recovery reports failure and clears the notice after retry', {
     requests: 10,
     currentSound: true,
+  });
+  await page.close();
+};
+
+// A fresh profile hears START at once; turning sound off survives a reload.
+const defaultSoundFlow = async () => {
+  const page = await pageFor(375, 812);
+  const watch = () =>
+    page.evaluate(() => {
+      const Native = window.AudioContext;
+      const contexts = (window.soundContexts = []);
+      window.AudioContext = class extends Native {
+        constructor() {
+          super();
+          contexts.push(this);
+        }
+      };
+    });
+  await watch();
+  const title = page.locator('.title-sound');
+  assert.equal(await title.getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.evaluate(() => window.soundContexts.length), 0);
+  await page.getByRole('button', { name: 'START' }).click();
+  await page.waitForFunction(() => window.soundContexts[0]?.state === 'running');
+  await page.getByRole('button', { name: '일시정지', exact: true }).click();
+  const setting = page.locator('.setting-row').first();
+  assert.equal(await setting.getAttribute('aria-pressed'), 'true');
+  await setting.click();
+  assert.equal(await setting.getAttribute('aria-pressed'), 'false');
+  await page.reload();
+  await page.waitForFunction(
+    () => !!window.__gameDebug && document.querySelector('.start')?.disabled === false,
+  );
+  await watch();
+  assert.equal(await title.getAttribute('aria-pressed'), 'false');
+  await page.getByRole('button', { name: 'START' }).click();
+  await page.waitForTimeout(300);
+  assert.equal(await page.evaluate(() => window.soundContexts.length), 0);
+  report('sound starts on at START in a fresh profile and stays off after a reload', {
+    first: 'running',
+    afterReload: 'off',
   });
   await page.close();
 };
@@ -1197,7 +1241,14 @@ const waveWarningFlow = async () => {
       g.setHidden(true);
       debug.advance(0);
     });
-    assert.equal((await sample()).length, 2, 'Repeated late assaults retain directional warnings');
+    // Late in the run the critical orbit and the timed bosses are red too; count the warnings.
+    const lateWarnings = async () =>
+      (await sample()).filter((style) => Math.abs(style.width - 3) < 1e-6);
+    assert.equal(
+      (await lateWarnings()).length,
+      2,
+      'Repeated late assaults retain directional warnings',
+    );
     await screenshot(page, 'late-wave-warning-' + width + 'x' + height);
     const assault = await page.evaluate(() => {
       const debug = window.__gameDebug,
@@ -1217,7 +1268,7 @@ const waveWarningFlow = async () => {
     assert.equal(assault.phase, 'assault');
     assert.equal(assault.actualAngle, assault.expectedAngle);
     assert.ok(assault.count > 0);
-    assert.deepEqual(await sample(), []);
+    assert.deepEqual(await lateWarnings(), []);
     await inspect(page);
     report('red wave warnings pulse, pause and lead into late assaults ' + width + 'x' + height, {
       peak,
@@ -1258,6 +1309,7 @@ try {
     await polishFlow();
   } else if (mode === 'audio') {
     await audioFlow();
+    await defaultSoundFlow();
   } else if (mode === 'skills') {
     await waveWarningFlow();
     await skillFlow();
@@ -1346,6 +1398,7 @@ try {
     });
   } else {
     await audioFlow();
+    await defaultSoundFlow();
     await rarityFlow();
     for (const [width, height] of [
       [360, 640],
@@ -1619,11 +1672,11 @@ try {
     assert.equal(await settings.getByRole('button', { name: /시각 효과/ }).count(), 0);
     const sound = settings
       .getByRole('dialog')
-      .getByRole('button', { name: '사운드 끔', exact: true });
+      .getByRole('button', { name: '사운드 켬', exact: true });
     await sound.click();
     await settings
       .getByRole('dialog')
-      .getByRole('button', { name: '사운드 켬', exact: true })
+      .getByRole('button', { name: '사운드 끔', exact: true })
       .waitFor();
     await settings.getByRole('button', { name: '닫기', exact: true }).click();
     await settings.reload();
@@ -1641,7 +1694,7 @@ try {
       .evaluateAll((nodes) => nodes.every((n) => getComputedStyle(n).animationName === 'none'));
     assert.equal(animations, true);
     await screenshot(settings, 'settings-play');
-    report('reload starts muted and card icons stay static', { cardIconAnimations: false });
+    report('reload keeps sound off and card icons stay static', { cardIconAnimations: false });
     await settings.close();
 
     const blocked = await browser.newPage({ viewport: { width: 375, height: 812 } });
@@ -1657,11 +1710,12 @@ try {
     await blocked.goto(base);
     await blocked.waitForSelector('canvas');
     await blocked.getByRole('button', { name: '설정', exact: true }).click();
+    assert.equal(await blocked.locator('.setting-notice').count(), 0);
     await blocked
       .getByRole('dialog')
-      .getByRole('button', { name: '사운드 끔', exact: true })
+      .getByRole('button', { name: '사운드 켬', exact: true })
       .click();
-    assert.equal(await blocked.locator('.setting-notice').count(), 0);
+    await blocked.getByRole('dialog').getByText(copy.ko.storageFailed).waitFor();
     await blocked.getByRole('dialog').getByRole('button', { name: 'ENG', exact: true }).click();
     await blocked.getByRole('dialog').getByText(copy.en.storageFailed).waitFor();
     await blocked.getByRole('button', { name: 'Close', exact: true }).click();

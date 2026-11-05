@@ -193,14 +193,10 @@ export default function App() {
                 onClick={() => void toggleSound()}
                 aria-label={c.sound + ' ' + (settings.sound ? c.on : c.off)}
                 aria-pressed={settings.sound}
-                aria-describedby="sound-recommendation"
               >
                 <SoundIcon enabled={settings.sound} />
                 <span className="title-sound-label">
                   <span>{c.sound}</span>
-                  <span className="sound-recommendation" id="sound-recommendation">
-                    {c.soundRecommended}
-                  </span>
                 </span>
                 <span className="title-sound-state">{settings.sound ? c.on : c.off}</span>
                 <i className="switch" aria-hidden="true" />

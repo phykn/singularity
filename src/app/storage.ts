@@ -14,6 +14,7 @@ export const recordKey = 'singularity.record';
 export const beyondRecordKey = 'singularity.beyond';
 export type BeyondRecord = { seconds: number; xp: number; seed: number };
 export const languageKey = 'singularity.language';
+export const soundKey = 'singularity.sound';
 
 export function readLanguage(storage: Storage): Language {
   try {
@@ -24,6 +25,16 @@ export function readLanguage(storage: Storage): Language {
   }
   return 'ko';
 }
+
+// Sound is on unless the player turned it off.
+export function readSound(storage: Storage): boolean {
+  try {
+    return JSON.parse(storage.getItem(soundKey) ?? 'true') !== false;
+  } catch {
+    return true;
+  }
+}
+export const writeSound = (storage: Storage, sound: boolean) => save(storage, soundKey, sound);
 
 export function readRecord(storage: Storage): BestRecord | null {
   try {

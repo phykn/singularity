@@ -150,12 +150,12 @@ try {
   await page.getByRole('button', { name: copy.en.settings, exact: true }).click();
   assert.equal(
     await page.locator('.settings-panel .setting-row').first().getAttribute('aria-pressed'),
-    'false',
+    'true',
   );
   assert.equal(await page.evaluate(() => localStorage.getItem('singularity.record')), record);
   await page.getByRole('button', { name: copy.en.close, exact: true }).click();
   await page.getByRole('button', { name: '한국어', exact: true }).click();
-  report('fresh runs preserve language and best results while sound starts off', {});
+  report('fresh runs preserve language, best results and the default sound setting', {});
 
   await page.getByRole('button', { name: 'START' }).click();
   await page.evaluate(() => window.__gameDebug.advance(10000));

@@ -4,7 +4,7 @@ import { GameAudio } from './GameAudio.ts';
 import { GameSession } from './GameSession.ts';
 import { ResultRecords } from './ResultRecords.ts';
 import { newSeed } from './seed.ts';
-import { readLanguage, languageKey, save } from './storage.ts';
+import { readLanguage, readSound, languageKey, save, soundKey } from './storage.ts';
 import type { UpgradeId } from '../game/rules.ts';
 import { htmlLang } from '../ui/i18n.ts';
 import type { Language } from '../ui/i18n.ts';
@@ -17,7 +17,13 @@ export function useGame() {
       return 'ko';
     }
   });
-  const [settings, setSettings] = useState({ sound: false });
+  const [settings, setSettings] = useState(() => {
+    try {
+      return { sound: readSound(localStorage) };
+    } catch {
+      return { sound: true };
+    }
+  });
   const [storageOk, setStorageOk] = useState(true);
   const failedSaves = useRef(new Set<string>());
   const [audioUnavailable, setAudioUnavailable] = useState(false);
@@ -77,13 +83,22 @@ export function useGame() {
     document.documentElement.lang = htmlLang(language);
   }, [language]);
 
+  // A failed unlock turns sound off for this page but keeps the saved choice.
+  const turnOffUnheard = useCallback(
+    (enabled: boolean | null) => {
+      if (enabled === false && settingsRef.current.sound)
+        changeSettings({ ...settingsRef.current, sound: false });
+    },
+    [changeSettings],
+  );
+
   const toggleSound = useCallback(async () => {
     const sound = !settingsRef.current.sound;
     changeSettings({ ...settingsRef.current, sound });
+    write(soundKey, sound);
     setAudioUnavailable(false);
-    if ((await session.setSound(sound)) === false && settingsRef.current.sound)
-      changeSettings({ ...settingsRef.current, sound: false });
-  }, [session, changeSettings]);
+    turnOffUnheard(await session.setSound(sound));
+  }, [session, changeSettings, write, turnOffUnheard]);
 
   const replace = useCallback(() => {
     const game = new Game(newSeed(session.game.seed), { recordEvents: false });
@@ -92,8 +107,8 @@ export function useGame() {
   }, [session]);
 
   const begin = useCallback(() => {
-    session.begin(performance.now());
-  }, [session]);
+    void session.begin(performance.now())?.then(turnOffUnheard);
+  }, [session, turnOffUnheard]);
 
   const pause = useCallback(
     (paused: boolean) => {

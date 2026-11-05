@@ -51,6 +51,8 @@ try {
       });
       await page.goto(base);
       await page.waitForFunction(() => !!window.__gameScene && !!window.__gameDebug);
+      // Sound starts on but unopened; a tap turns it off, a second tap opens it.
+      await page.locator('.title-sound').click();
       if (sound) await page.locator('.title-sound').click();
       await page.evaluate(
         ({ count }) => {

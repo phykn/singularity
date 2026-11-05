@@ -49,12 +49,14 @@ export class GameSession {
     this.effects.redraw();
   }
 
-  begin(wall: number): void {
-    if (!this.renderReady || this.game.paused || this.game.phase !== 'ready') return;
-    if (this.effects.sound()) void this.unlockAudio();
+  // START is the user gesture that lets the browser open audio; resolves false if it cannot.
+  begin(wall: number): Promise<boolean | null> | null {
+    if (!this.renderReady || this.game.paused || this.game.phase !== 'ready') return null;
+    const unlocked = this.effects.sound() ? this.unlockAudio() : null;
     this.lastWall = wall;
     this.game.start();
     this.effects.redraw();
+    return unlocked;
   }
 
   replace(game: Game, wall: number): void {
@@ -166,7 +168,12 @@ export class GameSession {
     if (hidden) {
       this.rhythm.cancel();
       this.audio.suspend();
-    } else if (this.renderReady && this.effects.sound() && !this.game.manualPaused)
+    } else if (
+      this.renderReady &&
+      this.effects.sound() &&
+      !this.game.manualPaused &&
+      this.game.phase !== 'ready'
+    )
       void this.unlockAudio();
     this.effects.redraw();
   }
