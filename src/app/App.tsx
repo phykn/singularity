@@ -235,6 +235,7 @@ export default function App() {
           <a href="/proto.html" style={{ pointerEvents: 'auto', color: 'inherit' }}>
             시제품
           </a>
+          {window.__rulesVariant && <span>규칙: {window.__rulesVariant}</span>}
         </small>
       )}
 
