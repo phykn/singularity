@@ -58,3 +58,21 @@ Generate large PNG: square cells in the exact requested grid, at least 1024 pixe
 ### 최종 캔버스 정렬 검사 (2026-11-04)
 
 새 이미지의 그림 픽셀을 확대/축소/다시 그리지 않고 투명 여백만 재배치하여 모든 칸을 같은 정사각형으로 정렬. 재생성 횟수에 해당하지 않는 캔버스 포장. 아이콘 448px/320px/400px 셀, 중간보스 512px 셀(2560×512), 일반 입자 384px 셀(2304×384). 최종 크기 최근접 미리보기 재검사. 이전의 알파/비율/눌림 문제는 해결됨. 일반 입자 민트 고리도 16px에서 식별됨. 이전 문제 기록은 포장 전 결과. 보스 경고 장식 개수, 진화 연속 3줄 및 작은 세부 요소는 여전히 남음. 그림 내용은 바뀌지 않아 기존 참조 이미지와 동일한 디자인을 유지함.
+
+## 2026-11-06 — middle-source 경고 장식 하나로
+
+Tool: Codex CLI. 보스마다 경고 빨강 #ff536b 장식을 하나만 남김. 글루온(끈 끝 빨간 공 → 금색 매듭)과 Z(아래 구슬 제거)는 아래 프롬프트로 재생성해 원래 크기에 맞춰 칸에 넣음. W는 두 번 재생성해도 아래 빨간 보석이 남아, 원본에서 그 보석 픽셀(y 418~449)의 색상만 호박색으로 바꾸는 후처리로 처리. 타우는 이미 하나, 톱 쿼크는 몸통 자체가 장미색이라 유지.
+
+```text
+
+Polished pixel art for SINGULARITY, a dark electron survival game. Same artist as the attached reference. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. No blur, glow mist or scattered grain.
+EDIT this boss sprite (attached image 1). Keep the same subject, silhouette, pose, size, palette, shading and pixel style as closely as possible. Make only the change below. Transparent background. One single sprite on a square canvas filling about 90% of it, designed on a 48x48 logical pixel grid. Square PNG, at least 1024 pixels, alpha exactly zero outside the sprite. No text.
+Change: the boss must carry exactly ONE warning red #ff536b accent. Keep the deep crimson round body with its single small warning-red highlight spot. Replace the three red balls at the ends of the three pale gold strings with small pale gold #f9d894 knot caps, so no other red accent remains.
+```
+
+```text
+
+Polished pixel art for SINGULARITY, a dark electron survival game. Same artist as the attached reference. Stepped dark contours, compact 4-5 tone bevels, one small ivory upper-left highlight. No blur, glow mist or scattered grain.
+EDIT this boss sprite (attached image 1). Keep the same subject, silhouette, pose, size, palette, shading and pixel style as closely as possible. Make only the change below. Transparent background. One single sprite on a square canvas filling about 90% of it, designed on a 48x48 logical pixel grid. Square PNG, at least 1024 pixels, alpha exactly zero outside the sprite. No text.
+Change: the boss must carry exactly ONE warning red #ff536b accent. Keep ONE small warning-red bead on the top ring. Replace the red bead on the bottom ring with a plain grey-lavender ring segment matching the ring.
+```
