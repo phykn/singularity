@@ -252,6 +252,7 @@ async function main() {
       checks,
       lossesByRound,
       worstLossMinute: [...minutes].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
+      lossesByMinute: Object.fromEntries([...minutes].sort((a, b) => a[0] - b[0])),
       evolutionRunShare: runs.filter((r) => r.evolved).length / count,
       // Information only: when each new thing first shows, and the longest quiet stretch.
       firstSeen: Object.fromEntries(

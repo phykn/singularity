@@ -55,9 +55,12 @@ test('a player tapping on the beat completes rounds through the session', () => 
     else if (r.open && r.due <= r.age) s.tap(wall);
   }
   assert.ok(s.rhythm.completed >= 1, 'no round completed in 40 seconds');
-  assert.deepEqual(
-    s.game.inputs.filter((i) => i.kind === 'beat').map((i) => i.kind === 'beat' && i.beat),
-    [1, 2, 3],
+  // A level-up between beats cancels the round; the next one starts again at 1.
+  const beats = s.game.inputs.flatMap((i) => (i.kind === 'beat' ? [i.beat] : []));
+  assert.deepEqual(beats.slice(-3), [1, 2, 3]);
+  assert.ok(
+    beats.every((b, i) => b === 1 || b === beats[i - 1] + 1),
+    beats.join(),
   );
   assert.ok(log.includes('rhythm-complete'));
 });
