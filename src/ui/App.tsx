@@ -5,6 +5,7 @@ import { Canvas } from '../render/Canvas.tsx';
 import { arenaViewport, endingFrame } from '../render/timeline.ts';
 import { Choices } from './Choices.tsx';
 import { Dialog } from './Dialog.tsx';
+import { EventBanner } from './EventBanner.tsx';
 import { Hud } from './Hud.tsx';
 import { ControlIcon, SoundIcon } from './icons.tsx';
 import { Loadout } from './Loadout.tsx';
@@ -103,6 +104,7 @@ export default function App() {
         )}
         <section ref={arena} className="arena" tabIndex={-1} aria-label={c.arena}>
           <Canvas session={session} onReady={g.onReady} />
+          {!ready && <EventBanner game={game} language={language} />}
           {!session.ready && (
             <p className="render-status" role="status">
               {c.loading}

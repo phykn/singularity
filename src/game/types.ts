@@ -6,6 +6,7 @@ import type { Boosts, Rarity, Ranks, SkillId, UpgradeId } from './rules.ts';
 export type Phase = 'ready' | 'running' | 'collapse' | 'ending' | 'result' | 'crossing';
 // Stored in best records; keep these strings.
 export type Outcome = 'success' | 'collapse-failure' | 'retired';
+export type BannerKind = 'critical' | 'boss' | 'boss-down' | 'slot-open' | 'final-boss';
 export type Target = Point & {
   id: number;
   kind: 'small' | 'dense' | 'boss';
@@ -96,6 +97,7 @@ export type Result = {
   collisionTime: number;
   seconds: number;
   round: number;
+  trigger: 'gravity' | 'boss-absorbed' | 'boss' | 'quit';
   ranks: Ranks;
   boosts: Boosts;
   rarities: Partial<Record<UpgradeId, Rarity>>;

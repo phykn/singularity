@@ -181,7 +181,14 @@ export class Combat {
 
   fireBasic(origin: Point = this.game.position): boolean {
     const attack = this.begin(),
-      selected = closest(this.game.targets, origin, this.game.forms.multi.count, attack.range);
+      limit = this.game.forms.multi.count,
+      selected = closest(this.game.targets, origin, limit, attack.range);
+    // Basic fire always answers the boss, so builds without single-target skills can fight it.
+    const boss = this.game.boss;
+    if (boss && !selected.includes(boss) && distance(boss, origin) <= attack.range) {
+      selected.unshift(boss);
+      selected.length = Math.min(selected.length, limit);
+    }
     this.volley(attack, origin, selected, true);
     return selected.length > 0;
   }

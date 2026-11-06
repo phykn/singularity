@@ -3,9 +3,10 @@ import beamsUrl from '../art/assets/beams.png';
 import bossesUrl from '../art/assets/bosses.png';
 import effectsUrl from '../art/assets/effects.png';
 import particlesUrl from '../art/assets/particles.png';
-import { AMBER, BLUE, GOLD, RED, WHITE, skillColors } from '../art/palette.ts';
+import { AMBER, BLUE, GLUON, GOLD, RED, WHITE, skillColors } from '../art/palette.ts';
 import { bossFrames, particleFrames } from '../art/particles.ts';
-import { CENTER, orbit } from '../game/geometry.ts';
+import { CENTER, clamp, orbit } from '../game/geometry.ts';
+import { particleMotion } from '../game/particles.ts';
 import type { Point } from '../game/geometry.ts';
 import type { Game } from '../game/Game.ts';
 import type { Target } from '../game/types.ts';
@@ -103,19 +104,21 @@ export class Scene extends Phaser.Scene {
     const crossing = beyondFrame(game, this.reducedMotion.matches);
     if (crossing) return this.drawBeyond(crossing, game.seed);
     const danger = game.margin < game.rules.orbit.dangerMargin,
-      color = BLUE;
+      color = game.finalProgress >= 1 ? GOLD : BLUE;
     if (!ending || (ending.success && ending.electron)) {
-      const opacity = (danger ? 0.8 : 0.32) * (1 - (ending?.absorb ?? 0));
+      const opacity = (danger ? 0.8 : 0.32) * (1 - (ending?.absorb ?? 0)),
+        critical = game.critical && !ending;
       this.drawOrbit(
         ending?.electron ? ending.radius : game.radius,
-        danger ? AMBER : color,
-        opacity,
+        danger ? AMBER : critical ? RED : color,
+        critical ? Math.max(opacity, 0.45 + 0.3 * Math.sin(clock * 8)) : opacity,
         danger,
       );
     }
     if (game.mass > 0 && (!ending || !ending.success || ending.electron))
       this.drawCore(game.core * (ending?.core ?? 1));
     if (ending && !ending.success) drawCollapse(this.g, ending, scale);
+    if (!ending) this.drawArrivals(game);
     for (const target of game.targets) this.drawTarget(game, target, ending, clock);
     if (!ending) {
       const electron = game.position,
@@ -191,10 +194,20 @@ export class Scene extends Phaser.Scene {
       point.y > this.scale.height + 20
     )
       return;
-    const alpha = (1 - absorb) * (target.veiled ? 0.3 : 1);
+    if (!ending) this.drawBehavior(game, target, clock);
+    const look = this.look(game, target, clock),
+      alpha = (1 - absorb) * look.alpha;
     const sprite = target.boss
-      ? this.sprites.draw(point, 'bosses', 1, alpha, 0.5, bossFrames[target.boss])
-      : this.sprites.draw(point, 'particles', 1, alpha, 0.5, particleFrames[target.particle]);
+      ? this.sprites.draw(point, 'bosses', 1, alpha, 0.5, bossFrames[target.boss], look.rotation)
+      : this.sprites.draw(
+          point,
+          'particles',
+          1,
+          alpha,
+          0.5,
+          particleFrames[target.particle],
+          look.rotation,
+        );
     const hit = !ending && target.hitAt !== undefined && game.time - target.hitAt < 0.06;
     if (hit) sprite.setTint(0x5a5a5a).setTintMode(addTint);
     else sprite.clearTint();
@@ -223,6 +236,88 @@ export class Scene extends Phaser.Scene {
       }
       this.g.fillStyle(filled < width ? 0xe4938c : 0xa7656b, 0.85);
       this.g.fillRect(left, top, filled / scale, 1 / scale);
+    }
+  }
+
+  // How a particle's own rule shows: muons blink before a dash and face the core, mesons
+  // spin, veiled neutrinos stay faint, a Z boson fades while immune, the tau points ahead.
+  private look(game: Game, target: Target, clock: number) {
+    const age = game.time - target.born,
+      blink = Math.sin(clock * 30) > 0 ? 1 : 0.45;
+    let alpha = target.veiled ? 0.3 : 1,
+      rotation = 0;
+    if (target.particle === 'muon' && target.kind !== 'boss') {
+      rotation = target.angle;
+      if (particleMotion(game.rules.particles.muon, age).charging)
+        alpha = Math.sin(clock * 40) > 0 ? 1 : 0.35;
+    } else if (target.particle === 'meson') rotation = age * 6;
+    if (target.boss === 'tau') rotation = target.angle + Math.PI;
+    const boss = game.bossPhase(target);
+    if (boss?.immune) alpha = 0.3;
+    else if (boss?.warning || boss?.charging) alpha = blink;
+    return { alpha, rotation };
+  }
+
+  // A wave's red warning, then faint dots where formations are about to appear.
+  private drawArrivals(game: Game): void {
+    const g = this.g,
+      pixel = 1 / this.view.scale,
+      wave = game.warningWave;
+    if (wave) {
+      const elapsed = game.time - wave.time + game.rules.spawn.waveWarningSeconds,
+        alpha = 0.3 + 0.65 * (0.5 + 0.5 * Math.cos(elapsed * Math.PI * 4));
+      for (const side of [0, Math.PI]) {
+        g.lineStyle(3 * pixel, RED, alpha).beginPath();
+        for (let i = 0; i <= 16; i++) {
+          const p = orbit(wave.angle + side - 0.24 + (i * 0.48) / 16, 172);
+          if (i) g.lineTo(p.x, p.y);
+          else g.moveTo(p.x, p.y);
+        }
+        g.strokePath();
+        const mark = orbit(wave.angle + side, 156);
+        g.fillStyle(RED, alpha);
+        g.fillRect(mark.x - 2 * pixel, mark.y - 7 * pixel, 4 * pixel, 9 * pixel);
+        g.fillRect(mark.x - 2 * pixel, mark.y + 5 * pixel, 4 * pixel, 3 * pixel);
+      }
+    }
+    for (const spawn of game.pending) {
+      const span = Math.max(1e-3, spawn.time - spawn.planned);
+      g.fillStyle(WHITE, 0.12 + 0.18 * clamp((game.time - spawn.planned) / span));
+      for (const m of spawn.members) {
+        const p = orbit(m.angle, Math.min(m.radius, game.rules.orbit.spawnRadius + 6)),
+          size = (m.kind === 'dense' ? 2 : 1.5) * pixel;
+        g.fillRect(p.x - size / 2, p.y - size / 2, size, size);
+      }
+    }
+  }
+
+  // Tethers, the Higgs field and heavy rims, drawn under the sprite.
+  private drawBehavior(game: Game, target: Target, clock: number): void {
+    const g = this.g,
+      pixel = 1 / this.view.scale;
+    if (target.tether !== undefined) {
+      const holder = game.targets.find((t) => t.id === target.tether);
+      if (holder) {
+        g.lineStyle(pixel, GLUON, 0.35 + 0.2 * Math.sin(clock * 9 + target.id));
+        g.lineBetween(holder.x, holder.y, target.x, target.y);
+      }
+    }
+    if (target.boss === 'higgs') {
+      const field = game.higgsField(target);
+      g.lineStyle(pixel, GOLD, 0.25 + 0.1 * Math.sin(clock * 3)).strokeCircle(
+        target.x,
+        target.y,
+        field,
+      );
+      g.fillStyle(GOLD, 0.05).fillCircle(target.x, target.y, field);
+    }
+    if (target.higgs)
+      g.lineStyle(pixel, GOLD, 0.5).strokeCircle(target.x, target.y, target.size + 1);
+    if (target.particle === 'neutron' && target.kind !== 'boss') {
+      // Heavy particles light their rim as they near the core.
+      const near = clamp(1 - (target.radius - game.core) / 60);
+      if (near > 0)
+        g.lineStyle(pixel, RED, 0.6 * near).strokeCircle(target.x, target.y, target.size);
     }
   }
 

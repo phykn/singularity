@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 
-const scenarios = { smoke, choices };
+const scenarios = { smoke, choices, 'late-game': lateGame };
 const wanted = process.argv.slice(2).filter((arg) => !arg.startsWith('--'));
 const names = !wanted.length || wanted.includes('all') ? Object.keys(scenarios) : wanted;
 for (const name of names) if (!scenarios[name]) throw new Error(`unknown scenario: ${name}`);
@@ -192,6 +192,53 @@ async function choices(page) {
     timeout: 7000,
   });
   pass('with choice pause off the countdown picks by itself');
+}
+
+// Jumps the clock with spawning off: giants, the critical breach and the Higgs by time.
+async function lateGame(page) {
+  await open(page);
+  await page.getByRole('button', { name: 'START' }).click();
+  const jump = (seconds, skipGiants = false) =>
+    page.evaluate(
+      ([seconds, skipGiants]) => {
+        const debug = window.__gameDebug,
+          game = debug.getGame();
+        if (skipGiants) game.bossCount = game.rules.bosses.length;
+        game.tick = Math.round(seconds * game.rules.time.tickRate) - 1;
+        debug.advance(1000 / game.rules.time.tickRate);
+      },
+      [seconds, skipGiants],
+    );
+  await page.evaluate(() => window.__gameDebug.restart(7, false));
+  await jump(270);
+  const banner = page.locator('.event-banner');
+  await banner.filter({ hasText: 'GLUON INBOUND 1/5' }).waitFor({ timeout: 2000 });
+  await page.locator('.boss-bar').waitFor();
+  pass('the first giant arrives at 4:30 with its banner and health bar');
+
+  await jump(840, true);
+  await page.locator('.event-banner[data-kind="critical"]').waitFor({ timeout: 2000 });
+  assert.equal(await page.locator('.hud').getAttribute('data-critical'), 'true');
+  pass('the critical breach starts at 14:00');
+
+  await jump(930);
+  await banner.filter({ hasText: 'HIGGS INBOUND' }).waitFor({ timeout: 2000 });
+  await page.getByRole('progressbar', { name: 'Destroy the Higgs' }).waitFor();
+  assert.equal(await page.locator('.boss-bar').getAttribute('data-final'), 'true');
+  await page.screenshot({ path: 'artifacts/browser-late-game-higgs.png' });
+  pass('the Higgs arrives at 15:30 and the singularity meter is full');
+
+  await page.evaluate(() => {
+    const debug = window.__gameDebug,
+      game = debug.getGame();
+    game.damageTarget(
+      game.targets.find((t) => t.final),
+      1e12,
+    );
+    for (let i = 0; i < 20 && game.phase !== 'result'; i++) debug.advance(500);
+  });
+  await page.getByRole('dialog', { name: 'Singularity' }).waitFor({ timeout: 3000 });
+  pass('popping the Higgs wins the run');
 }
 
 await main();

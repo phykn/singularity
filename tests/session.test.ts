@@ -74,6 +74,7 @@ test('the result is recorded once', () => {
   const { s, log } = session();
   s.toggleChoicePause(0);
   s.start(0);
+  s.game.mass = 400; // the orbit closes in about half a minute
   for (let wall = 0; s.game.phase !== 'result' && wall < 600_000; wall += 100) s.frame(wall);
   s.frame(700_000);
   assert.equal(s.game.phase, 'result');

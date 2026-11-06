@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "vite",
     "test": "node --test tests/*.test.ts",
-    "check": "npm test && npm run check:design && npm run check:browser -- smoke choices",
+    "check": "npm test && npm run check:design && npm run sim -- balance && npm run check:browser -- smoke choices late-game",
     "check:design": "node design/schema.ts",
     "sim": "node scripts/sim.ts",
     "check:browser": "node scripts/browser.mjs",

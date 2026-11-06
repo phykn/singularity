@@ -20,3 +20,14 @@ export function particleMotion(cfg: Rules['particles'][ParticleKind], age: numbe
     dashing,
   };
 }
+
+export type Mix = Rules['stages'][number]['shares'];
+
+// Dense batches roll neutron or proton; small ones muon, neutrino, meson, else quark.
+export function particleKind(family: Family, roll: number, mix: Mix): ParticleKind {
+  if (family === 'dense') return roll < mix.neutron ? 'neutron' : 'proton';
+  if (roll < mix.muon) return 'muon';
+  if (roll < mix.muon + mix.neutrino) return 'neutrino';
+  if (roll < mix.muon + mix.neutrino + mix.meson) return 'meson';
+  return 'quark';
+}

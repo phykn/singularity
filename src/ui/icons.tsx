@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import controlAtlas from '../art/assets/controls.png';
 import skillAtlas from '../art/assets/skills.png';
 import {
@@ -55,6 +56,20 @@ export function Rank({ value, max, next }: { value: number; max: number; next?: 
   );
 }
 
+const controlImage = (id: ControlId) => {
+  const cell = controlCells[id];
+  return (
+    <image
+      href={controlAtlas}
+      x={-cell.x}
+      y={-cell.y}
+      width={controlAtlasSize.width}
+      height={controlAtlasSize.height}
+      style={pixelated}
+    />
+  );
+};
+
 // One 32px cell of the control atlas fills the viewBox.
 export function ControlIcon({
   id,
@@ -65,7 +80,6 @@ export function ControlIcon({
   className?: string;
   size?: number;
 }) {
-  const cell = controlCells[id];
   return (
     <svg
       className={className}
@@ -75,14 +89,24 @@ export function ControlIcon({
       overflow="hidden"
       aria-hidden="true"
     >
-      <image
-        href={controlAtlas}
-        x={-cell.x}
-        y={-cell.y}
-        width={controlAtlasSize.width}
-        height={controlAtlasSize.height}
-        style={pixelated}
-      />
+      {controlImage(id)}
+    </svg>
+  );
+}
+
+// The singularity ring fills from the bottom as the Higgs draws near.
+export function ChargeIcon({ progress }: { progress: number }) {
+  const clip = useId(),
+    y = 32 - Math.floor(Math.max(0, Math.min(1, progress)) * 16) * 2;
+  return (
+    <svg className="charge-icon" width={32} height={32} viewBox="0 0 32 32" aria-hidden="true">
+      <defs>
+        <clipPath id={clip}>
+          <rect x={0} y={y} width={32} height={32 - y} />
+        </clipPath>
+      </defs>
+      <g opacity={0.3}>{controlImage('charge')}</g>
+      <g clipPath={`url(#${clip})`}>{controlImage('charge')}</g>
     </svg>
   );
 }

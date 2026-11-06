@@ -2,7 +2,7 @@ import type { Game } from '../game/Game.ts';
 import { critChance, statIds } from '../game/rules.ts';
 import type { StatId } from '../game/rules.ts';
 import { formatTime } from './format.ts';
-import { ControlIcon, SkillIcon } from './icons.tsx';
+import { ChargeIcon, ControlIcon, SkillIcon } from './icons.tsx';
 import { copy } from './text/index.ts';
 import type { Language } from './text/index.ts';
 
@@ -33,10 +33,24 @@ export function Hud({
   onSpeed: () => void;
   onPause: () => void;
 }) {
-  const c = copy[language];
+  const c = copy[language],
+    percent = Math.floor(game.finalProgress * 100),
+    due = game.finalProgress >= 1,
+    boss = game.phase === 'running' ? game.boss : undefined;
   return (
-    <section className="hud" aria-label={c.hud}>
+    <section className="hud" aria-label={c.hud} data-critical={game.critical}>
       <div className="hud-top">
+        <div
+          className={`charge ${due ? 'energy-full' : ''}`}
+          role="progressbar"
+          aria-label={due ? c.finalBossDue : c.singularity}
+          aria-valuenow={percent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <ChargeIcon progress={percent / 100} />
+          <b>{percent}%</b>
+        </div>
         <div className="boosts">
           {statIds.map((id) => (
             <div
@@ -68,6 +82,19 @@ export function Hud({
           <ControlIcon id="pause" />
         </button>
       </div>
+      {boss && (
+        <div
+          className="boss-bar"
+          role="progressbar"
+          aria-label={boss.boss ? c.bossNames[boss.boss] : c.bossName}
+          data-final={Boolean(boss.final)}
+          aria-valuenow={Math.ceil((boss.hp / boss.maxHp) * 100)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <i style={{ width: (boss.hp / boss.maxHp) * 100 + '%' }} />
+        </div>
+      )}
     </section>
   );
 }
