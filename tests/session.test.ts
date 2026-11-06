@@ -72,9 +72,43 @@ test('START opens audio only when sound is on', () => {
 
 test('the result is recorded once', () => {
   const { s, log } = session();
+  s.toggleChoicePause(0);
   s.start(0);
   for (let wall = 0; s.game.phase !== 'result' && wall < 600_000; wall += 100) s.frame(wall);
   s.frame(700_000);
   assert.equal(s.game.phase, 'result');
   assert.equal(log.filter((entry) => entry === 'record').length, 1);
+});
+
+function untilChoice(s: Session): number {
+  let wall = 0;
+  s.start(0);
+  while (!s.game.choice && wall < 120_000) s.frame((wall += 16));
+  return wall;
+}
+
+test('a paused choice holds combat until a card is taken', () => {
+  const { s } = session();
+  let wall = untilChoice(s);
+  const ticks = s.game.elapsedTicks;
+  s.frame((wall += 10_000));
+  assert.equal(s.game.elapsedTicks, ticks);
+  const { cards, number } = s.game.choice!;
+  assert.equal(s.select(cards[0].id, number, wall), true);
+});
+
+test('with choice pause off, the countdown picks after choiceSeconds of wall time', () => {
+  const { s } = session();
+  s.toggleChoicePause(0);
+  let wall = untilChoice(s);
+  const number = s.game.choice!.number;
+  s.cycleSpeed(wall);
+  s.cycleSpeed(wall);
+  for (let end = wall + s.game.rules.time.choiceSeconds * 1000 - 50; wall < end;)
+    s.frame((wall += 16));
+  assert.equal(s.game.choice?.number, number, 'still open just before the deadline');
+  s.frame((wall += 100));
+  assert.equal(s.game.selections.length, number);
+  assert.notEqual(s.game.choice?.number, number);
+  assert.equal(s.select('power', number, wall), false);
 });

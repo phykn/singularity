@@ -3,42 +3,49 @@
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 
-const scenarios = { smoke };
+const scenarios = { smoke, choices };
 const wanted = process.argv.slice(2).filter((arg) => !arg.startsWith('--'));
 const names = !wanted.length || wanted.includes('all') ? Object.keys(scenarios) : wanted;
 for (const name of names) if (!scenarios[name]) throw new Error(`unknown scenario: ${name}`);
 
-const started = performance.now();
-const server = await serve();
-const browser = await launch();
-let failed = false;
-try {
-  for (const name of names) {
-    const context = await browser.newContext({
-      viewport: { width: 375, height: 812 },
-      locale: 'en-US',
-    });
-    const page = await context.newPage();
-    const errors = [];
-    page.on('pageerror', (error) => errors.push(error.message));
-    page.on('console', (message) => message.type() === 'error' && errors.push(message.text()));
-    try {
-      await scenarios[name](page);
-      assert.deepEqual(errors, [], 'page errors');
-    } catch (error) {
-      failed = true;
-      mkdirSync('artifacts', { recursive: true });
-      await page.screenshot({ path: `artifacts/browser-${name}.png` }).catch(() => {});
-      console.error(`FAIL ${name}`, error);
+let server;
+
+// Runs after every helper below is defined.
+async function main() {
+  const started = performance.now();
+  server = await serve();
+  const browser = await launch();
+  let failed = false;
+  try {
+    for (const name of names) {
+      const context = await browser.newContext({
+        viewport: { width: 375, height: 812 },
+        locale: 'en-US',
+      });
+      const page = await context.newPage();
+      const errors = [];
+      page.on('pageerror', (error) => errors.push(error.message));
+      page.on('console', (message) => message.type() === 'error' && errors.push(message.text()));
+      try {
+        await scenarios[name](page);
+        assert.deepEqual(errors, [], 'page errors');
+      } catch (error) {
+        failed = true;
+        mkdirSync('artifacts', { recursive: true });
+        await page.screenshot({ path: `artifacts/browser-${name}.png` }).catch(() => {});
+        console.error(`FAIL ${name}`, error);
+      }
+      await context.close();
     }
-    await context.close();
+  } finally {
+    await browser.close();
+    await server.close();
   }
-} finally {
-  await browser.close();
-  await server.close();
+  console.log(
+    `${failed ? 'FAILED' : 'OK'} in ${((performance.now() - started) / 1000).toFixed(1)}s`,
+  );
+  process.exitCode = failed ? 1 : 0;
 }
-console.log(`${failed ? 'FAILED' : 'OK'} in ${((performance.now() - started) / 1000).toFixed(1)}s`);
-process.exitCode = failed ? 1 : 0;
 
 function pass(task, details = {}) {
   console.log('PASS ' + task, JSON.stringify(details));
@@ -134,3 +141,57 @@ async function smoke(page) {
   await page.getByRole('button', { name: 'Retry' }).waitFor();
   pass('a loss reaches the result screen');
 }
+
+// Opens the next offer through the debug hook and returns its number.
+async function offer(page) {
+  return page.evaluate(() => {
+    const debug = window.__gameDebug;
+    for (let i = 0; i < 2400 && !debug.getGame().choice; i++) debug.advance(100);
+    return debug.getGame().choice?.number ?? null;
+  });
+}
+const picks = (page) => page.evaluate(() => window.__gameDebug.getGame().selections.length);
+
+async function choices(page) {
+  await open(page);
+  await page.getByRole('button', { name: 'START' }).click();
+  assert.equal(await offer(page), 1);
+  const cards = page.locator('.cards button.card');
+  await cards.first().waitFor();
+  // A tap right after the cards appear is protected.
+  const box = await cards.nth(1).boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  assert.equal(await picks(page), 0, 'an early tap picked a card');
+  const ticks = await page.evaluate(() => window.__gameDebug.getGame().elapsedTicks);
+  await page.waitForTimeout(400);
+  assert.equal(
+    await page.evaluate(() => window.__gameDebug.getGame().elapsedTicks),
+    ticks,
+    'combat ran during a paused choice',
+  );
+  await cards.nth(1).click();
+  assert.equal(await picks(page), 1);
+  pass('an early tap is ignored, a later one picks, combat waits', { ticks });
+
+  assert.equal(await offer(page), 2);
+  await cards.first().waitFor();
+  await page.waitForFunction(() => document.activeElement?.matches('.cards button.card'));
+  await page.keyboard.press('End');
+  const focused = await page.evaluate(() => document.activeElement.dataset.upgrade);
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Enter');
+  const taken = await page.evaluate(() => window.__gameDebug.getGame().selections.at(-1).id);
+  assert.equal(taken, focused);
+  pass('keyboard moves between cards and Enter picks', { id: taken });
+
+  assert.equal(await offer(page), 3);
+  await page.getByRole('switch').click();
+  assert.equal(await page.getByRole('switch').getAttribute('aria-checked'), 'false');
+  await page.waitForFunction(() => window.__gameDebug.getGame().selections.length >= 3, null, {
+    timeout: 7000,
+  });
+  pass('with choice pause off the countdown picks by itself');
+}
+
+await main();

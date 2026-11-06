@@ -3,9 +3,11 @@ import type { CSSProperties } from 'react';
 import { version } from '../../package.json';
 import { Canvas } from '../render/Canvas.tsx';
 import { arenaViewport, endingFrame } from '../render/timeline.ts';
+import { Choices } from './Choices.tsx';
 import { Dialog } from './Dialog.tsx';
 import { Hud } from './Hud.tsx';
 import { ControlIcon, SoundIcon } from './icons.tsx';
+import { Loadout } from './Loadout.tsx';
 import { Result } from './Result.tsx';
 import { copy, languages } from './text/index.ts';
 import type { Language } from './text/index.ts';
@@ -112,7 +114,22 @@ export default function App() {
             </span>
           )}
         </section>
-        <section className="footer" aria-label={ready ? 'START' : c.hud}>
+        <section
+          className="footer"
+          aria-label={ready ? 'START' : game.choice ? c.choices : c.loadout}
+        >
+          {!ready && <Loadout game={game} language={language} />}
+          {!ready && (
+            <Choices
+              game={game}
+              language={language}
+              pauseOnChoice={session.pauseOnChoice}
+              secondsLeft={session.choiceLeft / 1000}
+              interactive={session.live}
+              onSelect={g.select}
+              onTogglePause={g.toggleChoicePause}
+            />
+          )}
           {ready && (
             <div className="preparation">
               {soundToggle}

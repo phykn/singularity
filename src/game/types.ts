@@ -85,7 +85,6 @@ export type Selection = {
   id: UpgradeId;
   rank: number;
   rarity: Rarity;
-  automatic: boolean;
   evolve: boolean;
 };
 export type Result = {

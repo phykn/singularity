@@ -1,22 +1,31 @@
 import { Combat } from './combat.ts';
-import { CENTER, TAU, clamp, orbit } from './geometry.ts';
+import { CENTER, TAU, clamp, distance, orbit } from './geometry.ts';
 import type { Point } from './geometry.ts';
 import { familyBase, particleMotion } from './particles.ts';
 import type { Family, ParticleKind } from './particles.ts';
+import { eligibleUpgrades, offerCards } from './growth.ts';
 import { Random } from './random.ts';
 import {
   blankBoosts,
   blankRanks,
   coreRadius,
+  isSkill,
+  isStat,
   levelForXp,
   orbitTarget,
   powerScale,
   rangeScale,
+  rarityIds,
+  recoveryMass,
+  rollRarity,
   rules as defaultRules,
   rulesHash,
+  skillIds,
   xpForLevel,
 } from './rules.ts';
-import type { Rules } from './rules.ts';
+import type { Card, PopStyle, Rarity, Rules, SkillId, UpgradeId } from './rules.ts';
+import { skillValues } from './skills.ts';
+import type { SkillValues } from './skills.ts';
 import type {
   DamageNumber,
   Effect,
@@ -27,12 +36,14 @@ import type {
   Phase,
   Result,
   RunRecord,
+  Selection,
   Target,
 } from './types.ts';
 
 type Stage = Rules['stages'][number];
 type Member = Omit<Target, 'id' | 'x' | 'y' | 'born' | 'maxHp'>;
 type Shared = { speed: number; turn: number };
+export type Choice = { cards: Card[]; number: number };
 
 const damageNumberSeconds = 0.72,
   maxDamageNumbers = 64,
@@ -55,6 +66,11 @@ export class Game {
   angle = -Math.PI / 2;
   ranks = blankRanks();
   boosts = blankBoosts();
+  // The rarity a skill was first taken at; it keeps it for the run.
+  rarities: Partial<Record<UpgradeId, Rarity>> = {};
+  forms: SkillValues;
+  choice: Choice | null = null;
+  selections: Selection[] = [];
   targets: Target[] = [];
   effects: Effect[] = [];
   damageNumbers: DamageNumber[] = [];
@@ -72,6 +88,8 @@ export class Game {
   private nextDamageId = 0;
   private orbitRecovery = 0;
   private xpRemainder = 0;
+  private popTick = -1;
+  private popOrder: Partial<Record<PopStyle, number>> = {};
 
   constructor(
     seed: number,
@@ -90,6 +108,7 @@ export class Game {
       crit: stream('crit'),
       wave: stream('wave'),
     };
+    this.forms = skillValues(this.ranks, this.rarities, this.rules);
     this.combat = new Combat(this);
   }
 
@@ -133,6 +152,48 @@ export class Game {
   get attackInterval(): number {
     return this.rules.combat.attackSeconds / this.rate;
   }
+  // Skill values follow ranks, rarities and range; call after changing any of them.
+  refresh(): void {
+    this.forms = skillValues(
+      this.ranks,
+      this.rarities,
+      this.rules,
+      rangeScale(this.boosts.range, this.rules),
+    );
+  }
+  get skillSlots(): number {
+    return this.rules.growth.skillSlots;
+  }
+  get ownedSkills(): SkillId[] {
+    return skillIds.filter((id) => this.ranks[id] > 0);
+  }
+  get recoverable(): boolean {
+    return this.mass >= this.rules.growth.recovery.minMass;
+  }
+  get danger(): boolean {
+    return this.margin < this.rules.orbit.dangerMargin;
+  }
+  rank(id: UpgradeId): number {
+    return isSkill(id) ? this.ranks[id] : isStat(id) ? this.boosts[id] : 0;
+  }
+  canUpgrade(id: UpgradeId): boolean {
+    return eligibleUpgrades(this.ranks, this.rules, this.recoverable, this.skillSlots).includes(id);
+  }
+  // Mass release in danger, then early attack upgrades, then the highest rarity.
+  get automaticCard(): Card | undefined {
+    const cards = this.choice?.cards.filter((card) => this.canUpgrade(card.id)) ?? [],
+      g = this.rules.growth;
+    return (
+      cards.find((card) => card.id === 'recover' && this.danger) ??
+      cards.find(
+        ({ id }) => (id === 'power' || id === 'rate') && this.boosts[id] < g.autoStatRank,
+      ) ??
+      cards.reduce<Card | undefined>(
+        (a, b) => (!a || rarityIds.indexOf(b.rarity) > rarityIds.indexOf(a.rarity) ? b : a),
+        undefined,
+      )
+    );
+  }
   get stage(): number {
     return this.rules.stages.filter((s) => this.time >= s.start).length - 1;
   }
@@ -170,17 +231,26 @@ export class Game {
     this.nextSpawn = this.staged((s) => s.spawnSeconds) * this.rules.time.tickRate;
   }
 
-  advance(milliseconds: number, tickLimit = Infinity): void {
+  // With `holdAtChoice`, combat stops as soon as cards are on offer.
+  advance(milliseconds: number, tickLimit = Infinity, holdAtChoice = false): void {
     if (this.phase === 'ready' || this.phase === 'result') return;
     this.pendingTicks += (milliseconds * this.rules.time.tickRate) / 1000;
     const count = Math.min(Math.floor(this.pendingTicks + 1e-8), tickLimit);
     this.pendingTicks -= count;
-    this.run(count);
+    this.run(count, holdAtChoice);
+    if (holdAtChoice && this.choice) this.pendingTicks = 0;
   }
 
-  // Exactly `ticks` fixed steps, stopping at the result.
-  run(ticks: number): void {
-    for (let i = 0; i < ticks && this.phase !== 'result' && this.phase !== 'ready'; i++) {
+  // Up to `ticks` fixed steps, stopping at the result.
+  run(ticks: number, holdAtChoice = false): void {
+    for (
+      let i = 0;
+      i < ticks &&
+      this.phase !== 'result' &&
+      this.phase !== 'ready' &&
+      !(holdAtChoice && this.choice);
+      i++
+    ) {
       this.elapsedTicks++;
       if (this.phase === 'running') this.step();
       else this.transition();
@@ -391,7 +461,13 @@ export class Game {
     this.radius += Math.sign(change) * Math.min(Math.abs(change), speed);
   }
 
-  damageTarget(target: Target, damage: number, crit = false): void {
+  damageTarget(
+    target: Target,
+    damage: number,
+    crit = false,
+    style: PopStyle = 'tap',
+    from?: Point,
+  ): void {
     if (target.hp <= 0) return;
     const index = this.targets.indexOf(target);
     if (index === -1) return;
@@ -424,15 +500,19 @@ export class Game {
     if (this.damageNumbers.length > maxDamageNumbers) this.damageNumbers.shift();
     if (target.hp > 0) return;
     this.targets.splice(index, 1);
-    const radius = target.kind === 'boss' ? 36 : target.kind === 'dense' ? 11 : 6;
+    const delay = this.popDelay(style, target, from);
     this.addEffect({
       kind: 'kill',
       from: target,
       to: this.position,
-      radius,
+      // Kills that pop all at once throw bigger debris.
+      radius:
+        (target.kind === 'boss' ? 36 : target.kind === 'dense' ? 11 : 6) *
+        (style === 'burst' ? this.rules.combat.pops.burst.debris : 1),
       width: damage,
-      life: 0.4,
+      life: 0.4 + delay,
       particle: target.particle,
+      delay,
     });
     const previous = this.level;
     this.gainXp(target.xp);
@@ -443,6 +523,8 @@ export class Game {
       xp: this.xp,
       x,
       y,
+      delay,
+      style,
     });
     if (this.level > previous) {
       this.log('level', { level: this.level, xp: this.xp });
@@ -454,7 +536,89 @@ export class Game {
         width: 1,
         life: 0.5,
       });
+      this.openChoice();
     }
+  }
+
+  // Kills in one tick pop in their style's rhythm: lines in order along the line,
+  // the others one after another at the style's interval.
+  private popDelay(style: PopStyle, target: Target, from?: Point): number {
+    const cfg = this.rules.combat.pops;
+    if (style === 'sweep')
+      return Math.min(cfg.sweep.max, distance(target, from ?? this.position) / cfg.sweep.speed);
+    if (this.popTick !== this.tick) {
+      this.popTick = this.tick;
+      this.popOrder = {};
+    }
+    const order = this.popOrder[style] ?? 0;
+    this.popOrder[style] = order + 1;
+    return Math.min(cfg[style].max, order * cfg[style].stagger);
+  }
+
+  private openChoice(): void {
+    if (this.phase !== 'running' || this.choice || this.selections.length >= this.level - 1) return;
+    const number = this.selections.length + 1;
+    const ids = offerCards(
+      {
+        ranks: this.ranks,
+        boosts: this.boosts,
+        number,
+        danger: this.danger,
+        recoverable: this.recoverable,
+        slots: this.skillSlots,
+      },
+      this.random.cards,
+      this.rules,
+    );
+    // Stats are always common; a skill keeps the rarity it was first taken at.
+    const cards = ids.map((id): Card => {
+      const rolled = rollRarity(this.random.rarity.next(), this.boosts.luck, this.rules);
+      return { id, rarity: isStat(id) ? 'common' : (this.rarities[id] ?? rolled) };
+    });
+    this.choice = { cards, number };
+    this.log('cards', { number, cards });
+  }
+
+  // Takes a card between ticks and records it for replay; stale or unknown picks do nothing.
+  choose(id: UpgradeId, number: number): boolean {
+    const card = this.choice?.cards.find((c) => c.id === id);
+    if (this.phase !== 'running' || this.choice?.number !== number || !card || !this.canUpgrade(id))
+      return false;
+    this.inputs.push({ tick: this.elapsedTicks, kind: 'card', id, number });
+    const oldRate = this.rate;
+    if (isSkill(id)) {
+      this.rarities[id] ??= card.rarity;
+      this.ranks[id]++;
+    } else if (isStat(id)) this.boosts[id]++;
+    else if (id === 'recover') {
+      const removed = this.releaseMass(recoveryMass(card.rarity, this.rules));
+      this.log('recover', { removed, mass: this.mass });
+    }
+    this.refresh();
+    if (this.rate !== oldRate) this.combat.rescale(oldRate);
+    const selection = {
+      time: this.time,
+      id,
+      rank: this.rank(id),
+      rarity: card.rarity,
+      evolve: false,
+    };
+    this.selections.push(selection);
+    this.log('skill', selection);
+    this.addEffect({
+      kind: 'upgrade',
+      from: id === 'recover' ? CENTER : this.position,
+      to: this.position,
+      radius: id === 'recover' ? this.core + 14 : id === 'range' ? this.range : 18,
+      width: 1,
+      life: 0.7,
+      source: id,
+      rarity: card.rarity,
+      anchor: id === 'recover' ? undefined : 'electron',
+    });
+    this.choice = null;
+    this.openChoice();
+    return true;
   }
 
   private gainXp(amount: number): void {
@@ -470,6 +634,7 @@ export class Game {
     this.phase = 'collapse';
     this.phaseTicks = 0;
     this.damageNumbers = [];
+    this.choice = null;
     this.log('collision', { trigger, outcome: this.outcome, xp: this.xp, mass: this.mass });
   }
 
@@ -486,9 +651,9 @@ export class Game {
       round: 1,
       ranks: { ...this.ranks },
       boosts: { ...this.boosts },
-      rarities: {},
+      rarities: { ...this.rarities },
       evolved: {},
-      selections: [],
+      selections: this.selections.map((s) => ({ ...s })),
       endless: null,
     };
     this.log('result', { outcome: this.outcome });

@@ -4,6 +4,7 @@ import { Game } from '../game/Game.ts';
 import { Session } from '../session/Session.ts';
 import { keys, newSeed, readLanguage, readSound, save } from '../session/storage.ts';
 import type { Language } from '../session/storage.ts';
+import type { UpgradeId } from '../game/rules.ts';
 import { htmlLang } from './text/index.ts';
 
 // Storage the browser refuses still reads as empty; saving it reports failure.
@@ -136,6 +137,8 @@ export function useGame() {
     start: () => session.start(now()),
     pause: (paused: boolean) => session.pause(paused, now()),
     cycleSpeed: () => session.cycleSpeed(now()),
+    toggleChoicePause: () => session.toggleChoicePause(now()),
+    select: (id: UpgradeId, number: number) => session.select(id, number, now()),
     restart: () => session.replace(fresh(session.game.seed), now()),
   };
 }

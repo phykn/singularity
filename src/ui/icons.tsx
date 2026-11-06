@@ -1,6 +1,59 @@
 import controlAtlas from '../art/assets/controls.png';
-import { controlAtlasSize, controlCells } from '../art/skills.ts';
+import skillAtlas from '../art/assets/skills.png';
+import {
+  controlAtlasSize,
+  controlCells,
+  evolvedCells,
+  iconAtlasSize,
+  iconCells,
+} from '../art/skills.ts';
 import type { ControlId } from '../art/skills.ts';
+import { isSkill } from '../game/rules.ts';
+import type { UpgradeId } from '../game/rules.ts';
+
+const pixelated = { imageRendering: 'pixelated' } as const;
+
+export function SkillIcon({
+  id,
+  size = 24,
+  evolved = false,
+}: {
+  id: UpgradeId;
+  size?: number;
+  evolved?: boolean;
+}) {
+  const pixels = size >= 24 ? 32 : 16,
+    cell = evolved && isSkill(id) ? evolvedCells[id] : iconCells[id];
+  return (
+    <svg
+      className="skill-icon"
+      width={pixels}
+      height={pixels}
+      viewBox="0 0 32 32"
+      overflow="hidden"
+      aria-hidden="true"
+    >
+      <image
+        href={skillAtlas}
+        x={-cell.x}
+        y={-cell.y}
+        width={iconAtlasSize.width}
+        height={iconAtlasSize.height}
+        style={pixelated}
+      />
+    </svg>
+  );
+}
+
+export function Rank({ value, max, next }: { value: number; max: number; next?: number }) {
+  return (
+    <span className="rank" aria-hidden="true">
+      {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
+        <i key={n} className={n === next ? 'next' : n <= value ? 'on' : ''} />
+      ))}
+    </span>
+  );
+}
 
 // One 32px cell of the control atlas fills the viewBox.
 export function ControlIcon({
@@ -28,7 +81,7 @@ export function ControlIcon({
         y={-cell.y}
         width={controlAtlasSize.width}
         height={controlAtlasSize.height}
-        style={{ imageRendering: 'pixelated' }}
+        style={pixelated}
       />
     </svg>
   );

@@ -5,8 +5,7 @@ import type { Input, RunRecord } from './types.ts';
 
 // Applies one recorded input between ticks; false if the run would not accept it now.
 export function apply(game: Game, input: Input): boolean {
-  void game;
-  void input;
+  if (input.kind === 'card') return game.choose(input.id, input.number);
   return false;
 }
 

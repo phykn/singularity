@@ -1,4 +1,5 @@
 import type { Game } from '../game/Game.ts';
+import type { UpgradeId } from '../game/rules.ts';
 import type { Result } from '../game/types.ts';
 
 export const speeds = [1, 1.5, 2] as const;
@@ -24,12 +25,16 @@ export type SessionHooks = {
 };
 
 // Drives the model from wall-clock milliseconds. Owns what is not game state:
-// playback speed, pause, the hidden-tab stop and the sound cursor.
+// playback speed, pause, the hidden-tab stop, the choice countdown and the sound cursor.
 export class Session {
   game: Game;
   ready = false;
   paused = false;
   speed: Speed = 1;
+  // Combat stops while cards are on offer; when off, they pick themselves after a countdown.
+  pauseOnChoice = true;
+  choiceLeft = 0;
+  private choiceNumber = 0;
   private readonly audio: SessionAudio;
   private readonly hooks: SessionHooks;
   private wall = 0;
@@ -75,6 +80,7 @@ export class Session {
     this.cursor = game.eventCount;
     this.paused = false;
     this.speed = 1;
+    this.choiceNumber = 0;
     this.wall = wall;
     this.drawnTick = -1;
     this.hooks.redraw();
@@ -101,6 +107,30 @@ export class Session {
     this.hooks.redraw();
   }
 
+  toggleChoicePause(wall: number): void {
+    this.frame(wall);
+    this.pauseOnChoice = !this.pauseOnChoice;
+    this.hooks.redraw();
+  }
+
+  // A manual pick after its countdown ran out is ignored.
+  select(id: UpgradeId, number: number, wall: number): boolean {
+    if (!this.live) return false;
+    this.frame(wall);
+    const taken = (this.pauseOnChoice || this.choiceLeft > 0) && this.game.choose(id, number);
+    this.hooks.redraw();
+    return taken;
+  }
+
+  // The countdown runs on the wall clock, whatever the playback speed.
+  private countdown(ms: number): void {
+    const choice = this.game.choice;
+    if (!choice || this.pauseOnChoice || choice.number !== this.choiceNumber) return;
+    this.choiceLeft -= ms;
+    const card = this.game.automaticCard;
+    if (this.choiceLeft <= 0 && card) this.game.choose(card.id, choice.number);
+  }
+
   async setSound(sound: boolean): Promise<void> {
     if (!sound) return this.audio.suspend();
     if (this.game.phase === 'ready') {
@@ -122,8 +152,15 @@ export class Session {
       if (game.phase === 'ready')
         game.angle += (game.rules.orbit.speed / game.radius) * (ms / 1000);
       else {
-        game.advance(ms * (game.phase === 'crossing' ? 1 : this.speed), frameTickLimit);
+        this.countdown(ms);
+        const speed = game.phase === 'crossing' ? 1 : this.speed;
+        game.advance(ms * speed, frameTickLimit, this.pauseOnChoice);
         game.pendingTicks = Math.min(game.pendingTicks, 1);
+        if (game.choice && game.choice.number !== this.choiceNumber) {
+          this.choiceNumber = game.choice.number;
+          this.choiceLeft = game.rules.time.choiceSeconds * 1000;
+          this.hooks.redraw();
+        }
       }
       if (this.audio.enabled) this.audio.update(game, this.cursor);
     }

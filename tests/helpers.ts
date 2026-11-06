@@ -38,14 +38,26 @@ export function fixture(ranks: Partial<Ranks> = {}, targets: Target[] = []): Gam
   const g = new Game(42, { combat: false });
   g.start();
   Object.assign(g.ranks, ranks);
+  g.refresh();
   g.targets = targets;
   return g;
+}
+
+// Takes the automatic card for every offer, as the paused-choice bot does.
+export function pick(g: Game): void {
+  while (g.choice) {
+    const card = g.automaticCard;
+    if (!card || !g.choose(card.id, g.choice.number)) break;
+  }
 }
 
 // Runs a game until its result (or `limit` seconds of ticks).
 export function finish(g: Game, limit = 1800): Game {
   if (g.phase === 'ready') g.start();
   const tickRate = g.rules.time.tickRate;
-  while (g.phase !== 'result' && g.elapsedTicks < limit * tickRate) g.run(tickRate);
+  while (g.phase !== 'result' && g.elapsedTicks < limit * tickRate) {
+    g.run(tickRate, true);
+    pick(g);
+  }
   return g;
 }

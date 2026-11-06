@@ -3,16 +3,18 @@ import test from 'node:test';
 import { readLanguage, readSound, keys } from '../src/session/storage.ts';
 import { copy } from '../src/ui/text/index.ts';
 
+// Every leaf as `path: type`, so nested tables are compared too.
+function shape(value: unknown, path = ''): string[] {
+  if (value && typeof value === 'object')
+    return Object.entries(value).flatMap(([key, inner]) => shape(inner, `${path}.${key}`));
+  if (typeof value === 'string' && !value.trim()) return [`${path}: empty`];
+  return [`${path}: ${typeof value}`];
+}
+
 test('every text key exists in all four languages', () => {
-  const reference = Object.keys(copy.ko).sort();
-  for (const [language, text] of Object.entries(copy)) {
-    assert.deepEqual(Object.keys(text).sort(), reference, language);
-    for (const key of reference) {
-      const value = text[key as keyof typeof text];
-      assert.equal(typeof value, typeof copy.ko[key as keyof typeof copy.ko], `${language}.${key}`);
-      if (typeof value === 'string') assert.ok(value.trim(), `${language}.${key} is empty`);
-    }
-  }
+  const reference = shape(copy.ko).sort();
+  for (const [language, text] of Object.entries(copy))
+    assert.deepEqual(shape(text).sort(), reference, language);
 });
 
 function storage(values: Record<string, string> = {}): Storage {
