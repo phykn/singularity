@@ -367,6 +367,36 @@ const pactGame = (...ids: PactId[]) => {
   return g;
 };
 
+// Plays beats one tick apart, as the rhythm delivers them, and returns the mass after each.
+const beats = (g: Game, ...list: (1 | 2 | 3)[]) =>
+  list.map((beat) => {
+    tick(g);
+    assert.ok(g.resonate(beat));
+    return g.mass;
+  });
+
+test('a three-beat resonance releases core mass and one or two beats do not', () => {
+  const g = pactGame();
+  g.mass = 10;
+  assert.deepEqual(beats(g, 1, 2), [10, 10]);
+  assert.deepEqual(beats(g, 3), [10 - rules.resonance.finishMass]);
+});
+
+test('a finishing resonance never takes the core below zero mass', () => {
+  const g = pactGame();
+  const start = rules.resonance.finishMass - 1;
+  g.mass = start;
+  assert.deepEqual(beats(g, 1, 2, 3), [start, start, 0]);
+  assert.deepEqual(beats(g, 1, 2, 3), [0, 0, 0]);
+});
+
+test('overclock keeps a finishing resonance from releasing mass', () => {
+  const g = pactGame('overclock');
+  g.mass = 10;
+  beats(g, 1, 2, 3);
+  assert.equal(g.mass, 10);
+});
+
 const offer = (g: Game, cards: Card[]) => {
   g.choice = { number: 1, opened: 0, deadline: 8, cards };
   return g.automaticCard?.id;

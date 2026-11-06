@@ -997,6 +997,8 @@ export class Game {
     }
     this.combat.resonate(beat);
     this.combat.sweep(beat);
+    // Overclock gives up mass release, including this one.
+    if (beat === 3 && !this.pacts.overclock) this.releaseMass(this.rules.resonance.finishMass);
     return true;
   }
 

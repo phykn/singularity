@@ -28,7 +28,8 @@
   "powerFalloff": 8,
   "resonance": {
     "beatDamage": 0.15,
-    "finishDamage": 0.25
+    "finishDamage": 0.25,
+    "finishMass": 2
   },
   "attackBaseSeconds": 0.37,
   "ratePerRank": 0.35,
