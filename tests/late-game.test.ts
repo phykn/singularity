@@ -298,7 +298,7 @@ test('the final boss reaching the core fails the run even with full energy', () 
   assert.equal(g.result?.trigger, 'gravity');
 });
 
-test('the boss and critical breach stay out of endless play', () => {
+test('the critical breach and the Higgs stay out of endless play, which waits a round for a boss', () => {
   const g = new Game(1500003);
   g.start();
   g.debugClear();
@@ -307,12 +307,15 @@ test('the boss and critical breach stay out of endless play', () => {
   assert.ok(g.continueBeyond());
   assert.equal(g.critical, false);
   while (g.phase === 'crossing') tick(g);
-  const seen = g.events.filter((event) => event.kind === 'boss').length;
+  const seen = g.events.filter((event) => event.kind === 'boss').length,
+    finals = g.events.filter((event) => event.kind === 'final-boss').length;
   for (let i = 0; i < 600 && g.phase === 'running'; i++) {
     g.choice = null;
     tick(g);
   }
   assert.equal(g.events.filter((event) => event.kind === 'boss').length, seen);
+  assert.equal(g.critical, false);
+  assert.equal(g.events.filter((event) => event.kind === 'final-boss').length, finals);
 });
 
 // Pins every card draw to one value, so a test decides the evolution roll.

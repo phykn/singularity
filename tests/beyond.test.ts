@@ -69,13 +69,87 @@ test('only a normal clear can continue once, preserving the build and immutable 
   assert.equal(failed.continueBeyond(), false);
 });
 
-test('new endless enemies strengthen quickly while speed and crowding stay bounded', () => {
+// A cleared run that has crossed into endless play, with no choices left to open.
+function beyond() {
   const g = cleared();
   g.continueBeyond();
-  g.advance(2400);
+  g.advance(rules.endless.entrySeconds * 1000 + 100);
+  assert.equal(g.phase, 'running');
+  g.selections.length = 1000;
+  return g;
+}
+const tickOf = (g: Game) => g.advance(1000 / rules.tickRate);
+// Plays the tick on which the current round's boss is due, keeping the core empty.
+function reachRoundBoss(g: Game, from: number) {
+  const base = Math.round(g.clearResult!.collisionTime * rules.tickRate);
+  g.tick = base + Math.round((from + rules.endless.roundSeconds) * rules.tickRate) - 2;
+  g.targets = [];
+  g.mass = 0;
+  g.choice = null;
+  tickOf(g);
+  assert.equal(g.boss, undefined, 'The boss waits for the end of the round');
+  tickOf(g);
+  assert.ok(g.boss, 'The round boss arrives');
+  return g.boss;
+}
+function kill(g: Game, boss: NonNullable<Game['boss']>) {
+  while (g.targets.includes(boss)) g.damageTarget(boss, boss.maxHp);
+}
+
+test('endless play starts in round seven and steps up when each round boss ends', () => {
+  const g = beyond();
+  assert.equal(g.round, 7);
   const entry = g.enemyStrength;
-  g.tick += rules.tickRate * 60;
-  assert.equal(g.enemyStrength.hp, entry.hp * 2.25);
+  const boss = reachRoundBoss(g, 0);
+  assert.equal(boss.boss, rules.boss.stages[0].kind);
+  assert.equal(boss.maxHp, Math.round(rules.boss.stages[0].hp * entry.hp));
+  kill(g, boss);
+  assert.equal(g.round, 8);
+  assert.equal(g.enemyStrength.hp, entry.hp * rules.endless.roundHpMultiplier);
+  assert.equal(
+    g.enemyStrength.speed,
+    entry.speed * Math.min(rules.endless.maxSpeedScale, 1 + rules.endless.roundSpeedStep),
+  );
+  // The next boss carries the stepped-up strength, reward and mass.
+  const next = reachRoundBoss(g, g.endlessSeconds);
+  const stage = rules.boss.stages[1];
+  assert.equal(next.boss, stage.kind);
+  assert.equal(next.maxHp, Math.round(stage.hp * g.enemyStrength.hp));
+  assert.equal(next.xp, stage.xp * rules.endless.roundHpMultiplier);
+  assert.equal(next.mass, stage.mass * rules.endless.roundHpMultiplier);
+});
+
+test('while an endless boss lives, difficulty holds and no other boss comes', () => {
+  const g = beyond();
+  reachRoundBoss(g, 0);
+  const strength = g.enemyStrength,
+    bosses = g.events.filter((e) => e.kind === 'boss').length;
+  g.tick += rules.endless.roundSeconds * 3 * rules.tickRate;
+  g.choice = null;
+  tickOf(g);
+  assert.deepEqual(g.enemyStrength, strength);
+  assert.equal(g.events.filter((e) => e.kind === 'boss').length, bosses);
+  assert.equal(g.round, 7);
+});
+
+test('endless bosses cycle through the five giant particles', () => {
+  const g = beyond();
+  const kinds = [];
+  let from = 0;
+  for (let i = 0; i < 6; i++) {
+    const boss = reachRoundBoss(g, from);
+    kinds.push(boss.boss);
+    kill(g, boss);
+    from = g.endlessSeconds;
+  }
+  const order = rules.boss.stages.map((stage) => stage.kind);
+  assert.deepEqual(kinds, [...order, order[0]]);
+  assert.equal(g.round, 13);
+});
+
+test('endless crowding, speed and late strength stay bounded', () => {
+  const g = beyond();
+  const entry = g.enemyStrength;
   g.spawnBatch();
   const old = structuredClone(g.targets);
   g.tick += rules.tickRate * 30;
@@ -84,8 +158,7 @@ test('new endless enemies strengthen quickly while speed and crowding stay bound
   for (let i = 0; i < 100; i++) g.spawnBatch();
   assert.equal(g.targets.length, rules.endless.maxTargets);
   assert.equal(g.metrics.maxTargets, rules.endless.maxTargets);
-  assert.ok(g.enemyStrength.speed <= entry.speed * rules.endless.maxSpeedScale);
-  g.tick += 1e12;
+  g.round += 1000;
   g.targets = [];
   g.spawnBatch();
   assert.ok(g.targets.every((t) => Number.isFinite(t.hp) && t.hp > 0 && Number.isFinite(t.speed)));

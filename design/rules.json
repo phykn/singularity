@@ -9,8 +9,9 @@
     "cycleSeconds": 30,
     "assaultSeconds": 12,
     "recoverySeconds": 5,
-    "hpMultiplier": 1.5,
-    "speedStep": 0.06,
+    "roundSeconds": 90,
+    "roundHpMultiplier": 3,
+    "roundSpeedStep": 0.06,
     "maxSpeedScale": 1.35,
     "maxTargets": 240
   },

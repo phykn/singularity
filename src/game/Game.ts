@@ -129,6 +129,8 @@ export class Game {
   bossesDown = 0;
   // Each round ends with its boss; later bosses may end first but wait their turn.
   round = 1;
+  // Endless seconds at which the current endless round's progress began.
+  private roundFrom = 0;
   private bossOrder: number[] = [];
   private bossesEnded = new Set<number>();
   private finalEntered = false;
@@ -260,13 +262,16 @@ export class Game {
       const { hpScale, speedScale } = this.rules.critical;
       return this.critical ? { hp: hp * hpScale, speed: speed * speedScale } : { hp, speed };
     }
-    const periods = this.endlessSeconds / this.rules.endless.cycleSeconds;
+    const steps = this.endlessRounds,
+      cfg = this.rules.endless;
     return {
-      hp: Math.min(1e100, hp * this.rules.endless.hpMultiplier ** Math.min(1000, periods)),
-      speed:
-        speed *
-        Math.min(this.rules.endless.maxSpeedScale, 1 + periods * this.rules.endless.speedStep),
+      hp: Math.min(1e100, hp * cfg.roundHpMultiplier ** Math.min(1000, steps)),
+      speed: speed * Math.min(cfg.maxSpeedScale, 1 + steps * cfg.roundSpeedStep),
     };
+  }
+  // Endless rounds finished so far; each one steps the difficulty up once.
+  private get endlessRounds(): number {
+    return Math.max(0, this.round - this.rules.boss.stages.length - 2);
   }
   get paused(): boolean {
     return this.manualPaused || this.hiddenPaused;
@@ -429,6 +434,9 @@ export class Game {
     this.counts = blankCounts();
     this.metrics = this.blankMetrics();
     this.combat.reset();
+    // Endless play opens round seven, after the five giant particles and the Higgs.
+    this.round = this.rules.boss.stages.length + 2;
+    this.roundFrom = 0;
     this.log('beyond', { tick: this.elapsedTicks });
     return true;
   }
@@ -666,7 +674,20 @@ export class Game {
   }
 
   private enterMilestones(): void {
-    if (this.endless) return;
+    if (this.endless) {
+      // After each round's progress, one giant particle in turn, scaled by the difficulty.
+      const stages = this.rules.boss.stages;
+      if (
+        this.combatEnabled &&
+        this.bossOrder.length < this.round &&
+        this.endlessSeconds - this.roundFrom >= this.rules.endless.roundSeconds
+      )
+        this.spawnBoss(
+          stages[this.endlessRounds % stages.length],
+          this.rules.endless.roundHpMultiplier ** this.endlessRounds,
+        );
+      return;
+    }
     // Bosses keep their times even while an earlier one is still alive.
     const stage = this.rules.boss.stages[this.bossCount];
     if (stage && this.time >= stage.time) {
@@ -684,10 +705,15 @@ export class Game {
     }
   }
 
-  private spawnBoss(stage: RuleSet['boss']['stages'][number]): void {
+  // Hit points already follow enemy strength; `scale` raises the reward and the missed mass.
+  private spawnBoss(stage: RuleSet['boss']['stages'][number], scale = 1): void {
     const { speed, size } = this.rules.boss,
-      { hp, xp, mass, summonCount } = stage;
-    this.addBoss({ hp, xp, mass, speed, size, summonCount }, 'boss', stage.kind as BossKind);
+      { hp, summonCount } = stage;
+    this.addBoss(
+      { hp, xp: stage.xp * scale, mass: stage.mass * scale, speed, size, summonCount },
+      'boss',
+      stage.kind as BossKind,
+    );
   }
 
   private spawnFinalBoss(): void {
@@ -842,6 +868,7 @@ export class Game {
     this.bossesEnded.add(id);
     while (this.bossesEnded.has(this.bossOrder[this.round - 1])) {
       this.round++;
+      this.roundFrom = this.endlessSeconds;
       this.log('round', { round: this.round, time: this.time });
     }
   }

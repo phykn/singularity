@@ -32,7 +32,8 @@ assert.ok(
 assert.ok(r.late.hpPerMinute > 0 && r.late.speedPerMinute > 0);
 assert.ok(r.late.maxSpeedScale > 1 && r.late.recoverySpawnScale > 1);
 assert.ok(r.endless.entrySeconds > 0);
-assert.ok(r.endless.hpMultiplier > 1 && r.endless.speedStep > 0 && r.endless.maxSpeedScale > 1);
+assert.ok(r.endless.roundSeconds > 0 && r.endless.roundHpMultiplier > 1);
+assert.ok(r.endless.roundSpeedStep > 0 && r.endless.maxSpeedScale > 1);
 assert.ok(
   r.endless.cycleSeconds >
     r.waveWarningSeconds + r.endless.assaultSeconds + r.endless.recoverySeconds,

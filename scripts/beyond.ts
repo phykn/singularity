@@ -29,6 +29,9 @@ for (let seed = start; seed < start + count; seed++) {
   rows.push({
     seed,
     ...g.result.endless,
+    // Endless play opens in round seven; the round it ended in counts the one that broke it.
+    round: g.round,
+    roundsCleared: g.round - (rules.boss.stages.length + 2),
     maxTargets: g.metrics.maxTargets,
     firstAbsorption: first ? first.time - clear.collisionTime : null,
     dangerSeconds: g.metrics.dangerSeconds,
@@ -47,6 +50,8 @@ const summary = {
   p90Seconds: durations[Math.floor(durations.length * 0.9)] ?? null,
   minSeconds: durations[0] ?? null,
   maxSeconds: durations.at(-1) ?? null,
+  medianRound: median(rows.map((r) => r.round)),
+  medianRoundsCleared: median(rows.map((r) => r.roundsCleared)),
   maxTargets: Math.max(0, ...rows.map((r) => r.maxTargets)),
 };
 mkdirSync(dirname(output), { recursive: true });
