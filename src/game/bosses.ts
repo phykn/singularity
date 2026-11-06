@@ -1,8 +1,5 @@
-import type { RuleSet } from './rules.ts';
-
 export const bossIds = ['gluon', 'w', 'z', 'tau', 'top', 'higgs'] as const;
 export type BossKind = (typeof bossIds)[number];
-
 export type BossPhase = {
   speed: number;
   charging: boolean;
@@ -12,30 +9,18 @@ export type BossPhase = {
 };
 
 // One rule per giant particle, read from its age so views and the model agree.
-export function bossPhase(
-  kind: BossKind,
-  age: number,
-  cfg: RuleSet['boss']['behaviors'],
-): BossPhase {
-  const phase: BossPhase = {
-    speed: 1,
-    charging: false,
-    dashing: false,
-    warning: false,
-    immune: false,
-  };
-  const t = age + 1e-8;
+export function bossPhase(kind: BossKind, age: number, b: Record<string, number>): BossPhase {
+  const phase = { speed: 1, charging: false, dashing: false, warning: false, immune: false },
+    t = age + 1e-8;
   if (kind === 'z') {
-    const { period, warnSeconds, immuneSeconds } = cfg.z,
-      at = t % period;
-    phase.immune = at >= period - immuneSeconds;
-    phase.warning = !phase.immune && at >= period - immuneSeconds - warnSeconds;
+    const at = t % b.period;
+    phase.immune = at >= b.period - b.immuneSeconds;
+    phase.warning = !phase.immune && at >= b.period - b.immuneSeconds - b.warnSeconds;
   } else if (kind === 'tau') {
-    const { cycle, chargeSeconds, dashSeconds, dashSpeed } = cfg.tau,
-      at = t % cycle;
-    phase.charging = at < chargeSeconds;
-    phase.dashing = !phase.charging && at < chargeSeconds + dashSeconds;
-    phase.speed = phase.charging ? 0 : phase.dashing ? dashSpeed : 1;
-  } else if (kind === 'top') phase.speed = cfg.top.speed;
+    const at = t % b.cycle;
+    phase.charging = at < b.chargeSeconds;
+    phase.dashing = !phase.charging && at < b.chargeSeconds + b.dashSeconds;
+    phase.speed = phase.charging ? 0 : phase.dashing ? b.dashSpeed : 1;
+  } else if (kind === 'top') phase.speed = b.speed;
   return phase;
 }

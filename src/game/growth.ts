@@ -1,55 +1,49 @@
-import { isSkill, rules, skillIds, statIds } from './rules.ts';
-import type { Boosts, Ranks, RuleSet, SkillId, UpgradeId } from './rules.ts';
 import type { Random } from './random.ts';
+import { isSkill, skillIds, statIds } from './rules.ts';
+import type { Boosts, Ranks, Rules, SkillId, UpgradeId } from './rules.ts';
 
-function eligibleSkills(ranks: Ranks, cfg: RuleSet, slots: number): SkillId[] {
+// Skills that hit more than one particle; the first offer leads with one of them.
+const broad: readonly SkillId[] = ['chain', 'multi', 'pierce', 'satellite', 'strike'];
+
+export function eligibleUpgrades(ranks: Ranks, cfg: Rules, recoverable: boolean, slots: number) {
   const owned = skillIds.filter((id) => ranks[id] > 0).length;
-  return skillIds.filter((id) => ranks[id] < cfg.maxRank && (ranks[id] > 0 || owned < slots));
+  const skills = skillIds.filter(
+    (id) => ranks[id] < cfg.growth.maxRank && (ranks[id] > 0 || owned < slots),
+  );
+  return [...skills, ...statIds, ...(recoverable ? ['recover' as const] : [])] as UpgradeId[];
 }
 
-export function eligibleUpgrades(
-  ranks: Ranks,
-  cfg: RuleSet = rules,
-  recoverable = false,
-  slots = cfg.skillSlots,
-): UpgradeId[] {
-  return [
-    ...eligibleSkills(ranks, cfg, slots),
-    ...statIds,
-    ...(recoverable ? ['recover' as const] : []),
-  ];
-}
-
-type CardState = {
+export type Offer = {
   ranks: Ranks;
   boosts: Boosts;
   number: number;
   danger: boolean;
   recoverable: boolean;
-  slots?: number;
+  slots: number;
 };
-export function makeCards(state: CardState, random: Random, cfg: RuleSet = rules): UpgradeId[] {
-  const { ranks, boosts, number, danger, recoverable, slots } = state;
-  const pool = random.shuffle(eligibleUpgrades(ranks, cfg, recoverable, slots));
-  if (pool.length < cfg.choiceCount) throw new Error('Not enough valid growth cards');
+
+// The first offer is skills only; later ones alternate skill-led and stat-led,
+// and mass release leads whenever the orbit is in danger.
+export function offerCards(offer: Offer, random: Random, cfg: Rules): UpgradeId[] {
+  const { ranks, boosts, number, danger, recoverable, slots } = offer,
+    count = cfg.growth.choiceCount;
+  const pool = random.shuffle(eligibleUpgrades(ranks, cfg, recoverable, slots)),
+    skills = pool.filter(isSkill);
   if (number === 1) {
-    const forms = pool.filter(isSkill),
-      cards = forms.slice(0, cfg.choiceCount);
-    const broad = (id: SkillId) => ['chain', 'multi', 'pierce', 'satellite', 'strike'].includes(id);
-    const lead = cards.find(broad) ?? forms.find(broad)!;
-    if (!cards.includes(lead)) cards[2] = lead;
+    const cards = skills.slice(0, count),
+      lead = cards.find((id) => broad.includes(id)) ?? skills.find((id) => broad.includes(id))!;
+    if (!cards.includes(lead)) cards[count - 1] = lead;
     return [lead, ...cards.filter((id) => id !== lead)];
   }
-  const forms = pool.filter(isSkill),
-    owned = skillIds.filter((id) => ranks[id] > 0);
-  const existing = forms.filter((id) => ranks[id] > 0).sort((a, b) => ranks[a] - ranks[b]);
-  const fresh = forms.find((id) => ranks[id] === 0);
-  const form = owned.length < 2 ? (fresh ?? existing[0]) : (existing[0] ?? fresh);
+  const owned = skillIds.filter((id) => ranks[id] > 0),
+    existing = skills.filter((id) => ranks[id] > 0).sort((a, b) => ranks[a] - ranks[b]),
+    fresh = skills.find((id) => ranks[id] === 0);
+  const skill = owned.length < 2 ? (fresh ?? existing[0]) : (existing[0] ?? fresh);
   const stat = statIds.filter((id) => pool.includes(id)).sort((a, b) => boosts[a] - boosts[b])[0];
-  const lead = danger && recoverable ? 'recover' : number % 2 ? (form ?? stat) : (stat ?? form);
+  const lead = danger && recoverable ? 'recover' : number % 2 ? (skill ?? stat) : (stat ?? skill);
   const cards: UpgradeId[] = [lead];
   const add = (id: UpgradeId | undefined) => {
-    if (id && !cards.includes(id) && cards.length < cfg.choiceCount) cards.push(id);
+    if (id && !cards.includes(id) && cards.length < count) cards.push(id);
   };
   add(isSkill(lead) ? pool.find((id) => !isSkill(id)) : (existing[0] ?? fresh));
   if (!cards.some((id) => isSkill(id) && ranks[id] > 0)) add(existing[0]);

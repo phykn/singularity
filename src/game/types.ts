@@ -1,14 +1,15 @@
 import type { Point } from './geometry.ts';
-import type { ParticleKind } from './particles.ts';
 import type { BossKind } from './bosses.ts';
-import type { Boosts, Card, Ranks, Rarities, Rarity, UpgradeId } from './rules.ts';
+import type { ParticleKind } from './particles.ts';
+import type { Boosts, PactId, Rarity, Ranks, SkillId, UpgradeId } from './rules.ts';
 
-export type TargetKind = 'small' | 'dense' | 'boss';
-export type BannerKind = 'critical' | 'boss' | 'boss-down' | 'slot-open' | 'final-boss';
 export type Phase = 'ready' | 'running' | 'collapse' | 'ending' | 'result' | 'crossing';
+// Stored in best records; keep these strings.
+export type Outcome = 'success' | 'collapse-failure' | 'retired';
+export type BannerKind = 'critical' | 'boss' | 'boss-down' | 'slot-open' | 'final-boss';
 export type Target = Point & {
   id: number;
-  kind: TargetKind;
+  kind: 'small' | 'dense' | 'boss';
   particle: ParticleKind;
   born: number;
   hp: number;
@@ -21,17 +22,16 @@ export type Target = Point & {
   speed: number;
   turn: number;
   hitAt?: number;
-  final?: boolean;
   boss?: BossKind;
+  final?: boolean;
   // The gluon that holds this quark; the gluon takes less damage while any are held.
   tether?: number;
-  // A neutrino's first hit only reveals it.
+  // A veiled particle's first hit only reveals it.
   veiled?: boolean;
   // Set once a particle has taken mass from the Higgs field.
   higgs?: boolean;
   summons?: number;
   summonCount?: number;
-  // Next time the overclock current trail may zap this particle.
   trailReady?: number;
   marked?: boolean;
 };
@@ -66,72 +66,43 @@ export type Effect = {
   arc?: { start: number; sweep: number };
   particle?: ParticleKind;
   boss?: BossKind;
-  // Seconds after birth before the effect appears; kills in one tick pop in sequence.
+  // Seconds after birth before the effect shows; kills of one tick pop in sequence.
   delay?: number;
 };
 export type EffectInput = Omit<Effect, 'born' | 'rank' | 'rarity' | 'damage'> &
   Partial<Pick<Effect, 'rank' | 'rarity' | 'damage'>>;
 export type DamageNumber = Point & { id: number; value: number; born: number; crit?: boolean };
-export type Choice = { cards: Card[]; number: number; opened: number; deadline: number };
-export type Count = { generated: number; killed: number; absorbed: number };
-export type Outcome = 'success' | 'collapse-failure' | 'retired';
+export type Event = { time: number; kind: string; data: Record<string, unknown> };
+// Inputs land between ticks: `tick` is the elapsed tick count when they were applied.
+export type Input = { tick: number } & (
+  | { kind: 'card'; id: UpgradeId; number: number }
+  | { kind: 'beat'; beat: 0 | 1 | 2 | 3 }
+  | { kind: 'beyond' }
+  | { kind: 'retire' }
+);
+export type RunRecord = { seed: number; rules: string; ticks: number; inputs: Input[] };
 export type Selection = {
-  tick: number;
   time: number;
   id: UpgradeId;
   rank: number;
   rarity: Rarity;
-  automatic: boolean;
-  beforeCombat: boolean;
   evolve: boolean;
 };
-export type Metrics = {
-  minRadius: number;
-  minMargin: number;
-  dangerSeconds: number;
-  maxTargets: number;
-  maxEffects: number;
-};
 export type Result = {
-  endless: { seconds: number; xp: number } | null;
   outcome: Outcome;
-  trigger: 'gravity' | 'boss' | 'quit';
   xp: number;
-  mass: number;
-  radius: number;
   level: number;
+  mass: number;
   seed: number;
+  collisionTime: number;
+  seconds: number;
+  round: number;
+  trigger: 'gravity' | 'boss-absorbed' | 'boss' | 'quit';
   ranks: Ranks;
   boosts: Boosts;
-  rarities: Rarities;
-  score: number;
-  rushSpawns: number;
-  seconds: number;
-  collisionTime: number;
-  waves: number;
-  counts: Record<ParticleKind, Count & { remaining: number }>;
+  rarities: Partial<Record<UpgradeId, Rarity>>;
+  evolved: Partial<Record<SkillId, boolean>>;
+  pacts: Partial<Record<PactId, boolean>>;
   selections: Selection[];
-  metrics: Metrics;
+  endless: { seconds: number; xp: number } | null;
 };
-export type SkillStatus = {
-  mode: 'linked' | 'timed' | 'conditional' | 'charging';
-  progress: number;
-  active: boolean;
-  fired: boolean;
-};
-export type Member = {
-  kind: 'small' | 'dense';
-  particle: ParticleKind;
-  angle: number;
-  radius: number;
-  hp: number;
-  xp: number;
-  mass: number;
-  size: number;
-  speed: number;
-  turn: number;
-  tether?: number;
-};
-// A formation shown as faint dots before its members appear.
-export type PendingSpawn = { planned: number; time: number; members: Member[]; wave?: number };
-export type Event = { time: number; kind: string; data: unknown };

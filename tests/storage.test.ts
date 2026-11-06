@@ -1,282 +1,98 @@
-import { createCheckpoint, restoreCheckpoint } from '../src/game/checkpoint.ts';
-import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Game } from '../src/game/Game.ts';
-import { rules, skillIds } from '../src/game/rules.ts';
+import test from 'node:test';
 import {
+  Records,
+  bestBeyond,
   bestRecord,
+  keys,
+  readBeyond,
   readLanguage,
   readRecord,
   readSound,
-  writeSound,
-  languageKey,
-  recordKey,
-  save,
-  soundKey,
-} from '../src/app/storage.ts';
-import { fixture, run } from './helpers.ts';
-import { GameSession } from '../src/app/GameSession.ts';
+} from '../src/session/storage.ts';
 
-test('checkpoints preserve the title orbit position used by START', () => {
-  const g = new Game(10004);
-  const session = new GameSession(
-    g,
-    {
-      enabled: false,
-      update() {},
-      suspend() {},
-      destroy() {},
-      async unlock() {
-        return true;
-      },
-    },
-    { sound: () => false, recordResult() {}, audioUnlocked() {}, redraw() {} },
-  );
-  session.setRenderReady(true, 0);
-  session.step(1800);
-  session.begin(1800);
-  g.advance(75000);
-  const restored = restoreCheckpoint(createCheckpoint(g)!)!;
-  assert.ok(restored);
-  assert.equal(restored.angle, g.angle);
-  assert.deepEqual(restored.targets, g.targets);
-  assert.deepEqual(restored.selections, g.selections);
-  for (const game of [g, restored]) game.advance(1000);
-  assert.deepEqual(restored.events, g.events);
-});
-
-test('checkpoints preserve fractional time and pending catch-up without processing it early', () => {
-  for (const limit of [1, Infinity]) {
-    const g = new Game(10004);
-    g.start();
-    g.advance(125, limit);
-    const checkpoint = createCheckpoint(g)!;
-    const restored = restoreCheckpoint(checkpoint)!;
-    assert.ok(restored);
-    assert.equal(restored.elapsedTicks, g.elapsedTicks);
-    assert.deepEqual(createCheckpoint(restored), checkpoint);
-    for (const game of [g, restored]) game.advance(25);
-    assert.equal(restored.elapsedTicks, g.elapsedTicks);
-    assert.deepEqual(restored.targets, g.targets);
-    assert.deepEqual(restored.events, g.events);
-  }
-});
-
-test('best records handle malformed or unavailable storage', () => {
-  const g = fixture();
-  g.debugClear();
-  g.advance(610000);
-  const success = bestRecord(null, g.result!);
-  assert.ok(success);
-  const fail = { ...g.result!, outcome: 'collapse-failure' as const, xp: g.result!.xp + 1000 };
-  assert.equal(bestRecord(success, fail), success);
-  const improved = bestRecord(success, { ...g.result!, xp: g.result!.xp + 1 });
-  assert.ok(improved);
-  assert.equal(improved.xp, g.result!.xp + 1);
-  const failedRecord = bestRecord(null, fail);
-  assert.ok(failedRecord);
-  const map = new Map<string, string>();
-  const storage = {
-    getItem: (key: string) => map.get(key) ?? null,
-    setItem: (key: string, value: string) => map.set(key, value),
-  } as Storage;
-  assert.equal(readRecord(storage), null);
-  assert.ok(save(storage, recordKey, success));
-  assert.deepEqual(readRecord(storage), success);
-  map.set(recordKey, JSON.stringify({ ...success, xp: -1 }));
-  assert.equal(readRecord(storage), null);
-  map.set(recordKey, '{');
-  assert.equal(readRecord(storage), null);
-  const blocked = {
-    getItem: () => {
-      throw new Error('blocked');
-    },
-    setItem: () => {
-      throw new Error('blocked');
-    },
-  } as unknown as Storage;
-  assert.equal(save(blocked, recordKey, success), false);
-  assert.equal(readRecord(blocked), null);
-});
-
-test('language preferences persist, invalid or unavailable storage falls back to Korean', () => {
-  let saved: string | null = null;
-  const storage = {
-    getItem: () => saved,
-    setItem: (_key: string, value: string) => {
-      saved = value;
+function storage(values: Record<string, string> = {}, fail = () => false): Storage {
+  return {
+    getItem: (key: string) => values[key] ?? null,
+    setItem: (key: string, value: string) => {
+      if (fail()) throw new Error('quota');
+      values[key] = value;
     },
   } as Storage;
-  assert.equal(readLanguage(storage), 'ko');
-  for (const language of ['ko', 'en', 'zh', 'ja'] as const) {
-    assert.ok(save(storage, languageKey, language));
-    assert.equal(readLanguage(storage), language);
-  }
-  saved = '"fr"';
-  assert.equal(readLanguage(storage), 'ko');
-  saved = '{';
-  assert.equal(readLanguage(storage), 'ko');
-  assert.equal(
-    readLanguage({
-      getItem: () => {
-        throw new Error('blocked');
-      },
-    } as unknown as Storage),
-    'ko',
-  );
+}
+
+test('language: saved value, then browser language, then English', () => {
+  assert.equal(readLanguage(storage({ [keys.language]: '"ja"' }), ['ko-KR']), 'ja');
+  assert.equal(readLanguage(storage({ [keys.language]: '"fr"' }), ['zh-TW']), 'zh');
+  assert.equal(readLanguage(storage(), ['fr-FR', 'ko']), 'en');
+  assert.equal(readLanguage(storage({ [keys.language]: '{' }), []), 'en');
 });
 
-test('sound is on without a saved choice, remembers off and treats bad values as on', () => {
-  const map = new Map<string, string>();
-  const storage = {
-    getItem: (key: string) => map.get(key) ?? null,
-    setItem: (key: string, value: string) => map.set(key, value),
-  } as Storage;
-  assert.equal(readSound(storage), true);
-  assert.ok(writeSound(storage, false));
-  assert.equal(map.get(soundKey), 'false');
-  assert.equal(readSound(storage), false);
-  assert.ok(writeSound(storage, true));
-  assert.equal(readSound(storage), true);
-  for (const bad of ['"off"', '0', '{', 'null']) {
-    map.set(soundKey, bad);
-    assert.equal(readSound(storage), true, bad);
-  }
-  const blocked = {
-    getItem: () => {
-      throw new Error('blocked');
-    },
-    setItem: () => {
-      throw new Error('blocked');
-    },
-  } as unknown as Storage;
-  assert.equal(readSound(blocked), true);
-  assert.equal(writeSound(blocked, false), false);
+test('sound is on unless saved off', () => {
+  assert.equal(readSound(storage()), true);
+  assert.equal(readSound(storage({ [keys.sound]: 'false' })), false);
+  assert.equal(readSound(storage({ [keys.sound]: 'nonsense' })), true);
 });
 
-test('saved runs restore pending cards, moving enemies and reserved attacks with the same future', () => {
-  for (const seed of [10000, 10004, 10017]) {
-    const g = new Game(seed);
-    g.start();
-    for (let i = 0; i < 60 * 75 && g.phase === 'running'; i++) {
-      g.advance(1000 / 60);
-      if (g.choice && g.selections.length < 2) g.select(g.choice.cards[1].id);
-    }
-    const checkpoint = createCheckpoint(g)!;
-    const restored = restoreCheckpoint(JSON.parse(JSON.stringify(checkpoint)))!;
-    assert.ok(restored);
-    for (const key of [
-      'phase',
-      'tick',
-      'elapsedTicks',
-      'xp',
-      'mass',
-      'radius',
-      'angle',
-      'ranks',
-      'boosts',
-      'rarities',
-      'targets',
-      'effects',
-      'damageNumbers',
-      'choice',
-      'selections',
-      'events',
-    ] as const)
-      assert.deepEqual(restored[key], g[key], seed + ': ' + key);
-    for (const id of skillIds)
-      assert.deepEqual(restored.combat.status(id), g.combat.status(id), seed + ': cooldown ' + id);
-    restored.advance(610000);
-    g.advance(610000);
-    assert.deepEqual(restored.result, g.result);
-    assert.deepEqual(restored.events, g.events);
-  }
+// Values exactly as the old game wrote them.
+const oldRecord = { outcome: 'success', xp: 5200, level: 31, seed: 12345, collisionTime: 1010.5 },
+  oldBeyond = { seconds: 214.25, xp: 900, seed: 777 };
+const finished = (o: Partial<Parameters<typeof bestRecord>[1]> = {}) => ({
+  outcome: 'collapse-failure',
+  xp: 100,
+  level: 5,
+  seed: 1,
+  collisionTime: 300,
+  endless: null,
+  ...o,
 });
 
-test('checkpoints preserve manual pause but omit background pause; ready games have no checkpoint', () => {
-  const g = new Game(10004);
-  g.start();
-  for (let i = 0; i < 1800 && !g.choice; i++) g.advance(1000 / 60);
-  assert.ok(g.choice);
-  g.setManualPause(true);
-  g.setHidden(true);
-  const checkpoint = JSON.stringify(createCheckpoint(g));
-  assert.ok(checkpoint.length < 2000);
-  const restored = restoreCheckpoint(JSON.parse(checkpoint))!;
-  assert.ok(restored.manualPaused);
-  assert.equal(restored.hiddenPaused, false);
-  assert.deepEqual(restored.choice, g.choice);
-  assert.equal(restored.time, g.time);
-  restored.advance(10000);
-  assert.equal(restored.time, g.time);
-  restored.setManualPause(false);
-  g.setManualPause(false);
-  g.setHidden(false);
-  restored.advance(610000);
-  g.advance(610000);
-  assert.deepEqual(restored.result, g.result);
-  assert.deepEqual(restoreCheckpoint(createCheckpoint(restored)!)?.result, restored.result);
-  assert.equal(createCheckpoint(new Game(g.seed)), null);
-});
-
-test('checkpoints and records accept a run past ten minutes and a manual choice beyond number 25', (t) => {
-  // Isolate long-save behavior from the current difficulty: delay the Higgs and
-  // remove gravity so this fixture can reach choice 26 and ten minutes even as
-  // late enemies continue to strengthen.
-  const final = rules.boss.final.time,
-    gravity = rules.gravityPerMass,
-    damage = rules.baseHitDamage;
-  t.after(() => {
-    rules.boss.final.time = final;
-    rules.gravityPerMass = gravity;
-    rules.baseHitDamage = damage;
+test('old saved records read back; broken ones read as none', () => {
+  const s = storage({
+    [keys.record]: JSON.stringify(oldRecord),
+    [keys.beyond]: JSON.stringify(oldBeyond),
   });
-  rules.boss.final.time = 100000;
-  rules.gravityPerMass = 0;
-  rules.baseHitDamage = 100;
-  const map = new Map<string, string>();
-  const storage = {
-    getItem: (key: string) => map.get(key) ?? null,
-    setItem: (key: string, value: string) => map.set(key, value),
-    removeItem: (key: string) => map.delete(key),
-  } as Storage;
-  const g = new Game(92043);
-  g.start();
-  while (g.time < 1200 && !g.result && (!g.choice || g.choice.number <= 25)) g.advance(250);
-  assert.equal(g.choice?.number, 26);
-  g.advance((g.choice!.deadline - g.time) * 1000 - 1000 / rules.tickRate);
-  assert.ok(g.select(g.choice!.cards[0].id));
-  g.advance(601000 - g.seconds * 1000);
-  assert.ok(g.seconds > 600);
-  assert.ok(g.level > 26);
-  const restored = restoreCheckpoint(JSON.parse(JSON.stringify(createCheckpoint(g))))!;
-  assert.ok(restored);
-  assert.deepEqual(createCheckpoint(restored), createCheckpoint(g));
-  // Finish both long-lived fixtures explicitly; this checks save/record handling, not win rate.
-  for (const game of [restored, g]) {
-    game.debugClear();
-    game.advance(16000);
-  }
-  assert.equal(g.result?.outcome, 'success');
-  assert.deepEqual(restored.result, g.result);
-  const record = bestRecord(null, g.result!);
-  save(storage, recordKey, record);
-  assert.deepEqual(readRecord(storage), record);
+  assert.deepEqual(readRecord(s), oldRecord);
+  assert.deepEqual(readBeyond(s), oldBeyond);
+  for (const broken of ['{', '"x"', JSON.stringify({ ...oldRecord, outcome: 'won' })])
+    assert.equal(readRecord(storage({ [keys.record]: broken })), null, broken);
+  assert.equal(
+    readRecord(storage({ [keys.record]: JSON.stringify({ ...oldRecord, xp: -1 }) })),
+    null,
+  );
+  assert.equal(readBeyond(storage({ [keys.beyond]: JSON.stringify({ seconds: 'a' }) })), null);
 });
 
-test('ending phases replay at the same frame from a checkpoint', () => {
-  const full = run(10004, 60);
-  const collisionTick = Math.round(full.collisionTime * rules.tickRate);
-  for (const extra of [0, 60, 210, 900]) {
-    const g = new Game(10004);
-    g.start();
-    g.advance(((collisionTick + extra) * 1000) / rules.tickRate);
-    const restored = restoreCheckpoint(createCheckpoint(g)!)!;
-    assert.ok(restored);
-    assert.equal(restored.phase, g.phase);
-    assert.equal(restored.phaseProgress, g.phaseProgress);
-    g.advance(16000);
-    restored.advance(16000);
-    assert.deepEqual(restored.result, g.result);
-  }
+test('a clear beats a loss, then XP, then a later end; endless runs count only beyond', () => {
+  const loss = bestRecord(null, finished())!;
+  assert.equal(bestRecord(loss, finished({ xp: 50 })), loss);
+  assert.equal(bestRecord(loss, finished({ xp: 100, collisionTime: 400 }))!.collisionTime, 400);
+  const clear = bestRecord(loss, finished({ outcome: 'success', xp: 10 }))!;
+  assert.equal(clear.outcome, 'success');
+  assert.equal(bestRecord(clear, finished({ xp: 9999 })), clear);
+  const endless = finished({ outcome: 'success', xp: 9999, endless: { seconds: 60, xp: 40 } });
+  assert.equal(bestRecord(clear, endless), clear);
+  const beyond = bestBeyond(null, endless)!;
+  assert.deepEqual(beyond, { seconds: 60, xp: 40, seed: 1 });
+  assert.equal(bestBeyond(beyond, finished({ endless: { seconds: 60, xp: 10 } })), beyond);
+  assert.equal(bestBeyond(beyond, finished()), beyond);
+});
+
+test('records merge what another tab stored and retry a failed write once a second', () => {
+  const values: Record<string, string> = {};
+  let failing = true;
+  const records = new Records(() => storage(values, () => failing));
+  assert.equal(records.record(finished({ xp: 300 }), 0), false);
+  assert.equal(records.best!.xp, 300, 'kept in memory');
+  assert.equal(records.improved, true);
+  values[keys.record] = JSON.stringify(oldRecord); // a better record from another tab
+  failing = false;
+  assert.equal(records.retry(500), undefined, 'too early: nothing is attempted');
+  assert.equal(values[keys.record], JSON.stringify(oldRecord));
+  assert.equal(records.retry(1000), true);
+  assert.deepEqual(JSON.parse(values[keys.record]), oldRecord);
+  assert.deepEqual(records.best, oldRecord);
+  records.record(finished({ xp: 200 }), 2000);
+  assert.equal(records.improved, false);
+  assert.equal(records.retry(4000), undefined, 'nothing pending');
 });

@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import type { OrbitRhythm } from '../app/OrbitRhythm.ts';
+import type { Rhythm } from '../session/rhythm.ts';
 import { orbit, CENTER } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
 import { WHITE, BLUE } from '../art/palette.ts';
@@ -8,7 +8,7 @@ const turn = Math.PI * 2;
 
 export function drawRhythm(
   g: Phaser.GameObjects.Graphics,
-  rhythm: OrbitRhythm,
+  rhythm: Rhythm,
   radius: number,
   scale: number,
   electron: Point,

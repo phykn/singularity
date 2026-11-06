@@ -1,14 +1,15 @@
 import { useEffect } from 'react';
-import type { OrbitRhythm } from '../app/OrbitRhythm.ts';
-import { copy } from './i18n.ts';
-import type { Language } from './i18n.ts';
+import type { Rhythm } from '../session/rhythm.ts';
+import { copy } from './text/index.ts';
+import type { Language } from './text/index.ts';
 
+// The arena-sized tap target while a beat round runs; Space and Enter tap too.
 export function RhythmInput({
   rhythm,
   language,
   onTap,
 }: {
-  rhythm: OrbitRhythm;
+  rhythm: Rhythm;
   language: Language;
   onTap: () => void;
 }) {

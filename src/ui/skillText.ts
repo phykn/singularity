@@ -1,23 +1,24 @@
+// The numbers on cards, skill details and the guide, from the same values combat uses.
 import type { Game } from '../game/Game.ts';
-import { skillValues } from '../game/skills.ts';
-import type { SkillValues } from '../game/skills.ts';
-import { numberText } from '../format.ts';
 import {
   blankRanks,
-  blankRarities,
   critChance,
   evolutionChance,
   powerScale,
   rangeScale,
   recoveryMass,
-  rules,
 } from '../game/rules.ts';
-import type { PactId, Rarity, RuleSet, SkillId, UpgradeId } from '../game/rules.ts';
-import { copy } from './i18n.ts';
-import type { Language, LinkEffect } from './i18n.ts';
+import type { PactId, Rarity, Rules, SkillId, UpgradeId } from '../game/rules.ts';
+import { skillValues } from '../game/skills.ts';
+import type { Copy } from './text/index.ts';
+import type { LinkEffect } from './text/ko.ts';
+
+export const numberText = (value: number) => String(Number(value.toFixed(2)));
+const percent = (n: number) => Number(numberText(n * 100));
+type Values = ReturnType<typeof skillValues>;
 
 const attackers: SkillId[] = ['strike', 'satellite', 'surge'];
-// Each effect changes the attacks of these skills in combat.ts; tests/skill-links.test.ts checks them.
+// Each effect changes the attacks of these skills in combat.ts.
 const linkedAttackers: Record<LinkEffect, SkillId[]> = {
   repeat: attackers,
   multi: attackers,
@@ -28,6 +29,7 @@ const linkedAttackers: Record<LinkEffect, SkillId[]> = {
   charge: ['repeat', 'multi', 'return'],
 };
 
+// Owned skills that this upgrade changes or that change it.
 export function skillLinks(id: UpgradeId, owned: SkillId[]) {
   return owned.flatMap((skill) => {
     const effect = (Object.keys(linkedAttackers) as LinkEffect[]).find(
@@ -39,37 +41,36 @@ export function skillLinks(id: UpgradeId, owned: SkillId[]) {
   });
 }
 
-export function pactText(id: PactId, language: Language = 'ko', cfg: RuleSet = rules) {
-  const terms = copy[language].pactTerms[id],
-    p = cfg.pacts,
-    percent = (n: number) => numberText(n * 100);
+// A pact's gain and cost with its current numbers.
+export function pactText(id: PactId, c: Copy, p: Rules['pacts']) {
   const values: Record<PactId, [number, number]> = {
-    overheat: [Number(percent(p.overheat.rateStep)), 0],
-    blast: [p.blast.damage, Number(percent(1 - p.blast.damageScale))],
-    greed: [Number(percent(p.greed.xp)), Number(percent(p.greed.spawn))],
+    overheat: [percent(p.overheat.rateStep), 0],
+    blast: [p.blast.damage, percent(1 - p.blast.damageScale)],
+    greed: [percent(p.greed.xp), percent(p.greed.spawn)],
     quiet: [p.quiet.periodSeconds, 0],
     overclock: [0, 0],
     pulse: [0, p.pulse.missMass],
-    gamble: [p.gamble.critMultiplier, Number(percent(1 - p.gamble.normalScale))],
-    horizon: [Number(percent(p.horizon.damagePerMass)), p.horizon.massSeconds],
+    gamble: [p.gamble.critMultiplier, percent(1 - p.gamble.normalScale)],
+    horizon: [percent(p.horizon.damagePerMass), p.horizon.massSeconds],
   };
-  const [gain, cost] = values[id];
+  const [gain, cost] = values[id],
+    terms = c.pactTerms[id];
   return { gain: terms.gain(gain), cost: terms.cost(cost) };
 }
 
+const valuesAt = (id: UpgradeId, rank: number, rarity: Rarity, cfg: Rules) =>
+  skillValues({ ...blankRanks(), [id]: rank }, { [id]: rarity }, cfg);
+
+// What an upgrade does at a rank.
 export function skillValue(
   id: UpgradeId,
   rank: number,
-  rarity: Rarity = 'common',
-  language: Language = 'ko',
-  cfg: RuleSet = rules,
-  reach = 1,
-  forms?: SkillValues,
+  rarity: Rarity,
+  c: Copy,
+  cfg: Rules,
+  forms: Values = valuesAt(id, rank, rarity, cfg),
 ): string {
-  const s =
-    forms ??
-    skillValues({ ...blankRanks(), [id]: rank }, { ...blankRarities(), [id]: rarity }, cfg, reach);
-  const c = copy[language],
+  const s = forms,
     m = c.metric,
     n = numberText;
   switch (id) {
@@ -106,9 +107,9 @@ export function skillValue(
     case 'overcharge':
       return `${m.kills} ${s.overcharge.kills} · ×${n(s.overcharge.damage)}`;
     case 'power':
-      return `${m.damage} ${n(cfg.baseHitDamage * powerScale(rank, cfg))}`;
+      return `${m.damage} ${n(cfg.combat.baseDamage * powerScale(rank, cfg))}`;
     case 'rate':
-      return `${m.rate} +${Math.round(cfg.ratePerRank * rank * 100)}%`;
+      return `${m.rate} +${Math.round(cfg.combat.ratePerRank * rank * 100)}%`;
     case 'range':
       return `${m.range} +${n((rangeScale(rank, cfg) - 1) * 100)}%`;
     case 'crit':
@@ -117,66 +118,50 @@ export function skillValue(
       return `${m.evolve} ${n(evolutionChance(rank, cfg) * 100)}%`;
     case 'recover':
       return `${c.mass} -${recoveryMass(rarity, cfg)}`;
-    case 'overheat':
-    case 'blast':
-    case 'greed':
-    case 'quiet':
-    case 'overclock':
-    case 'pulse':
-    case 'gamble':
-    case 'horizon':
-      return pactText(id, language, cfg).gain;
+    default:
+      return pactText(id, c, cfg.pacts).gain;
   }
 }
 
 // What an upgrade does in this run as it stands.
-export const currentSkillValue = (game: Game, id: UpgradeId, language: Language) =>
-  skillValue(id, game.rank(id), game.rarities[id], language, game.rules, game.reach, game.forms);
+export const currentSkillValue = (game: Game, id: UpgradeId, c: Copy) =>
+  skillValue(
+    id,
+    game.rank(id),
+    game.rarities[id as SkillId] ?? 'common',
+    c,
+    game.rules,
+    game.forms,
+  );
 
+// What taking the card changes, from the current rank to the next.
 export function skillChange(
   id: UpgradeId,
   current: number,
-  rarity: Rarity = 'common',
-  previous: Rarity = 'common',
-  language: Language = 'ko',
-  cfg: RuleSet = rules,
+  rarity: Rarity,
+  previous: Rarity,
+  c: Copy,
+  cfg: Rules,
   mass = Infinity,
 ): string {
-  const before = skillValues(
-    { ...blankRanks(), [id]: current },
-    { ...blankRarities(), [id]: previous },
-    cfg,
-  );
-  const after = skillValues(
-    { ...blankRanks(), [id]: current + 1 },
-    { ...blankRarities(), [id]: rarity },
-    cfg,
-  );
-  const c = copy[language],
-    text = c.change;
+  const before = valuesAt(id, current, previous, cfg),
+    after = valuesAt(id, current + 1, rarity, cfg),
+    text = c.change,
+    n = numberText;
   const count = (a: number, b: number, unit: string) => (current ? `${a}→${b}` : String(b)) + unit;
   switch (id) {
     case 'power':
-      return `${numberText(cfg.baseHitDamage * powerScale(current, cfg))}→${numberText(cfg.baseHitDamage * powerScale(current + 1, cfg))}`;
+      return `${n(cfg.combat.baseDamage * powerScale(current, cfg))}→${n(cfg.combat.baseDamage * powerScale(current + 1, cfg))}`;
     case 'rate':
       return text.rate;
     case 'range':
-      return `${c.metric.range} +${numberText((rangeScale(current + 1, cfg) / rangeScale(current, cfg) - 1) * 100)}%`;
+      return `${c.metric.range} +${n((rangeScale(current + 1, cfg) / rangeScale(current, cfg) - 1) * 100)}%`;
     case 'crit':
-      return `${c.metric.crit} ${numberText(critChance(current, cfg) * 100)}→${numberText(critChance(current + 1, cfg) * 100)}%`;
+      return `${c.metric.crit} ${n(critChance(current, cfg) * 100)}→${n(critChance(current + 1, cfg) * 100)}%`;
     case 'luck':
-      return `${c.metric.evolve} ${numberText(evolutionChance(current, cfg) * 100)}→${numberText(evolutionChance(current + 1, cfg) * 100)}%`;
+      return `${c.metric.evolve} ${n(evolutionChance(current, cfg) * 100)}→${n(evolutionChance(current + 1, cfg) * 100)}%`;
     case 'recover':
-      return `${c.mass} -${numberText(Math.min(mass, recoveryMass(rarity, cfg)))}`;
-    case 'overheat':
-    case 'blast':
-    case 'greed':
-    case 'quiet':
-    case 'overclock':
-    case 'pulse':
-    case 'gamble':
-    case 'horizon':
-      return pactText(id, language, cfg).gain;
+      return `${c.mass} -${n(Math.min(mass, recoveryMass(rarity, cfg)))}`;
     case 'repeat':
       return count(before.repeat.hits, after.repeat.hits, text.repeat);
     case 'multi':
@@ -207,5 +192,7 @@ export function skillChange(
     case 'fission':
     case 'overcharge':
       return text[id][current ? 1 : 0];
+    default:
+      return pactText(id, c, cfg.pacts).gain;
   }
 }

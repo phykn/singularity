@@ -1,23 +1,23 @@
+// README images: `npm run screenshots` writes assets/readme/gameplay-{1,2,3}.jpg from seed 1706.
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { base, launchBrowser } from './browser-support.mjs';
+import { mkdirSync } from 'node:fs';
+import { launchBrowser, serve } from './launch.mjs';
 
-const browser = await launchBrowser();
-const shots = [],
-  errors = [];
-mkdirSync('assets/readme', { recursive: true });
-mkdirSync('artifacts', { recursive: true });
+const server = await serve(),
+  browser = await launchBrowser();
 try {
   const page = await browser.newPage({
     viewport: { width: 430, height: 932 },
     isMobile: true,
     hasTouch: true,
   });
+  const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto(base);
-  await page.getByRole('button', { name: 'ENG', exact: true }).click();
-  await page.evaluate(() => window.__gameDebug.prepare(1701));
+  await page.goto(server.url);
   await page.waitForFunction(() => document.querySelector('.start')?.matches(':enabled'));
+  await page.getByRole('button', { name: 'ENG', exact: true }).click();
+  await page.evaluate(() => window.__gameDebug.prepare(1706));
+  mkdirSync('assets/readme', { recursive: true });
   const shoot = async (number) => {
     await page.waitForTimeout(300);
     await page.screenshot({
@@ -25,54 +25,40 @@ try {
       type: 'jpeg',
       quality: 92,
     });
-    shots.push(
-      await page.evaluate(() => {
-        const g = window.__gameDebug.getModel();
-        return {
-          seed: g.seed,
-          tick: g.tick,
-          ranks: g.ranks,
-          selections: g.selections,
-          targets: g.targets.length,
-        };
-      }),
+  };
+  // Plays on with the automatic pick until `seconds`, or until cards are on offer.
+  const play = (seconds, untilChoice = false) =>
+    page.evaluate(
+      ([seconds, untilChoice]) => {
+        const debug = window.__gameDebug,
+          game = debug.getGame();
+        while (game.phase === 'running' && game.time < seconds) {
+          if (game.choice) {
+            if (untilChoice) break;
+            game.choose(game.automaticCard.id, game.choice.number);
+          }
+          debug.advance(100);
+        }
+        return game.phase;
+      },
+      [seconds, untilChoice],
     );
-  };
-  const combat = async (seconds) => {
-    await page.evaluate((seconds) => {
-      const debug = window.__gameDebug,
-        g = debug.getModel();
-      g.setHidden(false);
-      debug.advance(Math.max(0, seconds - g.seconds) * 1000);
-      for (let i = 0; i < 600 && (g.choice || !g.effects.some((fx) => fx.kind === 'bolt')); i++)
-        debug.advance(1000 / g.rules.tickRate);
-      if (g.phase !== 'running' || g.choice) throw new Error('No natural combat frame');
-      g.setHidden(true);
-      debug.advance(0);
-    }, seconds);
-    await page.waitForFunction(() => !document.querySelector('.choices'));
-  };
+
   await shoot(1);
   await page.getByRole('button', { name: 'START', exact: true }).click();
   await page.locator('.hud').waitFor();
-  await combat(55);
-  await page.evaluate(() => {
-    const debug = window.__gameDebug,
-      g = debug.getModel();
-    g.setHidden(false);
-    for (let i = 0; i < 9000 && !g.choice && g.phase === 'running'; i++)
-      g.advance(1000 / g.rules.tickRate, Infinity, { stopAtChoice: true, choiceMilliseconds: 0 });
-    debug.advance(0);
-  });
-  await page.locator('.card').first().waitFor();
-  await shoot(2);
+  await play(150);
+  assert.equal(await play(400, true), 'running');
   await page.locator('.cards[data-ready="true"]').waitFor();
+  await shoot(2);
   await page.locator('.card.auto').click();
-  await combat(240);
+  // The first giant particle, the gluon, arrives at 4:30 with its tethered quarks.
+  assert.equal(await play(282), 'running');
+  await page.locator('.boss-bar').waitFor();
   await shoot(3);
   assert.deepEqual(errors, []);
-  writeFileSync('artifacts/readme-screenshots.json', JSON.stringify({ shots, errors }, null, 2));
-  console.log('Captured the English title screen and two natural gameplay frames from seed 1701.');
+  console.log('Captured the title, a level-up and the gluon fight from seed 1706.');
 } finally {
   await browser.close();
+  await server.close();
 }

@@ -1,14 +1,14 @@
 import { goldenAngle } from './geometry.ts';
-import type { RuleSet } from './rules.ts';
+import type { Rules } from './rules.ts';
 
 export const formationIds = ['line', 'clump', 'arrow', 'ring', 'star', 'spiral', 'pincer'] as const;
 export type FormationId = (typeof formationIds)[number];
-export type Slot = { theta: number; radius: number };
+export type Shape = Exclude<FormationId, 'pincer'>;
+type Slot = { theta: number; radius: number };
 
 // Each shape debuts at its own time, so first sightings spread through the run.
-export function formationsAt(seconds: number, cfg: RuleSet['formations']): FormationId[] {
-  return formationIds.filter((id) => seconds >= cfg.debuts[id]);
-}
+export const formationsAt = (seconds: number, cfg: Rules['formations']): FormationId[] =>
+  formationIds.filter((id) => seconds >= cfg[id].debut);
 
 // Spreads the large members of a ring evenly among the small ones.
 export function interleave(dense: number, small: number): ('small' | 'dense')[] {
@@ -18,42 +18,41 @@ export function interleave(dense: number, small: number): ('small' | 'dense')[] 
   );
 }
 
-// Places `count` members of one shape around the core, centred on `angle` at `origin`.
-// Pincer is two shapes and is laid out by the caller.
+// `count` members of one shape around the core, centred on `angle` at `origin`.
 export function formationSlots(
-  shape: Exclude<FormationId, 'pincer'>,
+  shape: Shape,
   count: number,
   angle: number,
   origin: number,
-  cfg: RuleSet['formations'],
+  cfg: Rules['formations'],
 ): Slot[] {
   return Array.from({ length: count }, (_, i) => {
-    if (shape === 'line') return { theta: angle, radius: origin + i * cfg.lineSpacing };
+    if (shape === 'line') return { theta: angle, radius: origin + i * cfg.line.spacing };
     if (shape === 'ring') return { theta: angle + (i * Math.PI * 2) / count, radius: origin };
     if (shape === 'spiral')
       return {
-        theta: angle + (i * Math.PI * 2 * cfg.spiralTurns) / count,
-        radius: origin + i * cfg.spiralStep,
+        theta: angle + (i * Math.PI * 2 * cfg.spiral.turns) / count,
+        radius: origin + i * cfg.spiral.step,
       };
     if (shape === 'star') {
       const arms = count >= 12 ? 6 : count >= 8 ? 5 : 4;
       return {
         theta: angle + ((i % arms) * Math.PI * 2) / arms,
-        radius: origin + Math.floor(i / arms) * cfg.lineSpacing,
+        radius: origin + Math.floor(i / arms) * cfg.star.spacing,
       };
     }
     if (shape === 'arrow') {
       const step = Math.ceil(i / 2),
         side = i % 2 ? 1 : -1;
       return {
-        theta: angle + side * step * cfg.arrowSpread,
-        radius: origin + step * cfg.arrowStep,
+        theta: angle + side * step * cfg.arrow.spread,
+        radius: origin + step * cfg.arrow.step,
       };
     }
     // Clump: a sunflower disc just outside the spawn circle.
-    const d = cfg.clumpRadius * Math.sqrt((i + 0.5) / count),
+    const d = cfg.clump.radius * Math.sqrt((i + 0.5) / count),
       phi = i * goldenAngle,
-      radius = origin + cfg.clumpRadius + d * Math.cos(phi);
+      radius = origin + cfg.clump.radius + d * Math.cos(phi);
     return { theta: angle + (d * Math.sin(phi)) / radius, radius };
   });
 }

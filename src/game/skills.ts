@@ -1,16 +1,17 @@
-import { rarityScale, rules } from './rules.ts';
-import type { Ranks, Rarities, RuleSet, SkillId } from './rules.ts';
+import type { Rarity, Ranks, Rules, SkillId } from './rules.ts';
 
+export type Rarities = Partial<Record<SkillId, Rarity>>;
 export const timedSkills = ['strike', 'satellite', 'spark', 'field'] as const;
 export type TimedSkill = (typeof timedSkills)[number];
 // Skills that fire alongside the basic attack and share its cooldown.
-export const linkedSkills = ['multi', 'repeat', 'chain', 'pierce', 'return'] as const;
-export type LinkedSkill = (typeof linkedSkills)[number];
+export const linkedSkills: readonly SkillId[] = ['multi', 'repeat', 'chain', 'pierce', 'return'];
 
-export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rules, reach = 1) {
-  const s = cfg.skills;
-  const scale = (id: SkillId) => rarityScale(rarities[id], cfg);
-  const extra = (id: SkillId) => (ranks[id] ? cfg.rarity[rarities[id]].extra : 0);
+// Each skill's current values from its rank and the rarity it was first taken at.
+export function skillValues(ranks: Ranks, rarities: Rarities, cfg: Rules, reach = 1) {
+  const s = cfg.skills,
+    tiers = cfg.growth.rarity;
+  const scale = (id: SkillId) => tiers[rarities[id] ?? 'common'].scale;
+  const extra = (id: SkillId) => (ranks[id] ? tiers[rarities[id] ?? 'common'].extra : 0);
   const multi = s.multi.primaries[ranks.multi] + extra('multi');
   return {
     repeat: {
@@ -87,25 +88,3 @@ export function skillValues(ranks: Ranks, rarities: Rarities, cfg: RuleSet = rul
   };
 }
 export type SkillValues = ReturnType<typeof skillValues>;
-
-// How a skill's kills pop: one by one, all at once, as a spreading cascade,
-// as a released charge, or in order along a line or orbit.
-export type PopStyle = 'tap' | 'burst' | 'domino' | 'release' | 'sweep';
-export const popStyles: Record<SkillId, PopStyle> = {
-  chain: 'tap',
-  repeat: 'tap',
-  mark: 'tap',
-  spark: 'tap',
-  multi: 'burst',
-  strike: 'burst',
-  field: 'burst',
-  burst: 'domino',
-  fission: 'domino',
-  charge: 'release',
-  surge: 'release',
-  overcharge: 'release',
-  pierce: 'sweep',
-  return: 'sweep',
-  satellite: 'sweep',
-  tempo: 'sweep',
-};

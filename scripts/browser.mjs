@@ -1,1755 +1,811 @@
+// Browser checks: `npm run check:browser -- <scenario...>`. Uses GAME_URL when set,
+// otherwise starts its own dev server on a free port. BROWSER_PATH picks the executable;
+// CPU_SLOWDOWN (default 4) throttles the CPU for `performance`.
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import {
-  base,
-  capture,
-  launchBrowser,
-  observeScene,
-  reporter,
-  showSuccess,
-} from './browser-support.mjs';
-import { pactIds, rules, skillIds, upgradeIds, rarityIds } from '../src/game/rules.ts';
-import { copy } from '../src/ui/i18n.ts';
-import { iconCells } from '../src/art/skills.ts';
-import { RED } from '../src/art/palette.ts';
+import { launchBrowser, serve } from './launch.mjs';
 
-mkdirSync('artifacts/screens', { recursive: true });
-const browser = await launchBrowser();
-const errors = [],
-  checks = [];
-const report = reporter(checks);
-const pageFor = async (width, height, seed = 10004) => {
-  const page = await browser.newPage({
-    viewport: { width, height },
-    isMobile: true,
-    hasTouch: true,
-    deviceScaleFactor: 1,
-  });
-  page.on('pageerror', (error) => errors.push(error.message));
-  if (base.includes('ngrok'))
-    await page.setExtraHTTPHeaders({ 'ngrok-skip-browser-warning': 'true' });
-  await page.goto(base);
-  await page.waitForSelector('canvas');
-  await page.evaluate(() => document.fonts.ready);
-  if (!process.argv.includes('--production')) {
-    await page.waitForFunction(() => !!window.__gameDebug);
-    await page.evaluate((seed) => window.__gameDebug.prepare(seed), seed);
-  }
-  return page;
+const scenarios = {
+  smoke,
+  choices,
+  'late-game': lateGame,
+  languages: languageLayout,
+  performance: crowds,
+  audio: audioPreviews,
 };
-const inspect = async (page) => {
-  const value = await page.evaluate(() => {
-    const rect = (node) => {
-      const r = node.getBoundingClientRect();
-      return { x: r.x, y: r.y, w: r.width, h: r.height };
-    };
-    const buttons = [...document.querySelectorAll('button')]
-      .filter((b) => !b.closest('[inert]') && b.getBoundingClientRect().width > 0)
-      .map((b) => ({ text: b.textContent.trim(), ...rect(b) }));
-    return {
-      viewport: [innerWidth, innerHeight],
-      scroll: [document.documentElement.scrollWidth, document.documentElement.scrollHeight],
-      canvas: rect(document.querySelector('canvas')),
-      buttons,
-    };
-  });
-  assert.deepEqual(value.scroll, value.viewport);
-  for (const b of value.buttons) {
-    assert.ok(b.w >= 43.9 && b.h >= 43.9, 'Small touch target: ' + b.text);
-    assert.ok(
-      b.x >= -0.1 &&
-        b.y >= -0.1 &&
-        b.x + b.w <= value.viewport[0] + 0.1 &&
-        b.y + b.h <= value.viewport[1] + 0.1,
-      'Offscreen: ' + b.text,
-    );
-  }
-  assert.ok(value.canvas.w > 0 && value.canvas.h > 0);
-  return value;
-};
-const inspectCards = async (page) => {
-  if ((await page.locator('html').getAttribute('lang')) === 'ko') {
-    const lines = await page
-      .locator('.card[data-upgrade="charge"] .card-value')
-      .evaluateAll((nodes) =>
-        nodes.map((node) => {
-          const range = document.createRange();
-          range.selectNodeContents(node);
-          return {
-            text: node.textContent,
-            rows: [...new Set([...range.getClientRects()].map((rect) => Math.round(rect.top)))],
-          };
-        }),
-      );
-    for (const row of lines)
-      assert.equal(row.rows.length, 1, 'Charge text wraps: ' + JSON.stringify(row));
-  }
-  const clipped = await page
-    .locator('.card-value, .card strong, .card-label, .card-foot')
-    .evaluateAll((nodes) =>
-      nodes
-        .filter((node) => {
-          const bounds = node.getBoundingClientRect(),
-            card = node.closest('.card'),
-            outer = card.getBoundingClientRect(),
-            css = getComputedStyle(card);
-          return (
-            node.scrollWidth > node.clientWidth + 1 ||
-            node.scrollHeight > node.clientHeight + 1 ||
-            bounds.left < outer.left + parseFloat(css.paddingLeft) - 1 ||
-            bounds.right > outer.right - parseFloat(css.paddingRight) + 1
-          );
-        })
-        .map((node) => node.textContent),
-    );
-  assert.deepEqual(clipped, [], 'Card text must fit inside its padded content area');
-};
-const snapshot = (page) =>
-  page.evaluate(() => {
-    const g = window.__gameDebug.getModel();
-    return {
-      phase: g.phase,
-      seed: g.seed,
-      time: g.time,
-      seconds: g.seconds,
-      xp: g.xp,
-      mass: g.mass,
-      radius: g.radius,
-      level: g.level,
-      ranks: g.ranks,
-      boosts: g.boosts,
-      rarities: g.rarities,
-      score: g.score,
-      rushSpawns: g.rushSpawns,
-      choice: g.choice,
-      selections: g.selections,
-      paused: g.paused,
-      result: g.result,
-    };
-  });
-const advance = (page, ms) => page.evaluate((ms) => window.__gameDebug.advance(ms), ms);
-const firstChoice = async (page) => {
-  await page.evaluate(() => {
-    const g = window.__gameDebug.getModel();
-    for (let i = 0; i < 120 && !g.choice; i++) window.__gameDebug.advance(250);
-    if (!g.choice) throw new Error('No growth choice within 30 seconds');
-  });
-  await page.locator('.card').first().waitFor();
-};
-const screenshot = async (page, name) => {
-  await page.waitForTimeout(120);
-  await capture(page, 'artifacts/screens/' + name + '.png');
-};
+const wanted = process.argv.slice(2).filter((arg) => !arg.startsWith('--'));
+const names = !wanted.length || wanted.includes('all') ? Object.keys(scenarios) : wanted;
+for (const name of names) if (!scenarios[name]) throw new Error(`unknown scenario: ${name}`);
 
-const rarityFlow = async () => {
-  const page = await pageFor(375, 812);
-  await page.evaluate(() => {
-    window.__gameDebug.restart(21, false);
-    window.__gameDebug.xp(18);
-    const g = window.__gameDebug.getModel();
-    g.choice.cards = [
-      { id: 'multi', rarity: 'legendary' },
-      { id: 'chain', rarity: 'epic' },
-      { id: 'charge', rarity: 'rare' },
-    ];
-    window.__gameDebug.advance(0);
-  });
-  await page.locator('.card[data-rarity="legendary"]').waitFor();
-  await inspectCards(page);
-  await screenshot(page, 'legendary-choice');
-  await page.locator('.cards[data-ready="true"]').waitFor();
-  await page.locator('.card[data-rarity="legendary"]').click();
-  const selected = await snapshot(page);
-  assert.equal(selected.rarities.multi, 'legendary');
-  assert.equal(selected.ranks.multi, 1);
-  assert.equal(
-    await page.evaluate(() => window.__gameDebug.getModel().forms.multi.count),
-    rules.skills.multi.primaries[1] + rules.rarity.legendary.extra,
-  );
-  await page.locator('.slot[data-rarity="legendary"]').waitFor();
-  await screenshot(page, 'legendary-acquired');
-  report('legendary card selection applies its branch bonus and keeps its visible identity', {
-    rank: selected.ranks.multi,
-    rarity: selected.rarities.multi,
-    branches: rules.skills.multi.primaries[1] + rules.rarity.legendary.extra,
-  });
-  await page.evaluate(() => {
-    const g = window.__gameDebug.getModel();
-    g.choice = {
-      number: g.selections.length + 1,
-      opened: g.time,
-      deadline: g.time + 8,
-      cards: [{ id: 'multi', rarity: g.rarities.multi }],
-    };
-    window.__gameDebug.advance(0);
-  });
-  assert.equal(await page.locator('.choices p').count(), 0);
-  const icon = page.locator('.card .card-icon .skill-icon');
-  await icon.waitFor();
-  assert.equal(await icon.count(), 1);
-  assert.equal(await icon.locator('image').count(), 1);
-  assert.deepEqual(
-    await icon
-      .locator('image')
-      .evaluateAll((nodes) => nodes.map((n) => ['href', 'x', 'y'].map((a) => n.getAttribute(a)))),
-    await page
-      .locator('.slot[data-skill="multi"] .skill-icon image')
-      .evaluateAll((nodes) => nodes.map((n) => ['href', 'x', 'y'].map((a) => n.getAttribute(a)))),
-  );
-  assert.equal(await icon.evaluate((n) => n.getAnimations({ subtree: true }).length), 0);
-  const card = page.locator('.card');
-  assert.ok((await card.locator('.card-value').innerText()).length > 0);
-  await page.locator('.cards[data-ready="true"]').waitFor();
-  await card.click();
-  const upgraded = await snapshot(page);
-  assert.equal(upgraded.ranks.multi, 2);
-  assert.equal(upgraded.rarities.multi, 'legendary');
-  await page.locator('.choice-receipt .card-icon .skill-icon').waitFor();
-  assert.equal(await page.locator('.choice-receipt .card-icon .skill-icon').count(), 1);
-  report('upgrade cards use the loadout icon, retain their text and keep acquired rarity', {});
+let server;
 
-  await page.evaluate((rarities) => {
-    window.__gameDebug.restart(42, false);
-    const g = window.__gameDebug.getModel();
-    for (const [i, id] of ['repeat', 'chain', 'strike', 'satellite'].entries()) {
-      g.choice = {
-        number: g.selections.length + 1,
-        opened: g.time,
-        deadline: g.time + 8,
-        cards: [{ id, rarity: rarities[i] }],
-      };
-      g.select(id);
-    }
-    g.setHidden(true);
-    window.__gameDebug.advance(0);
-  }, rarityIds);
-  const expectedBorders = [
-    'rgb(185, 196, 208)',
-    'rgb(121, 174, 255)',
-    'rgb(200, 153, 255)',
-    'rgb(255, 198, 111)',
-  ];
-  const borders = () =>
-    page.locator('.slot[data-rarity]').evaluateAll((nodes) =>
-      nodes.map((node) => {
-        const css = getComputedStyle(node);
-        return {
-          colors: [
-            css.borderTopColor,
-            css.borderRightColor,
-            css.borderBottomColor,
-            css.borderLeftColor,
-          ],
-          animation: css.animationName,
-          shadow: css.boxShadow,
-          opacity: css.opacity,
-        };
-      }),
-    );
-  for (const [width, height] of [
-    [375, 812],
-    [568, 320],
-  ]) {
-    await page.setViewportSize({ width, height });
-    for (const active of [true, false]) {
-      await page.locator('.slot[data-rarity]').evaluateAll((nodes, active) => {
-        for (const node of nodes)
-          for (const key of ['fired', 'active', 'acquired', 'new'])
-            node.dataset[key] = String(active);
-      }, active);
-      for (let frame = 0; frame < 3; frame++) {
-        await page.waitForTimeout(100);
-        assert.deepEqual(
-          await borders(),
-          expectedBorders.map((color) => ({
-            colors: [color, color, color, color],
-            animation: 'none',
-            shadow: 'none',
-            opacity: '1',
-          })),
-        );
+// Runs after every helper below is defined.
+async function main() {
+  const started = performance.now();
+  server = await serve();
+  const browser = await launchBrowser();
+  let failed = false;
+  try {
+    for (const name of names) {
+      const context = await browser.newContext({
+        viewport: { width: 375, height: 812 },
+        locale: 'en-US',
+      });
+      const page = await context.newPage();
+      const errors = [];
+      page.on('pageerror', (error) => errors.push(error.message));
+      page.on('console', (message) => message.type() === 'error' && errors.push(message.text()));
+      try {
+        await scenarios[name](page);
+        assert.deepEqual(errors, [], 'page errors');
+      } catch (error) {
+        failed = true;
+        mkdirSync('artifacts', { recursive: true });
+        await page.screenshot({ path: `artifacts/browser-${name}.png` }).catch(() => {});
+        console.error(`FAIL ${name}`, error);
       }
+      await context.close();
     }
-    await screenshot(page, `rarity-borders-${width}x${height}`);
+  } finally {
+    await browser.close();
+    await server.close();
   }
-  report('all four rarity borders stay constant while firing, charging and acquiring skills', {
-    rarities: rarityIds,
-  });
-  await page.close();
-};
+  console.log(
+    `${failed ? 'FAILED' : 'OK'} in ${((performance.now() - started) / 1000).toFixed(1)}s`,
+  );
+  process.exitCode = failed ? 1 : 0;
+}
 
-const audioFlow = async () => {
-  const page = await pageFor(375, 812);
-  await page.evaluate(() => {
-    const Native = window.AudioContext;
-    const trial = (window.audioTrial = { contexts: [], requests: [] });
+function pass(task, details = {}) {
+  console.log('PASS ' + task, JSON.stringify(details));
+}
+
+// Every page records the audio contexts it opens.
+async function open(page) {
+  await page.addInitScript(() => {
+    const Native = window.AudioContext,
+      contexts = (window.soundContexts = []);
     window.AudioContext = class extends Native {
-      constructor() {
-        super();
-        trial.contexts.push(this);
-      }
-      async resume() {
-        // Keep the native call inside the click gesture; defer only completion.
-        const resumed = super.resume();
-        let request;
-        try {
-          await new Promise((resolve, reject) => {
-            request = { resolve, reject, completed: false };
-            trial.requests.push(request);
-          });
-          return await resumed;
-        } finally {
-          request.completed = true;
-        }
+      constructor(...args) {
+        super(...args);
+        contexts.push(this);
       }
     };
   });
-  await page.getByRole('button', { name: '설정', exact: true }).click();
-  const sound = () => page.locator('.setting-row').first();
-  const pressed = () => sound().getAttribute('aria-pressed');
-  const settle = async (index, fail = false) => {
-    await page.waitForFunction((index) => !!window.audioTrial.requests[index], index);
-    await page.evaluate(
-      ({ index, fail }) => {
-        const request = window.audioTrial.requests[index];
-        if (fail) request.reject(new Error('Audio unavailable'));
-        else request.resolve();
-      },
-      { index, fail },
-    );
-    await page.waitForFunction((index) => window.audioTrial.requests[index].completed, index);
-    await page.waitForTimeout(100);
-  };
-  assert.equal(await pressed(), 'true', 'Sound starts on');
-  await sound().click();
-  assert.equal(await pressed(), 'false');
-  await sound().click();
-  assert.equal(await pressed(), 'true');
-  await sound().click();
-  await settle(0);
-  assert.equal(await pressed(), 'false');
-  assert.equal(await page.evaluate(() => window.audioTrial.contexts[0].state), 'suspended');
-  await sound().click();
-  await sound().click();
-  await sound().click();
-  await settle(2);
-  await page.waitForFunction(() => window.audioTrial.contexts[0].state === 'running');
-  await settle(1, true);
-  assert.equal(await pressed(), 'true');
-  assert.equal(await page.locator('.setting-notice').count(), 0);
-  assert.equal(await page.evaluate(() => window.audioTrial.contexts[0].state), 'running');
-  await sound().click();
-  await sound().click();
-  await page.getByRole('button', { name: '닫기', exact: true }).click();
-  await page.getByRole('button', { name: 'START' }).click();
-  await page.getByRole('button', { name: '일시정지', exact: true }).click();
-  await settle(3);
-  await settle(4);
-  assert.equal(await pressed(), 'true');
-  assert.equal(await page.evaluate(() => window.audioTrial.contexts[0].state), 'suspended');
-  assert.equal(await page.locator('.setting-notice').count(), 0);
-  await sound().click();
-  await sound().click();
-  await settle(5, true);
-  assert.equal(await pressed(), 'false');
-  await page.getByRole('dialog').getByText(copy.ko.audioFailed, { exact: true }).waitFor();
-  await screenshot(page, 'audio-recovery');
-  report('delayed audio respects rapid toggles, newer requests, pause and actual failures', {
-    requests: 6,
-    currentSound: false,
-  });
-  await sound().click();
-  await settle(6);
-  await page.keyboard.press('Escape');
-  await settle(7);
-  await page.evaluate(() => {
-    window.dispatchEvent(new PageTransitionEvent('pagehide'));
-    window.dispatchEvent(new PageTransitionEvent('pageshow'));
-  });
-  await settle(8, true);
-  await page.keyboard.press('Escape');
-  await page.getByRole('dialog').getByText(copy.ko.audioFailed, { exact: true }).waitFor();
-  assert.equal(await pressed(), 'true', 'A recovery failure keeps the sound preference');
-  await page.keyboard.press('Escape');
-  await settle(9);
-  await page.keyboard.press('Escape');
-  await page.getByRole('dialog').waitFor();
-  await page.locator('.setting-notice').waitFor({ state: 'hidden' });
-  assert.equal(await page.locator('.setting-notice').count(), 0);
-  assert.equal(await pressed(), 'true');
-  report('automatic audio recovery reports failure and clears the notice after retry', {
-    requests: 10,
-    currentSound: true,
-  });
-  await page.close();
-};
+  await page.goto(server.url);
+  await loaded(page);
+}
+function loaded(page) {
+  return page.waitForFunction(
+    () => window.__gameDebug && document.querySelector('.start')?.disabled === false,
+  );
+}
 
-// A fresh profile hears START at once; turning sound off survives a reload.
-const defaultSoundFlow = async () => {
-  const page = await pageFor(375, 812);
-  const watch = () =>
-    page.evaluate(() => {
-      const Native = window.AudioContext;
-      const contexts = (window.soundContexts = []);
-      window.AudioContext = class extends Native {
-        constructor() {
-          super();
-          contexts.push(this);
-        }
-      };
-    });
-  await watch();
+async function smoke(page) {
+  await open(page);
   const title = page.locator('.title-sound');
   assert.equal(await title.getAttribute('aria-pressed'), 'true');
   assert.equal(await page.evaluate(() => window.soundContexts.length), 0);
   await page.getByRole('button', { name: 'START' }).click();
-  await page.waitForFunction(() => window.soundContexts[0]?.state === 'running');
-  await page.getByRole('button', { name: '일시정지', exact: true }).click();
-  const setting = page.locator('.setting-row').first();
-  assert.equal(await setting.getAttribute('aria-pressed'), 'true');
+  await page.waitForFunction(() => window.soundContexts[0]?.state === 'running', null, {
+    timeout: 5000,
+  });
+  pass('a fresh profile opens audio at START', { state: 'running' });
+
+  const killAt = await page.evaluate(() => {
+    const debug = window.__gameDebug;
+    for (let second = 1; second <= 30; second++) {
+      const game = debug.getGame(),
+        from = game.events.length;
+      debug.advance(1000);
+      if (game.events.slice(from).some((event) => event.kind === 'kill')) return second;
+    }
+    return null;
+  });
+  assert.ok(killAt !== null, 'no kill in the first 30 seconds');
+  pass('a particle pops within 30 seconds', { second: killAt });
+
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  const setting = page.locator('.pause-panel .title-sound');
   await setting.click();
   assert.equal(await setting.getAttribute('aria-pressed'), 'false');
   await page.reload();
-  await page.waitForFunction(
-    () => !!window.__gameDebug && document.querySelector('.start')?.disabled === false,
-  );
-  await watch();
+  await loaded(page);
   assert.equal(await title.getAttribute('aria-pressed'), 'false');
   await page.getByRole('button', { name: 'START' }).click();
   await page.waitForTimeout(300);
   assert.equal(await page.evaluate(() => window.soundContexts.length), 0);
-  report('sound starts on at START in a fresh profile and stays off after a reload', {
-    first: 'running',
-    afterReload: 'off',
-  });
-  await page.close();
-};
+  pass('sound turned off stays off after a reload');
 
-const showSkill = async (page, id, rank = 5, rarity = 'common') =>
-  page.evaluate(
-    ({ id, rank, rarity }) => {
-      window.__gameDebug.restart(17, false);
-      const g = window.__gameDebug.getModel();
-      g.ranks[id] = rank;
-      g.rarities[id] = rarity;
-      g.targets = Array.from({ length: 32 }, (_, i) => {
-        const x = 190 + (i % 8) * 17,
-          y = 102 + Math.floor(i / 8) * 18;
-        return {
-          id: i,
-          x,
-          y,
-          hp: 100,
-          maxHp: 100,
-          kind: 'small',
-          particle: ['quark', 'muon', 'proton', 'neutron'][i % 4],
-          born: 0,
-          xp: 1,
-          mass: 1,
-          size: 5,
-          radius: Math.hypot(x - 180, y - 260),
-          angle: Math.atan2(y - 260, x - 180),
-          speed: 0,
-          turn: 0,
-        };
-      });
-      for (const t of g.targets) g.counts[t.particle].generated++;
-      const nearest = [...g.targets].sort(
-        (a, b) => Math.hypot(a.x - 180, a.y - 128) - Math.hypot(b.x - 180, b.y - 128),
-      )[0];
-      if (['burst', 'fission', 'overcharge'].includes(id)) nearest.hp = nearest.maxHp = 1;
-      if (id === 'overcharge') g.combat.overchargeKills = g.forms.overcharge.kills - 1;
-      if (id === 'surge') {
-        for (const t of g.targets.slice(0, g.forms.surge.kills)) {
-          t.hp = 1;
-          g.combat.fireBasic(t);
-        }
-      } else if (id === 'charge') {
-        for (let i = 0; i < Math.ceil(g.forms.charge.threshold); i++) g.combat.fireBasic();
-      } else if (id === 'mark') {
-        for (const t of g.targets.slice(0, g.forms.mark.threshold)) g.combat.fireBasic(t);
-      } else if (id === 'tempo') {
-        g.combat.sweep(3);
-      } else if (['strike', 'satellite', 'spark', 'field'].includes(id)) g.combat.fireSkill(id);
-      else g.combat.fireBasic();
-      if (id === 'return') g.angle += 0.65;
-      window.__gameDebug.advance(
-        id === 'return'
-          ? 300
-          : id === 'repeat'
-            ? 150
-            : id === 'satellite'
-              ? 400
-              : // Fission splits 0.06 s after the kill.
-                id === 'fission'
-                ? 100
-                : 50,
-      );
-      g.setHidden(true);
-      return {
-        effects: g.effects
-          .filter((f) => f.source === id)
-          .map((f) => ({ rank: f.rank, radius: f.radius, width: f.width })),
-        hits: g.events.filter((e) => e.kind === 'hit').length,
-        damage: g.damageNumbers.map((d) => d.value),
-        satellites: g.combat.satellitePoints.map((p) => ({ ...p })),
-      };
-    },
-    { id, rank, rarity },
-  );
-
-const skillFlow = async () => {
-  const page = await pageFor(375, 812);
-  for (const id of skillIds) {
-    const result = await showSkill(page, id, 5, 'epic');
-    assert.ok(
-      result.damage.length > 0 &&
-        (id === 'satellite' ? result.satellites.length > 0 : result.effects.length > 0),
-      'No visible skill impact: ' + id,
-    );
-    await screenshot(page, 'skill-' + id);
-  }
-  report('all sixteen skills render their actual combat or recovery effect', { skills: skillIds });
-  await page.close();
-};
-
-const visualFlow = async () => {
-  const page = await pageFor(375, 812);
-  for (const id of skillIds) {
-    const ranks = [];
-    for (const rank of [1, 5]) {
-      const result = await showSkill(page, id, rank);
-      assert.ok(
-        (id === 'satellite' ? result.satellites.length > 0 : result.effects.length > 0) &&
-          result.hits > 0,
-        id + ' must produce an actual visible attack',
-      );
-      assert.ok(result.effects.every((fx) => fx.rank === rank));
-      const artwork = await page
-        .locator('.slot[data-skill="' + id + '"] svg image')
-        .evaluate(async (node) => {
-          const image = new Image();
-          image.src = node.getAttribute('href');
-          await image.decode();
-          const x = Math.abs(Number(node.getAttribute('x'))),
-            y = Math.abs(Number(node.getAttribute('y')));
-          const canvas = document.createElement('canvas');
-          canvas.width = canvas.height = 32;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(image, x, y, 32, 32, 0, 0, 32, 32);
-          const data = ctx.getImageData(0, 0, 32, 32).data;
-          return { x, y, visible: data.some((value, i) => i % 4 === 3 && value > 128) };
-        });
-      assert.deepEqual(artwork, { ...iconCells[id], visible: true });
-      await screenshot(page, `visual-${id}-rank-${rank}`);
-      ranks.push(result);
-    }
-    if (['multi', 'chain', 'burst', 'strike'].includes(id))
-      assert.ok(ranks[1].hits > ranks[0].hits);
-    if (['pierce'].includes(id))
-      assert.ok(
-        ranks[1].effects[0].radius > ranks[0].effects[0].radius ||
-          ranks[1].effects[0].width > ranks[0].effects[0].width,
-      );
-  }
-  report('all sixteen skills retain their identity and show actual growth from rank one to five', {
-    skills: skillIds,
-  });
-  for (const [width, height] of [
-    [375, 812],
-    [568, 320],
-  ]) {
-    await page.setViewportSize({ width, height });
-    for (const id of upgradeIds) {
-      await page.evaluate((id) => {
-        window.__gameDebug.restart(17, false);
-        const g = window.__gameDebug.getModel();
-        if (id in g.ranks) {
-          g.ranks[id] = id === 'chain' ? 4 : 1;
-          g.rarities[id] = 'rare';
-        } else if (id === 'recover') g.mass = 120;
-        else g.boosts[id] = 1;
-        g.choice = {
-          number: 1,
-          opened: g.time,
-          deadline: g.time + 8,
-          cards: [{ id, rarity: 'rare' }],
-        };
-        window.__gameDebug.advance(0);
-      }, id);
-      await page.locator('.cards[data-ready="true"]').waitFor();
-      await page.locator('.card').first().click();
-      const feedback = page.locator('.upgrade-feedback');
-      await feedback.waitFor();
-      await page.evaluate(() => {
-        window.__gameDebug.getModel().setHidden(true);
-        window.__gameDebug.advance(0);
-      });
-      assert.equal(await feedback.getAttribute('data-skill'), id);
-      const rank = id === 'chain' ? 5 : 2;
-      assert.ok(
-        (await feedback.innerText()).includes(
-          id === 'recover'
-            ? copy.ko.instant
-            : pactIds.includes(id)
-              ? copy.ko.pact
-              : `${rank - 1} → ${rank}`,
-        ),
-      );
-      if (id === 'chain') {
-        const max = page.locator('.slot[data-skill="chain"] .slot-max');
-        await max.waitFor();
-        const label = await max.evaluate((node) => ({
-          text: node.textContent,
-          width: node.getBoundingClientRect().width,
-          visibility: getComputedStyle(node).visibility,
-        }));
-        assert.equal(label.text.trim(), 'MAX');
-        assert.ok(label.width > 0 && label.visibility === 'visible', JSON.stringify(label));
-      }
-      const box = await feedback.boundingBox();
-      assert.ok(
-        box.x >= 0 && box.x + box.width <= width && box.y >= 0 && box.y + box.height <= height,
-      );
-      assert.equal(await feedback.evaluate((node) => node.scrollWidth <= node.clientWidth), true);
-      await screenshot(page, `upgrade-${id}-${width}x${height}`);
-      await page.evaluate(() => {
-        const g = window.__gameDebug.getModel();
-        g.setHidden(false);
-        g.setManualPause(true);
-        window.__gameDebug.advance(5000);
-      });
-      assert.equal(await feedback.count(), 1, 'A manual pause preserves upgrade feedback');
-      await page.evaluate(() => {
-        window.__gameDebug.getModel().setManualPause(false);
-        window.__gameDebug.advance(2100);
-        window.__gameDebug.getModel().setHidden(true);
-      });
-      assert.equal(await feedback.count(), 0, 'Feedback clears after its game-time interval');
-    }
-  }
-  report(
-    'manual upgrades confirm every skill and stat, remain legible in both orientations and expire after play resumes',
-    { upgrades: upgradeIds.length, viewports: 2 },
-  );
-  await page.close();
-};
-
-const interfaceFlow = async () => {
-  const page = await pageFor(375, 812);
-  await page.getByRole('button', { name: copy.ko.guide, exact: true }).click();
-  assert.deepEqual(await page.locator('.particle-guide > div').allTextContents(), [
-    'q쿼크',
-    'μ뮤온',
-    'p양성자',
-    'n중성자',
-    'ν중성미자',
-    'π중간자',
-  ]);
-  await screenshot(page, 'particle-guide');
-  await page.getByRole('button', { name: copy.ko.close, exact: true }).click();
-  await page.evaluate(() => {
-    window.__gameDebug.restart(1, false);
-    const g = window.__gameDebug.getModel();
-    const x = 200,
-      y = 260;
-    g.targets = [
-      {
-        id: 0,
-        x,
-        y,
-        hp: 1000,
-        maxHp: 1000,
-        kind: 'dense',
-        particle: 'proton',
-        born: 0,
-        xp: 5,
-        mass: 5,
-        size: 8,
-        radius: Math.hypot(x - 180, y - 260),
-        angle: Math.atan2(y - 260, x - 180),
-        speed: 0,
-        turn: 0,
-      },
-    ];
-    for (const id of ['strike', 'charge', 'burst']) {
-      g.choice = {
-        number: g.selections.length + 1,
-        cards: [{ id, rarity: 'common' }],
-        opened: g.time,
-        deadline: g.time + 8,
-      };
-      g.select(id);
-    }
-    window.__gameDebug.advance(100);
-    g.setHidden(true);
-  });
-  await page.waitForTimeout(120);
-  const strike = page.locator('.slot[data-skill="strike"]');
-  assert.equal(await strike.getAttribute('data-fired'), 'true');
-  assert.deepEqual(
-    await page
-      .locator('.slot[data-skill]')
-      .evaluateAll((nodes) => nodes.map((n) => n.dataset.skill)),
-    ['strike', 'charge', 'burst'],
-  );
-  assert.equal(
-    await page.locator('.slot[data-skill="charge"]').getAttribute('data-mode'),
-    'charging',
-  );
-  assert.equal(await page.locator('.slot[data-skill="burst"] .slot-fill').count(), 0);
-  const bounds = async () => {
-    const fill = await strike.locator('.slot-fill').boundingBox();
-    const value = Number(await strike.getAttribute('aria-valuenow'));
-    const engine = await page.evaluate(() =>
-      Math.floor(window.__gameDebug.getModel().combat.status('strike').progress * 100),
-    );
-    assert.equal(value, engine);
-    return { fill, value };
-  };
-  const before = await bounds();
-  const appearance = () =>
-    strike.evaluate((node) => {
-      const style = getComputedStyle(node),
-        inner = getComputedStyle(node, '::after'),
-        icon = getComputedStyle(node.querySelector('.slot-art'));
-      return [style.borderColor, style.boxShadow, inner.content, icon.color, icon.animationName];
-    });
-  const quiet = await appearance();
-  assert.equal(quiet[1], 'none');
-  assert.equal(quiet[2], 'none');
-  assert.equal(quiet[4], 'none');
-  const step = async (ms) => {
-    await page.evaluate((ms) => {
-      const g = window.__gameDebug.getModel();
-      g.setHidden(false);
-      window.__gameDebug.advance(ms);
-      g.setHidden(true);
-    }, ms);
-    await page.waitForTimeout(120);
-  };
-  await step(1800);
-  const after = await bounds();
-  assert.deepEqual(await appearance(), quiet);
-  assert.ok(after.value > before.value && after.fill.y < before.fill.y);
-  assert.ok(Math.abs(after.fill.y + after.fill.height - before.fill.y - before.fill.height) < 0.1);
-  await screenshot(page, 'cooldown-fill');
-  await page.evaluate(() => window.__gameDebug.advance(10000));
-  await page.waitForTimeout(120);
-  assert.deepEqual(await bounds(), after);
-  // Step one strike period past the first cast, so the next cast has just fired.
-  const period = await page.evaluate(
-    () => window.__gameDebug.getModel().rules.skills.strike.periodSeconds,
-  );
-  await step(Math.round(period * 1000) - 1800);
-  const fired = await bounds();
-  assert.ok(fired.value < after.value);
-  assert.equal(await strike.getAttribute('data-fired'), 'true');
-  assert.deepEqual(await appearance(), quiet);
-  await page.evaluate(() => {
-    window.__gameDebug.getModel().ranks.strike = 5;
-    window.__gameDebug.advance(0);
-  });
-  await strike.locator('.slot-max').waitFor();
-  assert.equal(await strike.locator('.slot-max').innerText(), 'MAX');
-  assert.equal(await strike.locator('.rank').count(), 0);
-  await screenshot(page, 'cooldown-fired');
-  await page.evaluate(() => {
-    const g = window.__gameDebug.getModel();
-    g.mass = 1000;
-    g.radius = g.core + 4;
-    g.setHidden(false);
-    window.__gameDebug.advance(100);
-    g.setHidden(true);
-  });
-  await page.waitForTimeout(120);
-  assert.equal(await strike.getAttribute('data-fired'), 'false');
-  assert.equal(await page.locator('.arena').innerText(), copy.ko.collapse);
-  assert.equal(
-    await page.locator('.arena [role="status"]').evaluate((n) => getComputedStyle(n).clipPath),
-    'inset(50%)',
-  );
-  report(
-    'quiet cooldown fills keep their timing without flashing borders and maxed skills show MAX',
-    {
-      before: before.value,
-      recharging: after.value,
-      fired: fired.value,
-      conditionalHasNoFill: true,
-      unchangedAppearance: quiet,
-    },
-  );
-  await page.evaluate(() => {
-    window.__gameDebug.restart(1, false);
-    window.__gameDebug.advance(600000);
-    window.__gameDebug.getModel().setHidden(true);
-  });
-  await page.waitForTimeout(120);
-  assert.equal((await snapshot(page)).phase, 'running');
-  assert.equal(await page.locator('.hud time').innerText(), '10:00');
-  assert.equal(
-    await page
-      .locator('.xp-status')
-      .innerText()
-      .then((t) => t.includes('MAX')),
-    false,
-  );
-  await screenshot(page, 'uncapped-clock');
-  await page.evaluate(() => {
-    const g = window.__gameDebug.getModel();
-    g.setHidden(false);
-    g.ranks = { ...g.ranks, charge: 5, chain: 5, field: 5, strike: 5 };
-    g.boosts = { power: 6, rate: 6, range: 6, crit: 6, luck: 6 };
-    // Every maxed skill is already evolved, so only stat cards remain.
-    g.evolved = { charge: true, chain: true, field: true, strike: true };
-    g.selections = Array.from({ length: 20 }, (_, i) => ({
-      time: i,
-      id: ['charge', 'chain', 'field', 'strike'][i % 4],
-      rank: Math.floor(i / 4) + 1,
-      rarity: 'common',
-      automatic: false,
-    }));
-    window.__gameDebug.xp(50000);
-    g.setHidden(true);
-  });
-  await page.locator('.card').first().waitFor();
-  const statCards = (await snapshot(page)).choice.cards.map((c) => c.id);
-  assert.equal(statCards.length, 3);
-  assert.equal(new Set(statCards).size, 3);
-  assert.ok(statCards.every((id) => ['power', 'rate', 'range', 'crit', 'luck'].includes(id)));
-  assert.equal(await page.locator('.slot-max').count(), 4);
-  await inspect(page);
-  await inspectCards(page);
-  await screenshot(page, 'max-skills-stat-choice');
-  await page.evaluate(() => window.__gameDebug.getModel().setHidden(false));
-  const id = (await snapshot(page)).choice.cards[1].id;
-  await page.locator('.cards[data-ready="true"]').waitFor();
-  await page.locator('.card').nth(1).click();
-  assert.equal((await snapshot(page)).boosts[id], 7);
-  report(
-    'elapsed clock passes ten minutes and full skill slots still offer repeatable stat upgrades',
-    { upgradedStat: id, rank: 7 },
-  );
-  await page.close();
-};
-
-const polishFlow = async () => {
-  const page = await pageFor(375, 812);
-  await page.evaluate(() => {
-    window.__gameDebug.restart(22, false);
-    const g = window.__gameDebug.getModel();
-    g.choice = {
-      number: 1,
-      opened: 0,
-      deadline: 8,
-      cards: [
-        { id: 'range', rarity: 'common' },
-        { id: 'strike', rarity: 'legendary' },
-        { id: 'luck', rarity: 'common' },
-      ],
-    };
-    g.setHidden(true);
-    window.__gameDebug.advance(0);
-  });
-  await page.locator('.card.auto').waitFor();
-  assert.equal(await page.locator('.card.auto').getAttribute('data-rarity'), 'legendary');
-  assert.equal(await page.locator('.card.auto strong').innerText(), copy.ko.upgrades.strike.short);
-  assert.equal((await page.locator('.xp-status').innerText()).includes('XP'), false);
-  await screenshot(page, 'highest-rarity-auto');
-  await page.evaluate(() => {
-    const g = window.__gameDebug.getModel();
-    g.setHidden(false);
-    window.__gameDebug.advance(12000);
-    g.setHidden(true);
-  });
-  await page.locator('.slot[data-skill="strike"]').waitFor();
-  assert.equal((await snapshot(page)).selections[0].id, 'strike');
-  assert.equal(
-    await page.locator('.slot[data-skill="strike"]').getAttribute('aria-valuenow'),
-    '100',
-  );
-  await screenshot(page, 'cooldown-ready-wait');
-  await page.evaluate(() => {
-    const g = window.__gameDebug.getModel(),
-      p = g.position;
-    const target = {
-      id: 999,
-      ...p,
-      angle: g.angle,
-      radius: g.radius,
-      hp: 10000,
-      maxHp: 10000,
-      kind: 'dense',
-      particle: 'proton',
-      born: g.time,
-      xp: 5,
-      mass: 5,
-      size: 8,
-      speed: 0,
-      turn: 0,
-    };
-    g.targets = [target];
-    g.counts.proton.generated++;
-    g.setHidden(false);
-    window.__gameDebug.advance(1000 / g.rules.tickRate);
-    g.setHidden(true);
-  });
-  await page.waitForTimeout(120);
-  assert.equal(await page.locator('.slot[data-skill="strike"]').getAttribute('aria-valuenow'), '0');
-  assert.equal(await page.locator('.slot[data-skill="strike"]').getAttribute('data-fired'), 'true');
-  await screenshot(page, 'cooldown-target-arrived');
-  await page.evaluate(() => {
-    window.__gameDebug.restart(22, false);
-    const g = window.__gameDebug.getModel();
-    g.choice = { number: 1, opened: 0, deadline: 8, cards: [{ id: 'surge', rarity: 'common' }] };
-    g.select('surge');
-    for (let i = 0; i < g.forms.surge.kills; i++) {
-      const p = g.position;
-      const t = {
-        id: i,
-        ...p,
-        angle: g.angle,
-        radius: g.radius,
-        hp: 1,
-        maxHp: 1,
-        kind: 'small',
-        particle: 'quark',
-        born: 0,
-        xp: 1,
-        mass: 1,
-        size: 5,
-        speed: 0,
-        turn: 0,
-      };
-      g.targets.push(t);
-      g.counts.quark.generated++;
-      g.damageTarget(t, 1);
-    }
-    window.__gameDebug.advance(150);
-    g.setHidden(true);
-  });
-  await page.waitForTimeout(120);
-  assert.equal(await page.locator('.slot[data-skill="surge"]').getAttribute('data-active'), 'true');
-  await screenshot(page, 'surge-active');
-  await page.setViewportSize({ width: 320, height: 568 });
-  await page.waitForTimeout(120);
-  await inspect(page);
-  await screenshot(page, 'surge-active-small');
-  await page.evaluate(() => {
-    const g = window.__gameDebug.getModel();
-    g.setHidden(false);
-    window.__gameDebug.advance(2000);
-    g.setHidden(true);
-  });
-  await page.waitForTimeout(120);
-  assert.equal(
-    await page.locator('.slot[data-skill="surge"]').getAttribute('data-active'),
-    'false',
-  );
-  await screenshot(page, 'surge-ended');
-  await page.evaluate(() => window.__gameDebug.restart(22));
-  await page.getByRole('button', { name: '일시정지', exact: true }).click();
-  assert.equal(await page.locator('.settings-controls .setting-row').count(), 1);
-  assert.equal(await page.getByRole('button', { name: /시각 효과/ }).count(), 0);
-  report('highest-rarity auto selection, actual-cast cooldowns, surge state and simpler settings', {
-    viewports: 2,
-  });
-  await page.close();
-};
-
-const qaFlow = async () => {
-  for (const [width, height] of [
-    [320, 568],
-    [568, 320],
-  ]) {
-    const page = await pageFor(width, height);
-    await page.evaluate(() => {
-      window.__gameDebug.restart(25, false);
-      const g = window.__gameDebug.getModel();
-      g.ranks.multi = 2;
-      g.mass = 150;
-      g.radius = g.core + g.rules.electronRadius + g.rules.dangerMargin - 1;
-      g.choice = {
-        number: 1,
-        opened: 0,
-        deadline: 8,
-        cards: [
-          { id: 'field', rarity: 'rare' },
-          { id: 'multi', rarity: 'common' },
-          { id: 'recover', rarity: 'common' },
-        ],
-      };
-      g.setHidden(true);
-      window.__gameDebug.advance(0);
-    });
-    await page.locator('.card').first().waitFor();
-    assert.equal(await page.locator('.card').nth(0).locator('.rank i.on').count(), 0);
-    assert.equal(await page.locator('.card').nth(1).locator('.rank i.on').count(), 2);
-    assert.equal(await page.locator('.card .rank i.next').count(), 2);
-    assert.deepEqual(await page.locator('.card-foot').allTextContents(), ['', '', '']);
-    await inspectCards(page);
-    await inspect(page);
-    assert.equal(await page.locator('.danger-status').textContent(), copy.ko.danger);
-    assert.equal(
-      await page.locator('.danger-status').evaluate((n) => n.getBoundingClientRect().width),
-      1,
-    );
-    await screenshot(page, 'qa-choice-' + width + 'x' + height);
-    await page.getByRole('button', { name: copy.ko.pause, exact: true }).click();
-    const paused = await snapshot(page);
-    await page.getByRole('button', { name: copy.ko.guide, exact: true }).click();
-    assert.equal(await page.getByRole('dialog').count(), 1);
-    assert.equal(await page.locator('.skill-guide > div').count(), upgradeIds.length);
-    await advance(page, 10000);
-    assert.deepEqual(await snapshot(page), paused);
-    await page.getByRole('button', { name: copy.ko.close, exact: true }).click();
-    await page.locator('.pause-panel').waitFor();
-    assert.equal(await page.getByRole('dialog').count(), 1);
-    assert.deepEqual(await snapshot(page), paused);
-    await page.getByRole('button', { name: copy.ko.resume, exact: true }).click();
-    await page.evaluate(() => {
-      window.__gameDebug.getModel().setHidden(false);
-      window.__gameDebug.advance(0);
-    });
-    await page.locator('.cards[data-ready="true"]').waitFor();
-    await page.locator('.card').nth(2).click();
-    await page.evaluate(() => {
-      const g = window.__gameDebug.getModel();
-      g.setHidden(false);
-      window.__gameDebug.advance(2000);
-      g.setHidden(true);
-    });
-    assert.equal(await page.locator('.danger-status').count(), 0);
-    assert.ok((await snapshot(page)).mass < paused.mass);
-    await page.close();
-  }
-  report(
-    'QA: visible acquisition stages, paused guide preserves choices, recovery clears warning',
-    {},
-  );
-};
-
-const satelliteFlow = async () => {
-  const page = await browser.newPage({ viewport: { width: 375, height: 812 } });
-  page.on('pageerror', (error) => errors.push(error.message));
-  await observeScene(page);
-  await page.goto(base);
-  await page.waitForFunction(() => !!window.__gameScene && !!window.__gameDebug);
-  const result = await page.evaluate(() => {
+  const phase = await page.evaluate(() => {
     const debug = window.__gameDebug;
-    debug.restart(17, false);
-    const g = debug.getModel();
-    g.ranks.satellite = 5;
-    const p = g.position;
-    g.targets = [
-      {
-        id: 1,
-        x: p.x + 30,
-        y: p.y,
-        angle: Math.atan2(p.y - 260, p.x + 30 - 180),
-        radius: Math.hypot(p.x + 30 - 180, p.y - 260),
-        hp: 10000,
-        maxHp: 10000,
-        kind: 'dense',
-        particle: 'proton',
-        born: 0,
-        xp: 5,
-        mass: 5,
-        size: 8,
-        speed: 0,
-        turn: 0,
+    for (let i = 0; i < 60 && debug.getGame().phase !== 'result'; i++) debug.advance(10000);
+    return debug.getGame().phase;
+  });
+  assert.equal(phase, 'result');
+  const result = page.getByRole('dialog', { name: 'Orbit collapse' });
+  await result.waitFor({ timeout: 3000 });
+  await page.getByRole('button', { name: 'Retry' }).waitFor();
+  pass('a loss reaches the result screen');
+
+  // Values exactly as the old game saved them.
+  await page.evaluate(() => {
+    localStorage.setItem(
+      'singularity.record',
+      '{"outcome":"success","xp":5200,"level":31,"seed":12345,"collisionTime":1010.5}',
+    );
+    localStorage.setItem('singularity.beyond', '{"seconds":214.25,"xp":900,"seed":777}');
+    localStorage.setItem('singularity.language', '"ko"');
+    localStorage.setItem('singularity.sound', 'false');
+  });
+  await page.reload();
+  await loaded(page);
+  const records = await page.locator('.preparation .records').innerText();
+  assert.match(records, /최고 기록\s+특이점 · 누적 경험치 5200/);
+  assert.match(records, /특이점 너머로\s+∞ 03:34 · 추가 경험치 900/);
+  assert.equal(await page.evaluate(() => document.documentElement.lang), 'ko');
+  assert.equal(await title.getAttribute('aria-pressed'), 'false');
+  pass('old saved records, language and sound show on the title', { records });
+}
+
+// Opens the next offer through the debug hook and returns its number.
+async function offer(page) {
+  return page.evaluate(() => {
+    const debug = window.__gameDebug;
+    for (let i = 0; i < 2400 && !debug.getGame().choice; i++) debug.advance(100);
+    return debug.getGame().choice?.number ?? null;
+  });
+}
+const picks = (page) => page.evaluate(() => window.__gameDebug.getGame().selections.length);
+
+async function choices(page) {
+  await open(page);
+  await page.getByRole('button', { name: 'START' }).click();
+  assert.equal(await offer(page), 1);
+  const cards = page.locator('.cards button.card');
+  await cards.first().waitFor();
+  // A tap right after the cards appear is protected.
+  const box = await cards.nth(1).boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  assert.equal(await picks(page), 0, 'an early tap picked a card');
+  const ticks = await page.evaluate(() => window.__gameDebug.getGame().elapsedTicks);
+  await page.waitForTimeout(400);
+  assert.equal(
+    await page.evaluate(() => window.__gameDebug.getGame().elapsedTicks),
+    ticks,
+    'combat ran during a paused choice',
+  );
+  await cards.nth(1).click();
+  assert.equal(await picks(page), 1);
+  pass('an early tap is ignored, a later one picks, combat waits', { ticks });
+
+  assert.equal(await offer(page), 2);
+  await cards.first().waitFor();
+  await page.waitForFunction(() => document.activeElement?.matches('.cards button.card'));
+  await page.keyboard.press('End');
+  const focused = await page.evaluate(() => document.activeElement.dataset.upgrade);
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Enter');
+  const taken = await page.evaluate(() => window.__gameDebug.getGame().selections.at(-1).id);
+  assert.equal(taken, focused);
+  pass('keyboard moves between cards and Enter picks', { id: taken });
+
+  assert.equal(await offer(page), 3);
+  await page.getByRole('switch').click();
+  assert.equal(await page.getByRole('switch').getAttribute('aria-checked'), 'false');
+  await page.waitForFunction(() => window.__gameDebug.getGame().selections.length >= 3, null, {
+    timeout: 7000,
+  });
+  pass('with choice pause off the countdown picks by itself');
+}
+
+// Jumps the clock with spawning off: giants, the critical breach and the Higgs by time.
+async function lateGame(page) {
+  await open(page);
+  await page.getByRole('button', { name: 'START' }).click();
+  const jump = (seconds, skipGiants = false) =>
+    page.evaluate(
+      ([seconds, skipGiants]) => {
+        const debug = window.__gameDebug,
+          game = debug.getGame();
+        if (skipGiants) game.bossCount = game.rules.bosses.length;
+        game.tick = Math.round(seconds * game.rules.time.tickRate) - 1;
+        debug.advance(1000 / game.rules.time.tickRate);
       },
-    ];
-    g.counts.proton.generated = 1;
-    g.combat.fireSkill('satellite');
-    const scene = window.__gameScene,
-      positions = [],
-      labels = [];
-    for (let i = 0; i < g.rules.tickRate; i++) {
-      g.setHidden(false);
-      debug.advance(1000 / g.rules.tickRate);
-      g.setHidden(true);
-      scene.update();
-      const satellite = scene.sprites.images.find(
-        (s) => s.visible && s.texture.key === 'electron' && s.displayWidth === 8,
-      );
-      if (!satellite) throw new Error('Missing satellite sprite');
-      positions.push(JSON.stringify([satellite.x, satellite.y]));
-      labels.push(...scene.damageLabels.texts.filter((t) => t.visible).map((t) => t.text));
-    }
-    return { frames: positions.length, positions: new Set(positions).size, labels };
-  });
-  assert.ok(
-    result.positions >= result.frames * 0.8,
-    'The orbit must keep moving at native pixel precision',
-  );
-  assert.ok(result.labels.length > 0, 'Hits must retain visible damage numbers');
-  assert.ok(
-    result.labels.every((label) => /^\d+$/.test(label)),
-    'Damage labels must be integers',
-  );
-  await screenshot(page, 'satellite-smooth-motion');
-  report('satellite body updates on every frame and damage labels stay visible integers', {
-    frames: result.frames,
-    positions: result.positions,
-  });
-  await page.close();
-};
+      [seconds, skipGiants],
+    );
+  await page.evaluate(() => window.__gameDebug.restart(7, false));
+  await jump(270);
+  const banner = page.locator('.event-banner');
+  await banner.filter({ hasText: 'GLUON INBOUND 1/5' }).waitFor({ timeout: 2000 });
+  await page.locator('.boss-bar').waitFor();
+  pass('the first giant arrives at 4:30 with its banner and health bar');
 
-const speedFlow = async () => {
-  for (const [width, height] of [
-    [320, 568],
-    [375, 812],
-    [430, 932],
-    [568, 320],
-    [812, 375],
-  ]) {
-    const page = await pageFor(width, height);
-    await page.getByRole('button', { name: 'START' }).click();
-    const button = page.locator('.speed-button');
-    assert.equal(await button.innerText(), '1×');
-    for (const speed of [1.5, 2, 1]) {
-      await button.tap();
-      assert.equal(await button.innerText(), speed + '×');
-      assert.equal(
-        await button.getAttribute('aria-label'),
-        copy.ko.playbackSpeed + ' ' + speed + '×',
-      );
-    }
-    await button.tap();
-    await button.tap();
-    await inspect(page);
-    const overlaps = await page.evaluate(() => {
-      const nodes = [...document.querySelector('.hud-top').children];
-      return nodes
-        .slice(1)
-        .filter(
-          (node, i) =>
-            nodes[i].getBoundingClientRect().right > node.getBoundingClientRect().left + 0.5,
+  await jump(840, true);
+  await page.locator('.event-banner[data-kind="critical"]').waitFor({ timeout: 2000 });
+  assert.equal(await page.locator('.hud').getAttribute('data-critical'), 'true');
+  pass('the critical breach starts at 14:00');
+
+  await jump(930);
+  await banner.filter({ hasText: 'HIGGS INBOUND' }).waitFor({ timeout: 2000 });
+  await page.getByRole('progressbar', { name: 'Destroy the Higgs' }).waitFor();
+  assert.equal(await page.locator('.boss-bar').getAttribute('data-final'), 'true');
+  await page.screenshot({ path: 'artifacts/browser-late-game-higgs.png' });
+  pass('the Higgs arrives at 15:30 and the singularity meter is full');
+
+  await page.evaluate(() => {
+    const debug = window.__gameDebug,
+      game = debug.getGame();
+    game.damageTarget(
+      game.targets.find((t) => t.final),
+      1e12,
+    );
+    for (let i = 0; i < 20 && game.phase !== 'result'; i++) debug.advance(500);
+  });
+  await page.getByRole('dialog', { name: 'Singularity' }).waitFor({ timeout: 3000 });
+  pass('popping the Higgs wins the run');
+
+  await page.getByRole('button', { name: 'BEYOND' }).click();
+  await page.evaluate(() => window.__gameDebug.advance(3000));
+  await page.getByRole('progressbar', { name: 'Round 7' }).waitFor({ timeout: 2000 });
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  await page.locator('.pause-panel').getByRole('button', { name: 'End run' }).click();
+  await page.locator('.pause-panel.is-confirming').getByRole('button', { name: 'End run' }).click();
+  const beyond = page.getByRole('dialog', { name: 'BEYOND' });
+  await beyond.waitFor({ timeout: 2000 });
+  assert.match(await beyond.innerText(), /New best/);
+  assert.match(await page.locator('.result .records').innerText(), /BEYOND\s+∞ 00:0\d/);
+  pass('beyond the clear, endless mode opens round 7 and quitting records it');
+}
+
+// Layout problems a player would see: page overflow, small or offscreen buttons, clipped card
+// text, overlapping HUD items and untranslated Korean.
+async function layout(page, language, scope = 'body') {
+  const issues = await page.evaluate(
+    ([language, scope]) => {
+      const issues = [],
+        root = document.documentElement;
+      if (root.scrollWidth > innerWidth || root.scrollHeight > innerHeight)
+        issues.push('page overflow');
+      for (const button of document.querySelectorAll('button')) {
+        if (button.closest('[inert]') || !button.checkVisibility()) continue;
+        const r = button.getBoundingClientRect(),
+          name = button.getAttribute('aria-label') ?? button.textContent;
+        if (button.matches('.slot-inspect')) continue;
+        if (r.width < 32 || r.height < 32) issues.push(`small: ${name} ${r.width}x${r.height}`);
+        if (
+          r.left < -0.5 ||
+          r.top < -0.5 ||
+          r.right > innerWidth + 0.5 ||
+          r.bottom > innerHeight + 0.5
         )
-        .map((node) => node.className);
-    });
-    assert.deepEqual(overlaps, []);
-    await screenshot(page, 'speed-' + width + 'x' + height);
-    await page.getByRole('button', { name: copy.ko.pause, exact: true }).tap();
-    const tick = (await snapshot(page)).time;
-    await page.waitForTimeout(150);
-    assert.equal((await snapshot(page)).time, tick);
-    await page.getByRole('button', { name: copy.ko.resume, exact: true }).tap();
-    assert.equal(await button.innerText(), '2×');
-    if (width === 375) {
-      const measured = await page.evaluate(async () => {
-        const g = window.__gameDebug.getModel();
-        const start = performance.now(),
-          before = g.time;
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        return { wall: (performance.now() - start) / 1000, game: g.time - before };
-      });
-      assert.ok(Math.abs(measured.game / measured.wall - 2) < 0.25, JSON.stringify(measured));
-      report('2x playback advances the live simulation at twice wall speed', measured);
-    }
-    await page.getByRole('button', { name: copy.ko.pause, exact: true }).tap();
-    await page.getByRole('button', { name: copy.ko.quit, exact: true }).tap();
-    await page.getByRole('button', { name: copy.ko.quitConfirm, exact: true }).tap();
-    await page.getByRole('button', { name: 'START' }).tap();
-    assert.equal(await button.innerText(), '1×');
-    report('speed controls cycle, pause and reset on mobile ' + width + 'x' + height, {});
-    await page.close();
-  }
-};
+          issues.push('offscreen: ' + name);
+      }
+      for (const node of document.querySelectorAll(
+        '.card-label, .card strong, .card-value, .card-foot, .arena-caption h1, .event-banner',
+      ))
+        if (node.scrollWidth > node.clientWidth + 1) issues.push('clipped: ' + node.textContent);
+      const hud = [...document.querySelectorAll('.hud-top > *')].map((n) =>
+        n.getBoundingClientRect(),
+      );
+      for (let i = 1; i < hud.length; i++)
+        if (hud[i].left < hud[i - 1].right - 0.5) issues.push('overlapping HUD');
+      if (hud.length && (hud[0].left < 0 || hud.at(-1).right > innerWidth))
+        issues.push('offscreen HUD');
+      if (language !== 'ko') {
+        const text = [...document.querySelectorAll(scope)].map((n) => n.innerText).join(' ');
+        const korean = text.match(/[가-힣]+/g)?.filter((word) => word !== '한국어');
+        if (korean?.length) issues.push('untranslated: ' + korean.slice(0, 3).join(' '));
+      }
+      return issues;
+    },
+    [language, scope],
+  );
+  const size = page.viewportSize();
+  assert.deepEqual(issues, [], `${language} ${size.width}x${size.height}`);
+}
 
-const waveWarningFlow = async () => {
-  for (const [width, height] of [
-    [320, 568],
-    [568, 320],
-  ]) {
-    const page = await browser.newPage({
-      viewport: { width, height },
-      isMobile: true,
-      hasTouch: true,
-    });
-    page.on('pageerror', (error) => errors.push(error.message));
-    await observeScene(page);
-    await page.goto(base);
-    await page.evaluate(() => document.fonts.ready);
-    await page.waitForFunction(() => !!window.__gameScene && !!window.__gameDebug);
-    await page.evaluate(() => {
-      const debug = window.__gameDebug;
-      debug.restart(10004, false);
-      const g = debug.getModel();
-      g.tick = g.elapsedTicks = (g.rules.waves[0] - 3) * g.rules.tickRate;
-      g.combatEnabled = true;
-      g.nextSpawn = Infinity;
-      g.spawnBatch();
-      g.setHidden(true);
-      debug.advance(0);
-    });
-    const sample = () =>
-      page.evaluate((red) => {
-        const scene = window.__gameScene,
-          graphics = scene.graphics,
-          styles = [];
-        const lineStyle = graphics.lineStyle;
-        graphics.lineStyle = function (width, color, alpha) {
-          if (color === red) styles.push({ width: width * scene.worldScale, alpha });
-          return lineStyle.call(this, width, color, alpha);
-        };
-        try {
-          scene.update();
-        } finally {
-          graphics.lineStyle = lineStyle;
-        }
-        return styles;
-      }, RED);
-    const peak = await sample();
-    assert.equal(peak.length, 2);
-    peak.forEach((style) => {
-      assert.ok(Math.abs(style.width - 3) < 1e-6);
-      assert.ok(style.alpha > 0.9);
-    });
-    await screenshot(page, 'wave-warning-bright-' + width + 'x' + height);
-    await page.evaluate(() => {
-      const debug = window.__gameDebug,
-        g = debug.getModel();
-      g.setHidden(false);
-      debug.advance(250);
-      g.setHidden(true);
-    });
-    const dim = await sample();
-    dim.forEach((style) => assert.ok(style.alpha < 0.35));
-    await page.waitForTimeout(100);
-    assert.deepEqual(await sample(), dim, 'Warning must freeze with the paused simulation');
-    await screenshot(page, 'wave-warning-dim-' + width + 'x' + height);
-    await page.evaluate(() => {
-      const debug = window.__gameDebug,
-        g = debug.getModel();
-      g.setHidden(false);
-      debug.advance(3000);
-      g.setHidden(true);
-    });
-    assert.deepEqual(await sample(), []);
-    assert.equal(await page.evaluate(() => window.__gameDebug.getModel().waveCount), 1);
-    await page.evaluate(() => {
-      const debug = window.__gameDebug;
-      debug.restart(10004, false);
-      const g = debug.getModel();
-      g.waveCount = g.rules.waves.length;
-      g.tick = g.elapsedTicks =
-        (g.upcomingWave.time - g.rules.waveWarningSeconds) * g.rules.tickRate;
-      g.combatEnabled = true;
-      g.nextSpawn = Infinity;
-      g.setHidden(true);
-      debug.advance(0);
-    });
-    // Late in the run the critical orbit and the timed bosses are red too; count the warnings.
-    const lateWarnings = async () =>
-      (await sample()).filter((style) => Math.abs(style.width - 3) < 1e-6);
-    assert.equal(
-      (await lateWarnings()).length,
-      2,
-      'Repeated late assaults retain directional warnings',
-    );
-    await screenshot(page, 'late-wave-warning-' + width + 'x' + height);
-    const assault = await page.evaluate(() => {
-      const debug = window.__gameDebug,
-        g = debug.getModel();
-      const angle = g.warningWave.angle;
-      g.setHidden(false);
-      debug.advance(g.rules.waveWarningSeconds * 1000);
-      g.setHidden(true);
-      const wave = g.events.findLast((e) => e.kind === 'wave');
-      return {
-        phase: g.wavePhase,
-        expectedAngle: angle,
-        actualAngle: wave.data.angle,
-        count: g.targets.length,
-      };
-    });
-    assert.equal(assault.phase, 'assault');
-    assert.equal(assault.actualAngle, assault.expectedAngle);
-    assert.ok(assault.count > 0);
-    assert.deepEqual(await lateWarnings(), []);
-    await inspect(page);
-    report('red wave warnings pulse, pause and lead into late assaults ' + width + 'x' + height, {
-      peak,
-      dim,
-      assault,
-    });
-    await page.close();
-  }
-};
-
-// The run flags, each with its own report; the dispatch below reads `mode`, so a flow
-// missing here cannot run. The default run writes `browser.json`.
-const reports = {
-  speed: 'speed-browser',
-  warning: 'warning-browser',
-  satellite: 'satellite-browser',
-  qa: 'qa-browser',
-  polish: 'polish-browser',
-  audio: 'audio-browser',
-  skills: 'skills-browser',
-  visuals: 'visuals-browser',
-  interface: 'interface-browser',
-  rarity: 'rarity-browser',
-  production: 'production',
-  realtime: 'realtime-checks',
-};
-const mode = Object.keys(reports).find((flag) => process.argv.includes('--' + flag));
-try {
-  if (mode === 'speed') {
-    await speedFlow();
-  } else if (mode === 'warning') {
-    await waveWarningFlow();
-  } else if (mode === 'satellite') {
-    await satelliteFlow();
-  } else if (mode === 'qa') {
-    await qaFlow();
-  } else if (mode === 'polish') {
-    await polishFlow();
-  } else if (mode === 'audio') {
-    await audioFlow();
-    await defaultSoundFlow();
-  } else if (mode === 'skills') {
-    await waveWarningFlow();
-    await skillFlow();
-  } else if (mode === 'visuals') {
-    await visualFlow();
-  } else if (mode === 'interface') {
-    await interfaceFlow();
-  } else if (mode === 'rarity') {
-    await rarityFlow();
-  } else if (mode === 'production') {
-    const page = await pageFor(375, 812);
-    const seed = await page.evaluate(() => localStorage.getItem('singularity.seed'));
-    assert.equal(await page.evaluate(() => typeof window.__gameDebug), 'undefined');
-    await page.getByRole('button', { name: 'START' }).click();
-    await page.locator('.hud').waitFor();
-    await inspect(page);
-    await screenshot(page, 'production');
-    report('production starts without debug hooks', { base });
-    await page.getByRole('button', { name: copy.ko.pause, exact: true }).click();
-    await page.reload();
-    await page.getByRole('button', { name: 'START', exact: true }).waitFor();
-    assert.notEqual(await page.evaluate(() => localStorage.getItem('singularity.seed')), seed);
-    assert.equal(await page.locator('.hud, .pause-panel').count(), 0);
-    assert.equal(await page.evaluate(() => typeof window.__gameDebug), 'undefined');
-    await page.getByRole('button', { name: 'START', exact: true }).click();
-    assert.match(await page.locator('.xp-status').innerText(), /0\s*\/\s*14/);
-    report('production reload returns to a fresh run', {});
-    await page.close();
-  } else if (mode === 'realtime') {
-    const seed = 96048;
-    const page = await pageFor(375, 812, seed);
-    await page.getByRole('button', { name: 'START' }).click();
-    const started = Date.now(),
-      samples = [];
-    let previous = 0;
-    while (!(await snapshot(page)).result && Date.now() - started < 640000) {
-      await page.waitForTimeout(30000);
-      const s = await snapshot(page);
-      assert.ok(s.seconds >= previous, 'The page restarted during the run');
-      previous = s.seconds;
-      samples.push({
-        wallSeconds: (Date.now() - started) / 1000,
-        time: s.time,
-        seconds: s.seconds,
-        xp: s.xp,
-        mass: s.mass,
-        radius: s.radius,
-        phase: s.phase,
-        choices: s.selections.length,
-      });
-      console.log(JSON.stringify(samples.at(-1)));
-    }
-    const s = await snapshot(page);
-    // Compare clocks inside Chrome: Node's trigonometric rounding can change a tied target choice.
-    const expected = await page.evaluate(async (seed) => {
-      const { Game } = await import('/src/game/Game.ts');
-      const game = new Game(seed);
-      game.start();
-      game.advance(610000);
-      return game.result;
-    }, seed);
-    await screenshot(page, 'realtime-result');
-    writeFileSync(
-      'artifacts/realtime.json',
-      JSON.stringify(
-        {
-          viewport: [375, 812],
-          seed,
-          elapsedWallSeconds: (Date.now() - started) / 1000,
-          samples,
-          result: s.result,
-          expected,
-          errors,
-        },
-        null,
-        2,
-      ),
-    );
-    assert.ok(s.result, 'The run did not finish');
-    assert.deepEqual(s.result, expected);
-    assert.deepEqual(errors, []);
-    report('normal clock: full autonomous game', {
-      wallSeconds: (Date.now() - started) / 1000,
-      result: s.result.outcome,
-      xp: s.xp,
-    });
-  } else {
-    await audioFlow();
-    await defaultSoundFlow();
-    await rarityFlow();
+// Every language on a small phone, a large phone and a landscape phone: title, help, HUD at its
+// widest, cards, pause, and the result.
+async function languageLayout(page) {
+  const { copy, languages } = await import('../src/ui/text/index.ts');
+  const { iconIds } = await import('../src/art/skills.ts');
+  await open(page);
+  for (const { id, label, html } of languages) {
+    const c = copy[id];
     for (const [width, height] of [
-      [360, 640],
-      [375, 812],
       [320, 568],
       [430, 932],
       [812, 375],
-      [568, 320],
     ]) {
-      const page = await pageFor(width, height),
-        name = width + 'x' + height;
-      await inspect(page);
-      await screenshot(page, 'ready-' + name);
-      assert.equal((await snapshot(page)).seed, 10004);
-      await page.getByRole('button', { name: '도움말', exact: true }).click();
-      await inspect(page);
-      assert.equal(await page.locator('.skill-guide > div').count(), upgradeIds.length);
-      await page.getByRole('button', { name: '닫기', exact: true }).click();
-      await page.getByRole('button', { name: 'START' }).click();
-      const playing = await inspect(page);
-      assert.equal(await page.locator('.choices').count(), 0);
-      if (height > width) {
-        // The 176px footer reserves the choice cards even before a choice opens.
-        // The canvas must fill the remaining flexible row without excess gaps.
-        const minimum = height - 48 - 176;
-        assert.ok(
-          playing.canvas.h >= minimum - 1,
-          JSON.stringify({ viewport: name, canvas: playing.canvas, minimum }),
-        );
-      }
-      await firstChoice(page);
-      await screenshot(page, 'cards-' + name);
-      const cards = await inspect(page);
-      assert.deepEqual(cards.canvas, playing.canvas);
-      assert.equal(await page.locator('.card').count(), 3);
-      await inspectCards(page);
-      const chosen = (await snapshot(page)).choice.cards[1].id;
-      await page.locator('.cards[data-ready="true"]').waitFor();
-      await page.locator('.card').nth(1).click();
-      assert.equal((await snapshot(page)).selections[0].id, chosen);
-      await page.getByRole('button', { name: '일시정지', exact: true }).click();
-      const frozen = await snapshot(page);
-      await advance(page, 10000);
-      assert.deepEqual(await snapshot(page), frozen);
-      await inspect(page);
-      await screenshot(page, 'pause-' + name);
-      await page.getByRole('button', { name: '계속하기' }).click();
-      await advance(page, 1000);
-      assert.ok((await snapshot(page)).time > frozen.time);
-      await page.getByRole('button', { name: '일시정지', exact: true }).click();
-      await page.getByRole('button', { name: '그만하기', exact: true }).click();
-      await page.getByRole('button', { name: '그만하기', exact: true }).click();
-      const reset = await snapshot(page);
-      assert.equal(reset.phase, 'ready');
-      assert.notEqual(reset.seed, 10004);
-      assert.equal(reset.xp, 0);
-      assert.equal(reset.mass, 0);
-      await showSuccess(page, 96048);
-      await page.getByRole('heading', { name: copy.ko.success, exact: true }).waitFor();
-      await inspect(page);
-      await screenshot(page, 'result-' + name);
-      assert.equal((await snapshot(page)).result.trigger, 'boss');
-      await page.getByRole('button', { name: copy.ko.finish, exact: true }).click();
-      assert.notEqual((await snapshot(page)).seed, 96048);
-      // The orbit falls into a heavy core within a minute, so the result offers a retry.
+      await page.setViewportSize({ width, height });
+      await page.evaluate(() => window.__gameDebug.prepare(10004));
+      await page.getByRole('button', { name: label, exact: true }).click();
+      await page.waitForFunction((html) => document.documentElement.lang === html, html);
+      await layout(page, id);
+      await page.getByRole('button', { name: c.guide, exact: true }).click();
+      assert.equal(await page.locator('.skill-guide > div').count(), iconIds.length);
+      await layout(page, id, '.guide');
+      await page.getByRole('button', { name: c.close, exact: true }).click();
+
+      await page.getByRole('button', { name: 'START', exact: true }).click();
+      await page.locator('.hud').waitFor();
+      // The widest HUD: high level, the Higgs due and mass near the limit.
       await page.evaluate(() => {
-        window.__gameDebug.restart(10004);
-        window.__gameDebug.getModel().mass = 1000;
+        const debug = window.__gameDebug;
+        debug.restart(10004, false);
+        const game = debug.getGame();
+        game.xp = 500000;
+        game.mass = 900;
+        game.bossCount = game.rules.bosses.length;
+        game.tick = game.rules.higgs.time * game.rules.time.tickRate - 1;
+        debug.advance(20);
       });
-      await advance(page, 60000);
-      await page.getByRole('button', { name: copy.ko.retry, exact: true }).click();
-      assert.notEqual((await snapshot(page)).seed, 10004);
-      report('mobile flow ' + name, { canvas: cards.canvas, firstSkill: chosen });
-      await page.close();
-    }
-
-    for (const [width, height] of [
-      [320, 568],
-      [568, 320],
-    ]) {
-      const page = await pageFor(width, height);
-      const ids = upgradeIds;
-      for (const rarity of rarityIds)
-        for (let rank = 1; rank <= rules.maxRank; rank++) {
-          for (let i = 0; i < ids.length; i += 3) {
-            const cards = [0, 1, 2].map((n) => ids[(i + n) % ids.length]);
-            await page.evaluate(
-              ({ cards, rank, rarity }) => {
-                window.__gameDebug.restart(1, false);
-                const g = window.__gameDebug.getModel();
-                g.setHidden(true);
-                for (const id of cards) {
-                  if (id in g.ranks) g.ranks[id] = rank - 1;
-                  else if (id === 'recover') g.mass = 120;
-                  else g.boosts[id] = rank - 1;
-                }
-                g.choice = {
-                  number: 2,
-                  cards: cards.map((id) => ({ id, rarity })),
-                  opened: 0,
-                  deadline: 8,
-                };
-                window.__gameDebug.advance(0);
-              },
-              { cards, rank, rarity },
-            );
-            await page.waitForTimeout(100);
-            await inspect(page);
-            await inspectCards(page);
-            assert.equal(await page.locator('.card .card-icon .skill-icon').count(), 3);
-          }
-        }
-      await screenshot(page, 'stat-cards-' + width + 'x' + height);
-      report('all upgrade cards fit ' + width + 'x' + height, {
-        variants: ids.length * rules.maxRank * rarityIds.length,
+      await layout(page, id);
+      await page.evaluate(() => {
+        const debug = window.__gameDebug;
+        debug.restart(10004);
+        for (let i = 0; i < 1200 && !debug.getGame().choice; i++) debug.advance(100);
       });
-      await page.close();
-    }
-
-    await speedFlow();
-    await waveWarningFlow();
-    await skillFlow();
-    await interfaceFlow();
-    await visualFlow();
-    await qaFlow();
-    await satelliteFlow();
-
-    const page = await pageFor(375, 812);
-    await page.getByRole('button', { name: 'START' }).click();
-    await page.evaluate(() => {
-      Object.defineProperty(document, 'hidden', { configurable: true, value: true });
-      document.dispatchEvent(new Event('visibilitychange'));
-    });
-    const hidden = await snapshot(page);
-    await advance(page, 10000);
-    assert.deepEqual(await snapshot(page), hidden);
-    await page.evaluate(() => {
-      const g = window.__gameDebug.getModel();
-      g.setManualPause(true);
-      Object.defineProperty(document, 'hidden', { configurable: true, value: false });
-      document.dispatchEvent(new Event('visibilitychange'));
-    });
-    await advance(page, 10000);
-    assert.equal((await snapshot(page)).time, hidden.time);
-    assert.equal((await snapshot(page)).paused, true);
-    await page.getByRole('button', { name: '계속하기' }).click();
-    report('visibility and manual pause compose', { time: hidden.time });
-
-    await page.evaluate(() => {
-      window.__gameDebug.restart(17, false);
-      const g = window.__gameDebug.getModel();
-      window.__gameDebug.xp(1000);
-      g.select(g.choice.cards[0].id);
-      window.__gameDebug.advance(25000);
-      window.__gameDebug.xp(g.xp + g.levelProgress.required - g.levelProgress.current);
-      g.mass = 150;
-      g.radius = 40;
-      g.choice.cards = ['recover', 'power', 'rate'].map((id) => ({ id, rarity: 'common' }));
-    });
-    await screenshot(page, 'gravity-danger');
-    const before = await snapshot(page);
-    await page.locator('.cards[data-ready="true"]').waitFor();
-    await page.locator('.card').first().click();
-    await advance(page, 2000);
-    const recovered = await snapshot(page);
-    assert.ok(recovered.radius > before.radius);
-    assert.equal(recovered.mass, before.mass - rules.recovery.mass);
-    assert.equal(recovered.xp, before.xp);
-    await screenshot(page, 'gravity-recovery');
-    report('mass release removes mass and restores the orbit while keeping XP', {
-      before: before.radius,
-      after: recovered.radius,
-      mass: recovered.mass,
-    });
-
-    await page.evaluate(() => {
-      window.__gameDebug.restart(1, false);
-      const g = window.__gameDebug.getModel();
-      g.tick = g.rules.boss.final.time * g.rules.tickRate;
-      window.__gameDebug.advance(0);
-    });
-    await page.waitForFunction(() => document.querySelector('.charge b')?.textContent === '100%');
-    assert.equal(await page.locator('.charge').getAttribute('aria-label'), copy.ko.finalBossDue);
-    await advance(page, 1000);
-    assert.equal(
-      (await snapshot(page)).phase,
-      'running',
-      'The Higgs time alone must not end the run',
-    );
-    await page.evaluate(() => window.__gameDebug.clear());
-    await advance(page, 100);
-    await screenshot(page, 'energy-collapse');
-    await advance(page, rules.collisionSeconds * 1000 + 1000);
-    await screenshot(page, 'black-hole');
-    await advance(page, 10000);
-    assert.equal((await snapshot(page)).result.outcome, 'success');
-    await page.evaluate(() => {
-      window.__gameDebug.restart(1, false);
-      const g = window.__gameDebug.getModel();
-      g.mass = 1000;
-      g.radius = g.core + 4;
-      window.__gameDebug.advance(16000);
-    });
-    await page.getByRole('heading', { name: copy.ko.failure, exact: true }).waitFor();
-    await screenshot(page, 'collapse-failure');
-    report('readiness and both endings', { higgsTime: rules.boss.final.time });
-
-    await page.evaluate(() => {
-      window.__gameDebug.restart(96031);
-      const g = window.__gameDebug.getModel();
-      // Build a live late-stage crowd; a balance change may end a seeded run before this point.
-      for (const id of ['pierce', 'multi', 'repeat', 'chain']) {
-        for (let rank = 0; rank < g.rules.maxRank; rank++) {
-          window.__gameDebug.xp(g.xp + g.levelProgress.required - g.levelProgress.current);
-          g.choice.cards = [{ id, rarity: 'common' }];
-          g.select(id);
-        }
+      await page.locator('.card').first().waitFor();
+      await layout(page, id, '.choices');
+      if (width === 430) {
+        await page.waitForTimeout(200); // the cards fade in
+        await page.screenshot({ path: `artifacts/browser-cards-${id}.png` });
       }
-      g.tick = g.elapsedTicks = 450 * g.rules.tickRate;
-      g.nextSpawn = g.tick;
-      g.mass = 60;
-      g.radius = 108;
-      Object.assign(g.boosts, { power: 4, rate: 4, range: 4, crit: 4, luck: 4 });
-      for (let i = 0; i < 20; i++) g.spawnBatch();
-      for (const target of g.targets) target.hp = target.maxHp = 1000;
-      window.__gameDebug.advance(0);
-    });
-    const frames = await page.evaluate(
-      () =>
-        new Promise((resolve, reject) => {
-          const timeout = setTimeout(
-            () => reject(new Error('Late-stage frame sampling stalled')),
-            30000,
-          );
-          const values = [];
-          let previous;
-          const sample = (now) => {
-            if (previous !== undefined) values.push(now - previous);
-            previous = now;
-            if (values.length < 180) requestAnimationFrame(sample);
-            else {
-              values.sort((a, b) => a - b);
-              const g = window.__gameDebug.getModel();
-              resolve({
-                medianMs: values[90],
-                p95Ms: values[171],
-                targets: g.targets.length,
-                effects: g.effects.length,
-                radius: g.radius,
-                phase: g.phase,
-              });
-              clearTimeout(timeout);
-            }
-          };
-          requestAnimationFrame(sample);
-        }),
-    );
-    assert.equal(frames.phase, 'running');
-    assert.ok(frames.targets > 0, 'Measure active combat rather than an empty arena');
-    await screenshot(page, 'late-play');
-    report('late-stage live crowd rendering on desktop Chrome', frames);
-    await page.close();
+      await page.getByRole('button', { name: c.pause, exact: true }).click();
+      await layout(page, id, '.pause-panel');
+      await page.getByRole('button', { name: c.quit, exact: true }).click();
+      await layout(page, id, '.pause-panel');
+      await page.getByRole('button', { name: c.back, exact: true }).click();
+      await page.getByRole('button', { name: c.resume, exact: true }).click();
 
-    const settings = await pageFor(375, 812);
-    await settings.getByRole('button', { name: '설정', exact: true }).click();
-    assert.equal(await settings.locator(':focus').getAttribute('class'), 'text-button');
-    await settings.keyboard.press('Shift+Tab');
-    assert.equal(await settings.locator(':focus').textContent(), '日本語');
-    await settings.keyboard.press('Tab');
-    assert.equal(await settings.locator(':focus').textContent(), '닫기');
-    assert.equal(await settings.getByRole('button', { name: /시각 효과/ }).count(), 0);
-    const sound = settings
-      .getByRole('dialog')
-      .getByRole('button', { name: '사운드 켬', exact: true });
-    await sound.click();
-    await settings
-      .getByRole('dialog')
-      .getByRole('button', { name: '사운드 끔', exact: true })
-      .waitFor();
-    await settings.getByRole('button', { name: '닫기', exact: true }).click();
-    await settings.reload();
-    await settings.waitForSelector('canvas');
-    await settings.getByRole('button', { name: '설정', exact: true }).click();
-    await settings
-      .getByRole('dialog')
-      .getByRole('button', { name: '사운드 끔', exact: true })
-      .waitFor();
-    await settings.getByRole('button', { name: '닫기', exact: true }).click();
-    await settings.getByRole('button', { name: 'START' }).click();
-    await firstChoice(settings);
-    const animations = await settings
-      .locator('.card-icon, .card-icon *')
-      .evaluateAll((nodes) => nodes.every((n) => getComputedStyle(n).animationName === 'none'));
-    assert.equal(animations, true);
-    await screenshot(settings, 'settings-play');
-    report('reload keeps sound off and card icons stay static', { cardIconAnimations: false });
-    await settings.close();
-
-    const blocked = await browser.newPage({ viewport: { width: 375, height: 812 } });
-    blocked.on('pageerror', (e) => errors.push(e.message));
-    await blocked.addInitScript(() => {
-      Storage.prototype.getItem = () => {
-        throw new Error('disabled');
-      };
-      Storage.prototype.setItem = () => {
-        throw new Error('disabled');
-      };
-    });
-    await blocked.goto(base);
-    await blocked.waitForSelector('canvas');
-    await blocked.getByRole('button', { name: '설정', exact: true }).click();
-    assert.equal(await blocked.locator('.setting-notice').count(), 0);
-    await blocked
-      .getByRole('dialog')
-      .getByRole('button', { name: '사운드 켬', exact: true })
-      .click();
-    await blocked.getByRole('dialog').getByText(copy.ko.storageFailed).waitFor();
-    await blocked.getByRole('dialog').getByRole('button', { name: 'ENG', exact: true }).click();
-    await blocked.getByRole('dialog').getByText(copy.en.storageFailed).waitFor();
-    await blocked.getByRole('button', { name: 'Close', exact: true }).click();
-    await blocked.getByRole('button', { name: 'START' }).click();
-    await firstChoice(blocked);
-    report('storage unavailable still plays', { phase: (await snapshot(blocked)).phase });
-    await blocked.close();
-
-    const privatePage = await browser.newPage({
-      viewport: { width: 375, height: 812 },
-      reducedMotion: 'reduce',
-    });
-    privatePage.on('pageerror', (error) => errors.push(error.message));
-    await privatePage.addInitScript(() => {
-      Object.defineProperty(window, 'localStorage', {
-        get() {
-          throw new DOMException('Storage access denied', 'SecurityError');
-        },
+      await page.evaluate(() => {
+        const debug = window.__gameDebug;
+        debug.restart(10004, false);
+        const game = debug.getGame();
+        game.bossCount = game.rules.bosses.length;
+        game.tick = game.rules.higgs.time * game.rules.time.tickRate - 1;
+        debug.advance(20);
+        game.damageTarget(
+          game.targets.find((t) => t.final),
+          1e12,
+        );
+        for (let i = 0; i < 20 && game.phase !== 'result'; i++) debug.advance(500);
       });
-    });
-    await privatePage.goto(base);
-    await privatePage.waitForSelector('canvas');
-    await privatePage.getByRole('button', { name: 'START' }).click();
-    await firstChoice(privatePage);
-    report('play survives denied storage access and OS motion preferences', {
-      phase: (await snapshot(privatePage)).phase,
-    });
-    await privatePage.close();
+      await page.getByRole('heading', { name: c.success, exact: true }).waitFor();
+      await layout(page, id, '.result');
+    }
+    pass(`${id} fits at three sizes`);
   }
-  assert.deepEqual(errors, []);
-  writeFileSync(
-    `artifacts/${mode ? reports[mode] : 'browser'}.json`,
-    JSON.stringify({ base, checks, errors }, null, 2),
-  );
-} finally {
-  await browser.close();
 }
+
+const quantile = (values, fraction) =>
+  [...values].sort((a, b) => a - b)[Math.floor((values.length - 1) * fraction)] ?? 0;
+const round = (value) => Math.round(value * 100) / 100;
+
+// Counts the cues the mixer accepts into `window.mixed`, patched in through the dev server so
+// nothing ships. GameAudio calls playBatch every audible frame, even with nothing to play.
+function countSounds(page) {
+  return page.route('**/src/audio/SoundMixer.ts*', async (route) => {
+    const response = await route.fetch();
+    const body =
+      (await response.text()) +
+      `
+window.mixed = { cues: 0, ms: [] };
+const playBatch = SoundMixer.prototype.playBatch;
+SoundMixer.prototype.playBatch = function (...args) {
+  const start = performance.now(), count = playBatch.apply(this, args);
+  window.mixed.cues += count;
+  window.mixed.ms.push(performance.now() - start);
+  return count;
+};`;
+    await route.fulfill({ response, body });
+  });
+}
+
+// Wall-clock frame intervals, as the player sees them.
+async function frames(page, ms) {
+  const intervals = await page.evaluate(
+    (ms) =>
+      new Promise((resolve) => {
+        const out = [];
+        let first, last;
+        const step = (now) => {
+          if (last !== undefined) out.push(now - last);
+          first ??= now;
+          last = now;
+          if (now - first < ms) requestAnimationFrame(step);
+          else resolve(out);
+        };
+        requestAnimationFrame(step);
+      }),
+    ms,
+  );
+  const total = intervals.reduce((sum, value) => sum + value, 0);
+  return {
+    frames: intervals.length,
+    fps: round((intervals.length * 1000) / total),
+    medianMs: round(quantile(intervals, 0.5)),
+    p95Ms: round(quantile(intervals, 0.95)),
+  };
+}
+
+// A fresh run that attacks but no longer spawns, the four linked skills at rank 5, no critical
+// hits, the browser's trimmed event log and `count` particles of every kind circling the core.
+function crowd(page, count, hp, rate = 1) {
+  return page.evaluate(
+    ([count, hp, rate]) => {
+      const debug = window.__gameDebug;
+      debug.restart(1705);
+      const game = debug.getGame(),
+        kinds = Object.keys(game.rules.particles);
+      game.nextSpawn = Infinity;
+      game.pending = [];
+      game.recordEvents = false;
+      Object.assign(game.ranks, { pierce: 5, multi: 5, repeat: 5, chain: 5 });
+      Object.assign(game.boosts, {
+        power: 4,
+        range: 4,
+        rate: (rate - 1) / game.rules.combat.ratePerRank,
+      });
+      game.refresh();
+      game.targets = Array.from({ length: count }, (_, id) => {
+        const particle = kinds[id % kinds.length],
+          p = game.rules.particles[particle],
+          radius = 40 + ((id * 79) % 130),
+          angle = id * Math.PI * (3 - Math.sqrt(5));
+        return {
+          id,
+          x: 180 + Math.cos(angle) * radius,
+          y: 260 + Math.sin(angle) * radius,
+          radius,
+          angle,
+          particle,
+          kind: p.family,
+          hp,
+          maxHp: hp,
+          born: game.time - 1,
+          xp: p.xp,
+          mass: p.mass,
+          size: p.size,
+          speed: 0,
+          turn: 0.12,
+        };
+      });
+    },
+    [count, hp, rate],
+  );
+}
+
+// A slower phone as a throttled CPU (CPU_SLOWDOWN, default 4).
+async function crowds(page) {
+  const slowdown = Number(process.env.CPU_SLOWDOWN ?? 4);
+  await countSounds(page);
+  await open(page);
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: slowdown });
+
+  // Drawing alone, as the old check measured it: one volley's effects over a frozen crowd.
+  await crowd(page, 1600, 1e4);
+  await page.evaluate(() => {
+    const game = window.__gameDebug.getGame();
+    game.combat.fireBasic();
+    for (const target of game.targets) delete target.hitAt;
+    game.advance = () => {};
+    window.gl = { uploads: 0, draws: 0 };
+    for (const proto of [WebGLRenderingContext.prototype, WebGL2RenderingContext.prototype])
+      for (const name of ['texImage2D', 'texSubImage2D', 'drawArrays', 'drawElements']) {
+        const native = proto[name];
+        proto[name] = function (...args) {
+          window.gl[name.startsWith('tex') ? 'uploads' : 'draws']++;
+          return native.apply(this, args);
+        };
+      }
+  });
+  await page.waitForTimeout(250);
+  await page.evaluate(() => (window.gl = { uploads: 0, draws: 0 }));
+  const drawn = await frames(page, 2000);
+  const gl = await page.evaluate(() => window.gl);
+  mkdirSync('artifacts', { recursive: true });
+  await page.screenshot({ path: 'artifacts/browser-performance-1600.png' });
+  assert.equal(gl.uploads, 0, 'drawing uploaded textures; damage digits must reuse their atlas');
+  assert.ok(drawn.fps >= 57 && drawn.medianMs < 17.5, `1,600 particles: ${JSON.stringify(drawn)}`);
+  pass('1,600 particles hold 60 fps', {
+    slowdown,
+    ...drawn,
+    drawsPerFrame: round(gl.draws / drawn.frames),
+  });
+
+  for (const count of [200, 800])
+    for (const sound of [false, true]) {
+      await crowd(page, count, 1e6, 10);
+      await page.evaluate(() => {
+        const game = window.__gameDebug.getGame(),
+          { log, advance } = game;
+        window.hits = { count: 0, ms: [] };
+        game.log = function (kind, data) {
+          if (kind === 'hit') window.hits.count++;
+          return log.call(this, kind, data);
+        };
+        game.advance = function (...args) {
+          const start = performance.now();
+          advance.apply(this, args);
+          window.hits.ms.push(performance.now() - start);
+        };
+      });
+      // The debug restart closes audio; resuming opens it again, as it does for a player.
+      await page.getByRole('button', { name: 'Pause', exact: true }).click();
+      const toggle = page.locator('.pause-panel .title-sound');
+      if ((await toggle.getAttribute('aria-pressed')) !== String(sound)) await toggle.click();
+      await page.getByRole('button', { name: 'Resume', exact: true }).click();
+      await page.waitForTimeout(1000);
+      await page.evaluate(() => {
+        window.hits = { count: 0, ms: [] };
+        window.mixed = { cues: 0, ms: [] };
+      });
+      const shown = await frames(page, 3000);
+      const row = await page.evaluate(() => {
+        const game = window.__gameDebug.getGame();
+        return {
+          rate: game.rate,
+          phase: game.phase,
+          targets: game.targets.length,
+          audio: window.soundContexts.at(-1)?.state,
+          hits: window.hits.count,
+          cues: window.mixed.cues,
+          simulationMs: window.hits.ms,
+          mixerMs: window.mixed.ms,
+        };
+      });
+      assert.ok(Math.abs(row.rate - 10) < 1e-9, `attack speed ${row.rate}`);
+      assert.equal(row.phase, 'running');
+      assert.equal(row.targets, count, 'a durable particle popped');
+      assert.ok(row.hits > 0, 'nothing was hit');
+      if (sound) assert.equal(row.audio, 'running');
+      assert.equal(row.cues, sound ? row.hits : 0, 'hits and sounded contacts differ');
+      pass(`x10 attack speed on ${count} particles, sound ${sound ? 'on' : 'off'}`, {
+        hits: row.hits,
+        cues: row.cues,
+        ...shown,
+        simulationMedianMs: round(quantile(row.simulationMs, 0.5)),
+        mixerMedianMs: round(quantile(row.mixerMs, 0.5)),
+      });
+    }
+}
+
+// Offline previews, events in seconds. `count` sends that many hits as one batch and `stop`
+// stops every voice; `quiet` spans must render silent.
+const clips = [
+  {
+    name: 'combat',
+    seconds: 12,
+    events: Array.from({ length: 90 }, (_, i) => {
+      const at = 0.3 + i * 0.115 + Math.sin(i * 1.7) * 0.015;
+      return [{ kind: 'hit', at }, ...(i % 18 ? [] : [{ kind: 'wave', at: at + 0.05 }])];
+    }).flat(),
+  },
+  { name: 'qte', seconds: 4, events: [{ kind: 'rhythm-complete', at: 1.5 }] },
+  // Every short cue in turn: contact, the five pop styles, the three particle keys and the rest.
+  {
+    name: 'textures',
+    seconds: 10,
+    events: [
+      'preview',
+      'hit',
+      'crit',
+      'pop',
+      'slam',
+      'roll',
+      'enter',
+      'brush',
+      'space',
+      'lift',
+      'double',
+      'build',
+      'thunder',
+      'rare',
+      'wave',
+      'charged',
+      'collision',
+      'rhythm-complete',
+    ].map((kind, i) => ({ kind, at: 0.25 + i * 0.5 })),
+  },
+  {
+    name: 'distance',
+    seconds: 3,
+    events: [
+      { kind: 'hit', at: 0.25, space: { pan: -0.3, depth: 0 } },
+      { kind: 'hit', at: 1.25, space: { pan: 0.3, depth: 1 } },
+      { kind: 'rhythm-complete', at: 2.25, space: { pan: 0.3, depth: 1 } },
+    ],
+  },
+  {
+    name: 'singularity',
+    seconds: 7,
+    events: [
+      { kind: 'singularity', at: 0.25 },
+      { stop: true, at: 1.7 },
+      { kind: 'beyond-contract', at: 4.1 },
+      { stop: true, at: 4.65 },
+      { kind: 'beyond-open', at: 4.8 },
+    ],
+    quiet: [
+      [1.74, 4.09],
+      [4.69, 4.79],
+      [5.45, 6.95],
+    ],
+  },
+  {
+    name: 'pause',
+    seconds: 2,
+    events: [
+      { kind: 'hit', at: 0.2 },
+      { kind: 'hit', at: 0.21 },
+      { stop: true, at: 0.23 },
+      { kind: 'hit', at: 1.2 },
+    ],
+    quiet: [[0.28, 1.15]],
+  },
+  { name: 'burst', seconds: 2, events: [{ kind: 'hit', at: 0.2, count: 480 }] },
+  {
+    name: 'contacts',
+    seconds: 8,
+    events: [1, 2, 3, 4, 16, 480]
+      .map((count, i) => ({ kind: 'hit', count, at: 0.25 + i }))
+      .concat(Array.from({ length: 45 }, (_, i) => ({ kind: 'hit', count: 16, at: 6.3 + i / 60 }))),
+  },
+  {
+    name: 'overlap',
+    seconds: 6,
+    events: Array.from({ length: 720 }, (_, i) => ({
+      kind: ['hit', 'hit', 'hit', 'hit', 'wave', 'rhythm-complete'][i % 6],
+      at: 0.2 + i / 160,
+    })),
+  },
+];
+
+async function renderClip({ seconds, events, quiet = [] }) {
+  const { SoundMixer } = await import('/src/audio/SoundMixer.ts');
+  const { pcm16Base64 } = await import('/scripts/audio-pcm.mjs');
+  const rate = 48000,
+    ctx = new OfflineAudioContext(2, seconds * rate, rate),
+    mixer = new SoundMixer(ctx, 1701);
+  let played = 0;
+  for (const event of [...events].sort((a, b) => a.at - b.at)) {
+    if (event.stop) mixer.stop(event.at);
+    else if (event.count) {
+      const cues = Array.from({ length: event.count }, (_, i) => ({
+        kind: event.kind,
+        space: { pan: Math.sin(i) * 0.3, depth: 0 },
+      }));
+      played += mixer.playBatch(cues, event.at);
+    } else played += mixer.play(event.kind, event.at, event.space);
+  }
+  const audio = await ctx.startRendering(),
+    channels = [audio.getChannelData(0), audio.getChannelData(1)];
+  let peak = 0,
+    sum = 0,
+    finite = true,
+    loud = 0;
+  for (const data of channels) {
+    for (const value of data) {
+      finite &&= Number.isFinite(value);
+      peak = Math.max(peak, Math.abs(value));
+      sum += value * value;
+    }
+    for (const [from, to] of quiet)
+      for (let i = Math.ceil(from * rate); i < to * rate; i++)
+        loud = Math.max(loud, Math.abs(data[i]));
+  }
+  mixer.dispose();
+  const rms = Math.sqrt(sum / (2 * audio.length));
+  return { played, finite, peak, rms, loud, pcm: pcm16Base64(channels) };
+}
+
+function writeWav(path, base64) {
+  const pcm = Buffer.from(base64, 'base64'),
+    head = Buffer.alloc(44);
+  head.write('RIFF');
+  head.writeUInt32LE(36 + pcm.length, 4);
+  head.write('WAVEfmt ', 8);
+  head.writeUInt32LE(16, 16);
+  head.writeUInt16LE(1, 20); // PCM
+  head.writeUInt16LE(2, 22); // stereo
+  head.writeUInt32LE(48000, 24);
+  head.writeUInt32LE(48000 * 4, 28);
+  head.writeUInt16LE(4, 32);
+  head.writeUInt16LE(16, 34);
+  head.write('data', 36);
+  head.writeUInt32LE(pcm.length, 40);
+  writeFileSync(path, Buffer.concat([head, pcm]));
+}
+
+// WAV previews in artifacts/audio for listening, then a live burst through the game's own audio.
+async function audioPreviews(page) {
+  await countSounds(page);
+  await open(page);
+  mkdirSync('artifacts/audio', { recursive: true });
+  const report = [];
+  for (const clip of clips) {
+    const { pcm, ...result } = await page.evaluate(renderClip, clip);
+    const cues = clip.events.reduce((n, event) => n + (event.stop ? 0 : (event.count ?? 1)), 0);
+    assert.equal(result.played, cues, `${clip.name} dropped cues`);
+    assert.ok(result.finite, `${clip.name} has non-finite samples`);
+    assert.ok(result.peak > 0 && result.peak < 0.95, `${clip.name} peaks at ${result.peak}`);
+    assert.ok(result.loud <= 1e-5, `${clip.name} sounds where it stops: ${result.loud}`);
+    writeWav(`artifacts/audio/${clip.name}.wav`, pcm);
+    report.push({ name: clip.name, seconds: clip.seconds, ...result });
+  }
+  writeFileSync('artifacts/audio/report.json', JSON.stringify(report, null, 2) + '\n');
+  pass(
+    'previews in artifacts/audio stay under 0.95 and go silent when stopped',
+    Object.fromEntries(report.map(({ name, peak }) => [name, round(peak)])),
+  );
+
+  // Each hit kills its particle beside a firing event; only the hit may sound.
+  await page.evaluate(() => {
+    const live = (window.sources = { started: 0, active: 0 }),
+      proto = window.AudioContext.prototype,
+      create = proto.createBufferSource;
+    proto.createBufferSource = function () {
+      const source = create.call(this),
+        { start, disconnect } = source;
+      let playing = false;
+      const release = () => {
+        if (playing) live.active--;
+        playing = false;
+      };
+      source.start = function (...args) {
+        live.started++;
+        live.active++;
+        playing = true;
+        source.addEventListener('ended', release, { once: true });
+        return start.apply(this, args);
+      };
+      source.disconnect = function (...args) {
+        release();
+        return disconnect.apply(this, args);
+      };
+      return source;
+    };
+    window.__gameDebug.restart(17, false);
+    window.mixed = { cues: 0, ms: [] };
+  });
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  await page.getByRole('button', { name: 'Resume', exact: true }).click();
+  await page.waitForFunction(() => window.mixed.ms.length > 0, null, { timeout: 5000 });
+  await page.evaluate(async () => {
+    const { particleIds } = await import('/src/game/particles.ts');
+    const styles = ['tap', 'burst', 'domino', 'release', 'sweep'],
+      game = window.__gameDebug.getGame();
+    window.mixed.cues = window.sources.started = 0;
+    for (let id = 0; id < 480; id++) {
+      const at = { id, x: 180 + Math.sin(id) * 100, y: 260 + Math.cos(id) * 100 },
+        particle = particleIds[id % particleIds.length];
+      game.log('hit', { ...at, kind: 'small', particle, damage: 10 });
+      game.log('kill', { ...at, kind: 'small', particle, style: styles[id % 5], delay: 0 });
+      game.log('skill-effect', { id: 'strike', rank: 1 });
+    }
+  });
+  await page.waitForFunction(() => window.mixed.cues >= 480, null, { timeout: 5000 });
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  await page.waitForFunction(
+    () => window.sources.active === 0 && window.soundContexts[0].state === 'suspended',
+    null,
+    { timeout: 3000 },
+  );
+  const live = await page.evaluate(() => ({
+    cues: window.mixed.cues,
+    sources: window.sources.started,
+  }));
+  assert.equal(live.cues, 480, 'a hit went unheard or sounded twice');
+  assert.equal(live.sources, 1, 'kills or firing added sounds of their own');
+  pass('a live burst of 480 kills sounds every hit once, in one source, and pause silences it', {
+    ...live,
+    activeAfterPause: 0,
+  });
+}
+
+await main();

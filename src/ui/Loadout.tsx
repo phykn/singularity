@@ -1,14 +1,13 @@
-import type { SkillId } from '../game/rules.ts';
-import type { SkillStatus } from '../game/types.ts';
-import { SkillIcon } from './icons.tsx';
-import { Rank } from './controls.tsx';
-import { currentSkillValue } from './skillText.ts';
-import type { Game } from '../game/Game.ts';
-import { copy } from './i18n.ts';
-import type { Language } from './i18n.ts';
 import type { CSSProperties } from 'react';
 import { skillColor } from '../art/palette.ts';
+import type { Game } from '../game/Game.ts';
+import type { SkillId } from '../game/rules.ts';
+import { Rank, SkillIcon } from './icons.tsx';
+import { currentSkillValue } from './skillText.ts';
+import { copy } from './text/index.ts';
+import type { Language } from './text/index.ts';
 
+// Level, XP and the owned skills; a slot flashes when its skill fires and opens its details.
 export function Loadout({
   game,
   language,
@@ -19,141 +18,95 @@ export function Loadout({
   onInspect: (id: SkillId) => void;
 }) {
   const c = copy[language],
-    rules = game.rules,
+    max = game.rules.growth.maxRank,
+    open = game.skillSlots,
+    slots = game.rules.growth.skillSlots + game.rules.growth.slotKills.length,
     owned = game.ownedSkills,
-    slots = rules.skillSlots + rules.boss.slotKills.length;
-  const progress = game.levelProgress;
-  const xpPercent = progress.required
-    ? Math.min(100, (progress.current / progress.required) * 100)
-    : 100;
+    { current, required } = game.levelProgress;
   return (
     <div className="play-footer">
       <div className="xp-status">
         <div>
           <span className="level">
-            Lv. <b>{game.level.toString().padStart(2, '0')}</b>
+            Lv. <b>{String(game.level).padStart(2, '0')}</b>
           </span>
-          <b>{progress.current + ' / ' + progress.required}</b>
+          <b>{`${current} / ${required}`}</b>
         </div>
         <div
           className="xp-track"
           role="progressbar"
           aria-label={c.xp}
-          aria-valuenow={progress.current}
+          aria-valuenow={current}
           aria-valuemin={0}
-          aria-valuemax={progress.required}
+          aria-valuemax={required}
         >
-          <i style={{ width: xpPercent + '%' }} />
+          <i style={{ width: Math.min(100, (current / required) * 100) + '%' }} />
         </div>
       </div>
       <div className="loadout" aria-label={c.loadout} style={{ '--slots': slots } as CSSProperties}>
         {Array.from({ length: slots }, (_, i) => {
           const id = owned[i];
-          const status = id ? game.combat.status(id) : null;
-          const locked = i >= game.skillSlots;
-          return (
-            <div className="slot-cell" key={id ? id + game.rank(id) : i}>
-              <div
-                className={`slot ${id ? '' : 'empty'} ${locked ? 'locked' : ''}`}
-                data-skill={id}
-                style={id ? ({ '--skill': skillColor(id) } as CSSProperties) : undefined}
-                data-mode={status?.mode}
-                data-active={status?.active}
-                data-fired={status?.fired}
-                data-acquired={game.notice === id && game.time < game.noticeUntil}
-                data-new={id && game.rank(id) === 1}
-                data-rarity={id ? game.rarities[id] : undefined}
-                data-evolved={id ? !!game.evolved[id] : undefined}
-                role={status && status.mode !== 'conditional' ? 'progressbar' : 'img'}
-                aria-valuemin={status && status.mode !== 'conditional' ? 0 : undefined}
-                aria-valuemax={status && status.mode !== 'conditional' ? 100 : undefined}
-                aria-valuenow={
-                  status && status.mode !== 'conditional'
-                    ? Math.floor(status.progress * 100)
-                    : undefined
-                }
-                aria-label={
-                  id
-                    ? c.rarities[game.rarities[id]] +
-                      ' ' +
-                      c.upgrades[id].name +
-                      ', ' +
-                      c.rank +
-                      ' ' +
-                      game.rank(id) +
-                      '/' +
-                      rules.maxRank +
-                      (game.evolved[id] ? ', ' + c.evolve : '')
-                    : locked
-                      ? c.locked
-                      : c.empty
-                }
-                title={
-                  id
-                    ? c.upgrades[id].name + ' · ' + currentSkillValue(game, id, language)
-                    : undefined
-                }
-              >
-                {id && status ? (
-                  <SkillSlot
-                    id={id}
-                    status={status}
-                    rank={game.rank(id)}
-                    max={rules.maxRank}
-                    evolved={!!game.evolved[id]}
-                  />
-                ) : (
+          if (!id)
+            return (
+              <div className="slot-cell" key={i}>
+                <div
+                  className={`slot empty ${i >= open ? 'locked' : ''}`}
+                  role="img"
+                  aria-label={i >= open ? c.locked : c.empty}
+                >
                   <i />
+                </div>
+              </div>
+            );
+          const status = game.combat.status(id),
+            filling = status.mode !== 'conditional',
+            evolved = !!game.evolved[id];
+          return (
+            <div className="slot-cell" key={id}>
+              <div
+                className="slot"
+                data-skill={id}
+                data-mode={status.mode}
+                data-active={status.active}
+                data-fired={status.fired}
+                data-rarity={game.rarities[id]}
+                data-evolved={evolved}
+                style={{ '--skill': skillColor(id) } as CSSProperties}
+                role={filling ? 'progressbar' : 'img'}
+                aria-valuemin={filling ? 0 : undefined}
+                aria-valuemax={filling ? 100 : undefined}
+                aria-valuenow={filling ? Math.floor(status.progress * 100) : undefined}
+                aria-label={`${c.rarities[game.rarities[id] ?? 'common']} ${evolved ? c.evolutions[id].name : c.upgrades[id].name}, ${c.rank} ${game.rank(id)}/${max}${evolved ? ', ' + c.evolve : ''}`}
+                title={`${c.upgrades[id].name} · ${currentSkillValue(game, id, c)}`}
+              >
+                {filling && (
+                  <i
+                    className="slot-fill"
+                    style={{ height: (Math.floor(status.progress * 24) * 100) / 24 + '%' }}
+                  />
+                )}
+                <span className="slot-art">
+                  <SkillIcon id={id} size={32} evolved={evolved} />
+                </span>
+                {game.rank(id) >= max ? (
+                  <span className="slot-max" aria-hidden="true">
+                    {evolved ? 'EVO' : 'MAX'}
+                  </span>
+                ) : (
+                  <Rank value={game.rank(id)} max={max} />
                 )}
               </div>
-              {id && (
-                <button
-                  className="slot-inspect"
-                  aria-label={c.upgrades[id].name + ' · ' + c.skillDetails}
-                  aria-haspopup="dialog"
-                  onClick={() => onInspect(id)}
-                  disabled={game.phase !== 'running'}
-                />
-              )}
+              <button
+                className="slot-inspect"
+                aria-label={`${c.upgrades[id].name} · ${c.skillDetails}`}
+                aria-haspopup="dialog"
+                onClick={() => onInspect(id)}
+                disabled={game.phase !== 'running'}
+              />
             </div>
           );
         })}
       </div>
     </div>
-  );
-}
-
-function SkillSlot({
-  id,
-  status,
-  rank,
-  max,
-  evolved,
-}: {
-  id: SkillId;
-  status: SkillStatus;
-  rank: number;
-  max: number;
-  evolved: boolean;
-}) {
-  return (
-    <>
-      {status.mode !== 'conditional' && (
-        <i
-          className="slot-fill"
-          style={{ height: (Math.floor(status.progress * 24) * 100) / 24 + '%' }}
-        />
-      )}
-      <span className="slot-art">
-        <SkillIcon id={id} size={32} evolved={evolved} />
-      </span>
-      {rank >= max ? (
-        <span className="slot-max" aria-hidden="true">
-          {evolved ? 'EVO' : 'MAX'}
-        </span>
-      ) : (
-        <Rank value={rank} max={max} />
-      )}
-    </>
   );
 }

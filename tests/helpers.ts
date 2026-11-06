@@ -1,72 +1,86 @@
-import assert from 'node:assert/strict';
 import { Game } from '../src/game/Game.ts';
-import { particleIds } from '../src/game/particles.ts';
-import type { Target, TargetKind } from '../src/game/types.ts';
+import { Session } from '../src/session/Session.ts';
+import type { SessionAudio } from '../src/session/Session.ts';
+import { CENTER } from '../src/game/geometry.ts';
 import { rules } from '../src/game/rules.ts';
-import type { Ranks, Rarity, UpgradeId } from '../src/game/rules.ts';
-export const close = (a: number, b: number, error = 1e-7) =>
-  assert.ok(Math.abs(a - b) < error, a + ' != ' + b);
+import type { Ranks } from '../src/game/rules.ts';
+import type { ParticleKind } from '../src/game/particles.ts';
+import type { Target } from '../src/game/types.ts';
 
+// A still particle at (x, y); `particle` picks its family and values.
 export function target(
   id: number,
   x: number,
   y: number,
   hp = 2,
-  kind: TargetKind = 'small',
+  particle: ParticleKind = 'quark',
 ): Target {
-  const data = rules.targets[kind];
+  const p = rules.particles[particle];
   return {
     id,
     x,
     y,
     hp,
     maxHp: hp,
-    kind,
-    particle: kind === 'small' ? 'quark' : 'proton',
+    kind: p.family,
+    particle,
     born: 0,
-    xp: data.xp,
-    mass: data.mass,
-    size: data.size,
-    radius: Math.hypot(x - 180, y - 260),
-    angle: Math.atan2(y - 260, x - 180),
+    xp: p.xp,
+    mass: p.mass,
+    size: p.size,
+    radius: Math.hypot(x - CENTER.x, y - CENTER.y),
+    angle: Math.atan2(y - CENTER.y, x - CENTER.x),
     speed: 0,
     turn: 0,
   };
 }
 
+// A running game with spawning off, the given ranks and only the given targets.
 export function fixture(ranks: Partial<Ranks> = {}, targets: Target[] = []): Game {
   const g = new Game(42, { combat: false });
   g.start();
   Object.assign(g.ranks, ranks);
+  g.refresh();
   g.targets = targets;
-  for (const id of particleIds)
-    g.counts[id].generated = targets.filter((t) => t.particle === id).length;
   return g;
 }
 
-export function choose(g: Game, id: UpgradeId, rarity: Rarity = 'common'): void {
-  g.choice = {
-    number: g.selections.length + 1,
-    opened: g.time,
-    deadline: g.time + 8,
-    cards: [{ id, rarity }],
+// Takes the automatic card for every offer, as the paused-choice bot does.
+export function pick(g: Game): void {
+  while (g.choice) {
+    const card = g.automaticCard;
+    if (!card || !g.choose(card.id, g.choice.number)) break;
+  }
+}
+
+// Runs a game until its result (or `limit` seconds of ticks).
+export function finish(g: Game, limit = 1800): Game {
+  if (g.phase === 'ready') g.start();
+  const tickRate = g.rules.time.tickRate;
+  while (g.phase !== 'result' && g.elapsedTicks < limit * tickRate) {
+    g.run(tickRate, true);
+    pick(g);
+  }
+  return g;
+}
+
+// A ready session on seed 7 whose audio and hooks append what they did to `log`.
+export function session(sound = true) {
+  const log: string[] = [];
+  const audio: SessionAudio = {
+    enabled: false,
+    unlock: async () => (log.push('unlock'), true),
+    suspend: () => log.push('suspend'),
+    update: () => {},
+    play: (kind) => log.push(kind),
+    destroy: () => {},
   };
-  assert.ok(g.select(id));
-}
-
-export function run(seed: number, fps: number): Game {
-  const g = new Game(seed);
-  g.start();
-  for (let i = 0; i < fps * 1800 && !g.result; i++) g.advance(1000 / fps);
-  assert.ok(g.result);
-  return g;
-}
-
-export function stationarySkill(ranks: Partial<Ranks>, targets: Target[]): Game {
-  const game = new Game(42, { combat: false, rules: { ...rules, baseSpeed: 0 } });
-  game.start();
-  Object.assign(game.ranks, ranks);
-  game.targets = targets;
-  game.counts.quark.generated = targets.length;
-  return game;
+  const s = new Session(new Game(7), audio, {
+    sound: () => sound,
+    audioFailed: () => log.push('failed'),
+    record: () => log.push('record'),
+    redraw: () => {},
+  });
+  s.setReady(true, 0);
+  return { s, log };
 }

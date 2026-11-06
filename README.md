@@ -8,8 +8,8 @@ A pixel-art survival game where a lone electron lights up the dark. The combat i
 
 <p align="center">
   <img src="assets/readme/gameplay-1.jpg" width="32%" alt="SINGULARITY title screen in English" />
-  <img src="assets/readme/gameplay-2.jpg" width="32%" alt="A late-game lightning build facing a dense particle swarm with upgrade choices open" />
-  <img src="assets/readme/gameplay-3.jpg" width="32%" alt="Singularity victory screen showing 20,000 XP and the completed skill build" />
+  <img src="assets/readme/gameplay-2.jpg" width="32%" alt="Pierce lightning tearing through particles while three upgrade cards wait at a level-up" />
+  <img src="assets/readme/gameplay-3.jpg" width="32%" alt="The gluon, the first giant particle, closing in with its health bar across the top" />
 </p>
 
 ## About the game
@@ -37,20 +37,21 @@ npm run dev
 
 Play at [localhost:8081](http://localhost:8081).
 
-| Command                       | Purpose                                                     |
-| ----------------------------- | ----------------------------------------------------------- |
-| `npm test`                    | Test the game rules                                         |
-| `npm run build`               | Create a production build                                   |
-| `npm run check:balance`       | Measure clear rate with successful QTE play                 |
-| `npm run check:pacing`        | Measure whether a run stays undecided after the build forms |
-| `npm run check:skill-balance` | Compare sixteen skill-priority builds on matched seeds      |
-| `npm run check:skill-trial`   | Compare equal-rank encounters and fourth-slot contributions |
+| Command                                    | Purpose                                                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| `npm test`                                 | Test the game rules, the session, saved records and text                                          |
+| `npm run check`                            | Tests, the rules schema, a 100-run bot measurement and the browser smoke checks, in two minutes   |
+| `npm run sim -- balance [count] [seed]`    | Measure clear rate and pacing with the bot (`qte` taps every beat, `qte-off` never taps)          |
+| `npm run sim -- skills [count] [seed]`     | Compare sixteen builds that each take one skill first                                             |
+| `npm run sim -- beyond [count] [seed]`     | Continue cleared runs into endless mode and count the rounds they last                            |
+| `npm run check:browser -- <scenario\|all>` | Drive the game in a browser: `smoke`, `choices`, `late-game`, `languages`, `performance`, `audio` |
+| `npm run build`                            | Type check and create a production build                                                          |
 
-Balance references use the real session with immediate paused choices and the game's automatic selection, which takes an evolution first, then a pact while the orbit has room, then power and attack speed, then the rarest card. Targets are 15–20% with successful QTE inputs and 10–15% without QTE. These are bot references, not measured player clear rates. The current rules measure 19.8% with QTE and 12.0% without on 600 seeds from 480000, and 20.2% and 12.0% on a second cohort from 700000. Winning runs take a median of about 15 and two-thirds minutes. To compare matched seeds:
+Balance targets are bot references, not player clear rates: 15–20% for a bot that taps every beat and 10–15% for one that never taps, with paused choices taken by the game's automatic pick (an evolution first, a pact while the orbit has room, then power and attack speed, then the rarest card). The current rules measure 20% and 13% over 200 seeds (100 from 480000 and 100 from 700000), and winning runs take a median of about 15 and two-thirds minutes. To measure the same seeds:
 
 ```sh
-npm run check:balance -- 600 480000 artifacts/qte.json qte
-npm run check:balance -- 600 480000 artifacts/no-qte.json qte-off
+npm run sim -- balance 100 480000 artifacts/qte.json qte
+npm run sim -- balance 100 480000 artifacts/qte-off.json qte-off
 ```
 
 ## Credits & license

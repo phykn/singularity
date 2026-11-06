@@ -1,206 +1,139 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { statIds } from '../game/rules.ts';
-import { particleIds } from '../game/particles.ts';
-import { particleNames, htmlLang } from './i18n.ts';
-import { CollapseIcon, SingularityIcon, ParticleIcon, SkillIcon } from './icons.tsx';
-import { Rank } from './controls.tsx';
-import { Dialog } from './Dialog.tsx';
-import { formatTime } from '../format.ts';
-import { beyondFrame } from '../presentation/beyond.ts';
-import type { BestRecord, BeyondRecord } from '../app/storage.ts';
 import type { Game } from '../game/Game.ts';
-import { copy } from './i18n.ts';
-import type { Language } from './i18n.ts';
+import type { Records } from '../session/storage.ts';
+import { Dialog } from './Dialog.tsx';
+import { formatTime } from './format.ts';
+import { Rank, SkillIcon } from './icons.tsx';
+import { copy } from './text/index.ts';
+import type { Language } from './text/index.ts';
 
 export function Result({
   game,
   language,
-  best,
-  bestBeyond,
+  records,
   notice,
   onRetry,
   onBeyond,
 }: {
   game: Game;
   language: Language;
-  best: BestRecord | null;
-  bestBeyond: BeyondRecord | null;
+  records: Records;
   notice: ReactNode;
   onRetry: () => void;
   onBeyond: () => void;
 }) {
-  const crossing = game.phase === 'crossing';
-  const result = crossing ? game.clearResult : game.result;
-  const [armed, setArmed] = useState(false);
+  const result = game.result,
+    [armed, setArmed] = useState(false);
+  // A short delay keeps a tap meant for the arena from retrying at once.
   useEffect(() => {
     setArmed(false);
     if (!result) return;
     const timer = setTimeout(() => setArmed(true), 400);
     return () => clearTimeout(timer);
   }, [result]);
-  const departure = beyondFrame(game)?.departure ?? 0;
-  if (!result || departure >= 1 || (crossing && game.manualPaused)) return null;
+  if (!result) return null;
   const c = copy[language],
-    rules = game.rules,
-    owned = game.ownedSkills;
-  const title = result.endless ? c.beyond : result.outcome === 'success' ? c.success : c.failure;
-  const canContinue = !result.endless && result.outcome === 'success';
-  const collapsed = result.outcome === 'collapse-failure';
-  const showGoal = collapsed && !result.endless;
-  const finalTime = rules.boss.final.time,
-    reached = Math.min(finalTime, Math.floor(result.collisionTime));
-  const number = new Intl.NumberFormat(htmlLang(language));
-  const recovered = result.selections.filter((s) => s.id === 'recover').length;
+    success = result.outcome === 'success',
+    beyond = result.endless;
   return (
-    <div style={{ opacity: 1 - departure }} inert={crossing}>
-      <Dialog
-        titleId="result-title"
-        className={`result ${result.outcome === 'success' ? 'success' : ''}`}
-        modalClassName="result-modal"
-        focusKey={String(armed)}
-      >
-        <div className="result-heading">
-          <span className="result-time">
-            {result.endless ? '∞ ' : ''}
-            {formatTime(result.endless?.seconds ?? result.seconds)}
-          </span>
-          <h2 id="result-title">
-            {collapsed && <CollapseIcon />}
-            {canContinue && <SingularityIcon />}
-            {title}
-          </h2>
-          {showGoal && (
-            <div className="result-goal">
-              <div aria-hidden="true">
-                <b>{formatTime(reached)}</b>
-                <span> / {formatTime(finalTime)}</span>
-              </div>
-              <div
-                className="result-goal-track"
-                role="progressbar"
-                aria-label={c.finalTime}
-                aria-valuemin={0}
-                aria-valuemax={finalTime}
-                aria-valuenow={reached}
-                aria-valuetext={`${formatTime(reached)} / ${formatTime(finalTime)}`}
-              >
-                <i style={{ width: `${(reached / finalTime) * 100}%` }} />
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="dialog-body">
-          <div className={`result-numbers ${showGoal ? 'result-pair' : ''}`}>
+    <Dialog
+      titleId="result-title"
+      className={`result ${success ? 'success' : ''}`}
+      modalClassName="result-modal"
+      focusKey={String(armed)}
+    >
+      <div className="result-heading">
+        <span className="result-time">
+          {beyond ? '∞' + formatTime(beyond.seconds) : formatTime(result.seconds)}
+        </span>
+        <h2 id="result-title">{beyond ? c.beyond : success ? c.success : c.failure}</h2>
+      </div>
+      <div className="dialog-body">
+        <div className="result-numbers">
+          <div>
+            <span>{c.level}</span>
+            <strong>{result.level}</strong>
+          </div>
+          <div>
+            <span>{beyond ? c.beyondXp : c.xp}</span>
+            <strong>{beyond ? beyond.xp : result.xp}</strong>
+          </div>
+          {beyond ? (
             <div>
-              <span>{c.level}</span>
-              <strong>{result.level}</strong>
+              <span>{c.round}</span>
+              <strong>{result.round}</strong>
             </div>
-            {!showGoal && (
-              <div>
-                <span>{result.endless ? c.beyondXp : c.energy}</span>
-                <strong>{result.endless?.xp ?? result.xp}</strong>
-              </div>
-            )}
+          ) : (
             <div>
               <span>{c.mass}</span>
               <strong>{result.mass}</strong>
             </div>
-          </div>
-          <div className="result-build">
-            {owned.map((id) => (
-              <div key={id} data-rarity={game.rarities[id]} data-evolved={!!game.evolved[id]}>
-                <SkillIcon id={id} size={32} evolved={!!game.evolved[id]} />
-                <span>{c.upgrades[id].short}</span>
-                <small>{c.rarities[game.rarities[id]]}</small>
-                <span role="img" aria-label={`${c.rank} ${game.rank(id)}/${rules.maxRank}`}>
-                  <Rank value={game.rank(id)} max={rules.maxRank} />
-                </span>
-              </div>
-            ))}
-          </div>
-          <details>
-            <summary>{c.details}</summary>
-            <p>
-              {c.seed} {result.seed} ·{' '}
-              {result.trigger === 'gravity'
-                ? c.early
-                : result.trigger === 'boss'
-                  ? c.goalReached
-                  : c.finish}
-            </p>
-            <p>
-              {c.score} {number.format(result.score)}
-            </p>
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">{c.particle}</th>
-                  <th scope="col">{c.generated}</th>
-                  <th scope="col">{c.killed}</th>
-                  <th scope="col">{c.absorbed}</th>
-                  <th scope="col">{c.remaining}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {particleIds.map((id) => {
-                  const counts = result.counts[id];
-                  return (
-                    <tr key={id} data-particle={id}>
-                      <th scope="row">
-                        <span className="result-particle">
-                          <ParticleIcon id={id} />
-                          {particleNames[language][id]}
-                        </span>
-                      </th>
-                      <td>{counts.generated}</td>
-                      <td>{counts.killed}</td>
-                      <td>{counts.absorbed}</td>
-                      <td>{counts.remaining}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <p>
-              {c.stats} ·{' '}
-              {statIds.map((id) => c.upgrades[id].short + ' ' + game.rank(id)).join(' / ')}
-            </p>
-            {recovered > 0 && <p>{c.recoveryCount(recovered)}</p>}
-            {best && (
-              <p>
-                {c.best} · {best.outcome === 'success' ? c.success : c.failure} · {c.energy}{' '}
-                {best.xp}
-              </p>
-            )}
-            {result.endless && bestBeyond && (
-              <p>
-                {c.best} · ∞ {formatTime(bestBeyond.seconds)} · {c.beyondXp} {bestBeyond.xp}
-              </p>
-            )}
-          </details>
-          {notice}
-        </div>
-        <div className="dialog-actions result-actions">
-          {canContinue && (
-            <button
-              className="primary beyond-button"
-              onClick={onBeyond}
-              disabled={!armed || crossing}
-            >
-              {c.beyond}
-              <span aria-hidden="true">↗</span>
-            </button>
           )}
-          <button
-            className={canContinue ? 'text-button' : 'primary'}
-            onClick={onRetry}
-            disabled={!armed || crossing}
-          >
-            {result.outcome === 'success' || result.endless ? c.finish : c.retry}
-          </button>
         </div>
-      </Dialog>
-    </div>
+        <div className="result-build">
+          {game.ownedSkills.map((id) => (
+            <div key={id} data-rarity={result.rarities[id]} data-evolved={!!result.evolved[id]}>
+              <SkillIcon id={id} size={32} evolved={!!result.evolved[id]} />
+              <span>{result.evolved[id] ? c.evolutions[id].name : c.upgrades[id].short}</span>
+              <small>{c.rarities[result.rarities[id] ?? 'common']}</small>
+              <span
+                role="img"
+                aria-label={`${c.rank} ${result.ranks[id]}/${game.rules.growth.maxRank}`}
+              >
+                <Rank value={result.ranks[id]} max={game.rules.growth.maxRank} />
+              </span>
+            </div>
+          ))}
+        </div>
+        <p>
+          {c.seed} {result.seed}
+        </p>
+        {records.improved && <p className="new-best">{c.newBest}</p>}
+        <Best records={records} language={language} />
+        {notice}
+      </div>
+      <div className="dialog-actions result-actions">
+        {game.canContinue && (
+          <button className="primary beyond-button" onClick={onBeyond} disabled={!armed}>
+            {c.beyond}
+          </button>
+        )}
+        <button
+          className={game.canContinue ? 'text-button' : 'primary'}
+          onClick={onRetry}
+          disabled={!armed}
+        >
+          {c.retry}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+// The best clear-or-loss run and the longest run beyond the singularity.
+export function Best({ records, language }: { records: Records; language: Language }) {
+  const c = copy[language],
+    { best, beyond } = records;
+  if (!best && !beyond) return null;
+  return (
+    <dl className="records">
+      {best && (
+        <div>
+          <dt>{c.best}</dt>
+          <dd>
+            {best.outcome === 'success' ? c.success : c.failure} · {c.energy} {best.xp}
+          </dd>
+        </div>
+      )}
+      {beyond && (
+        <div>
+          <dt>{c.beyond}</dt>
+          <dd>
+            ∞ {formatTime(beyond.seconds)} · {c.beyondXp} {beyond.xp}
+          </dd>
+        </div>
+      )}
+    </dl>
   );
 }

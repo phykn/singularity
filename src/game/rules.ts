@@ -1,97 +1,85 @@
 import values from '../../design/rules.json' with { type: 'json' };
+import type { Rules } from '../../design/schema.ts';
+import { hash } from './random.ts';
 
-export const rules = values;
-export type RuleSet = typeof rules;
-export type SkillId = keyof typeof rules.skills;
+export type { Rules };
+// JSON imports widen literal types; `npm run check:design` checks the file against the schema.
+export const rules = values as unknown as Rules;
+export const rulesHash = (cfg: Rules) => hash(JSON.stringify(cfg)).toString(16).padStart(8, '0');
+
+export type SkillId = keyof Rules['skills'];
+export type PactId = keyof Rules['pacts'];
 export type StatId = 'power' | 'rate' | 'range' | 'crit' | 'luck';
-export const pactIds = [
-  'overheat',
-  'blast',
-  'greed',
-  'quiet',
-  'overclock',
-  'pulse',
-  'gamble',
-  'horizon',
-] as const;
-export type PactId = (typeof pactIds)[number];
 export type UpgradeId = SkillId | StatId | 'recover' | PactId;
-export type Rarity = keyof typeof rules.rarity;
-export type Rarities = Record<UpgradeId, Rarity>;
+export type Rarity = keyof Rules['growth']['rarity'];
+export type PopStyle = Rules['skills'][SkillId]['pop'];
 export type Card = { id: UpgradeId; rarity: Rarity; evolve?: boolean };
 export type Ranks = Record<SkillId, number>;
 export type Boosts = Record<StatId, number>;
-export const skillIds = Object.keys(values.skills) as SkillId[];
+
+export const skillIds = Object.keys(rules.skills) as SkillId[];
 export const statIds: StatId[] = ['power', 'rate', 'range', 'crit', 'luck'];
+export const pactIds = Object.keys(rules.pacts) as PactId[];
 export const upgradeIds: UpgradeId[] = [...skillIds, ...statIds, 'recover', ...pactIds];
 export const rarityIds: Rarity[] = ['common', 'rare', 'epic', 'legendary'];
-export const blankRarities = (): Rarities =>
-  Object.fromEntries(upgradeIds.map((id) => [id, 'common'])) as Rarities;
-export const rarityScale = (rarity: Rarity, cfg: RuleSet = rules) => cfg.rarity[rarity].scale;
+export const isSkill = (id: UpgradeId): id is SkillId => id in rules.skills;
+export const isPact = (id: UpgradeId): id is PactId => id in rules.pacts;
+export const isStat = (id: UpgradeId): id is StatId => statIds.includes(id as StatId);
+export const blankRanks = () => Object.fromEntries(skillIds.map((id) => [id, 0])) as Ranks;
+export const blankBoosts = (): Boosts => ({ power: 0, rate: 0, range: 0, crit: 0, luck: 0 });
+
+// Bonuses that flatten as ranks grow: 1 + bonus * rank / (falloff + rank).
+const flatten = (bonus: number, falloff: number, rank: number) =>
+  1 + (bonus * rank) / (falloff + rank);
+export const powerScale = (rank: number, cfg: Rules) =>
+  flatten(cfg.combat.powerBonus, cfg.combat.powerFalloff, rank);
+export const rangeScale = (rank: number, cfg: Rules) =>
+  flatten(cfg.combat.rangeBonus, cfg.combat.rangeFalloff, rank);
+export const critChance = (rank: number, cfg: Rules) =>
+  Math.min(cfg.combat.crit.max, cfg.combat.crit.perRank * rank);
+export const evolutionChance = (luck: number, cfg: Rules) => {
+  const e = cfg.growth.evolution;
+  return Math.min(e.maxChance, e.chance + e.luckChance * luck);
+};
+export const recoveryMass = (rarity: Rarity, cfg: Rules) =>
+  Math.round(cfg.growth.recovery.mass * cfg.growth.rarity[rarity].scale);
+
 // Luck moves chance from common to the higher rarities in proportion to their own chances.
-export function rarityChances(luck = 0, cfg: RuleSet = rules): Record<Rarity, number> {
-  const common = cfg.rarity.common.chance,
-    shift = Math.min(common, cfg.luck.rarityShift * luck),
-    rest = 100 - common;
-  return Object.fromEntries(
-    rarityIds.map((id) => [
-      id,
-      id === 'common' ? common - shift : cfg.rarity[id].chance * (1 + shift / rest),
-    ]),
-  ) as Record<Rarity, number>;
-}
-export function rollRarity(roll: number, cfg: RuleSet = rules, luck = 0): Rarity {
-  const chances = rarityChances(luck, cfg);
+export function rollRarity(roll: number, luck: number, cfg: Rules): Rarity {
+  const r = cfg.growth.rarity,
+    shift = Math.min(r.common.chance, cfg.growth.luck.rarityShift * luck);
   let total = 0;
   for (const id of rarityIds) {
-    total += chances[id];
+    total +=
+      id === 'common'
+        ? r.common.chance - shift
+        : r[id].chance * (1 + shift / (100 - r.common.chance));
     if (roll * 100 < total) return id;
   }
   return 'legendary';
 }
-export const powerScale = (rank: number, cfg: RuleSet = rules) =>
-  1 + (cfg.powerBonus * rank) / (cfg.powerFalloff + rank);
-export const critChance = (rank: number, cfg: RuleSet = rules) =>
-  Math.min(cfg.crit.max, cfg.crit.perRank * rank);
-export const evolutionChance = (luck: number, cfg: RuleSet = rules) =>
-  Math.min(cfg.evolution.maxChance, cfg.evolution.chance + cfg.evolution.luckChance * luck);
-export const maxDamageNumbers = 64;
-export const damageNumberSeconds = 0.72;
-export const blankRanks = (): Ranks => Object.fromEntries(skillIds.map((id) => [id, 0])) as Ranks;
-export const blankBoosts = (): Boosts => ({ power: 0, rate: 0, range: 0, crit: 0, luck: 0 });
-export const isSkill = (id: UpgradeId): id is SkillId => skillIds.includes(id as SkillId);
-export const isStat = (id: UpgradeId): id is StatId => statIds.includes(id as StatId);
-export const isPact = (id: UpgradeId): id is PactId => pactIds.includes(id as PactId);
 
-export function rangeScale(rank: number, cfg: RuleSet = rules): number {
-  return 1 + (cfg.rangeBonus * rank) / (cfg.rangeFalloff + rank);
-}
-
-export const recoveryMass = (rarity: Rarity, cfg: RuleSet = rules) =>
-  Math.round(cfg.recovery.mass * rarityScale(rarity, cfg));
-
-export function xpForLevel(level: number, cfg: RuleSet = rules): number {
+// Past the table, each level costs the last step plus `levelXpStep` more than the one before.
+export function xpForLevel(level: number, cfg: Rules): number {
+  const table = cfg.growth.levelXp,
+    extra = level - 1 - table.length;
   if (level <= 1) return 0;
-  const thresholds = cfg.levelXp,
-    extra = level - 1 - thresholds.length;
-  if (extra <= 0) return thresholds[level - 2];
-  const last = thresholds.at(-1)!,
-    step = last - thresholds.at(-2)!;
-  return last + extra * step + (cfg.levelXpStep * extra * (extra + 1)) / 2;
+  if (extra <= 0) return table[level - 2];
+  const last = table.at(-1)!;
+  return last + extra * (last - table.at(-2)!) + (cfg.growth.levelXpStep * extra * (extra + 1)) / 2;
 }
-
-export function levelForXp(xp: number, cfg: RuleSet = rules): number {
-  const thresholds = cfg.levelXp,
-    last = thresholds.at(-1)!;
-  if (xp <= last) return 1 + thresholds.filter((value) => value <= xp).length;
-  const step = last - thresholds.at(-2)! + cfg.levelXpStep / 2;
+export function levelForXp(xp: number, cfg: Rules): number {
+  const table = cfg.growth.levelXp,
+    last = table.at(-1)!;
+  if (xp <= last) return 1 + table.filter((value) => value <= xp).length;
+  const step = last - table.at(-2)! + cfg.growth.levelXpStep / 2;
   const extra = Math.floor(
-    (2 * (xp - last)) / (Math.sqrt(step * step + 2 * cfg.levelXpStep * (xp - last)) + step),
+    (2 * (xp - last)) / (Math.sqrt(step * step + 2 * cfg.growth.levelXpStep * (xp - last)) + step),
   );
-  return 1 + thresholds.length + extra;
+  return 1 + table.length + extra;
 }
 
-export const coreRadius = (mass: number, cfg: RuleSet = rules) =>
-  cfg.coreRadius + Math.min(cfg.coreGrowthMax, cfg.coreGrowth * mass);
-export const orbitTarget = (mass: number, cfg: RuleSet = rules) =>
-  Math.max(0, Math.min(cfg.orbitRadius, cfg.orbitRadius - cfg.gravityPerMass * mass));
+export const coreRadius = (mass: number, cfg: Rules) =>
+  cfg.orbit.coreRadius + Math.min(cfg.orbit.coreGrowthMax, cfg.orbit.coreGrowth * mass);
+export const orbitTarget = (mass: number, cfg: Rules) =>
+  Math.max(0, Math.min(cfg.orbit.radius, cfg.orbit.radius - cfg.orbit.gravityPerMass * mass));

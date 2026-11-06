@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { launchBrowser } from './browser-support.mjs';
+import { launchBrowser } from './launch.mjs';
 import { effectArtwork, effectShades } from '../assets/effect-art/sprites.mjs';
 import { packIcons } from './icon-packing.mjs';
 

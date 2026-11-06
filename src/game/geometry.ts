@@ -1,5 +1,6 @@
 export type Point = { x: number; y: number };
-export const CENTER = { x: 180, y: 260 };
+export const CENTER: Point = { x: 180, y: 260 };
+export const TAU = Math.PI * 2;
 export const goldenAngle = Math.PI * (3 - Math.sqrt(5));
 export const orbit = (angle: number, radius: number): Point => ({
   x: CENTER.x + radius * Math.cos(angle),
@@ -8,9 +9,8 @@ export const orbit = (angle: number, radius: number): Point => ({
 export const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 export const norm = (p: Point): Point => {
   const d = Math.hypot(p.x, p.y);
-  if (d < 1e-8) return { x: 1, y: 0 };
-  return { x: p.x / d, y: p.y / d };
+  return d < 1e-8 ? { x: 1, y: 0 } : { x: p.x / d, y: p.y / d };
 };
-
-export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-export const clamp = (n: number) => Math.max(0, Math.min(1, n));
+export const clamp = (n: number, min = 0, max = 1) => Math.max(min, Math.min(max, n));
+// How far `angle` lies ahead of `from` going forward around the orbit, in [0, TAU).
+export const ahead = (angle: number, from: number) => (((angle - from) % TAU) + TAU) % TAU;
