@@ -25,7 +25,7 @@ const strength: Record<SkillId, number> = {
 function value(g: Game, card: Card) {
   const { id, rarity } = card;
   if (card.evolve) return 40;
-  if (isPact(id)) return g.margin > 60 ? 11 : 0;
+  if (isPact(id)) return g.margin > g.rules.autoPactMargin ? 11 : 0;
   const scale = rarityScale(rarity, g.rules);
   if (id === 'recover') return g.margin < 30 ? 30 : g.mass > 65 ? 10 : 1;
   if (id === 'power') return (g.boosts.power < 3 ? 12 : 7) * scale;

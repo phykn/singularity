@@ -267,11 +267,16 @@ export class Game {
   get paused(): boolean {
     return this.manualPaused || this.hiddenPaused;
   }
+  // Evolution first, a pact only while the orbit is safe, then early attack upgrades,
+  // then the highest rarity.
   get automaticCard(): Card | undefined {
+    const safe = this.margin > this.rules.autoPactMargin;
     const cards =
-      this.choice?.cards.filter((card) => this.canUpgrade(card.id) && !isPact(card.id)) ?? [];
+      this.choice?.cards.filter((card) => this.canUpgrade(card.id) && (safe || !isPact(card.id))) ??
+      [];
     return (
       cards.find((card) => card.evolve) ??
+      cards.find((card) => isPact(card.id)) ??
       cards.find(
         ({ id }) => (id === 'power' || id === 'rate') && this.boosts[id] < this.rules.autoStatRank,
       ) ??

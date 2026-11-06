@@ -267,6 +267,7 @@
   "coreGrowthMax": 24,
   "electronRadius": 4,
   "dangerMargin": 24,
+  "autoPactMargin": 60,
   "primaryRange": 92,
   "spawnRadius": 170,
   "introBatches": 3,

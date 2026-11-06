@@ -10,7 +10,7 @@ import {
   skillIds,
   xpForLevel,
 } from '../src/game/rules.ts';
-import type { PactId, Ranks } from '../src/game/rules.ts';
+import type { Card, PactId, Ranks } from '../src/game/rules.ts';
 import { pactText } from '../src/ui/skillText.ts';
 import { copy, languages } from '../src/ui/i18n.ts';
 import { choose, close, fixture, stationarySkill, target } from './helpers.ts';
@@ -367,18 +367,55 @@ const pactGame = (...ids: PactId[]) => {
   return g;
 };
 
-test('pacts are never picked automatically and a run takes at most three', () => {
+const offer = (g: Game, cards: Card[]) => {
+  g.choice = { number: 1, opened: 0, deadline: 8, cards };
+  return g.automaticCard?.id;
+};
+// Sets the orbit so its margin is the given value.
+const withMargin = (g: Game, margin: number) => {
+  g.radius = g.core + rules.electronRadius + margin;
+  assert.equal(g.margin, margin);
+};
+
+test('automatic selection takes a pact only while the orbit has more than its safe margin', () => {
   const g = fixture();
-  g.choice = {
-    number: 1,
-    opened: 0,
-    deadline: 8,
-    cards: [
-      { id: 'greed', rarity: 'common' },
-      { id: 'range', rarity: 'common' },
-    ],
-  };
-  assert.equal(g.automaticCard?.id, 'range');
+  g.boosts.power = g.boosts.rate = rules.autoStatRank;
+  const cards: Card[] = [
+    { id: 'range', rarity: 'legendary' },
+    { id: 'greed', rarity: 'common' },
+  ];
+  withMargin(g, rules.autoPactMargin + 1);
+  assert.equal(offer(g, cards), 'greed');
+  withMargin(g, rules.autoPactMargin);
+  assert.equal(offer(g, cards), 'range');
+  // A pact comes before the early attack upgrades but after an evolution.
+  g.boosts.power = 0;
+  withMargin(g, rules.autoPactMargin + 1);
+  assert.equal(offer(g, [{ id: 'power', rarity: 'common' }, ...cards]), 'greed');
+  g.ranks.chain = 5;
+  assert.equal(offer(g, [{ id: 'chain', rarity: 'common', evolve: true }, ...cards]), 'chain');
+});
+
+test('an evolution and a pact are never offered at the same level up', () => {
+  const g = fixture({ chain: 5 });
+  g.selections = Array.from({ length: 3 }, () => ({ id: 'chain', tick: 0, time: 0 }) as never);
+  g.xp = xpForLevel(200);
+  const inner = g as unknown as { openChoice(): void; randomCards: { next(): number } };
+  inner.randomCards.next = () => 0;
+  for (let i = 0; i < rules.pacts.interval * 3; i++) {
+    g.choice = null;
+    g.selections.push({ id: 'power', tick: 0, time: 0 } as never);
+    inner.openChoice();
+    const cards = g.choice!.cards;
+    assert.ok(cards.some((card) => card.evolve));
+    assert.equal(
+      cards.some((card) => isPact(card.id)),
+      false,
+    );
+  }
+});
+
+test('a run takes at most three pacts', () => {
   const full = pactGame('greed', 'gamble', 'blast');
   assert.equal(full.pactCount, rules.pacts.max);
   assert.equal(full.canUpgrade('quiet'), false);

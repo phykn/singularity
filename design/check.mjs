@@ -132,6 +132,8 @@ for (const fractions of [r.boss.summonFractions, r.boss.final.summonFractions])
   assert.ok(fractions.every((n, i, a) => n > 0 && n < 1 && (!i || n < a[i - 1])));
 assert.ok(r.evolution.chance > 0 && r.evolution.chance <= r.evolution.maxChance);
 assert.ok(r.evolution.maxChance < 1 && r.evolution.luckChance > 0);
+// Automatic selection takes a pact only with more room than the danger line.
+assert.ok(r.autoPactMargin > r.dangerMargin);
 // Evolution is a rare windfall with no guarantee: at most a few percent per level up.
 assert.ok(r.evolution.chance <= 0.05);
 assert.ok(r.evolution.pierce.trailInterval < r.evolution.pierce.trailSeconds);

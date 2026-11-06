@@ -86,7 +86,7 @@ const ko = {
   guideGoal: (time: string) =>
     `${time}에 힉스 입자가 나타나고, 격파하면 특이점 형성. 놓친 입자가 핵에 쌓이면 궤도가 좁아지고, 충돌 시 전자 소멸. XP는 레벨에만 쓰이고, 힉스 입자를 격파하는 데 시간 제한은 없음.`,
   guideChoice:
-    '이동·공격은 자동. 선택 중에는 정지하며, 진행하면 5초 뒤 공격력·공격속도를 우선하고, 그다음 최고 등급을 자동 선택합니다.',
+    '이동·공격은 자동. 선택 중에는 정지하며, 진행하면 5초 뒤 진화 카드, 궤도에 여유가 있을 때의 대가 카드, 공격력·공격속도, 최고 등급 순서로 자동 선택합니다.',
   guideRarity:
     '등급은 스킬과 질량 방출에만 있음. 스킬은 첫 선택으로 고정되고 미습득은 다시 추첨, 질량 방출은 매번 추첨.',
   guideCombo: '갈래·연속·연쇄·관통은 다른 번개에도 적용.',
@@ -282,7 +282,7 @@ const ko = {
   guideLate: (bosses: string[], critical: string) =>
     `${bosses.join('·')}에 거대 입자가 핵으로 다가옵니다. 살아 있는 동안 핵이 자라고, 놓치면 큰 질량이 쌓입니다. ${critical}부터는 임계 돌파로 궤도가 좁아지고 입자가 몰려옵니다. 힉스 입자가 핵에 닿으면 실패합니다.`,
   guideEvolve: (chance: string, top: string, max: number) =>
-    `5단계가 된 스킬은 레벨 업 때마다 ${chance}% 확률로만 진화 카드가 나옵니다. 행운이 높으면 조금 더 자주(최대 ${top}%) 나오지만, 여러 번 안 나와도 보장되지 않는 드문 대박입니다. 자동 선택은 진화 카드를 가장 먼저 고릅니다. 대가 카드는 강한 효과에 위험이 따르며 한 판에 ${max}장까지 가질 수 있고, 자동 선택되지 않습니다.`,
+    `5단계가 된 스킬은 레벨 업 때마다 ${chance}% 확률로만 진화 카드가 나옵니다. 행운이 높으면 조금 더 자주(최대 ${top}%) 나오지만, 여러 번 안 나와도 보장되지 않는 드문 대박입니다. 자동 선택은 진화 카드를 가장 먼저 고릅니다. 대가 카드는 강한 효과에 위험이 따르며 한 판에 ${max}장까지 가질 수 있고, 궤도에 여유가 있을 때만 자동 선택됩니다.`,
   banners: {
     critical: '임계 돌파',
     boss: '{name} 접근',
@@ -469,7 +469,7 @@ const en: Copy = {
   guideGoal: (time) =>
     `The Higgs appears at ${time}; destroy it to form a black hole. Missed particles gather at the center and pull your orbit inward; hitting the core ends the run. XP only raises your level, and there is no time limit to beat the Higgs.`,
   guideChoice:
-    'Movement and attacks are automatic. Choices pause combat. Switch to play to auto-pick after 5 seconds: Attack Power and Speed first, then highest rarity.',
+    'Movement and attacks are automatic. Choices pause combat. Switch to play to auto-pick after 5 seconds: an evolution, then a pact while the orbit has room, then Attack Power and Speed, then highest rarity.',
   guideRarity:
     'Only skills and Mass Release have rarity. A skill locks on its first pick and rerolls until learned; Mass Release rerolls each time.',
   guideCombo: 'Fork, Repeat, Chain and Pierce also modify other lightning skills.',
@@ -678,7 +678,7 @@ const en: Copy = {
   guideLate: (bosses, critical) =>
     `At ${bosses.slice(0, -1).join(', ')} and ${bosses.at(-1)} a giant particle closes on the core; the core grows while it lives, and letting it through adds heavy mass. From ${critical} the critical breach tightens your orbit and draws more particles. If the Higgs reaches the core, the run fails.`,
   guideEvolve: (chance, top, max) =>
-    `A rank 5 skill offers its evolution card at each level up with only a ${chance}% chance. Luck raises it a little, up to ${top}%, but no run of misses guarantees one: it is a rare windfall. Automatic selection takes evolutions first. Pact cards trade risk for power, up to ${max} per run, and are never picked automatically.`,
+    `A rank 5 skill offers its evolution card at each level up with only a ${chance}% chance. Luck raises it a little, up to ${top}%, but no run of misses guarantees one: it is a rare windfall. Automatic selection takes evolutions first. Pact cards trade risk for power, up to ${max} per run, and are picked automatically only while the orbit has room.`,
   banners: {
     critical: 'CRITICAL BREACH',
     boss: '{NAME} INBOUND',
@@ -861,7 +861,7 @@ const zh: Copy = {
   guideGoal: (time) =>
     `希格斯粒子在 ${time} 出现，击破它即可形成黑洞。漏掉的粒子会聚集在中心，缩小轨道；撞上核心则对局结束。经验只用于升级，击破希格斯粒子没有时间限制。`,
   guideChoice:
-    '移动和攻击自动进行。选择时暂停，开启进行模式后5秒自动选择：优先攻击力和攻击速度，其次最高品质。',
+    '移动和攻击自动进行。选择时暂停，开启进行模式后5秒自动选择：依次为进化卡、轨道有余裕时的代价卡、攻击力和攻击速度、最高品质。',
   guideRarity:
     '只有技能和质量释放有品质。技能在首次选择时固定，未学习前重新抽取；质量释放每次抽取。',
   guideCombo: '分支、连续、连锁和贯穿也会强化其他闪电。',
@@ -998,7 +998,7 @@ const zh: Copy = {
   guideLate: (bosses, critical) =>
     `${bosses.join('、')}时巨型粒子逼近核心,存活期间核心持续增长,漏掉会增加大量质量。${critical}起进入临界突破,轨道收缩且粒子涌来。希格斯粒子触及核心则失败。`,
   guideEvolve: (chance, top, max) =>
-    `达到5级的技能在每次升级时只有${chance}%的几率出现进化卡。幸运越高越常出现（最高${top}%），但连续未出现也不会保证出现，是难得的大奖。自动选择优先选进化卡。代价卡以风险换取强力效果，每局最多${max}张，不会被自动选择。`,
+    `达到5级的技能在每次升级时只有${chance}%的几率出现进化卡。幸运越高越常出现（最高${top}%），但连续未出现也不会保证出现，是难得的大奖。自动选择优先选进化卡。代价卡以风险换取强力效果，每局最多${max}张，只有轨道有余裕时才会被自动选择。`,
   banners: {
     critical: '临界突破',
     boss: '{name}接近',
@@ -1181,7 +1181,7 @@ const ja: Copy = {
   guideGoal: (time) =>
     `${time} にヒッグス粒子が現れ、撃破するとブラックホールが生まれます。逃した粒子が中心に集まると軌道が狭まり、核にぶつかると消滅します。経験値はレベルにだけ使われ、ヒッグス粒子の撃破に時間制限はありません。`,
   guideChoice:
-    '移動と攻撃は自動。選択中は停止し、続行すると5秒後に自動選択。攻撃力・攻撃速度を優先し、次に最高レア度。',
+    '移動と攻撃は自動。選択中は停止し、続行すると5秒後に自動選択。進化カード、軌道に余裕があるときの代償カード、攻撃力・攻撃速度、最高レア度の順。',
   guideRarity:
     'レア度があるのはスキルと質量放出のみ。スキルは初選択で固定、未習得は再抽選。質量放出は毎回抽選。',
   guideCombo: '分岐・連続・連鎖・貫通はほかの雷にも適用。',
@@ -1374,7 +1374,7 @@ const ja: Copy = {
   guideLate: (bosses, critical) =>
     `${bosses.join('・')}に巨大粒子が核に迫ります。生きている間は核が成長し、逃すと大きな質量が加わります。${critical}からは臨界突破で軌道が狭まり、粒子が押し寄せます。ヒッグス粒子が核に届くと失敗です。`,
   guideEvolve: (chance, top, max) =>
-    `ランク5のスキルはレベルアップごとに${chance}%の確率でだけ進化カードが出ます。幸運が高いと少し出やすくなります（最大${top}%）が、何度出なくても保証はない、まれな大当たりです。自動選択は進化カードを最優先します。代償カードは危険と引き換えに強力で、1回に${max}枚まで、自動選択されません。`,
+    `ランク5のスキルはレベルアップごとに${chance}%の確率でだけ進化カードが出ます。幸運が高いと少し出やすくなります（最大${top}%）が、何度出なくても保証はない、まれな大当たりです。自動選択は進化カードを最優先します。代償カードは危険と引き換えに強力で、1回に${max}枚まで、軌道に余裕があるときだけ自動選択されます。`,
   banners: {
     critical: '臨界突破',
     boss: '{name}接近',
