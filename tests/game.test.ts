@@ -16,6 +16,18 @@ test('a seeded run to its loss logs the same events twice and again from its rec
   assert.deepEqual(replayed.result, first.result);
 });
 
+test('a clear continued beyond and quit replays to the same endless result', () => {
+  const g = finish(new Game(5)); // seed 5 clears on automatic picks
+  assert.equal(g.result?.outcome, 'success');
+  assert.equal(g.continueBeyond(), true);
+  g.run(30 * g.rules.time.tickRate);
+  assert.equal(g.retire(), true);
+  const replayed = replay(g.record);
+  assert.ok(replayed);
+  assert.deepEqual(replayed.result, g.result);
+  assert.deepEqual(replayed.clearResult, g.clearResult);
+});
+
 test('a record made under other rules does not replay', () => {
   const g = finish(new Game(1));
   assert.equal(replay({ ...g.record, rules: 'other' }), null);

@@ -7,7 +7,7 @@ import type { Input, RunRecord } from './types.ts';
 export function apply(game: Game, input: Input): boolean {
   if (input.kind === 'card') return game.choose(input.id, input.number);
   if (input.kind === 'beat') return game.resonate(input.beat);
-  return false;
+  return input.kind === 'beyond' ? game.continueBeyond() : game.retire();
 }
 
 // Rebuilds a run from its seed and inputs under `cfg`; null when the record does not fit.

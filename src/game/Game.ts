@@ -395,6 +395,7 @@ export class Game {
   // Past a clear: the core, orbit and field reset and round seven begins; the build stays.
   continueBeyond(): boolean {
     if (!this.canContinue) return false;
+    this.inputs.push({ tick: this.elapsedTicks, kind: 'beyond' });
     const tickRate = this.rules.time.tickRate,
       warning = this.rules.spawn.waveWarningSeconds,
       last = this.waves.at(-1)!;
@@ -434,6 +435,7 @@ export class Game {
   // Ends an endless run where it stands; the result keeps what was gained beyond.
   retire(): boolean {
     if (!this.endless || (this.phase !== 'running' && this.phase !== 'crossing')) return false;
+    this.inputs.push({ tick: this.elapsedTicks, kind: 'retire' });
     this.outcome = 'retired';
     this.trigger = 'quit';
     this.collisionTime = this.time;
