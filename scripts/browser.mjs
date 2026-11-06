@@ -1,0 +1,136 @@
+// Browser checks: `npm run check:browser -- <scenario...>`. Uses GAME_URL when set,
+// otherwise starts its own dev server on a free port. BROWSER_PATH picks the executable.
+import assert from 'node:assert/strict';
+import { existsSync, mkdirSync } from 'node:fs';
+
+const scenarios = { smoke };
+const wanted = process.argv.slice(2).filter((arg) => !arg.startsWith('--'));
+const names = !wanted.length || wanted.includes('all') ? Object.keys(scenarios) : wanted;
+for (const name of names) if (!scenarios[name]) throw new Error(`unknown scenario: ${name}`);
+
+const started = performance.now();
+const server = await serve();
+const browser = await launch();
+let failed = false;
+try {
+  for (const name of names) {
+    const context = await browser.newContext({
+      viewport: { width: 375, height: 812 },
+      locale: 'en-US',
+    });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('console', (message) => message.type() === 'error' && errors.push(message.text()));
+    try {
+      await scenarios[name](page);
+      assert.deepEqual(errors, [], 'page errors');
+    } catch (error) {
+      failed = true;
+      mkdirSync('artifacts', { recursive: true });
+      await page.screenshot({ path: `artifacts/browser-${name}.png` }).catch(() => {});
+      console.error(`FAIL ${name}`, error);
+    }
+    await context.close();
+  }
+} finally {
+  await browser.close();
+  await server.close();
+}
+console.log(`${failed ? 'FAILED' : 'OK'} in ${((performance.now() - started) / 1000).toFixed(1)}s`);
+process.exitCode = failed ? 1 : 0;
+
+function pass(task, details = {}) {
+  console.log('PASS ' + task, JSON.stringify(details));
+}
+
+async function serve() {
+  if (process.env.GAME_URL) return { url: process.env.GAME_URL, close: async () => {} };
+  const { createServer } = await import('vite');
+  const vite = await createServer({
+    logLevel: 'error',
+    server: { host: '127.0.0.1', port: 8090, strictPort: false },
+  });
+  await vite.listen();
+  return { url: vite.resolvedUrls.local[0], close: () => vite.close() };
+}
+
+async function launch() {
+  const { chromium } = await import('playwright');
+  const executablePath =
+    process.env.BROWSER_PATH ??
+    [
+      'C:/Program Files/Google/Chrome/Application/chrome.exe',
+      'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+    ].find(existsSync);
+  return chromium.launch({ headless: true, ...(executablePath && { executablePath }) });
+}
+
+// Every page records the audio contexts it opens.
+async function open(page) {
+  await page.addInitScript(() => {
+    const Native = window.AudioContext,
+      contexts = (window.soundContexts = []);
+    window.AudioContext = class extends Native {
+      constructor(...args) {
+        super(...args);
+        contexts.push(this);
+      }
+    };
+  });
+  await page.goto(server.url);
+  await loaded(page);
+}
+function loaded(page) {
+  return page.waitForFunction(
+    () => window.__gameDebug && document.querySelector('.start')?.disabled === false,
+  );
+}
+
+async function smoke(page) {
+  await open(page);
+  const title = page.locator('.title-sound');
+  assert.equal(await title.getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.evaluate(() => window.soundContexts.length), 0);
+  await page.getByRole('button', { name: 'START' }).click();
+  await page.waitForFunction(() => window.soundContexts[0]?.state === 'running', null, {
+    timeout: 5000,
+  });
+  pass('a fresh profile opens audio at START', { state: 'running' });
+
+  const killAt = await page.evaluate(() => {
+    const debug = window.__gameDebug;
+    for (let second = 1; second <= 30; second++) {
+      const game = debug.getGame(),
+        from = game.events.length;
+      debug.advance(1000);
+      if (game.events.slice(from).some((event) => event.kind === 'kill')) return second;
+    }
+    return null;
+  });
+  assert.ok(killAt !== null, 'no kill in the first 30 seconds');
+  pass('a particle pops within 30 seconds', { second: killAt });
+
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  const setting = page.locator('.pause-panel .title-sound');
+  await setting.click();
+  assert.equal(await setting.getAttribute('aria-pressed'), 'false');
+  await page.reload();
+  await loaded(page);
+  assert.equal(await title.getAttribute('aria-pressed'), 'false');
+  await page.getByRole('button', { name: 'START' }).click();
+  await page.waitForTimeout(300);
+  assert.equal(await page.evaluate(() => window.soundContexts.length), 0);
+  pass('sound turned off stays off after a reload');
+
+  const phase = await page.evaluate(() => {
+    const debug = window.__gameDebug;
+    for (let i = 0; i < 60 && debug.getGame().phase !== 'result'; i++) debug.advance(10000);
+    return debug.getGame().phase;
+  });
+  assert.equal(phase, 'result');
+  const result = page.getByRole('dialog', { name: 'Orbit collapse' });
+  await result.waitFor({ timeout: 3000 });
+  await page.getByRole('button', { name: 'Retry' }).waitFor();
+  pass('a loss reaches the result screen');
+}

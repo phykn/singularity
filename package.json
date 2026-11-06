@@ -10,10 +10,10 @@
   "scripts": {
     "dev": "vite",
     "test": "node --test tests/*.test.ts",
-    "check": "echo todo && exit 1",
+    "check": "npm test && npm run check:design && npm run check:browser -- smoke",
     "check:design": "node design/schema.ts",
     "sim": "echo todo && exit 1",
-    "check:browser": "echo todo && exit 1",
+    "check:browser": "node scripts/browser.mjs",
     "build": "tsc --noEmit && vite build",
     "build:art": "echo todo && exit 1",
     "screenshots": "echo todo && exit 1",

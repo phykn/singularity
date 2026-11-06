@@ -65,7 +65,7 @@ export class Game {
   collisionTime = 0;
   private readonly recordEvents: boolean;
   private readonly random: Record<'spawn' | 'cards' | 'rarity' | 'crit' | 'wave', Random>;
-  private outcome: Outcome = 'collapse-failure';
+  outcome: Outcome = 'collapse-failure';
   private nextSpawn = 0;
   private batches = 0;
   private nextId = 0;
