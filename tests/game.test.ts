@@ -370,10 +370,10 @@ test('late assaults and recovery follow the warned waves and freeze with the gam
 test('recovery stops kill-triggered rush even when the build clears a whole group', () => {
   const g = fixture({ multi: 5, chain: 5 });
   g.tick = (rules.stageStarts.at(-1)! + rules.late.assaultSeconds) * rules.tickRate;
-  g.spawnBatch();
-  const energy = g.targets.reduce((sum, t) => sum + t.xp, 0);
+  const energy = () => g.targets.reduce((sum, t) => sum + t.xp, 0);
+  while (energy() < rules.rush.energyThreshold) g.spawnBatch();
+  assert.ok(energy() >= rules.rush.energyThreshold);
   while (g.targets.length) g.combat.fireBasic(g.targets[0]);
-  assert.ok(energy >= rules.rush.energyThreshold);
   assert.equal(g.wavePhase, 'recovery');
   assert.equal(g.rushing, false);
 });
