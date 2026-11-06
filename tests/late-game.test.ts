@@ -117,6 +117,58 @@ test('the critical breach and the Higgs arrive at their times with their banner 
   assert.equal(g.boss?.final, true);
 });
 
+// Ends the live boss of the given kind by a kill or by letting it reach the core.
+const end = (g: Game, kind: string, how: 'kill' | 'absorb') => {
+  const boss = g.targets.find((t) => t.boss === kind)!;
+  // Each hit stops at the next escort threshold, so a kill takes several.
+  if (how === 'kill') while (g.targets.includes(boss)) g.damageTarget(boss, boss.maxHp);
+  else {
+    boss.radius = 0;
+    g.absorbTargets();
+  }
+};
+const rounds = (g: Game) =>
+  g.events.filter((e) => e.kind === 'round').map((e) => (e.data as { round: number }).round);
+
+test('the round starts at one and moves on when a giant particle is killed or absorbed', () => {
+  const g = spawned();
+  g.selections.length = 100;
+  assert.equal(g.round, 1);
+  reach(g, rules.boss.stages[0].time);
+  assert.equal(g.round, 1);
+  end(g, 'gluon', 'kill');
+  assert.equal(g.round, 2);
+  reach(g, rules.boss.stages[1].time);
+  end(g, 'w', 'absorb');
+  assert.equal(g.round, 3);
+  assert.deepEqual(rounds(g), [2, 3]);
+});
+
+test('the round waits for the earlier boss even when a later one ends first', () => {
+  const g = spawned();
+  g.selections.length = 100;
+  reach(g, rules.boss.stages[0].time);
+  reach(g, rules.boss.stages[1].time);
+  end(g, 'w', 'kill');
+  assert.equal(g.round, 1);
+  end(g, 'gluon', 'absorb');
+  assert.equal(g.round, 3);
+  assert.deepEqual(rounds(g), [2, 3]);
+});
+
+test('a run that reaches the Higgs is in round six', () => {
+  const g = spawned();
+  g.selections.length = 100;
+  for (const [i, stage] of rules.boss.stages.entries()) {
+    reach(g, stage.time);
+    end(g, stage.kind, i % 2 ? 'absorb' : 'kill');
+    g.mass = 0;
+  }
+  reach(g, rules.boss.final.time);
+  assert.equal(g.boss?.final, true);
+  assert.equal(g.round, 6);
+});
+
 test('the boss arrives once at its time with a warning and reports its fate', () => {
   const g = spawned();
   g.selections.length = 100;

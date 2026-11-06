@@ -1,10 +1,30 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
+import type { Game } from '../src/game/Game.ts';
 import type { Result } from '../src/game/types.ts';
 
 export const median = (values: number[]) =>
   values.length ? [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] : null;
+
+// Round 1 starts at 0; later starts come from the model's round events.
+export const roundStarts = (g: Game) => [
+  0,
+  ...g.events.filter((e) => e.kind === 'round').map((e) => e.time),
+];
+// Per round: runs that reached it, losses in it, and its median start time.
+export function roundSummary(runs: { lost: boolean; round: number; starts: number[] }[]) {
+  const last = Math.max(1, ...runs.map((r) => r.round));
+  return Array.from({ length: last }, (_, i) => {
+    const reached = runs.filter((r) => r.starts.length > i);
+    return {
+      round: i + 1,
+      runs: reached.length,
+      losses: runs.filter((r) => r.lost && r.round === i + 1).length,
+      medianStart: median(reached.map((r) => r.starts[i])),
+    };
+  });
+}
 
 export function sourceHash(): string {
   const hash = createHash('sha256');

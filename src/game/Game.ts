@@ -127,6 +127,10 @@ export class Game {
   private criticalEntered = false;
   bossCount = 0;
   bossesDown = 0;
+  // Each round ends with its boss; later bosses may end first but wait their turn.
+  round = 1;
+  private bossOrder: number[] = [];
+  private bossesEnded = new Set<number>();
   private finalEntered = false;
   private finalDown = false;
   private xpRemainder = 0;
@@ -717,6 +721,7 @@ export class Game {
       turn: this.rules.boss.turn,
     };
     this.targets.push(target);
+    this.bossOrder.push(target.id);
     this.counts.neutron.generated++;
     this.banner = { kind: banner, until: this.time + this.rules.bannerSeconds, boss: kind };
     this.log(banner, { id: target.id, hp, boss: kind });
@@ -833,6 +838,14 @@ export class Game {
     }
   }
 
+  private endBoss(id: number): void {
+    this.bossesEnded.add(id);
+    while (this.bossesEnded.has(this.bossOrder[this.round - 1])) {
+      this.round++;
+      this.log('round', { round: this.round, time: this.time });
+    }
+  }
+
   // Reports whether the final boss reached the core, which ends the run.
   absorbTargets(): boolean {
     const core = this.core;
@@ -842,7 +855,10 @@ export class Game {
     for (const target of absorbed) {
       this.mass += target.mass;
       this.counts[target.particle].absorbed++;
-      if (target.kind === 'boss') this.log('boss-absorbed', { id: target.id, mass: this.mass });
+      if (target.kind === 'boss') {
+        this.log('boss-absorbed', { id: target.id, mass: this.mass });
+        this.endBoss(target.id);
+      }
       this.addEffect({
         kind: 'absorb',
         from: target,
@@ -1356,6 +1372,7 @@ export class Game {
       const previous = this.level;
       this.gainXp(target.xp);
       this.levelUp(previous);
+      if (target.kind === 'boss') this.endBoss(target.id);
       if (target.final) {
         this.finalDown = true;
         this.log('final-boss-down', { id: target.id });

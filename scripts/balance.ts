@@ -1,5 +1,13 @@
 import assert from 'node:assert/strict';
-import { assertConserved, checkCohort, median, simulationHash, sourceHash } from './engine.ts';
+import {
+  assertConserved,
+  checkCohort,
+  median,
+  roundStarts,
+  roundSummary,
+  simulationHash,
+  sourceHash,
+} from './engine.ts';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Game } from '../src/game/Game.ts';
@@ -70,6 +78,8 @@ for (let seed = start; seed < start + count; seed++) {
     rhythm,
     outcome: g.result.outcome,
     trigger: g.result.trigger,
+    round: g.round,
+    roundStarts: roundStarts(g),
     xp: g.xp,
     mass: g.mass,
     score: g.score,
@@ -115,6 +125,9 @@ const summarize = (set: typeof rows) => ({
   developedRuns: set.filter((r) => r.developedAt !== null).length,
   medianAfterDevelopedSeconds: median(
     set.flatMap((r) => (r.afterDevelopedSeconds === null ? [] : [r.afterDevelopedSeconds])),
+  ),
+  rounds: roundSummary(
+    set.map((r) => ({ lost: r.outcome !== 'success', round: r.round, starts: r.roundStarts })),
   ),
 });
 const summary = summarize(rows);

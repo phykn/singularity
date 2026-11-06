@@ -3,7 +3,14 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Game } from '../src/game/Game.ts';
 import { isPact, isSkill, rules } from '../src/game/rules.ts';
-import { checkCohort, median, simulationHash, sourceHash } from './engine.ts';
+import {
+  checkCohort,
+  median,
+  roundStarts,
+  roundSummary,
+  simulationHash,
+  sourceHash,
+} from './engine.ts';
 import { guidedCard, playRhythm } from './rhythm-bot.ts';
 
 // node scripts/pacing.ts [count=600] [firstSeed=480000] [report] [qte|qte-off|qte-guided] [rulesJson]
@@ -51,6 +58,8 @@ for (let seed = start; seed < start + count; seed++) {
     seed,
     win: g.result.outcome === 'success',
     seconds: g.collisionTime,
+    round: g.round,
+    roundStarts: roundStarts(g),
     samples,
     targetsAt120,
     level10At:
@@ -124,6 +133,7 @@ const summary = {
   medianLateMargin: median(wins.map((r) => r.lateMargin)),
   closeCalls: ratio(wins.filter((r) => r.lateMargin < 30).length, wins.length),
   medianCritical: median(wins.flatMap((r) => (r.critical === null ? [] : [r.critical]))),
+  rounds: roundSummary(rows.map((r) => ({ lost: !r.win, round: r.round, starts: r.roundStarts }))),
   bossStages: cfg.boss.stages.map((_, index) => stage(index)),
   bossesKilled: median(rows.map((r) => r.bossDown.length)),
   bossesAbsorbed: median(rows.map((r) => r.bossAbsorbed.length)),
