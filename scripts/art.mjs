@@ -10,7 +10,6 @@ try {
   if (!process.argv.includes('--effects')) {
     // Order follows src/art/skills.ts: stats, recover, 16 skills, 8 pacts, then 16 evolutions.
     const skill = (cell) => ['assets/icon-art/skill-source.png', 4, 4, cell];
-    const added = (cell) => ['assets/icon-art/skill-new-source.png', 4, 2, cell];
     const statPact = (cell) => ['assets/icon-art/stat-pact-source.png', 5, 2, cell];
     const face = (cell) => ['assets/icon-art/interface-source.png', 7, 2, cell];
     const sources = [
@@ -20,31 +19,10 @@ try {
       statPact(0), // crit
       statPact(1), // luck
       face(4), // recover
-      skill(0), // repeat
-      skill(1), // multi
-      skill(2), // chain
-      skill(3), // pierce
-      skill(4), // burst
-      added(6), // strike
-      skill(8), // satellite
-      skill(9), // charge
-      skill(14), // surge
-      skill(15), // return
-      added(4), // mark
-      added(5), // tempo
-      added(0), // spark
-      added(1), // field
-      added(2), // fission
-      added(3), // overcharge
+      // Both skill sheets follow the skill order in design/rules.json.
+      ...Array.from({ length: 16 }, (_, i) => skill(i)),
       ...Array.from({ length: 8 }, (_, i) => statPact(i + 2)),
-      ...Array.from({ length: 16 }, (_, i) => [
-        'assets/icon-art/evolution-source.png',
-        4,
-        4,
-        // Evolution sheet order: chain, multi, pierce, satellite, strike, repeat, burst, charge,
-        // return, surge, mark, tempo, spark, field, fission, overcharge.
-        [5, 1, 0, 2, 6, 4, 3, 7, 9, 8, 10, 11, 12, 13, 14, 15][i],
-      ]),
+      ...Array.from({ length: 16 }, (_, i) => ['assets/icon-art/evolution-source.png', 4, 4, i]),
     ];
     const layers = new Map();
     sources.forEach(([path, columns, rows, cell], destination) => {

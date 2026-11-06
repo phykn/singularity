@@ -407,3 +407,84 @@ ONE isolated CONTAGION MARK EVOLVED skill icon. Reference1 is the old evolved ic
 ```
 
 원본 및 검사용 파일: /tmp/singularity-image-fixes-20261104/. 게임 연결 및 build:art 실행 없음.
+
+## 2026-11-06 — 9. skill-source (abstract symbols)
+
+Tool: Codex CLI (`codex exec`, built-in image generation), attached reference: the previous `skill-source.png` (style only).
+
+```text
+Polished pixel art skill icons for SINGULARITY, a dark electron survival game about lightning. Same artist, outline and shading style as the attached reference sheet (style reference only: do NOT copy its subjects). Transparent background. Stepped dark contours, compact 3-4 tone bevels, one small ivory upper-left highlight. No text, letters, numbers, frames, panels, card backgrounds, blur, glow mist or scattered grain.
+
+NEW DIRECTION: each icon is a slightly ABSTRACT SYMBOL of the skill's own mechanic, like a rune or sigil made of lightning. NO particles, NO enemies, NO target balls, NO orbs being hit, NO shattering debris. Show what the skill IS, not what it hits. Every icon is built from bold lightning strokes, arrows, rings and simple geometric marks.
+Each icon is shown at only 32x32 pixels: design on a true 32x32 logical grid with BIG CHUNKY shapes, at most three or four elements, thick dark outlines, strong contrast, clear gaps. Each icon uses its own single color family (hex given) with darker shades of the same hue; no gold accents on these base icons.
+
+Exactly FOUR equal columns and FOUR equal rows, 16 isolated icons centered in equal square cells with generous transparent gutters; nothing touches a neighbouring cell. Read LEFT TO RIGHT, TOP TO BOTTOM:
+Row 1:
+1 REPEAT (teal #75e8e0): two identical diagonal lightning bolts, one directly behind the other like an echo, the back one slightly darker.
+2 FORK (gold-yellow #ffdf78): one thick lightning stem from the bottom splitting into THREE diverging prongs with pointed tips.
+3 CHAIN (mint green #79ecaa): THREE short lightning segments linked end to end in a zigzag like chain links, each link smaller and dimmer than the one before.
+4 PIERCE (lavender violet #bd9aff): one long narrow horizontal lightning lance with a big sharp arrowhead on the right, passing straight through TWO thick vertical bars.
+Row 2:
+5 DEATH ARC (pink #ff96c1): a small hollow pink diamond at the center with FOUR short jagged arcs leaping outward diagonally from its corners.
+6 THUNDERSTRIKE (orange #ffbe69): ONE very thick lightning bolt slamming straight down onto a short horizontal ground bar, with two flat shockwave arcs spreading left and right.
+7 SATELLITE (sky blue #86dcff): a small bright core with a tilted elliptical orbit ring around it and TWO small dots riding on the ring.
+8 CAPACITOR (pale gold #f2d886): two thick parallel vertical plates with THREE horizontal charge bars stacked between them and short terminal stubs on top.
+Row 3:
+9 SURGE (yellow #ffdf78): a lightning bolt with THREE stacked speed chevrons >>> behind it, rapid-fire burst.
+10 RETURN (cornflower blue #94bfff): a thick lightning arrow making a U-turn back on itself, arrowhead pointing back toward its start.
+11 MARK (cyan #8ff0ff): a branding sigil: a bold square target reticle with a small lightning bolt in its center and three tally ticks under it.
+12 TEMPO (soft pink #ffc4e8): a circular arc of about three quarters with THREE evenly spaced beat ticks on it and an arrowhead sweeping along the arc.
+Row 4:
+13 SPARK (lilac #e3b3ff): one four-point star spark with THREE smaller four-point sparks flying off it in different directions.
+14 FIELD (electric blue #69bdff): two concentric crackling rings, a thick outer ring band made of short jagged lightning and a small inner ring, an area zone.
+15 FISSION (sage lime #c8dd96): one vertical lightning line splitting into two, each of those splitting into two again: a symmetric 1-2-4 branching tree of lines with diamond tips, no balls.
+16 OVERCHARGE (coral #ff8a5c): a ring gauge filled to the max with a hot bolt inside and THREE heat chevrons rising above it.
+
+Generate a large square PNG, at least 1024 pixels on each edge, exact 4x4 grid of equal square cells. Keep each icon inside the central 75% of its cell, alpha exactly zero in all gutters. No labels.
+```
+
+두 후보(a, b) 생성. 32px 최근접 비교로 칸별 선택: a를 바탕으로 낙뢰·귀환·템포·정전기장은 b. 이전 `skill-new-source.png`는 이 시트로 합쳐 삭제. 알파<240 제거.
+
+## 2026-11-06 — 10. evolution-source (abstract symbols)
+
+Tool: Codex CLI, attached reference: the selected new `skill-source.png`.
+
+```text
+Polished pixel art EVOLVED skill icons for SINGULARITY, a dark electron survival game about lightning. The attached sheet is the BASE skill icon sheet in the same 4x4 order: match its artist, outline, shading, chunky 32x32 scale and each icon's color exactly. Transparent background. Stepped dark contours, compact 3-4 tone bevels, one small ivory upper-left highlight. No text, letters, numbers, frames, panels, card backgrounds, blur, glow mist or scattered grain.
+Each icon is a slightly ABSTRACT lightning SYMBOL of its skill: NO particles, NO enemies, NO target balls, NO shattering debris.
+Each evolved icon keeps its base icon's color family and core symbol so the player recognises it, but is clearly MORE: the silhouette visibly changes (larger, doubled, closed or extended as described) and it carries the evolution mark: a few bright gold #f9d894 pixels integrated into the symbol (gold edge, gold tips or a gold core) plus ONE tiny gold four-point sparkle in the upper-right. Must be distinguishable from its base at 32x32 pixels by silhouette alone. BIG CHUNKY shapes, at most four elements, thick dark outlines, strong contrast.
+
+Exactly FOUR equal columns and FOUR equal rows, 16 isolated icons centered in equal square cells with generous transparent gutters; nothing touches a neighbouring cell. Same order as the base sheet, LEFT TO RIGHT, TOP TO BOTTOM:
+Row 1:
+1 RAPID TYPING (from Repeat, teal): FOUR identical diagonal bolts in a tight overlapping row like a fast stream, the front one gold-edged.
+2 LIGHTNING NET (from Fork, yellow): the three-prong fork whose three tips are joined by a gold crossbar arc, forming a closed net.
+3 RECOIL CHAIN (from Chain, mint green): the zigzag of three bolt links, plus a curved arrow running back underneath from the last link to the first, gold arrowhead.
+4 LINGERING LINE (from Pierce, violet): the lance through two bars, now leaving a WIDE glowing violet rail behind it that stays, with gold tip.
+Row 2:
+5 CHAIN BLAST (from Death Arc, pink): the hollow diamond with four leaping arcs, each arc ending in a second smaller hollow diamond that sprouts its own tiny arcs; gold center.
+6 THUNDER STORM (from Thunderstrike, orange): THREE thick bolts slamming down side by side onto the ground bar with shockwave arcs; gold impact line.
+7 SATELLITE RING (from Satellite, sky blue): the core and tilted orbit with THREE dots on it, the dots linked to each other by straight bright lines forming a triangle; gold core.
+8 DISCHARGE RING (from Capacitor, pale gold): the capacitor at the center of a full closed jagged lightning ring.
+Row 3:
+9 FRENZY (from Surge, yellow): the bolt with FIVE chevrons that curve and spiral around it; gold chevron tips.
+10 ECHO (from Return, cornflower blue): the U-turn arrow doubled into a back-and-forth S-shaped double return with two arrowheads.
+11 CONTAGION MARK (from Mark, cyan): the target reticle with its bolt, plus TWO smaller reticles copied off its corners; gold reticle corners.
+12 PERFECT RESONANCE (from Tempo, soft pink): the arc closed into a FULL circle with three beat ticks, the third tick large and gold.
+Row 4:
+13 REBOUND (from Spark, lilac): the four-point star spark whose small sparks fly to a curved wall line and bounce back on V-shaped paths.
+14 OVERLOAD FIELD (from Field, electric blue): the concentric crackling ring zone with TWO smaller ring zones budding off its lower edge; gold inner ring.
+15 CRITICAL MASS (from Fission, sage lime): the branching 1-2-4 tree extended one more level to 8 tips, each level spreading wider, a wide fan; gold tips.
+16 DOUBLE DISCHARGE (from Overcharge, coral): the full ring gauge with its hot bolt, surrounded by a SECOND outer concentric discharge ring; gold bolt.
+
+Generate a large square PNG, at least 1024 pixels on each edge, exact 4x4 grid of equal square cells. Keep each icon inside the central 75% of its cell, alpha exactly zero in all gutters. No labels.
+```
+
+두 후보 생성. 칸별 선택: 반복·포크·연쇄·축전기·서지·귀환·템포·스파크는 b, 나머지는 a. 관통 진화는 기본과 너무 비슷해 단독 재생성(아래). 알파<240 제거.
+
+```text
+Polished pixel art EVOLVED skill icon for SINGULARITY, a dark electron survival game about lightning. Attached image 1 is the BASE Pierce icon (violet lance through two bars): match its artist, outline, shading, chunky 32x32 scale and violet color #bd9aff exactly. Attached image 2 is a failed evolved attempt that looks too similar to the base; do not repeat it. Transparent background. Stepped dark contours, compact 3-4 tone bevels, one small ivory upper-left highlight. No text, letters, numbers, frames, backgrounds, blur, glow mist or grain. NO particles, NO enemies, NO target balls, NO debris.
+Subject: LINGERING LINE, the evolved Pierce: the pierce line stays on the field. Abstract symbol: the violet lance with its big arrowhead now drawn DIAGONALLY from lower-left to upper-right, passing through the two bars, and leaving behind it a WIDE persistent glowing violet band (a thick rail twice as wide as the lance, with bright edges) that fills the lower-left half of the icon. Gold #f9d894 arrowhead tip and ONE tiny gold four-point sparkle in the upper-right corner. Must differ from the base by silhouette at 32x32 pixels: diagonal, wide band. BIG CHUNKY shapes, thick dark outlines, at most four elements.
+One single sprite centered on a square canvas filling about 80% of it, alpha exactly zero outside the sprite. Square PNG, at least 1024 pixels. No labels.
+```
+
+같은 날 평면 최소 기호판과 네온 선형판도 생성했으나 사용자가 너무 단순하다고 하여 폐기.
