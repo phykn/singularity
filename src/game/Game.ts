@@ -68,6 +68,7 @@ export class Game {
   boosts = blankBoosts();
   // The rarity a skill was first taken at; it keeps it for the run.
   rarities: Partial<Record<UpgradeId, Rarity>> = {};
+  evolved: Partial<Record<SkillId, boolean>> = {};
   forms: SkillValues;
   choice: Choice | null = null;
   selections: Selection[] = [];
@@ -589,6 +590,8 @@ export class Game {
     if (isSkill(id)) {
       this.rarities[id] ??= card.rarity;
       this.ranks[id]++;
+      this.refresh();
+      this.combat.learn(id);
     } else if (isStat(id)) this.boosts[id]++;
     else if (id === 'recover') {
       const removed = this.releaseMass(recoveryMass(card.rarity, this.rules));
@@ -652,7 +655,7 @@ export class Game {
       ranks: { ...this.ranks },
       boosts: { ...this.boosts },
       rarities: { ...this.rarities },
-      evolved: {},
+      evolved: { ...this.evolved },
       selections: this.selections.map((s) => ({ ...s })),
       endless: null,
     };

@@ -12,7 +12,7 @@
     "test": "node --test tests/*.test.ts",
     "check": "npm test && npm run check:design && npm run check:browser -- smoke choices",
     "check:design": "node design/schema.ts",
-    "sim": "echo todo && exit 1",
+    "sim": "node scripts/sim.ts",
     "check:browser": "node scripts/browser.mjs",
     "build": "tsc --noEmit && vite build",
     "build:art": "echo todo && exit 1",

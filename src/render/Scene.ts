@@ -3,7 +3,7 @@ import beamsUrl from '../art/assets/beams.png';
 import bossesUrl from '../art/assets/bosses.png';
 import effectsUrl from '../art/assets/effects.png';
 import particlesUrl from '../art/assets/particles.png';
-import { AMBER, BLUE, GOLD, RED, WHITE } from '../art/palette.ts';
+import { AMBER, BLUE, GOLD, RED, WHITE, skillColors } from '../art/palette.ts';
 import { bossFrames, particleFrames } from '../art/particles.ts';
 import { CENTER, orbit } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
@@ -119,15 +119,24 @@ export class Scene extends Phaser.Scene {
     for (const target of game.targets) this.drawTarget(game, target, ending, clock);
     if (!ending) {
       const electron = game.position,
-        anchors = { electron, satellites: [], orbit: game.radius };
+        satellites = game.combat.satellites,
+        surging = game.combat.surging,
+        anchors = { electron, satellites, orbit: game.radius };
+      for (const point of satellites)
+        this.sprites.draw(this.screen(point), 'electron', 0.5, 1).clearTint();
       for (const effect of visibleEffects(game.effects))
         drawEffect(this.fx, effect, clock, scale, this.paint, anchors);
       for (const { point, color: ink, alpha, radius } of this.contacts.values()) {
         this.fx.lineStyle(1 / scale, ink, alpha * 0.65);
         this.fx.strokeCircle(point.x, point.y, radius / scale);
       }
-      this.drawTrail(game.angle, game.radius, 8, color);
-      this.drawElectron(electron, 1, color);
+      this.drawTrail(
+        game.angle,
+        game.radius,
+        surging ? 12 : 8,
+        surging ? skillColors.surge : color,
+      );
+      this.drawElectron(electron, 1, color, surging);
       this.labels.draw(game.damageNumbers, clock, width, height, centerY, scale);
       return;
     }
@@ -190,6 +199,15 @@ export class Scene extends Phaser.Scene {
     if (hit) sprite.setTint(0x5a5a5a).setTintMode(addTint);
     else sprite.clearTint();
     if (ending) return;
+    if (target.marked) {
+      this.g.fillStyle(skillColors.mark, 0.6 + 0.4 * Math.sin(clock * 14 + target.id));
+      this.g.fillRect(
+        p.x + target.size / 2,
+        p.y - target.size / 2 - 2 / scale,
+        2 / scale,
+        2 / scale,
+      );
+    }
     if (target.kind === 'boss') {
       this.g.lineStyle((target.final ? 2 : 1) / scale, RED, 0.55 + 0.35 * Math.sin(clock * 6));
       this.g.strokeCircle(p.x, p.y, target.size + 4);

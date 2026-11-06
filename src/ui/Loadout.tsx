@@ -43,18 +43,30 @@ export function Loadout({ game, language }: { game: Game; language: Language }) 
                 </div>
               </div>
             );
-          const fired = game.time - (game.combat.fired[id] ?? -Infinity) < 0.15;
+          const status = game.combat.status(id),
+            filling = status.mode !== 'conditional';
           return (
             <div className="slot-cell" key={id}>
               <div
                 className="slot"
                 data-skill={id}
-                data-fired={fired}
+                data-mode={status.mode}
+                data-active={status.active}
+                data-fired={status.fired}
                 data-rarity={game.rarities[id]}
                 style={{ '--skill': skillColor(id) } as CSSProperties}
-                role="img"
+                role={filling ? 'progressbar' : 'img'}
+                aria-valuemin={filling ? 0 : undefined}
+                aria-valuemax={filling ? 100 : undefined}
+                aria-valuenow={filling ? Math.floor(status.progress * 100) : undefined}
                 aria-label={`${c.rarities[game.rarities[id] ?? 'common']} ${c.upgrades[id].name}, ${c.rank} ${game.rank(id)}/${max}`}
               >
+                {filling && (
+                  <i
+                    className="slot-fill"
+                    style={{ height: (Math.floor(status.progress * 24) * 100) / 24 + '%' }}
+                  />
+                )}
                 <span className="slot-art">
                   <SkillIcon id={id} size={32} />
                 </span>
