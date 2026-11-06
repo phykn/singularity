@@ -33,9 +33,12 @@ export function Hud({
   onSpeed: () => void;
   onPause: () => void;
 }) {
+  // Endless mode counts rounds and time beyond instead of the way to the Higgs.
   const c = copy[language],
-    percent = Math.floor(game.finalProgress * 100),
-    due = game.finalProgress >= 1,
+    endless = game.endless,
+    progress = endless ? game.roundProgress : game.finalProgress,
+    percent = Math.floor(progress * 100),
+    due = progress >= 1,
     boss = game.phase === 'running' ? game.boss : undefined;
   return (
     <section className="hud" aria-label={c.hud} data-critical={game.critical}>
@@ -43,13 +46,13 @@ export function Hud({
         <div
           className={`charge ${due ? 'energy-full' : ''}`}
           role="progressbar"
-          aria-label={due ? c.finalBossDue : c.singularity}
+          aria-label={endless ? `${c.round} ${game.round}` : due ? c.finalBossDue : c.singularity}
           aria-valuenow={percent}
           aria-valuemin={0}
           aria-valuemax={100}
         >
           <ChargeIcon progress={percent / 100} />
-          <b>{percent}%</b>
+          <b>{endless ? `R${game.round}` : `${percent}%`}</b>
         </div>
         <div className="boosts">
           {statIds.map((id) => (
@@ -63,7 +66,7 @@ export function Hud({
             </div>
           ))}
         </div>
-        <time>{formatTime(game.seconds)}</time>
+        <time>{endless ? '∞' + formatTime(game.endlessSeconds) : formatTime(game.seconds)}</time>
         <button
           className="icon-button speed-button"
           onClick={onSpeed}

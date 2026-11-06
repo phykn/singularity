@@ -15,7 +15,7 @@
     "sim": "node scripts/sim.ts",
     "check:browser": "node scripts/browser.mjs",
     "build": "tsc --noEmit && vite build",
-    "build:art": "echo todo && exit 1",
+    "build:art": "node scripts/art.mjs",
     "screenshots": "echo todo && exit 1",
     "format": "prettier . --write",
     "format:check": "prettier . --check"

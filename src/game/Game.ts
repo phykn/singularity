@@ -101,6 +101,8 @@ export class Game {
   eventOffset = 0;
   inputs: Input[] = [];
   result: Result | null = null;
+  // The cleared run, kept while endless mode runs past it.
+  clearResult: Result | null = null;
   collisionTime = 0;
   private readonly recordEvents: boolean;
   private readonly random: Record<'spawn' | 'cards' | 'rarity' | 'crit', Random>;
@@ -112,6 +114,9 @@ export class Game {
   private killEnergy = 0;
   private rushUntil = 0;
   private bossOrder: number[] = [];
+  // Endless mode: the tick it began and the endless second the current round began.
+  private beyondTick = 0;
+  private roundFrom = 0;
   private bossesEnded = new Set<number>();
   private criticalEntered = false;
   private finalEntered = false;
@@ -188,7 +193,24 @@ export class Game {
     return this.critical ? Math.max(0, radius - this.rules.critical.pull) : radius;
   }
   get critical(): boolean {
-    return this.time >= this.rules.critical.time;
+    return !this.endless && this.time >= this.rules.critical.time;
+  }
+  get endless(): boolean {
+    return this.clearResult !== null;
+  }
+  get endlessSeconds(): number {
+    return this.endless ? (this.tick - this.beyondTick) / this.rules.time.tickRate : 0;
+  }
+  get canContinue(): boolean {
+    return this.phase === 'result' && this.result?.outcome === 'success' && !this.endless;
+  }
+  // How far the current endless round is toward its giant, from 0 to 1.
+  get roundProgress(): number {
+    return Math.min(1, (this.endlessSeconds - this.roundFrom) / this.rules.endless.roundSeconds);
+  }
+  // Endless rounds cleared so far; each one is a step harder.
+  get endlessRounds(): number {
+    return this.endless ? this.round - this.rules.bosses.length - 2 : 0;
   }
   // How far the run is toward the Higgs particle's arrival, from 0 to 1.
   get finalProgress(): number {
@@ -197,23 +219,42 @@ export class Game {
   get boss(): Target | undefined {
     return this.targets.find((t) => t.final) ?? this.targets.find((t) => t.kind === 'boss');
   }
-  // Late particles grow tougher and faster by the minute after the last stage starts.
+  // Late particles grow tougher and faster by the minute after the last stage starts. Endless
+  // mode keeps the clear's strength and multiplies it once per round cleared.
   get enemyStrength(): { hp: number; speed: number } {
     const late = this.rules.late,
-      minutes = Math.max(0, (this.time - this.rules.stages.at(-1)!.start) / 60);
+      e = this.rules.endless,
+      at = this.clearResult?.collisionTime ?? this.time,
+      minutes = Math.max(0, (at - this.rules.stages.at(-1)!.start) / 60);
     const hp = 1 + minutes * late.hpPerMinute,
       speed = Math.min(late.maxSpeedScale, 1 + minutes * late.speedPerMinute);
+    if (this.endless) {
+      const steps = this.endlessRounds;
+      return {
+        hp: hp * e.roundHpMultiplier ** Math.min(steps, 600),
+        speed: speed * Math.min(e.maxSpeedScale, 1 + steps * e.roundSpeedStep),
+      };
+    }
     const c = this.rules.critical;
     return this.critical ? { hp: hp * c.hpScale, speed: speed * c.speedScale } : { hp, speed };
   }
   // After the last stage starts, each wave cycle opens with an assault, then a lull.
   get wavePhase(): 'steady' | 'assault' | 'recovery' {
-    const late = this.rules.late,
-      age = this.time - this.rules.stages.at(-1)!.start;
+    const e = this.rules.endless,
+      late = this.endless
+        ? { repeat: e.cycleSeconds, assault: e.assaultSeconds, recovery: e.recoverySeconds }
+        : {
+            repeat: this.rules.late.waveRepeatSeconds,
+            assault: this.rules.late.assaultSeconds,
+            recovery: this.rules.late.recoverySeconds,
+          },
+      age = this.endless
+        ? this.endlessSeconds - this.rules.spawn.waveWarningSeconds
+        : this.time - this.rules.stages.at(-1)!.start;
     if (age < 0) return 'steady';
-    const at = age % late.waveRepeatSeconds;
-    if (at < late.assaultSeconds) return 'assault';
-    return at < late.assaultSeconds + late.recoverySeconds ? 'recovery' : 'steady';
+    const at = age % late.repeat;
+    if (at < late.assault) return 'assault';
+    return at < late.assault + late.recovery ? 'recovery' : 'steady';
   }
   get rushing(): boolean {
     return (
@@ -351,6 +392,57 @@ export class Game {
     this.nextSpawn = this.staged((s) => s.spawnSeconds) * this.rules.time.tickRate;
   }
 
+  // Past a clear: the core, orbit and field reset and round seven begins; the build stays.
+  continueBeyond(): boolean {
+    if (!this.canContinue) return false;
+    const tickRate = this.rules.time.tickRate,
+      warning = this.rules.spawn.waveWarningSeconds,
+      last = this.waves.at(-1)!;
+    this.clearResult = this.result;
+    this.result = null;
+    this.phase = 'crossing';
+    this.phaseTicks = this.pendingTicks = 0;
+    this.mass = this.orbitRecovery = this.xpRemainder = 0;
+    this.radius = this.rules.orbit.radius;
+    this.choice = this.banner = null;
+    this.targets = [];
+    this.pending = [];
+    this.effects = [];
+    this.damageNumbers = [];
+    this.finalDown = false;
+    this.kills = [];
+    this.killEnergy = this.rushUntil = this.rushSpawns = 0;
+    this.combat.clear();
+    // A wave every `cycleSeconds`, the first after one warning.
+    this.waves = Array.from({ length: 600 }, (_, i) => ({
+      time: this.time + warning + i * this.rules.endless.cycleSeconds,
+      angle: (last.angle + (i + 1) * goldenAngle) % TAU,
+      scale: this.rules.late.waveScale,
+    }));
+    this.waveCount = 0;
+    this.plannedWave = -1;
+    this.nextSpawn = this.tick + warning * tickRate;
+    this.beyondTick = this.tick;
+    this.round = this.rules.bosses.length + 2;
+    this.roundFrom = 0;
+    // Slot r - 1 holds round r's giant; the cleared rounds' slots are behind.
+    this.bossOrder.length = this.round - 1;
+    this.log('beyond', { round: this.round });
+    return true;
+  }
+
+  // Ends an endless run where it stands; the result keeps what was gained beyond.
+  retire(): boolean {
+    if (!this.endless || (this.phase !== 'running' && this.phase !== 'crossing')) return false;
+    this.outcome = 'retired';
+    this.trigger = 'quit';
+    this.collisionTime = this.time;
+    this.choice = null;
+    this.combat.clear();
+    this.finishResult();
+    return true;
+  }
+
   // With `holdAtChoice`, combat stops as soon as cards are on offer.
   advance(milliseconds: number, tickLimit = Infinity, holdAtChoice = false): void {
     if (this.phase === 'ready' || this.phase === 'result') return;
@@ -486,8 +578,20 @@ export class Game {
     return this.rules.bosses.find((b) => b.kind === target.boss) ?? this.rules.higgs;
   }
 
-  // Bosses keep their times even while an earlier one is still alive.
+  // Bosses keep their times even while an earlier one is still alive. In endless mode one
+  // giant comes `roundSeconds` into each round, in boss order, and only once its round's
+  // giant has ended does the next round, and the next step in strength, begin.
   private enterMilestones(): void {
+    if (this.endless) {
+      const bosses = this.rules.bosses,
+        giant = bosses[this.endlessRounds % bosses.length];
+      if (
+        this.bossOrder.length < this.round &&
+        this.endlessSeconds - this.roundFrom + 1e-8 >= this.rules.endless.roundSeconds
+      )
+        this.addBoss(giant, giant.kind, 'boss');
+      return;
+    }
     const next = this.rules.bosses[this.bossCount];
     if (next && this.time >= next.time) {
       this.bossCount++;
@@ -642,6 +746,7 @@ export class Game {
     this.bossesEnded.add(id);
     while (this.bossesEnded.has(this.bossOrder[this.round - 1])) {
       this.round++;
+      this.roundFrom = this.endlessSeconds;
       this.log('round', { round: this.round, time: this.time });
     }
   }
@@ -838,6 +943,7 @@ export class Game {
   private place(members: Member[]): void {
     const placed = [];
     for (const member of members) {
+      if (this.endless && this.targets.length >= this.rules.endless.maxTargets) break;
       const target: Target = {
         ...member,
         id: this.nextId++,
@@ -1237,7 +1343,10 @@ export class Game {
       evolved: { ...this.evolved },
       pacts: { ...this.pacts },
       selections: this.selections.map((s) => ({ ...s })),
-      endless: null,
+      endless: this.clearResult && {
+        seconds: this.endlessSeconds,
+        xp: this.xp - this.clearResult.xp,
+      },
     };
     this.log('result', { outcome: this.outcome });
   }

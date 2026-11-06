@@ -411,6 +411,28 @@ svg {
 .title-sound[aria-pressed='true'] .title-sound-state {
   color: #b9edf6;
 }
+.records {
+  display: grid;
+  gap: 4px;
+  margin: 12px 0 0;
+  font-size: 12px;
+}
+.records div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.records dt {
+  color: var(--muted);
+}
+.records dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.new-best {
+  color: var(--blue);
+  font-weight: 700;
+}
 .title-meta {
   position: absolute;
   left: var(--gutter);

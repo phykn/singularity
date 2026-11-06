@@ -15,7 +15,7 @@ import type { Rules, SkillId } from '../src/game/rules.ts';
 // PRD Success criteria 2 and R23. Clear-rate ranges per policy.
 const clearRange: Record<string, [number, number]> = { qte: [0.15, 0.2], 'qte-off': [0.1, 0.15] };
 type Event = Game['events'][number];
-type Job = { seed: number; prefer?: SkillId };
+type Job = { seed: number; prefer?: SkillId; beyond?: boolean };
 type Run = {
   seed: number;
   prefer?: SkillId;
@@ -27,6 +27,8 @@ type Run = {
   level10At: number | null;
   evolved: boolean;
   firsts: [string, number][];
+  // Endless mode after a clear, when the job asks for it.
+  beyond: { seconds: number; roundsCleared: number; maxTargets: number } | null;
 };
 
 // "New things": the first sight of each giant, event, formation, species and wave.
@@ -42,13 +44,14 @@ const novel = (e: Event): string[] =>
 // Paused choices: the bot takes `prefer` when offered, otherwise the automatic card.
 // `qte` drives the real session at 60 Hz and taps every beat at the gate's center;
 // `qte-off` runs the model directly, which is the same game without taps.
-function play(cfg: Rules, policy: string, { seed, prefer }: Job, limitSeconds = 3600): Run {
+function play(cfg: Rules, policy: string, { seed, prefer, beyond }: Job, limitSeconds = 3600): Run {
   const game = new Game(seed, { rules: cfg, recordEvents: false }),
     tickRate = cfg.time.tickRate,
     firsts = new Map<string, number>([['start', 0]]);
   let cursor = 0,
     targetsAt120: number | null = null,
-    level10At: number | null = null;
+    level10At: number | null = null,
+    maxTargets = 0;
   const card = () =>
     game.choice!.cards.find((c) => c.id === prefer && game.canUpgrade(c.id)) ?? game.automaticCard;
   // The browser-sized log keeps a quarter second, so read it more often than that.
@@ -59,6 +62,7 @@ function play(cfg: Rules, policy: string, { seed, prefer }: Job, limitSeconds = 
     if (targetsAt120 === null && game.phase === 'running' && game.time >= 120)
       targetsAt120 = game.targets.length;
     if (level10At === null && game.level >= 10) level10At = game.time;
+    maxTargets = Math.max(maxTargets, game.targets.length);
   };
   const going = () => game.phase !== 'result' && game.elapsedTicks < limitSeconds * tickRate;
   if (policy === 'qte') {
@@ -78,37 +82,60 @@ function play(cfg: Rules, policy: string, { seed, prefer }: Job, limitSeconds = 
     });
     session.setReady(true, 0);
     session.start(0);
-    for (let frame = 1; going(); frame++) {
-      const wall = (frame * 1000) / 60,
-        r = session.rhythm;
-      session.frame(wall);
-      if (frame % 10 === 0) observe();
-      if (game.choice) {
-        const pick = card();
-        if (pick) session.select(pick.id, game.choice.number, wall);
-      } else if (session.rhythmAvailable && r.open && r.due <= r.age) session.tap(wall);
+    let frame = 1;
+    const drive = () => {
+      for (; going(); frame++) {
+        const wall = (frame * 1000) / 60,
+          r = session.rhythm;
+        session.frame(wall);
+        if (frame % 10 === 0) observe();
+        if (game.choice) {
+          const pick = card();
+          if (pick) session.select(pick.id, game.choice.number, wall);
+        } else if (session.rhythmAvailable && r.open && r.due <= r.age) session.tap(wall);
+      }
+    };
+    drive();
+    if (beyond && game.canContinue) {
+      session.continueBeyond((frame * 1000) / 60);
+      maxTargets = 0;
+      drive();
     }
   } else {
+    const drive = () => {
+      while (going()) {
+        game.run(10, true);
+        observe();
+        for (let pick = game.choice && card(); pick; pick = game.choice && card())
+          if (!game.choose(pick.id, game.choice!.number)) break;
+      }
+    };
     game.start();
-    while (going()) {
-      game.run(10, true);
-      observe();
-      for (let pick = game.choice && card(); pick; pick = game.choice && card())
-        if (!game.choose(pick.id, game.choice!.number)) break;
+    drive();
+    if (beyond && game.canContinue) {
+      game.continueBeyond();
+      maxTargets = 0;
+      drive();
     }
   }
   observe();
+  const clear = game.clearResult;
   return {
     seed,
     prefer,
-    win: game.result?.outcome === 'success',
+    win: (clear ?? game.result)?.outcome === 'success',
     ended: !!game.result,
-    seconds: game.result?.collisionTime ?? game.time,
+    seconds: (clear ?? game.result)?.collisionTime ?? game.time,
     round: game.round,
     targetsAt120,
     level10At,
     evolved: Object.keys(game.evolved).length > 0,
     firsts: [...firsts],
+    beyond: clear && {
+      seconds: game.result?.endless?.seconds ?? game.endlessSeconds,
+      roundsCleared: game.endlessRounds,
+      maxTargets,
+    },
   };
 }
 
@@ -128,7 +155,6 @@ async function main() {
   const defaults: Record<string, number> = { balance: 100, skills: 40, beyond: 100 };
   if (!(command in defaults)) throw new Error(`unknown command: ${command}`);
   if (!(policy in clearRange)) throw new Error(`unknown policy: ${policy}`);
-  if (command === 'beyond') throw new Error('beyond arrives with endless mode (T10)');
   const count = Number(countArg ?? defaults[command]),
     firstSeed = Number(firstArg ?? 480000),
     reportPath = reportArg ?? `artifacts/${command}.json`;
@@ -141,7 +167,7 @@ async function main() {
   const jobs: Job[] =
     command === 'skills'
       ? skillIds.flatMap((prefer) => seeds.map((seed) => ({ seed, prefer })))
-      : seeds.map((seed) => ({ seed }));
+      : seeds.map((seed) => ({ seed, beyond: command === 'beyond' }));
   // Interleaved chunks so slow late seeds spread over the workers.
   const workers = Math.max(1, Math.min(availableParallelism() - 1, jobs.length));
   const runs = (
@@ -176,6 +202,18 @@ async function main() {
     );
     report = { builds };
     summary = skillIds.map((id) => `${id} ${builds[id].wins}/${count}`).join(', ');
+  } else if (command === 'beyond') {
+    // Only cleared runs go beyond; the endless limit is the run's hour.
+    const beyond = runs.flatMap((r) => (r.beyond ? [{ seed: r.seed, ...r.beyond }] : []));
+    report = {
+      continuations: beyond.length,
+      medianSeconds: round(median(beyond.map((r) => r.seconds))),
+      medianRoundsCleared: median(beyond.map((r) => r.roundsCleared)),
+      maxRoundsCleared: Math.max(0, ...beyond.map((r) => r.roundsCleared)),
+      maxTargets: Math.max(0, ...beyond.map((r) => r.maxTargets)),
+      runs: beyond,
+    };
+    summary = `${beyond.length} cleared runs went beyond, median ${report.medianRoundsCleared} rounds cleared in ${report.medianSeconds}s, at most ${report.maxTargets} particles`;
   } else {
     const wins = runs.filter((r) => r.win),
       losses = runs.filter((r) => !r.win);

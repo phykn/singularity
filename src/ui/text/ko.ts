@@ -1,3 +1,7 @@
+import type { ParticleKind } from '../../game/particles.ts';
+import type { PactId, SkillId } from '../../game/rules.ts';
+// Skills whose effect rides on another skill's attacks.
+export type LinkEffect = 'repeat' | 'multi' | 'chain' | 'pierce' | 'return' | 'burst' | 'charge';
 // The reference language: every other language must have exactly these keys.
 export const ko = {
   loading: '준비 중',
@@ -25,6 +29,109 @@ export const ko = {
   retry: '다시하기',
   survived: '생존 시간',
   seed: '시드',
+  best: '최고 기록',
+  energy: '누적 경험치',
+  beyond: '특이점 너머로',
+  beyondXp: '추가 경험치',
+  round: '라운드',
+  newBest: '새 최고 기록',
+  evolve: '진화',
+  pact: '대가',
+  evolutions: {
+    chain: {
+      name: '회귀 연쇄',
+      summary: '연쇄가 되돌아옴',
+      description: '연쇄가 끝나면 약해진 번개가 다시 한 번 돌아 나갑니다',
+    },
+    multi: {
+      name: '번개 그물',
+      summary: '표적끼리 연결',
+      description: '갈래가 맞힌 표적들이 번개로 이어져 추가 피해를 줍니다',
+    },
+    pierce: {
+      name: '잔류 줄기',
+      summary: '관통선이 남음',
+      description: '관통선이 잠시 남아 지나가는 입자에 피해를 줍니다',
+    },
+    satellite: {
+      name: '위성 고리',
+      summary: '위성끼리 연결',
+      description: '위성 발사 때 위성끼리 이어져 사이의 입자에 피해를 줍니다',
+    },
+    strike: {
+      name: '천둥 폭풍',
+      summary: '낙뢰가 쉬지 않음',
+      description: '정해진 주기 사이에도 하늘에서 낙뢰가 계속 떨어집니다',
+    },
+    repeat: {
+      name: '연타',
+      summary: '처치하면 한 번 더',
+      description: '추가 타격으로 처치할 때마다 한 번 더 이어져 처치가 끊기지 않습니다',
+    },
+    burst: {
+      name: '연쇄 폭발',
+      summary: '방전이 다시 방전',
+      description: '방전으로 터진 입자도 다시 방전합니다(깊이 제한)',
+    },
+    charge: {
+      name: '방전 고리',
+      summary: '전자 주위로 고리',
+      description: '가득 찬 축전이 터질 때 전자 주위로 번개 고리가 퍼집니다',
+    },
+    return: {
+      name: '메아리',
+      summary: '한 번 더 왕복',
+      description: '돌아온 번개가 다시 튕겨 나가 같은 길을 한 번 더 지납니다',
+    },
+    surge: {
+      name: '광란',
+      summary: '처치로 폭주 연장',
+      description: '폭주 중에 처치하면 폭주 시간이 늘어납니다',
+    },
+    mark: {
+      name: '전염 표식',
+      summary: '표식이 옮아감',
+      description: '표식이 터질 때 주변 입자에 새 표식이 옮겨 붙습니다',
+    },
+    tempo: {
+      name: '완전 공명',
+      summary: '세 번째 박자에 한 바퀴',
+      description: '세 번째 박자마다 궤도 한 바퀴를 전부 쓸어냅니다',
+    },
+    spark: {
+      name: '튕기는 전하',
+      summary: '불꽃이 한 번 더',
+      description: '불꽃이 입자를 터뜨린 뒤 가까운 입자로 한 번 더 튕깁니다',
+    },
+    field: {
+      name: '과부하 장',
+      summary: '작은 전기장이 남음',
+      description: '전기장 안에서 터진 입자가 작은 전기장을 남겨 주변을 터뜨립니다',
+    },
+    fission: {
+      name: '임계 질량',
+      summary: '분열 반경 증가',
+      description: '분열이 이어질수록 폭발 반경이 커집니다',
+    },
+    overcharge: {
+      name: '이중 방전',
+      summary: '방전이 한 번 더',
+      description: '궤도 전체 방전이 잠시 뒤 한 번 더 일어납니다',
+    },
+  } as Record<SkillId, { name: string; summary: string; description: string }>,
+  pactTerms: {
+    overheat: { gain: (n: number) => `처치마다 속도 +${n}%`, cost: () => '끊기면 멈춤' },
+    blast: { gain: (n: number) => `폭발 피해 ×${n}`, cost: (n: number) => `피해 -${n}%` },
+    greed: { gain: (n: number) => `XP +${n}%`, cost: (n: number) => `입자 +${n}%` },
+    quiet: { gain: (n: number) => `${n}초마다 일제 방전`, cost: () => '기본공격 멈춤' },
+    overclock: { gain: () => '궤도에 전류', cost: () => '방출 불가' },
+    pulse: { gain: () => '박자마다 궤도 방전', cost: (n: number) => `놓치면 질량+${n}` },
+    gamble: { gain: (n: number) => `치명타 ×${n}`, cost: (n: number) => `비치명 -${n}%` },
+    horizon: {
+      gain: (n: number) => `질량당 피해 +${n}%`,
+      cost: (n: number) => `질량 +1/${n}초`,
+    },
+  } as Record<PactId, { gain: (n: number) => string; cost: (n: number) => string }>,
   rhythmTap: '빛날 때 탭',
   guideRhythm:
     '전자가 밝은 구간을 지날 때 화면을 탭하거나 Space·Enter를 누르세요. ✓는 성공, ×는 실패. 매번 추가 타격, 세 번 연속 성공하면 모든 적에게 공명 방전과 함께 핵 질량이 조금 줄어듭니다(가속 회로가 있으면 줄지 않음). 실패해도 자동 전투는 그대로입니다.',
@@ -59,6 +166,82 @@ export const ko = {
   countdown: (n: number) => `${n}초 뒤 자동 선택`,
   rankUp: (a: number, b: number) => `${a}→${b}단계`,
   rarities: { common: '일반', rare: '희귀', epic: '에픽', legendary: '전설' },
+  guide: '도움말',
+  settings: '설정',
+  close: '닫기',
+  quitConfirm: '그만하기',
+  quitBeyondNote: '특이점과 생존 기록은 유지됩니다.',
+  unlimited: '상한 없이 강화',
+  skillDetails: '스킬 정보',
+  stats: '능력치',
+  locked: '잠긴 스킬 슬롯. 거대 입자를 격파하면 열림',
+  particle: '입자',
+  guideTitle: '플레이 방법',
+  guideEnergy: '적 처치로 XP 획득. 레벨이 오르면 강화 선택.',
+  guideGoal: (time: string) =>
+    `${time}에 힉스 입자가 나타나고, 격파하면 특이점 형성. 놓친 입자가 핵에 쌓이면 궤도가 좁아지고, 충돌 시 전자 소멸. XP는 레벨에만 쓰이고, 힉스 입자를 격파하는 데 시간 제한은 없음.`,
+  guideChoice:
+    '이동·공격은 자동. 선택 중에는 정지하며, 진행하면 5초 뒤 진화 카드, 궤도에 여유가 있을 때의 대가 카드, 공격력·공격속도, 최고 등급 순서로 자동 선택합니다.',
+  guideRarity:
+    '등급은 스킬과 질량 방출에만 있음. 스킬은 첫 선택으로 고정되고 미습득은 다시 추첨, 질량 방출은 매번 추첨.',
+  guideCombo: '갈래·연속·연쇄·관통은 다른 번개에도 적용.',
+  guideLimits: (slots: number, kills: number) =>
+    `스킬은 ${slots}종류까지, 거대 입자를 ${kills}마리 격파하면 한 칸 더. 능력치는 계속 강화할 수 있습니다. 다른 화면으로 이동하면 정지, 돌아오면 계속.`,
+  guideLate: (bosses: string[], critical: string) =>
+    `${bosses.join('·')}에 거대 입자가 핵으로 다가옵니다. 살아 있는 동안 핵이 자라고, 놓치면 큰 질량이 쌓입니다. ${critical}부터는 임계 돌파로 궤도가 좁아지고 입자가 몰려옵니다. 힉스 입자가 핵에 닿으면 실패합니다.`,
+  guideEvolve: (chance: string, top: string, max: number) =>
+    `5단계가 된 스킬은 레벨 업 때마다 ${chance}% 확률로만 진화 카드가 나옵니다. 행운이 높으면 조금 더 자주(최대 ${top}%) 나오지만, 여러 번 안 나와도 보장되지 않는 드문 대박입니다. 자동 선택은 진화 카드를 가장 먼저 고릅니다. 대가 카드는 강한 효과에 위험이 따르며 한 판에 ${max}장까지 가질 수 있고, 궤도에 여유가 있을 때만 자동 선택됩니다.`,
+  metric: {
+    satellites: (n: string) => `${n}개`,
+    charge: '충전',
+    kills: '처치',
+    radius: '반경',
+    damage: '피해량',
+    rate: '공격속도',
+    range: '사거리',
+    length: '길이',
+    width: '너비',
+    hits: (n: string) => `${n}회 타격`,
+    targets: (n: string) => `동시에 ${n}개`,
+    links: (n: string) => `${n}회 연쇄`,
+    crit: '치명타',
+    evolve: '진화',
+  },
+  change: {
+    rate: '쿨타임 ↓',
+    repeat: '연타',
+    multi: '갈래',
+    pierce: ['일직선 관통', '관통 길이 ↑'],
+    burst: ['처치하면 방전', '대상·위력 ↑'],
+    satellite: ['주위를 돌며 방전', '위성 수 ↑'],
+    charge: ['충전 후 방전', '충전↓위력↑'],
+    surge: ['처치·적중 후 난사', '폭주 시간 ↑'],
+    return: ['귀환 경로 관통', '경로·위력 ↑'],
+    mark: ['표식 후 연쇄 폭발', '표식↓위력↑'],
+    tempo: ['박자마다 궤도 쓸기', '대상·위력 ↑'],
+    spark: ['흩어지는 불꽃', '불꽃 수·위력 ↑'],
+    field: ['주변을 한꺼번에', '범위·위력 ↑'],
+    fission: ['이웃까지 터뜨림', '깊이·위력 ↑'],
+    overcharge: ['처치로 달아오름', '처치↓위력↑'],
+  },
+  link: '연계',
+  links: {
+    repeat: '연속 발사',
+    multi: '갈래 추가',
+    chain: '연쇄 전이',
+    pierce: '관통 추가',
+    return: '역류 추가',
+    burst: '처치 방전',
+    charge: '전하 축적',
+  } as Record<LinkEffect, string>,
+  particles: {
+    quark: '쿼크',
+    muon: '뮤온',
+    proton: '양성자',
+    neutron: '중성자',
+    neutrino: '중성미자',
+    meson: '중간자',
+  } as Record<ParticleKind, string>,
   upgrades: {
     power: { name: '공격력', short: '공격력', description: '모든 번개의 피해량 증가' },
     rate: {

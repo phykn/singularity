@@ -83,3 +83,73 @@ test('two fallen giants open the fifth slot', () => {
   assert.equal(g.skillSlots, rules.growth.skillSlots + 1);
   assert.equal(g.banner?.kind, 'slot-open');
 });
+
+// A cleared run continued beyond the singularity.
+function beyond(): Game {
+  const g = fresh();
+  g.bossCount = rules.bosses.length;
+  at(g, rules.higgs.time);
+  g.damageTarget(
+    g.targets.find((t) => t.final)!,
+    1e12,
+  );
+  g.run(600);
+  assert.equal(g.continueBeyond(), true);
+  g.run(Math.ceil(rules.time.beyondSeconds * tickRate) + 1);
+  assert.equal(g.phase, 'running');
+  return g;
+}
+
+test('endless mode opens round seven; a giant comes each round, one step harder each', () => {
+  const g = beyond(),
+    e = rules.endless,
+    kinds = [];
+  assert.equal(g.round, rules.bosses.length + 2);
+  assert.equal(g.critical, false, 'no critical breach beyond');
+  const base = g.enemyStrength.hp;
+  for (let round = 0; round < rules.bosses.length + 1; round++) {
+    g.mass = 0; // giants feed the core; keep the orbit open for six rounds
+    const from = g.endlessSeconds;
+    g.run(Math.round(e.roundSeconds * tickRate) - 2);
+    assert.equal(
+      g.targets.some((t) => t.boss),
+      false,
+      `round ${g.round}: giant came early`,
+    );
+    g.run(2);
+    const giant = g.targets.find((t) => t.boss)!;
+    assert.ok(giant, `round ${g.round}: no giant at ${from + e.roundSeconds}s`);
+    kinds.push(giant.boss);
+    g.run(5 * tickRate);
+    assert.equal(g.targets.filter((t) => t.boss).length, 1, 'one giant per round');
+    const strength = g.enemyStrength.hp;
+    // The Z boson shrugs off hits while it is immune.
+    for (let i = 0; i < 20 * tickRate && g.targets.includes(giant); i++) {
+      g.damageTarget(giant, 1e12);
+      g.run(1);
+    }
+    assert.equal(g.round, rules.bosses.length + 3 + round);
+    assert.ok(
+      Math.abs(g.enemyStrength.hp / strength - e.roundHpMultiplier) < 1e-9,
+      'hp steps up only when the round ends',
+    );
+  }
+  assert.deepEqual(kinds, [...rules.bosses.map((b) => b.kind), rules.bosses[0].kind]);
+  assert.ok(g.enemyStrength.hp > base);
+  assert.equal(
+    g.targets.some((t) => t.final),
+    false,
+    'the Higgs does not return',
+  );
+});
+
+test('quitting an endless run keeps the clear and reports the time beyond', () => {
+  const g = beyond();
+  g.run(10 * tickRate);
+  assert.equal(g.retire(), true);
+  assert.equal(g.result?.outcome, 'retired');
+  assert.equal(g.result?.trigger, 'quit');
+  assert.ok(Math.abs(g.result!.endless!.seconds - 10) < 0.1);
+  assert.equal(g.clearResult?.outcome, 'success');
+  assert.equal(fresh().retire(), false, 'a normal run cannot retire');
+});

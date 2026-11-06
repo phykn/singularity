@@ -1,7 +1,8 @@
 import type { Game } from '../game/Game.ts';
-import { isSkill, isStat } from '../game/rules.ts';
+import { isPact, isSkill, isStat } from '../game/rules.ts';
 import type { Card, UpgradeId } from '../game/rules.ts';
 import { ControlIcon, Rank, SkillIcon } from './icons.tsx';
+import { pactText, skillChange, skillLinks } from './skillText.ts';
 import { copy } from './text/index.ts';
 import type { Language } from './text/index.ts';
 import { useChoiceInput } from './useChoiceInput.ts';
@@ -30,14 +31,36 @@ export function Choices({
   if (!choice) return null;
   const max = game.rules.growth.maxRank,
     seconds = Math.ceil(secondsLeft);
-  const tag = ({ id, rarity }: Card) => (isStat(id) ? '' : c.rarities[rarity]);
-  const step = (id: UpgradeId) => {
-    const rank = game.rank(id);
-    return id === 'recover'
-      ? c.instant
-      : rank || !isSkill(id)
-        ? c.rankUp(rank, rank + 1)
-        : c.newSkill;
+  const tag = ({ id, rarity, evolve }: Card) =>
+    evolve ? c.evolve : isPact(id) ? c.pact : isStat(id) ? '' : c.rarities[rarity];
+  // The headline, what the pick changes, the long description and the foot of each card.
+  const words = ({ id, rarity, evolve }: Card) => {
+    if (evolve && isSkill(id)) {
+      const e = c.evolutions[id];
+      return { title: e.name, value: e.summary, description: e.description, cost: '', links: [] };
+    }
+    const rank = game.rank(id),
+      links = isSkill(id) ? skillLinks(id, game.ownedSkills) : [];
+    if (isPact(id)) {
+      const { gain, cost } = pactText(id, c, game.rules.pacts);
+      return {
+        title: c.upgrades[id].short,
+        value: gain,
+        description: c.upgrades[id].description,
+        cost,
+        links,
+      };
+    }
+    const prior = game.rarities[id] ?? rarity;
+    return {
+      title: c.upgrades[id].short,
+      value: skillChange(id, rank, rarity, prior, c, game.rules, game.mass),
+      description: c.upgrades[id].description,
+      stage:
+        id === 'recover' ? c.instant : rank || !isSkill(id) ? c.rankUp(rank, rank + 1) : c.newSkill,
+      cost: '',
+      links,
+    };
   };
   return (
     <section className="choices" aria-label={c.choices}>
@@ -65,18 +88,25 @@ export function Choices({
       </div>
       <div className="cards" data-ready={pointerReady} ref={cards} onKeyDown={navigate}>
         {choice.cards.map((card) => {
-          const { id, rarity } = card,
+          const { id, rarity, evolve } = card,
             rank = game.rank(id),
-            text = c.upgrades[id];
+            text = words(card);
           return (
             <button
               key={`${choice.number}-${id}`}
               className={`card ${id === automatic ? 'auto' : ''}`}
               data-rarity={rarity}
               data-upgrade={id}
+              data-evolve={!!evolve}
+              data-pact={isPact(id)}
               aria-label={[
-                `${tag(card)} ${text.short}`.trim(),
-                step(id),
+                `${tag(card)} ${text.title}`.trim(),
+                ...(text.stage ? [text.stage] : []),
+                text.value,
+                ...(text.cost ? [text.cost] : []),
+                ...text.links.map(
+                  (link) => `${c.link}: ${c.upgrades[link.skill].name} ${c.links[link.effect]}`,
+                ),
                 text.description,
                 ...(id === automatic ? [c.auto] : []),
               ].join(', ')}
@@ -88,14 +118,27 @@ export function Choices({
                 {id === automatic && <ControlIcon id="next" size={12} />}
               </span>
               <span className="card-icon">
-                <SkillIcon id={id} size={32} />
-                {isSkill(id) && <Rank value={rank} max={max} next={rank + 1} />}
+                <SkillIcon id={id} size={32} evolved={evolve} />
+                {isSkill(id) && !evolve && <Rank value={rank} max={max} next={rank + 1} />}
               </span>
-              <strong>{text.short}</strong>
+              <strong>{text.title}</strong>
               <span className="card-value" title={text.description}>
-                {step(id)}
+                {text.value}
               </span>
-              <span className="card-foot" aria-hidden="true" />
+              <span className={`card-foot ${text.cost ? 'pact-cost' : ''}`} aria-hidden="true">
+                {text.cost ||
+                  (text.links.length > 0 && (
+                    <>
+                      {text.links.map((link) => (
+                        <SkillIcon key={link.skill} id={link.skill} size={16} />
+                      ))}
+                      <span>
+                        {text.links.length === 1 ? c.links[text.links[0].effect] : c.link}
+                      </span>
+                    </>
+                  )) ||
+                  (isStat(id) && `${rank}→${rank + 1}`)}
+              </span>
             </button>
           );
         })}

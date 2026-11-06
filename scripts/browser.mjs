@@ -1,9 +1,10 @@
 // Browser checks: `npm run check:browser -- <scenario...>`. Uses GAME_URL when set,
 // otherwise starts its own dev server on a free port. BROWSER_PATH picks the executable.
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { launchBrowser } from './launch.mjs';
 
-const scenarios = { smoke, choices, 'late-game': lateGame };
+const scenarios = { smoke, choices, 'late-game': lateGame, languages: languageLayout };
 const wanted = process.argv.slice(2).filter((arg) => !arg.startsWith('--'));
 const names = !wanted.length || wanted.includes('all') ? Object.keys(scenarios) : wanted;
 for (const name of names) if (!scenarios[name]) throw new Error(`unknown scenario: ${name}`);
@@ -14,7 +15,7 @@ let server;
 async function main() {
   const started = performance.now();
   server = await serve();
-  const browser = await launch();
+  const browser = await launchBrowser();
   let failed = false;
   try {
     for (const name of names) {
@@ -60,17 +61,6 @@ async function serve() {
   });
   await vite.listen();
   return { url: vite.resolvedUrls.local[0], close: () => vite.close() };
-}
-
-async function launch() {
-  const { chromium } = await import('playwright');
-  const executablePath =
-    process.env.BROWSER_PATH ??
-    [
-      'C:/Program Files/Google/Chrome/Application/chrome.exe',
-      'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-    ].find(existsSync);
-  return chromium.launch({ headless: true, ...(executablePath && { executablePath }) });
 }
 
 // Every page records the audio contexts it opens.
@@ -140,6 +130,25 @@ async function smoke(page) {
   await result.waitFor({ timeout: 3000 });
   await page.getByRole('button', { name: 'Retry' }).waitFor();
   pass('a loss reaches the result screen');
+
+  // Values exactly as the old game saved them.
+  await page.evaluate(() => {
+    localStorage.setItem(
+      'singularity.record',
+      '{"outcome":"success","xp":5200,"level":31,"seed":12345,"collisionTime":1010.5}',
+    );
+    localStorage.setItem('singularity.beyond', '{"seconds":214.25,"xp":900,"seed":777}');
+    localStorage.setItem('singularity.language', '"ko"');
+    localStorage.setItem('singularity.sound', 'false');
+  });
+  await page.reload();
+  await loaded(page);
+  const records = await page.locator('.preparation .records').innerText();
+  assert.match(records, /최고 기록\s+특이점 · 누적 경험치 5200/);
+  assert.match(records, /특이점 너머로\s+∞ 03:34 · 추가 경험치 900/);
+  assert.equal(await page.evaluate(() => document.documentElement.lang), 'ko');
+  assert.equal(await title.getAttribute('aria-pressed'), 'false');
+  pass('old saved records, language and sound show on the title', { records });
 }
 
 // Opens the next offer through the debug hook and returns its number.
@@ -239,6 +248,140 @@ async function lateGame(page) {
   });
   await page.getByRole('dialog', { name: 'Singularity' }).waitFor({ timeout: 3000 });
   pass('popping the Higgs wins the run');
+
+  await page.getByRole('button', { name: 'BEYOND' }).click();
+  await page.evaluate(() => window.__gameDebug.advance(3000));
+  await page.getByRole('progressbar', { name: 'Round 7' }).waitFor({ timeout: 2000 });
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  await page.locator('.pause-panel').getByRole('button', { name: 'End run' }).click();
+  await page.locator('.pause-panel.is-confirming').getByRole('button', { name: 'End run' }).click();
+  const beyond = page.getByRole('dialog', { name: 'BEYOND' });
+  await beyond.waitFor({ timeout: 2000 });
+  assert.match(await beyond.innerText(), /New best/);
+  assert.match(await page.locator('.result .records').innerText(), /BEYOND\s+∞ 00:0\d/);
+  pass('beyond the clear, endless mode opens round 7 and quitting records it');
+}
+
+// Layout problems a player would see: page overflow, small or offscreen buttons, clipped card
+// text, overlapping HUD items and untranslated Korean.
+async function layout(page, language, scope = 'body') {
+  const issues = await page.evaluate(
+    ([language, scope]) => {
+      const issues = [],
+        root = document.documentElement;
+      if (root.scrollWidth > innerWidth || root.scrollHeight > innerHeight)
+        issues.push('page overflow');
+      for (const button of document.querySelectorAll('button')) {
+        if (button.closest('[inert]') || !button.checkVisibility()) continue;
+        const r = button.getBoundingClientRect(),
+          name = button.getAttribute('aria-label') ?? button.textContent;
+        if (button.matches('.slot-inspect')) continue;
+        if (r.width < 32 || r.height < 32) issues.push(`small: ${name} ${r.width}x${r.height}`);
+        if (
+          r.left < -0.5 ||
+          r.top < -0.5 ||
+          r.right > innerWidth + 0.5 ||
+          r.bottom > innerHeight + 0.5
+        )
+          issues.push('offscreen: ' + name);
+      }
+      for (const node of document.querySelectorAll(
+        '.card-label, .card strong, .card-value, .card-foot, .arena-caption h1, .event-banner',
+      ))
+        if (node.scrollWidth > node.clientWidth + 1) issues.push('clipped: ' + node.textContent);
+      const hud = [...document.querySelectorAll('.hud-top > *')].map((n) =>
+        n.getBoundingClientRect(),
+      );
+      for (let i = 1; i < hud.length; i++)
+        if (hud[i].left < hud[i - 1].right - 0.5) issues.push('overlapping HUD');
+      if (hud.length && (hud[0].left < 0 || hud.at(-1).right > innerWidth))
+        issues.push('offscreen HUD');
+      if (language !== 'ko') {
+        const text = [...document.querySelectorAll(scope)].map((n) => n.innerText).join(' ');
+        const korean = text.match(/[가-힣]+/g)?.filter((word) => word !== '한국어');
+        if (korean?.length) issues.push('untranslated: ' + korean.slice(0, 3).join(' '));
+      }
+      return issues;
+    },
+    [language, scope],
+  );
+  const size = page.viewportSize();
+  assert.deepEqual(issues, [], `${language} ${size.width}x${size.height}`);
+}
+
+// Every language on a small phone, a large phone and a landscape phone: title, help, HUD at its
+// widest, cards, pause, and the result.
+async function languageLayout(page) {
+  const { copy, languages } = await import('../src/ui/text/index.ts');
+  const { iconIds } = await import('../src/art/skills.ts');
+  await open(page);
+  for (const { id, label, html } of languages) {
+    const c = copy[id];
+    for (const [width, height] of [
+      [320, 568],
+      [430, 932],
+      [812, 375],
+    ]) {
+      await page.setViewportSize({ width, height });
+      await page.evaluate(() => window.__gameDebug.prepare(10004));
+      await page.getByRole('button', { name: label, exact: true }).click();
+      await page.waitForFunction((html) => document.documentElement.lang === html, html);
+      await layout(page, id);
+      await page.getByRole('button', { name: c.guide, exact: true }).click();
+      assert.equal(await page.locator('.skill-guide > div').count(), iconIds.length);
+      await layout(page, id, '.guide');
+      await page.getByRole('button', { name: c.close, exact: true }).click();
+
+      await page.getByRole('button', { name: 'START', exact: true }).click();
+      await page.locator('.hud').waitFor();
+      // The widest HUD: high level, the Higgs due and mass near the limit.
+      await page.evaluate(() => {
+        const debug = window.__gameDebug;
+        debug.restart(10004, false);
+        const game = debug.getGame();
+        game.xp = 500000;
+        game.mass = 900;
+        game.bossCount = game.rules.bosses.length;
+        game.tick = game.rules.higgs.time * game.rules.time.tickRate - 1;
+        debug.advance(20);
+      });
+      await layout(page, id);
+      await page.evaluate(() => {
+        const debug = window.__gameDebug;
+        debug.restart(10004);
+        for (let i = 0; i < 1200 && !debug.getGame().choice; i++) debug.advance(100);
+      });
+      await page.locator('.card').first().waitFor();
+      await layout(page, id, '.choices');
+      if (width === 430) {
+        await page.waitForTimeout(200); // the cards fade in
+        await page.screenshot({ path: `artifacts/browser-cards-${id}.png` });
+      }
+      await page.getByRole('button', { name: c.pause, exact: true }).click();
+      await layout(page, id, '.pause-panel');
+      await page.getByRole('button', { name: c.quit, exact: true }).click();
+      await layout(page, id, '.pause-panel');
+      await page.getByRole('button', { name: c.back, exact: true }).click();
+      await page.getByRole('button', { name: c.resume, exact: true }).click();
+
+      await page.evaluate(() => {
+        const debug = window.__gameDebug;
+        debug.restart(10004, false);
+        const game = debug.getGame();
+        game.bossCount = game.rules.bosses.length;
+        game.tick = game.rules.higgs.time * game.rules.time.tickRate - 1;
+        debug.advance(20);
+        game.damageTarget(
+          game.targets.find((t) => t.final),
+          1e12,
+        );
+        for (let i = 0; i < 20 && game.phase !== 'result'; i++) debug.advance(500);
+      });
+      await page.getByRole('heading', { name: c.success, exact: true }).waitFor();
+      await layout(page, id, '.result');
+    }
+    pass(`${id} fits at three sizes`);
+  }
 }
 
 await main();

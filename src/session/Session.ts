@@ -98,6 +98,22 @@ export class Session {
     this.hooks.redraw();
   }
 
+  // Endless mode from a cleared result, and its end by choice.
+  continueBeyond(wall: number): void {
+    if (!this.game.continueBeyond()) return;
+    this.wall = wall;
+    this.paused = false;
+    this.rhythm = new Rhythm(this.game.seed ^ this.game.round);
+    if (this.hooks.sound()) void this.unlock();
+    this.hooks.redraw();
+  }
+  retire(wall: number): void {
+    this.frame(wall);
+    this.paused = false;
+    if (this.game.retire()) this.frame(wall);
+    this.hooks.redraw();
+  }
+
   pause(paused: boolean, wall: number): void {
     this.frame(wall);
     if (this.game.phase === 'ready' || this.game.phase === 'result') return;

@@ -3,7 +3,7 @@ import { GameAudio } from '../audio/GameAudio.ts';
 import { Game } from '../game/Game.ts';
 import type { Rhythm } from '../session/rhythm.ts';
 import { Session } from '../session/Session.ts';
-import { keys, newSeed, readLanguage, readSound, save } from '../session/storage.ts';
+import { Records, keys, newSeed, readLanguage, readSound, save } from '../session/storage.ts';
 import type { Language } from '../session/storage.ts';
 import type { UpgradeId } from '../game/rules.ts';
 import { htmlLang } from './text/index.ts';
@@ -31,6 +31,7 @@ export function useGame() {
     readLanguage(storage, navigator.languages ?? [navigator.language]),
   );
   const [sound, setSound] = useState(() => readSound(storage));
+  const [records] = useState(() => new Records(() => storage));
   const [audioFailed, setAudioFailed] = useState(false);
   const [storageFailed, setStorageFailed] = useState(false);
   const [, setFrame] = useState(0);
@@ -54,7 +55,7 @@ export function useGame() {
           setSound(false);
           setAudioFailed(true);
         },
-        record: () => {},
+        record: (result) => setStorageFailed(!records.record(result, now())),
         redraw,
       }),
   );
@@ -89,6 +90,8 @@ export function useGame() {
     window.addEventListener('pagehide', leave);
     const step = (wall: number) => {
       session.frame(wall);
+      const retried = records.retry(wall);
+      if (retried !== undefined) setStorageFailed(!retried);
       frame = requestAnimationFrame(step);
     };
     frame = requestAnimationFrame(step);
@@ -99,7 +102,7 @@ export function useGame() {
       window.removeEventListener('pagehide', leave);
       session.dispose();
     };
-  }, [session]);
+  }, [session, records]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -128,6 +131,7 @@ export function useGame() {
 
   return {
     session,
+    records,
     game: session.game,
     language,
     sound,
@@ -143,6 +147,12 @@ export function useGame() {
     select: (id: UpgradeId, number: number) => session.select(id, number, now()),
     tap: () => session.tap(now()),
     restart: () => session.replace(fresh(session.game.seed), now()),
+    beyond: () => session.continueBeyond(now()),
+    // Ending a run from the pause menu: an endless run ends with its result, others start over.
+    quit: () =>
+      session.game.endless
+        ? session.retire(now())
+        : session.replace(fresh(session.game.seed), now()),
   };
 }
 

@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import controlAtlas from '../art/assets/controls.png';
+import particleAtlas from '../art/assets/particles.png';
 import skillAtlas from '../art/assets/skills.png';
 import {
   controlAtlasSize,
@@ -9,6 +10,8 @@ import {
   iconCells,
 } from '../art/skills.ts';
 import type { ControlId } from '../art/skills.ts';
+import { particleFrames } from '../art/particles.ts';
+import type { ParticleKind } from '../game/particles.ts';
 import { isSkill } from '../game/rules.ts';
 import type { UpgradeId } from '../game/rules.ts';
 
@@ -120,6 +123,21 @@ export function SoundIcon({ enabled }: { enabled: boolean }) {
       ) : (
         <path d="M10 6L14 10 M14 6L10 10" fill="none" stroke="currentColor" />
       )}
+    </svg>
+  );
+}
+
+export function ParticleIcon({ id }: { id: ParticleKind }) {
+  return (
+    <svg width={32} height={32} viewBox="0 0 16 16" overflow="hidden" aria-hidden="true">
+      <image
+        href={particleAtlas}
+        x={-particleFrames[id] * 16}
+        y={0}
+        width={96}
+        height={16}
+        style={pixelated}
+      />
     </svg>
   );
 }

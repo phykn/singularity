@@ -6,23 +6,29 @@ import { arenaViewport, endingFrame } from '../render/timeline.ts';
 import { Choices } from './Choices.tsx';
 import { Dialog } from './Dialog.tsx';
 import { EventBanner } from './EventBanner.tsx';
+import { Guide } from './Guide.tsx';
 import { Hud } from './Hud.tsx';
 import { ControlIcon, SoundIcon } from './icons.tsx';
 import { Loadout } from './Loadout.tsx';
-import { Result } from './Result.tsx';
+import { Best, Result } from './Result.tsx';
 import { RhythmInput } from './RhythmInput.tsx';
+import { SkillDetails } from './SkillDetails.tsx';
 import { copy, languages } from './text/index.ts';
 import type { Language } from './text/index.ts';
 import { useGame } from './useGame.ts';
+import { useMenu } from './useMenu.ts';
 
 export default function App() {
   const g = useGame(),
     { session, game, language } = g,
     c = copy[language],
     ready = game.phase === 'ready',
-    paused = session.paused && game.phase !== 'result';
-  const arena = useRef<HTMLElement>(null),
-    caption = useRef<HTMLDivElement>(null),
+    paused = session.paused && game.phase !== 'result',
+    menu = useMenu(session, g.pause),
+    { panel, arena } = menu,
+    confirming = panel?.kind === 'quit',
+    modal = panel !== null || paused || game.phase === 'result';
+  const caption = useRef<HTMLDivElement>(null),
     github = useRef<HTMLAnchorElement>(null);
 
   // The title sits halfway between the header and the top of the orbit.
@@ -70,9 +76,9 @@ export default function App() {
   return (
     <main
       style={{ '--scene-hud': endingFrame(game)?.hud ?? 1 } as CSSProperties}
-      className={`app ${ready ? 'is-ready' : ''}`}
+      className={`app ${game.endless ? 'is-beyond' : ''} ${ready ? 'is-ready' : ''}`}
     >
-      <div className="play-layout" inert={paused || (!ready && !session.ready)}>
+      <div className="play-layout" inert={modal || (!ready && !session.ready)}>
         {ready ? (
           <header className="topbar">
             <a
@@ -88,6 +94,24 @@ export default function App() {
               <span>GitHub</span>
               <ControlIcon id="star" className="github-star" />
             </a>
+            <div className="header-actions">
+              <button
+                className="icon-button"
+                aria-label={c.guide}
+                aria-haspopup="dialog"
+                onClick={() => menu.open('guide')}
+              >
+                <ControlIcon id="help" />
+              </button>
+              <button
+                className="icon-button"
+                aria-label={c.settings}
+                aria-haspopup="dialog"
+                onClick={() => menu.open('settings')}
+              >
+                <ControlIcon id="settings" />
+              </button>
+            </div>
           </header>
         ) : (
           <Hud
@@ -95,7 +119,7 @@ export default function App() {
             language={language}
             speed={session.speed}
             onSpeed={g.cycleSpeed}
-            onPause={() => g.pause(true)}
+            onPause={() => menu.pause(true)}
           />
         )}
         {ready && (
@@ -124,7 +148,7 @@ export default function App() {
           className="footer"
           aria-label={ready ? 'START' : game.choice ? c.choices : c.loadout}
         >
-          {!ready && <Loadout game={game} language={language} />}
+          {!ready && <Loadout game={game} language={language} onInspect={menu.inspect} />}
           {!ready && (
             <Choices
               game={game}
@@ -144,6 +168,7 @@ export default function App() {
                 <ControlIcon id="next" />
               </button>
               {picker}
+              <Best records={g.records} language={language} />
               {notice}
             </div>
           )}
@@ -155,25 +180,85 @@ export default function App() {
           <span>v{version}</span>
         </small>
       )}
-      {paused && (
-        <Dialog titleId="pause-title" className="pause-panel">
+      {panel?.kind === 'guide' && (
+        <Guide rules={game.rules} language={language} onClose={menu.close} />
+      )}
+      {panel?.kind === 'settings' && (
+        <Dialog titleId="settings-title" className="settings-panel">
+          <div className="dialog-title">
+            <h2 id="settings-title">{c.settings}</h2>
+            <button className="text-button" onClick={menu.close}>
+              {c.close}
+            </button>
+          </div>
           <div className="dialog-body">
-            <h2 id="pause-title">{c.pause}</h2>
             {soundToggle}
             {picker}
             {notice}
           </div>
+        </Dialog>
+      )}
+      {panel?.kind === 'skill' && (
+        <SkillDetails game={game} id={panel.id} language={language} onClose={menu.close} />
+      )}
+      {paused && (!panel || confirming) && (
+        <Dialog
+          titleId="pause-title"
+          className={`pause-panel ${confirming ? 'is-confirming' : ''}`}
+          focusKey={confirming ? 'quit' : 'pause'}
+        >
+          <div className="dialog-body">
+            <h2 id="pause-title">{confirming ? c.quitTitle : c.pause}</h2>
+            {confirming ? (
+              <p>{game.endless ? c.quitBeyondNote : c.quitNote}</p>
+            ) : (
+              <>
+                {soundToggle}
+                {picker}
+                {notice}
+              </>
+            )}
+          </div>
           <div className="dialog-actions">
-            <button className="primary" onClick={() => g.pause(false)}>
-              {c.resume}
-            </button>
-            <button className="text-button" onClick={g.restart}>
-              {c.quit}
-            </button>
+            {confirming ? (
+              <>
+                <button
+                  className="text-button quit-button"
+                  onClick={() => {
+                    menu.close();
+                    g.quit();
+                  }}
+                >
+                  {c.quitConfirm}
+                </button>
+                <button className="primary" data-autofocus onClick={menu.close}>
+                  {c.back}
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="primary" onClick={() => menu.pause(false)}>
+                  {c.resume}
+                </button>
+                <button className="text-button" onClick={() => menu.open('guide')}>
+                  {c.guide}
+                </button>
+                <button className="text-button" onClick={() => menu.open('quit')}>
+                  {c.quit}
+                </button>
+              </>
+            )}
           </div>
         </Dialog>
       )}
-      <Result game={game} language={language} notice={notice} onRetry={g.restart} />
+      <Result
+        game={game}
+        language={language}
+        records={g.records}
+        notice={notice}
+        onRetry={g.restart}
+        onBeyond={g.beyond}
+      />
     </main>
   );
 }

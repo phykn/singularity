@@ -103,6 +103,16 @@ export class Combat {
     this.nextAttack = game.rules.combat.attackSeconds * game.rules.time.tickRate;
   }
 
+  // Drops attacks in flight and lingering effects, for a field that is emptied.
+  clear(): void {
+    this.scheduled = [];
+    this.trails = [];
+    this.marked.clear();
+    this.streak = 0;
+    this.surge.until = this.surge.charge = 0;
+    this.surge.attack = undefined;
+  }
+
   get surging(): boolean {
     return this.game.time < this.surge.until;
   }
