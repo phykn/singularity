@@ -14,15 +14,15 @@ A pixel-art survival game where a lone electron lights up the dark. The combat i
 
 ## About the game
 
-Particles pour in. The core swells. The space around you closes in. Each run turns a quiet orbit into an electrical storm, with a singularity just beyond the chaos.
+Particles pour in from the first minute. The core swells. The space around you closes in. Each run snowballs from a crowded orbit into an electrical storm, with a singularity just beyond the chaos.
 
 - **Let the sparks fly** — Sixteen skills, from a sky-splitting Thunderstrike to chain-popping fission, and every one of them evolves.
 - **Find your rhythm** — Ride the electron's orbit, build a charge, and let it burst.
-- **Survive the breach** — Five giant particles and a critical breach test your build, and the singularity forms only when you destroy the Higgs particle.
-- **Evolve or gamble** — Luck brings rarer cards and evolutions; up to three pacts trade a different kind of risk for a new way to pop.
-- **Go beyond** — Reach the singularity, then take your build into an ever-growing storm.
+- **Survive the breach** — Five giant particles and a critical breach arrive on a fixed clock to test your build, and the singularity forms only when you destroy the Higgs particle.
+- **Evolve or gamble** — Rare and epic cards are common, but an evolution is a rare windfall with no guarantee; up to three pacts trade a different kind of risk for a new way to pop.
+- **Go beyond** — Reach the singularity, then take your build into endless rounds: each one brings a giant particle, and each one cleared makes the next round harder.
 - **Small pixels, big impact** — Bright electrical effects against a dark cosmic backdrop.
-- **Hear every pop** — Each skill pops in its own rhythm, one by one, all at once, as a cascade, a released charge or a sweep, and every particle kind clicks its own keycaps.
+- **Hear every pop** — Each skill pops in its own rhythm, one by one, all at once, as a cascade, a released charge or a sweep, and every particle kind clicks its own keycaps. Sound is on from the first run.
 - **Open a tab. Enter orbit.** — A fresh run every time, with preferences and best results saved on your device.
 - **Mobile and desktop** — Available in Korean, English, Chinese, and Japanese.
 
@@ -46,7 +46,7 @@ Play at [localhost:8081](http://localhost:8081).
 | `npm run check:skill-balance` | Compare sixteen skill-priority builds on matched seeds      |
 | `npm run check:skill-trial`   | Compare equal-rank encounters and fourth-slot contributions |
 
-Balance references use the real session with immediate paused choices and the game's automatic selection. Targets are 15–20% with successful QTE inputs and 10–15% without QTE. These are bot references, not measured player clear rates. The current rules measure 18.3% with QTE and 13.0% without on 600 seeds from 480000, and 19.2% and 13.3% on a second cohort from 700000. Winning runs take a median of about 17 and three-quarter minutes. To compare matched seeds:
+Balance references use the real session with immediate paused choices and the game's automatic selection, which takes an evolution first, then a pact while the orbit has room, then power and attack speed, then the rarest card. Targets are 15–20% with successful QTE inputs and 10–15% without QTE. These are bot references, not measured player clear rates. The current rules measure 19.8% with QTE and 12.0% without on 600 seeds from 480000, and 20.2% and 12.0% on a second cohort from 700000. Winning runs take a median of about 15 and two-thirds minutes. To compare matched seeds:
 
 ```sh
 npm run check:balance -- 600 480000 artifacts/qte.json qte
