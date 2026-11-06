@@ -25,6 +25,9 @@ export const ko = {
   retry: '다시하기',
   survived: '생존 시간',
   seed: '시드',
+  rhythmTap: '빛날 때 탭',
+  guideRhythm:
+    '전자가 밝은 구간을 지날 때 화면을 탭하거나 Space·Enter를 누르세요. ✓는 성공, ×는 실패. 매번 추가 타격, 세 번 연속 성공하면 모든 적에게 공명 방전과 함께 핵 질량이 조금 줄어듭니다(가속 회로가 있으면 줄지 않음). 실패해도 자동 전투는 그대로입니다.',
   singularity: '특이점',
   finalBossDue: '힉스 입자를 격파하라',
   bossName: '거대 입자',

@@ -1,28 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Game } from '../src/game/Game.ts';
-import { Session, frameTickLimit } from '../src/session/Session.ts';
-import type { SessionAudio } from '../src/session/Session.ts';
-
-function session(sound = true) {
-  const log: string[] = [];
-  const audio: SessionAudio = {
-    enabled: false,
-    unlock: async () => (log.push('unlock'), true),
-    suspend: () => log.push('suspend'),
-    update: () => {},
-    play: (kind) => log.push(kind),
-    destroy: () => {},
-  };
-  const s = new Session(new Game(7), audio, {
-    sound: () => sound,
-    audioFailed: () => log.push('failed'),
-    record: () => log.push('record'),
-    redraw: () => {},
-  });
-  s.setReady(true, 0);
-  return { s, log };
-}
+import { frameTickLimit } from '../src/session/Session.ts';
+import { session } from './helpers.ts';
 
 test('speed cycles 1, 1.5, 2 and back to 1', () => {
   const { s } = session();

@@ -556,6 +556,42 @@ export class Combat {
     this.activate('mark');
   }
 
+  resonate(beat: 1 | 2 | 3): void {
+    const g = this.game,
+      cfg = g.rules.combat.resonance,
+      multiplier = beat === 3 ? cfg.finishDamage : cfg.beatDamage,
+      attack = this.begin(undefined, multiplier);
+    attack.power *= multiplier;
+    if (beat !== 3) {
+      this.volley(attack, g.position, closest(g.targets, g.position, 1, attack.range), true);
+      return;
+    }
+    // One global hit per particle; link cascades stay on the first two beats.
+    attack.depth = 2;
+    for (const target of [...g.targets]) this.deal(attack, target, attack.damage);
+  }
+
+  // Tempo Coil: each accepted beat sweeps forward along the orbit, popping in order.
+  sweep(beat: 1 | 2 | 3): void {
+    const g = this.game;
+    if (!g.ranks.tempo) return;
+    const s = g.forms.tempo,
+      cfg = g.rules.skills.tempo,
+      whole = beat === 3 && g.evolved.tempo;
+    // Evolved: the third beat sweeps the whole lap, a little softer per particle.
+    const count = whole ? Infinity : s.count * (beat === 3 ? cfg.finishScale : 1),
+      damage = whole ? s.damage * cfg.evolution.damage : s.damage;
+    const targets = this.alongOrbit((t) => t.radius <= g.radius + s.band).slice(0, count);
+    if (!targets.length) return;
+    this.popInOrder(
+      { ...this.begin('tempo', damage), depth: 2 },
+      g.position,
+      targets,
+      cfg.popSeconds,
+    );
+    this.activate('tempo');
+  }
+
   private popInOrder(
     attack: Attack,
     start: Point | undefined,

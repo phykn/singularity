@@ -26,6 +26,9 @@ export const en: Copy = {
   retry: 'Retry',
   survived: 'Survived',
   seed: 'Seed',
+  rhythmTap: 'Tap on the beat',
+  guideRhythm:
+    'Tap the arena or press Space/Enter when the electron crosses the bright segment. ✓ means hit, × means miss. Each hit fires an extra shot; three in a row discharge against every enemy and shed a little core mass (not with Overclock). Missing a beat leaves automatic combat unchanged.',
   singularity: 'Singularity',
   finalBossDue: 'Destroy the Higgs',
   bossName: 'Giant particle',

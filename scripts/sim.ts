@@ -8,6 +8,7 @@ import { dirname, join } from 'node:path';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { validate } from '../design/schema.ts';
 import { Game } from '../src/game/Game.ts';
+import { Session } from '../src/session/Session.ts';
 import { rules as defaultRules, skillIds } from '../src/game/rules.ts';
 import type { Rules, SkillId } from '../src/game/rules.ts';
 
@@ -39,29 +40,64 @@ const novel = (e: Event): string[] =>
         : [];
 
 // Paused choices: the bot takes `prefer` when offered, otherwise the automatic card.
-function play(cfg: Rules, { seed, prefer }: Job, limitSeconds = 3600): Run {
+// `qte` drives the real session at 60 Hz and taps every beat at the gate's center;
+// `qte-off` runs the model directly, which is the same game without taps.
+function play(cfg: Rules, policy: string, { seed, prefer }: Job, limitSeconds = 3600): Run {
   const game = new Game(seed, { rules: cfg, recordEvents: false }),
     tickRate = cfg.time.tickRate,
     firsts = new Map<string, number>([['start', 0]]);
   let cursor = 0,
     targetsAt120: number | null = null,
     level10At: number | null = null;
-  game.start();
-  while (game.phase !== 'result' && game.elapsedTicks < limitSeconds * tickRate) {
-    // The browser-sized log keeps a quarter second, so read it more often than that.
-    game.run(10, true);
+  const card = () =>
+    game.choice!.cards.find((c) => c.id === prefer && game.canUpgrade(c.id)) ?? game.automaticCard;
+  // The browser-sized log keeps a quarter second, so read it more often than that.
+  const observe = () => {
     for (const e of game.events.slice(Math.max(0, cursor - game.eventOffset)))
       for (const key of novel(e)) if (!firsts.has(key)) firsts.set(key, e.time);
     cursor = game.eventCount;
     if (targetsAt120 === null && game.phase === 'running' && game.time >= 120)
       targetsAt120 = game.targets.length;
     if (level10At === null && game.level >= 10) level10At = game.time;
-    while (game.choice) {
-      const preferred = game.choice.cards.find((c) => c.id === prefer && game.canUpgrade(c.id)),
-        card = preferred ?? game.automaticCard;
-      if (!card || !game.choose(card.id, game.choice.number)) break;
+  };
+  const going = () => game.phase !== 'result' && game.elapsedTicks < limitSeconds * tickRate;
+  if (policy === 'qte') {
+    const audio = {
+      enabled: false,
+      unlock: async () => true,
+      suspend() {},
+      update() {},
+      play() {},
+      destroy() {},
+    };
+    const session = new Session(game, audio, {
+      sound: () => false,
+      audioFailed() {},
+      record() {},
+      redraw() {},
+    });
+    session.setReady(true, 0);
+    session.start(0);
+    for (let frame = 1; going(); frame++) {
+      const wall = (frame * 1000) / 60,
+        r = session.rhythm;
+      session.frame(wall);
+      if (frame % 10 === 0) observe();
+      if (game.choice) {
+        const pick = card();
+        if (pick) session.select(pick.id, game.choice.number, wall);
+      } else if (session.rhythmAvailable && r.open && r.due <= r.age) session.tap(wall);
+    }
+  } else {
+    game.start();
+    while (going()) {
+      game.run(10, true);
+      observe();
+      for (let pick = game.choice && card(); pick; pick = game.choice && card())
+        if (!game.choose(pick.id, game.choice!.number)) break;
     }
   }
+  observe();
   return {
     seed,
     prefer,
@@ -77,9 +113,13 @@ function play(cfg: Rules, { seed, prefer }: Job, limitSeconds = 3600): Run {
 }
 
 if (!isMainThread) {
-  const { rulesText, jobs } = workerData as { rulesText: string; jobs: Job[] };
+  const { rulesText, policy, jobs } = workerData as {
+    rulesText: string;
+    policy: string;
+    jobs: Job[];
+  };
   const cfg = JSON.parse(rulesText) as Rules;
-  parentPort!.postMessage(jobs.map((job) => play(cfg, job)));
+  parentPort!.postMessage(jobs.map((job) => play(cfg, policy, job)));
 } else await main();
 
 async function main() {
@@ -87,7 +127,7 @@ async function main() {
     process.argv.slice(2);
   const defaults: Record<string, number> = { balance: 100, skills: 40, beyond: 100 };
   if (!(command in defaults)) throw new Error(`unknown command: ${command}`);
-  if (policy !== 'qte-off') throw new Error(`policy ${policy} needs the rhythm (T8)`);
+  if (!(policy in clearRange)) throw new Error(`unknown policy: ${policy}`);
   if (command === 'beyond') throw new Error('beyond arrives with endless mode (T10)');
   const count = Number(countArg ?? defaults[command]),
     firstSeed = Number(firstArg ?? 480000),
@@ -110,7 +150,7 @@ async function main() {
         const chunk = jobs.filter((_, i) => i % workers === w);
         return new Promise<Run[]>((resolve, reject) => {
           const worker = new Worker(new URL(import.meta.url), {
-            workerData: { rulesText, jobs: chunk },
+            workerData: { rulesText, policy, jobs: chunk },
           });
           worker.once('message', resolve).once('error', reject);
         });

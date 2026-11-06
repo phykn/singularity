@@ -26,6 +26,9 @@ export const ja: Copy = {
   retry: '再挑戦',
   survived: '生存時間',
   seed: 'シード',
+  rhythmTap: '光ったらタップ',
+  guideRhythm:
+    '電子が光る区間を通る瞬間に画面をタップ、またはSpace・Enter。✓は成功、×は失敗。成功ごとに追加攻撃、3回連続で全ての敵に共鳴放電し、核の質量が少し減ります（加速回路があると減りません）。失敗しても自動戦闘は続きます。',
   singularity: '特異点',
   finalBossDue: 'ヒッグス粒子を撃破せよ',
   bossName: '巨大粒子',

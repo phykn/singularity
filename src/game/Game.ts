@@ -118,6 +118,8 @@ export class Game {
   private orbitRecovery = 0;
   private xpRemainder = 0;
   private popTick = -1;
+  // The tick of the last accepted beat; a second tap in one tick is ignored.
+  beatTick = -1;
   private popOrder: Partial<Record<PopStyle, number>> = {};
 
   constructor(
@@ -1103,6 +1105,20 @@ export class Game {
       if (boss.boss === 'top') this.spawnAround(boss, 'meson', boss.summonCount!, boss.size + 8);
       else this.spawnGroup('small', boss.summonCount!, boss.angle, 1, boss.radius);
     }
+  }
+
+  // An accepted beat: beats 1 and 2 strike the nearest particle, the third strikes every
+  // particle once and sheds `finishMass`. Tempo sweeps along the orbit on each.
+  resonate(beat: 1 | 2 | 3): boolean {
+    if (this.phase !== 'running' || this.choice || this.beatTick === this.elapsedTicks)
+      return false;
+    this.beatTick = this.elapsedTicks;
+    this.inputs.push({ tick: this.elapsedTicks, kind: 'beat', beat });
+    this.log('resonance', { beat });
+    this.combat.resonate(beat);
+    this.combat.sweep(beat);
+    if (beat === 3) this.releaseMass(this.rules.combat.resonance.finishMass);
+    return true;
   }
 
   private gainXp(amount: number): void {

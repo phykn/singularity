@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GameAudio } from '../audio/GameAudio.ts';
 import { Game } from '../game/Game.ts';
+import type { Rhythm } from '../session/rhythm.ts';
 import { Session } from '../session/Session.ts';
 import { keys, newSeed, readLanguage, readSound, save } from '../session/storage.ts';
 import type { Language } from '../session/storage.ts';
@@ -108,6 +109,7 @@ export function useGame() {
     };
     window.__gameDebug = {
       getGame: () => session.game,
+      getRhythm: () => session.rhythm,
       prepare: (seed) => swap(new Game(seed)),
       restart: (seed, combat = true) => {
         const game = new Game(seed, { combat });
@@ -139,6 +141,7 @@ export function useGame() {
     cycleSpeed: () => session.cycleSpeed(now()),
     toggleChoicePause: () => session.toggleChoicePause(now()),
     select: (id: UpgradeId, number: number) => session.select(id, number, now()),
+    tap: () => session.tap(now()),
     restart: () => session.replace(fresh(session.game.seed), now()),
   };
 }
@@ -147,6 +150,7 @@ declare global {
   interface Window {
     __gameDebug?: {
       getGame: () => Game;
+      getRhythm: () => Rhythm;
       prepare: (seed: number) => void;
       restart: (seed: number, combat?: boolean) => void;
       advance: (ms: number) => void;

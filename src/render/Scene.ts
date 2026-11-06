@@ -15,6 +15,7 @@ import { beamFrame, drawEffect, effectFrame, visibleEffects } from './effects.ts
 import type { Painter } from './effects.ts';
 import { drawAccretion, drawCollapse, drawSingularity } from './ending.ts';
 import { DamageLabels, SpritePool, createParticleTextures } from './sprites.ts';
+import { drawRhythm } from './rhythm.ts';
 import { arenaViewport, beyondFrame, endingFrame } from './timeline.ts';
 
 // Phaser.TintModes.ADD: brightens without flattening, so crowded hits keep each shape and colour.
@@ -140,6 +141,16 @@ export class Scene extends Phaser.Scene {
         surging ? skillColors.surge : color,
       );
       this.drawElectron(electron, 1, color, surging);
+      if (!this.session.paused)
+        drawRhythm(
+          this.fx,
+          this.session.rhythm,
+          game.radius,
+          scale,
+          electron,
+          this.reducedMotion.matches,
+          Math.hypot(width / (2 * scale), Math.max(centerY, height - centerY) / scale),
+        );
       this.labels.draw(game.damageNumbers, clock, width, height, centerY, scale);
       return;
     }

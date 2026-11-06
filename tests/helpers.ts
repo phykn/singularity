@@ -1,4 +1,6 @@
 import { Game } from '../src/game/Game.ts';
+import { Session } from '../src/session/Session.ts';
+import type { SessionAudio } from '../src/session/Session.ts';
 import { CENTER } from '../src/game/geometry.ts';
 import { rules } from '../src/game/rules.ts';
 import type { Ranks } from '../src/game/rules.ts';
@@ -60,4 +62,25 @@ export function finish(g: Game, limit = 1800): Game {
     pick(g);
   }
   return g;
+}
+
+// A ready session on seed 7 whose audio and hooks append what they did to `log`.
+export function session(sound = true) {
+  const log: string[] = [];
+  const audio: SessionAudio = {
+    enabled: false,
+    unlock: async () => (log.push('unlock'), true),
+    suspend: () => log.push('suspend'),
+    update: () => {},
+    play: (kind) => log.push(kind),
+    destroy: () => {},
+  };
+  const s = new Session(new Game(7), audio, {
+    sound: () => sound,
+    audioFailed: () => log.push('failed'),
+    record: () => log.push('record'),
+    redraw: () => {},
+  });
+  s.setReady(true, 0);
+  return { s, log };
 }

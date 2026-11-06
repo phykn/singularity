@@ -10,6 +10,7 @@ import { Hud } from './Hud.tsx';
 import { ControlIcon, SoundIcon } from './icons.tsx';
 import { Loadout } from './Loadout.tsx';
 import { Result } from './Result.tsx';
+import { RhythmInput } from './RhythmInput.tsx';
 import { copy, languages } from './text/index.ts';
 import type { Language } from './text/index.ts';
 import { useGame } from './useGame.ts';
@@ -105,6 +106,9 @@ export default function App() {
         <section ref={arena} className="arena" tabIndex={-1} aria-label={c.arena}>
           <Canvas session={session} onReady={g.onReady} />
           {!ready && <EventBanner game={game} language={language} />}
+          {session.rhythmAvailable && (
+            <RhythmInput rhythm={session.rhythm} language={language} onTap={g.tap} />
+          )}
           {!session.ready && (
             <p className="render-status" role="status">
               {c.loading}

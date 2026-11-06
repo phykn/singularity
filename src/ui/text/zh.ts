@@ -26,6 +26,9 @@ export const zh: Copy = {
   retry: '重试',
   survived: '生存时间',
   seed: '种子',
+  rhythmTap: '亮起时轻点',
+  guideRhythm:
+    '电子经过明亮区域时，轻点战斗区域或按Space/Enter。✓表示成功，×表示失败。每次成功追加攻击，连续三次成功向所有敌人共鸣放电，并让核心质量略微减少（持有加速回路时不减少）。失误不影响自动战斗。',
   singularity: '奇点',
   finalBossDue: '击破希格斯粒子',
   bossName: '巨型粒子',

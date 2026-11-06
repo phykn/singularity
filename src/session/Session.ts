@@ -1,6 +1,7 @@
 import type { Game } from '../game/Game.ts';
 import type { UpgradeId } from '../game/rules.ts';
 import type { Result } from '../game/types.ts';
+import { Rhythm } from './rhythm.ts';
 
 export const speeds = [1, 1.5, 2] as const;
 export type Speed = (typeof speeds)[number];
@@ -25,9 +26,11 @@ export type SessionHooks = {
 };
 
 // Drives the model from wall-clock milliseconds. Owns what is not game state:
-// playback speed, pause, the hidden-tab stop, the choice countdown and the sound cursor.
+// playback speed, pause, the hidden-tab stop, the choice countdown, the beat gate,
+// hit stop and the sound cursor.
 export class Session {
   game: Game;
+  rhythm: Rhythm;
   ready = false;
   paused = false;
   speed: Speed = 1;
@@ -42,12 +45,19 @@ export class Session {
   private drawnTick = -1;
   private cursor: number;
   private recorded: Result | null = null;
+  // Wall milliseconds the model holds still after an accepted beat.
+  private hitStop = 0;
 
   constructor(game: Game, audio: SessionAudio, hooks: SessionHooks) {
     this.game = game;
     this.audio = audio;
     this.hooks = hooks;
     this.cursor = game.eventCount;
+    this.rhythm = new Rhythm(game.seed);
+  }
+
+  get rhythmAvailable(): boolean {
+    return this.live && this.game.phase === 'running' && !this.game.choice;
   }
 
   get live(): boolean {
@@ -78,6 +88,8 @@ export class Session {
     this.audio.suspend();
     this.game = game;
     this.cursor = game.eventCount;
+    this.rhythm = new Rhythm(game.seed);
+    this.hitStop = 0;
     this.paused = false;
     this.speed = 1;
     this.choiceNumber = 0;
@@ -90,8 +102,10 @@ export class Session {
     this.frame(wall);
     if (this.game.phase === 'ready' || this.game.phase === 'result') return;
     this.paused = paused;
-    if (paused) this.audio.suspend();
-    else if (this.ready && this.hooks.sound()) void this.unlock();
+    if (paused) {
+      this.rhythm.cancel();
+      this.audio.suspend();
+    } else if (this.ready && this.hooks.sound()) void this.unlock();
     this.hooks.redraw();
   }
 
@@ -110,6 +124,19 @@ export class Session {
   toggleChoicePause(wall: number): void {
     this.frame(wall);
     this.pauseOnChoice = !this.pauseOnChoice;
+    this.hooks.redraw();
+  }
+
+  // A tap judged against the beat gate; accepted beats resonate and briefly hold time.
+  tap(wall: number): void {
+    this.frame(wall);
+    if (!this.rhythmAvailable || this.game.beatTick === this.game.elapsedTicks) return;
+    const result = this.rhythm.tap();
+    if (result === 'hit' || result === 'complete') {
+      this.game.resonate(this.rhythm.hits as 1 | 2 | 3);
+      this.hitStop = result === 'complete' ? 90 : 35;
+      if (result === 'complete') this.audio.play('rhythm-complete');
+    }
     this.hooks.redraw();
   }
 
@@ -146,15 +173,18 @@ export class Session {
 
   frame(wall: number): void {
     const game = this.game,
-      ms = Math.max(0, wall - this.wall);
+      ms = Math.max(0, wall - this.wall),
+      available = this.rhythmAvailable,
+      held = Math.min(ms, this.hitStop);
     this.wall = wall;
+    this.hitStop -= held;
     if (this.ready && !this.paused) {
       if (game.phase === 'ready')
         game.angle += (game.rules.orbit.speed / game.radius) * (ms / 1000);
       else {
         this.countdown(ms);
         const speed = game.phase === 'crossing' ? 1 : this.speed;
-        game.advance(ms * speed, frameTickLimit, this.pauseOnChoice);
+        game.advance((ms - held) * speed, frameTickLimit, this.pauseOnChoice);
         game.pendingTicks = Math.min(game.pendingTicks, 1);
         if (game.choice && game.choice.number !== this.choiceNumber) {
           this.choiceNumber = game.choice.number;
@@ -164,6 +194,13 @@ export class Session {
       }
       if (this.audio.enabled) this.audio.update(game, this.cursor);
     }
+    this.rhythm.advance(
+      ms,
+      available && this.rhythmAvailable,
+      game.angle,
+      (game.rules.orbit.speed / game.radius / 1000) * this.speed,
+      Boolean(game.choice) && game.phase === 'running' && !this.paused,
+    );
     this.cursor = game.eventCount;
     if (game.result && game.result !== this.recorded) {
       this.recorded = game.result;
