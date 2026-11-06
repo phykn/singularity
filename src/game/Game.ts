@@ -13,10 +13,13 @@ import {
   blankBoosts,
   blankRanks,
   coreRadius,
+  evolutionChance,
+  isPact,
   isSkill,
   isStat,
   levelForXp,
   orbitTarget,
+  pactIds,
   powerScale,
   rangeScale,
   rarityIds,
@@ -27,7 +30,7 @@ import {
   skillIds,
   xpForLevel,
 } from './rules.ts';
-import type { Card, PopStyle, Rarity, Rules, SkillId, UpgradeId } from './rules.ts';
+import type { Card, PactId, PopStyle, Rarity, Rules, SkillId, UpgradeId } from './rules.ts';
 import { skillValues } from './skills.ts';
 import type { SkillValues } from './skills.ts';
 import type {
@@ -78,6 +81,7 @@ export class Game {
   // The rarity a skill was first taken at; it keeps it for the run.
   rarities: Partial<Record<UpgradeId, Rarity>> = {};
   evolved: Partial<Record<SkillId, boolean>> = {};
+  pacts: Partial<Record<PactId, boolean>> = {};
   forms: SkillValues;
   choice: Choice | null = null;
   selections: Selection[] = [];
@@ -117,6 +121,7 @@ export class Game {
   private nextDamageId = 0;
   private orbitRecovery = 0;
   private xpRemainder = 0;
+  private nextHorizon = 0;
   private popTick = -1;
   // The tick of the last accepted beat; a second tap in one tick is ignored.
   beatTick = -1;
@@ -243,7 +248,7 @@ export class Game {
     return this.rules.combat.baseDamage * powerScale(this.boosts.power, this.rules);
   }
   get rate(): number {
-    return 1 + this.rules.combat.ratePerRank * this.boosts.rate;
+    return (1 + this.rules.combat.ratePerRank * this.boosts.rate) * this.combat.heatScale;
   }
   get attackInterval(): number {
     return this.rules.combat.attackSeconds / this.rate;
@@ -265,24 +270,41 @@ export class Game {
   get ownedSkills(): SkillId[] {
     return skillIds.filter((id) => this.ranks[id] > 0);
   }
+  // Overclock gives up mass release.
   get recoverable(): boolean {
-    return this.mass >= this.rules.growth.recovery.minMass;
+    return this.mass >= this.rules.growth.recovery.minMass && !this.pacts.overclock;
   }
   get danger(): boolean {
     return this.margin < this.rules.orbit.dangerMargin;
   }
   rank(id: UpgradeId): number {
+    if (isPact(id)) return this.pacts[id] ? 1 : 0;
     return isSkill(id) ? this.ranks[id] : isStat(id) ? this.boosts[id] : 0;
   }
+  get pactCount(): number {
+    return pactIds.filter((id) => this.pacts[id]).length;
+  }
+  // Evolution and pact cards are judged as offered; the rest by rank, slots and mass.
   canUpgrade(id: UpgradeId): boolean {
+    const card = this.choice?.cards.find((entry) => entry.id === id);
+    if (card?.evolve) return !this.evolved[id as SkillId];
+    if (isPact(id))
+      return !!card && !this.pacts[id] && this.pactCount < this.rules.growth.pacts.max;
     return eligibleUpgrades(this.ranks, this.rules, this.recoverable, this.skillSlots).includes(id);
   }
-  // Mass release in danger, then early attack upgrades, then the highest rarity.
+  // Mass release in danger, then an evolution, a pact only while the orbit is safe,
+  // then early attack upgrades, then the highest rarity.
   get automaticCard(): Card | undefined {
-    const cards = this.choice?.cards.filter((card) => this.canUpgrade(card.id)) ?? [],
+    const safe = this.margin > this.rules.orbit.autoPactMargin,
+      cards =
+        this.choice?.cards.filter(
+          (card) => this.canUpgrade(card.id) && (safe || !isPact(card.id)),
+        ) ?? [],
       g = this.rules.growth;
     return (
       cards.find((card) => card.id === 'recover' && this.danger) ??
+      cards.find((card) => card.evolve) ??
+      cards.find((card) => isPact(card.id)) ??
       cards.find(
         ({ id }) => (id === 'power' || id === 'rate') && this.boosts[id] < g.autoStatRank,
       ) ??
@@ -365,6 +387,11 @@ export class Game {
     this.bossActions();
     this.angle += this.rules.orbit.speed / this.radius / this.rules.time.tickRate;
     this.combat.update();
+    // Horizon: the core gains one mass every `massSeconds`.
+    if (this.pacts.horizon && this.combatEnabled && this.time + 1e-8 >= this.nextHorizon) {
+      this.nextHorizon = this.time + this.rules.pacts.horizon.massSeconds;
+      this.mass++;
+    }
     if (this.finalDown) return this.beginCollapse('boss');
     if (this.absorbTargets()) return this.beginCollapse('boss-absorbed');
     // A giant particle on the field feeds the core.
@@ -389,6 +416,7 @@ export class Game {
         tickRate *
         (this.wavePhase === 'recovery' ? this.rules.late.recoverySpawnScale : 1) *
         (this.critical ? this.rules.critical.spawnScale : 1) *
+        (this.pacts.greed ? 1 / (1 + this.rules.pacts.greed.spawn) : 1) *
         (1 + this.random.spawn.spread() * this.rules.spawn.variation.intervalFraction);
     }
     const wave = this.upcomingWave;
@@ -1025,12 +1053,47 @@ export class Game {
       this.rules,
     );
     // Stats are always common; a skill keeps the rarity it was first taken at.
-    const cards = ids.map((id): Card => {
+    const offered = ids.map((id): Card => {
       const rolled = rollRarity(this.random.rarity.next(), this.boosts.luck, this.rules);
       return { id, rarity: isStat(id) ? 'common' : (this.rarities[id] ?? rolled) };
     });
+    const evolution = this.evolutionOffer(),
+      evolutions: Card[] = evolution
+        ? [{ id: evolution, rarity: this.rarities[evolution] ?? 'common', evolve: true }]
+        : [];
+    const pact = !evolution && !this.danger ? this.pactOffer(number) : undefined;
+    if (pact) offered[offered.length - 1] = { id: pact, rarity: 'common' };
+    // In danger the recovery card stays first; an evolution takes the next place.
+    const lead = offered[0]?.id === 'recover' ? offered.slice(0, 1) : [],
+      cards = [...lead, ...evolutions, ...offered.slice(lead.length)].slice(
+        0,
+        this.rules.growth.choiceCount,
+      );
     this.choice = { cards, number };
     this.log('cards', { number, cards });
+  }
+
+  // While a rank-5 skill is unevolved, each offer may carry its evolution; luck raises
+  // the chance up to its maximum, and no run of misses forces one.
+  private evolutionOffer(): SkillId | undefined {
+    const ready = this.ownedSkills.filter(
+      (id) => this.ranks[id] >= this.rules.growth.maxRank && !this.evolved[id],
+    );
+    if (!ready.length) return undefined;
+    if (this.random.cards.next() >= evolutionChance(this.boosts.luck, this.rules)) return undefined;
+    return ready[Math.floor(this.random.cards.next() * ready.length)];
+  }
+
+  private pactOffer(number: number): PactId | undefined {
+    const cfg = this.rules.growth.pacts;
+    if (
+      number % cfg.interval ||
+      this.ownedSkills.length < cfg.minSkills ||
+      this.pactCount >= cfg.max
+    )
+      return undefined;
+    const open = pactIds.filter((id) => !this.pacts[id]);
+    return open.length ? open[Math.floor(this.random.cards.next() * open.length)] : undefined;
   }
 
   // Takes a card between ticks and records it for replay; stale or unknown picks do nothing.
@@ -1040,7 +1103,14 @@ export class Game {
       return false;
     this.inputs.push({ tick: this.elapsedTicks, kind: 'card', id, number });
     const oldRate = this.rate;
-    if (isSkill(id)) {
+    if (card.evolve) {
+      this.evolved[id as SkillId] = true;
+      this.log('evolve', { id });
+    } else if (isPact(id)) {
+      this.pacts[id] = true;
+      if (id === 'horizon') this.nextHorizon = this.time + this.rules.pacts.horizon.massSeconds;
+      this.log('pact', { id, mass: this.mass });
+    } else if (isSkill(id)) {
       this.rarities[id] ??= card.rarity;
       this.ranks[id]++;
       this.refresh();
@@ -1057,7 +1127,7 @@ export class Game {
       id,
       rank: this.rank(id),
       rarity: card.rarity,
-      evolve: false,
+      evolve: !!card.evolve,
     };
     this.selections.push(selection);
     this.log('skill', selection);
@@ -1109,20 +1179,29 @@ export class Game {
 
   // An accepted beat: beats 1 and 2 strike the nearest particle, the third strikes every
   // particle once and sheds `finishMass`. Tempo sweeps along the orbit on each.
-  resonate(beat: 1 | 2 | 3): boolean {
+  // Beat 0 is a missed beat; it matters only to the Pulse pact.
+  resonate(beat: 0 | 1 | 2 | 3): boolean {
     if (this.phase !== 'running' || this.choice || this.beatTick === this.elapsedTicks)
       return false;
     this.beatTick = this.elapsedTicks;
     this.inputs.push({ tick: this.elapsedTicks, kind: 'beat', beat });
     this.log('resonance', { beat });
+    if (beat === 0) {
+      if (this.pacts.pulse) this.mass += this.rules.pacts.pulse.missMass;
+      return true;
+    }
     this.combat.resonate(beat);
     this.combat.sweep(beat);
-    if (beat === 3) this.releaseMass(this.rules.combat.resonance.finishMass);
+    // Overclock gives up mass release, this one included.
+    if (beat === 3 && !this.pacts.overclock)
+      this.releaseMass(this.rules.combat.resonance.finishMass);
     return true;
   }
 
   private gainXp(amount: number): void {
-    const scale = this.critical ? this.rules.critical.xpScale : 1,
+    const scale =
+        (this.critical ? this.rules.critical.xpScale : 1) *
+        (this.pacts.greed ? 1 + this.rules.pacts.greed.xp : 1),
       gained = amount * scale + this.xpRemainder,
       whole = Math.floor(gained + 1e-8);
     this.xpRemainder = Math.max(0, gained - whole);
@@ -1156,6 +1235,7 @@ export class Game {
       boosts: { ...this.boosts },
       rarities: { ...this.rarities },
       evolved: { ...this.evolved },
+      pacts: { ...this.pacts },
       selections: this.selections.map((s) => ({ ...s })),
       endless: null,
     };

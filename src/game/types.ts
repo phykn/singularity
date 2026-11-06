@@ -1,7 +1,7 @@
 import type { Point } from './geometry.ts';
 import type { BossKind } from './bosses.ts';
 import type { ParticleKind } from './particles.ts';
-import type { Boosts, Rarity, Ranks, SkillId, UpgradeId } from './rules.ts';
+import type { Boosts, PactId, Rarity, Ranks, SkillId, UpgradeId } from './rules.ts';
 
 export type Phase = 'ready' | 'running' | 'collapse' | 'ending' | 'result' | 'crossing';
 // Stored in best records; keep these strings.
@@ -102,6 +102,7 @@ export type Result = {
   boosts: Boosts;
   rarities: Partial<Record<UpgradeId, Rarity>>;
   evolved: Partial<Record<SkillId, boolean>>;
+  pacts: Partial<Record<PactId, boolean>>;
   selections: Selection[];
   endless: { seconds: number; xp: number } | null;
 };

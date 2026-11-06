@@ -132,12 +132,18 @@ export class Session {
     this.frame(wall);
     if (!this.rhythmAvailable || this.game.beatTick === this.game.elapsedTicks) return;
     const result = this.rhythm.tap();
+    if (result === 'miss') this.missBeat();
     if (result === 'hit' || result === 'complete') {
       this.game.resonate(this.rhythm.hits as 1 | 2 | 3);
       this.hitStop = result === 'complete' ? 90 : 35;
       if (result === 'complete') this.audio.play('rhythm-complete');
     }
     this.hooks.redraw();
+  }
+
+  // A missed beat costs mass only under the Pulse pact.
+  private missBeat(): void {
+    if (this.game.pacts.pulse && this.rhythmAvailable) this.game.resonate(0);
   }
 
   // A manual pick after its countdown ran out is ignored.
@@ -201,6 +207,8 @@ export class Session {
       (game.rules.orbit.speed / game.radius / 1000) * this.speed,
       Boolean(game.choice) && game.phase === 'running' && !this.paused,
     );
+    // A gate that passes unanswered after the first hit is a miss too.
+    if (this.rhythm.feedback === 'miss' && this.rhythm.feedbackAge === 0) this.missBeat();
     this.cursor = game.eventCount;
     if (game.result && game.result !== this.recorded) {
       this.recorded = game.result;
