@@ -5,7 +5,6 @@
 <p align="center"><b><a href="https://singularity.phykn-kr.workers.dev/">Play now — singularity.phykn-kr.workers.dev</a></b></p>
 
 <p align="center">
-  <a href="https://singularity.phykn-kr.workers.dev/"><img src="https://img.shields.io/badge/play-in%20the%20browser-6cf" alt="Play in the browser" /></a>
   <img src="https://img.shields.io/badge/node-24%2B-339933" alt="Node.js 24 or later" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-lightgrey" alt="PolyForm Noncommercial 1.0.0" /></a>
 </p>
