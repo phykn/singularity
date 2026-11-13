@@ -1,10 +1,12 @@
-# SINGULARITY
+<h1 align="center">SINGULARITY</h1>
 
-**One electron. A whole lot of lightning.**
+<p align="center">A pixel-art survival game where one electron's lightning grows until its orbit gives way.</p>
 
-A pixel-art survival game where a lone electron lights up the dark. The combat is automatic, the lightning keeps growing, and your orbit won't hold forever.
-
-**[Play now — singularity.phykn-kr.workers.dev](https://singularity.phykn-kr.workers.dev/)**
+<p align="center">
+  <a href="https://singularity.phykn-kr.workers.dev/"><img src="https://img.shields.io/badge/play-in%20the%20browser-6cf" alt="Play in the browser" /></a>
+  <img src="https://img.shields.io/badge/node-24%2B-339933" alt="Node.js 24 or later" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-lightgrey" alt="PolyForm Noncommercial 1.0.0" /></a>
+</p>
 
 <p align="center">
   <img src="assets/readme/gameplay-1.jpg" width="32%" alt="SINGULARITY title screen in English" />
@@ -12,52 +14,71 @@ A pixel-art survival game where a lone electron lights up the dark. The combat i
   <img src="assets/readme/gameplay-3.jpg" width="32%" alt="The gluon, the first giant particle, closing in with its health bar across the top" />
 </p>
 
-## About the game
+## Features
 
-Particles pour in from the first minute. The core swells. The space around you closes in. Each run snowballs from a crowded orbit into an electrical storm, with a singularity just beyond the chaos.
+- **Automatic combat** — sixteen skills, each with an evolution, and up to three pacts that trade risk for a new way to pop.
+- **Rhythm** — tap on the electron's orbit to build a charge and release it.
+- **A fixed clock** — five giant particles, a critical breach, then the Higgs particle that decides the run.
+- **Endless rounds** — after the singularity, each round brings a giant and is harder than the last.
+- **Keycap sound** — every hit clicks, and each skill pops in its own rhythm.
+- **Phone and desktop** — Korean, English, Chinese and Japanese; preferences and best results stay on your device.
 
-- **Let the sparks fly** — Sixteen skills, from a sky-splitting Thunderstrike to chain-popping fission, and every one of them evolves.
-- **Find your rhythm** — Ride the electron's orbit, build a charge, and let it burst.
-- **Survive the breach** — Five giant particles and a critical breach arrive on a fixed clock to test your build, and the singularity forms only when you destroy the Higgs particle.
-- **Evolve or gamble** — Rare and epic cards are common, but an evolution is a rare windfall with no guarantee; up to three pacts trade a different kind of risk for a new way to pop.
-- **Go beyond** — Reach the singularity, then take your build into endless rounds: each one brings a giant particle, and each one cleared makes the next round harder.
-- **Small pixels, big impact** — Bright electrical effects against a dark cosmic backdrop.
-- **Hear every pop** — Each skill pops in its own rhythm, one by one, all at once, as a cascade, a released charge or a sweep, and every particle kind clicks its own keycaps. Sound is on from the first run.
-- **Open a tab. Enter orbit.** — A fresh run every time, with preferences and best results saved on your device.
-- **Mobile and desktop** — Available in Korean, English, Chinese, and Japanese.
+## Run
 
-## Run locally
-
-Requires Node.js 24 or later.
+Requires Node.js 24 or later. The game opens at [localhost:8081](http://localhost:8081).
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Play at [localhost:8081](http://localhost:8081).
+## Check
 
-| Command                                    | Purpose                                                                                           |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| `npm test`                                 | Test the game rules, the session, saved records and text                                          |
-| `npm run check`                            | Tests, the rules schema, a 100-run bot measurement and the browser smoke checks, in two minutes   |
-| `npm run sim -- balance [count] [seed]`    | Measure clear rate and pacing with the bot (`qte` taps every beat, `qte-off` never taps)          |
-| `npm run sim -- skills [count] [seed]`     | Compare sixteen builds that each take one skill first                                             |
-| `npm run sim -- beyond [count] [seed]`     | Continue cleared runs into endless mode and count the rounds they last                            |
-| `npm run check:browser -- <scenario\|all>` | Drive the game in a browser: `smoke`, `choices`, `late-game`, `languages`, `performance`, `audio` |
-| `npm run build`                            | Type check and create a production build                                                          |
+Tests for the rules, the session, saved records and text:
 
-Balance targets are bot references, not player clear rates: 15–20% for a bot that taps every beat and 10–15% for one that never taps, with paused choices taken by the game's automatic pick (an evolution first, a pact while the orbit has room, then power and attack speed, then the rarest card). The current rules measure 20% and 13% over 200 seeds (100 from 480000 and 100 from 700000), and winning runs take a median of about 15 and two-thirds minutes. To measure the same seeds:
+```sh
+npm test
+```
+
+Tests, the rules schema, a 100-run bot measurement and the browser smoke checks, in about two minutes:
+
+```sh
+npm run check
+```
+
+Every browser scenario (`smoke`, `choices`, `late-game`, `languages`, `performance`, `audio`); name one to run it alone:
+
+```sh
+npm run check:browser -- all
+```
+
+Type check and production build:
+
+```sh
+npm run build
+```
+
+## Measure balance
+
+Bots play whole runs: `qte` taps every beat and `qte-off` never taps. The numbers are bot references, not player clear rates.
 
 ```sh
 npm run sim -- balance 100 480000 artifacts/qte.json qte
 npm run sim -- balance 100 480000 artifacts/qte-off.json qte-off
 ```
 
-## Credits & license
+One build per skill, and cleared runs continued into endless mode:
 
-React · Phaser · TypeScript · Vite
+```sh
+npm run sim -- skills 40 480000
+npm run sim -- beyond 50 108000
+```
 
-Icon artwork: image-generated pixel art · Typography: [Fusion Pixel Font](https://github.com/TakWolf/fusion-pixel-font) · Keycap sounds: [Keyboard Soundpack #1](https://opengameart.org/content/keyboard-soundpack-1-typing-and-single-keystrokes) by unicae_games (CC0 1.0)
+## License
 
-Code is licensed under [PolyForm Noncommercial 1.0.0](LICENSE). Commercial use outside the license's permitted purposes requires separate permission from [the developer](https://github.com/phykn). Third-party libraries and fonts retain their original licenses.
+Code is under [PolyForm Noncommercial 1.0.0](LICENSE); commercial use beyond it needs permission from [the developer](https://github.com/phykn). Libraries, fonts and sounds keep their own licenses.
+
+## References
+
+1. TakWolf. _Fusion Pixel Font_. 2022. https://github.com/TakWolf/fusion-pixel-font
+2. unicae_games. _Keyboard Soundpack #1: typing and single keystrokes_. OpenGameArt, CC0 1.0. https://opengameart.org/content/keyboard-soundpack-1-typing-and-single-keystrokes

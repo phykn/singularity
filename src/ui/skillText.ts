@@ -1,4 +1,3 @@
-// The numbers on cards, skill details and the guide, from the same values combat uses.
 import type { Game } from '../game/Game.ts';
 import { evolutionChance, recoveryMass } from '../game/growth.ts';
 import { skillIds } from '../game/rules.ts';

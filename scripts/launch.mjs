@@ -1,6 +1,6 @@
-// Playwright's Chromium, or installed Chrome or Edge on Windows; BROWSER_PATH picks another.
 import { existsSync } from 'node:fs';
 
+// Playwright's Chromium, or installed Chrome or Edge on Windows; BROWSER_PATH picks another.
 export async function launchBrowser() {
   const { chromium } = await import('playwright');
   const executablePath =

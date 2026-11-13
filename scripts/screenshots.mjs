@@ -1,4 +1,3 @@
-// README images: `npm run screenshots` writes assets/readme/gameplay-{1,2,3}.jpg from seed 1706.
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { launchBrowser, serve } from './launch.mjs';

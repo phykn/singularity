@@ -1,6 +1,3 @@
-// Browser checks: `npm run check:browser -- <scenario...>`. Uses GAME_URL when set,
-// otherwise starts its own dev server on a free port. BROWSER_PATH picks the executable;
-// CPU_SLOWDOWN (default 4) throttles the CPU for `performance`.
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { launchBrowser, serve } from './launch.mjs';

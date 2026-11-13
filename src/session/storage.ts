@@ -1,5 +1,3 @@
-// What the browser keeps between visits: language, sound, the last seed and the best results.
-// A stored value that does not fit its format reads as absent.
 const languageIds = ['ko', 'en', 'zh', 'ja'] as const;
 export type Language = (typeof languageIds)[number];
 export const keys = {

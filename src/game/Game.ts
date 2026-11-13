@@ -26,8 +26,6 @@ import type {
 } from './types.ts';
 
 export const damageNumberSeconds = 0.72;
-const maxDamageNumbers = 64,
-  maxEffects = 160;
 
 // One run: a seeded simulation advanced in fixed ticks. It owns the clock, the phases, the
 // orbit and the core, the particles on the field and what the views read; arrivals, giants,
@@ -416,7 +414,7 @@ export class Game {
       born: this.seconds,
       ...(crit && { crit }),
     });
-    if (this.damageNumbers.length > maxDamageNumbers) this.damageNumbers.shift();
+    if (this.damageNumbers.length > 64) this.damageNumbers.shift();
     if (target.hp > 0) return;
 
     this.targets.splice(index, 1);
@@ -528,7 +526,7 @@ export class Game {
       born: this.seconds,
     });
     // Past the limit the oldest decoration goes first.
-    if (this.effects.length > maxEffects) {
+    if (this.effects.length > 160) {
       const discard = this.effects.findIndex((fx) =>
         ['kill', 'absorb', 'charge', 'field'].includes(fx.kind),
       );

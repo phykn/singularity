@@ -4,9 +4,6 @@ import type { Result } from '../game/types.ts';
 import { Rhythm } from './rhythm.ts';
 
 const speeds = [1, 1.5, 2] as const;
-// A slow frame advances at most this many ticks and never catches up later.
-const frameTickLimit = 8,
-  redrawMilliseconds = 80;
 
 export type SessionAudio = {
   enabled: boolean;
@@ -189,7 +186,8 @@ export class Session {
         this.countdown(ms);
         game.advance(
           (ms - held) * (game.phase === 'crossing' ? 1 : this.speed),
-          frameTickLimit,
+          // A slow frame advances at most eight ticks and never catches up later.
+          8,
           this.pauseOnChoice,
         );
         game.pendingTicks = Math.min(game.pendingTicks, 1);
@@ -216,7 +214,7 @@ export class Session {
       this.recorded = game.result;
       this.hooks.record(game.result);
     }
-    if (wall - this.drawnAt > redrawMilliseconds && game.elapsedTicks !== this.drawnTick) {
+    if (wall - this.drawnAt > 80 && game.elapsedTicks !== this.drawnTick) {
       this.drawnAt = wall;
       this.drawnTick = game.elapsedTicks;
       this.hooks.redraw();

@@ -1,6 +1,3 @@
-// Bot runs under plain Node, split across worker threads:
-// `npm run sim -- <balance|skills|beyond> [count] [firstSeed] [report.json] [policy] [rules.json]`.
-// Reports carry sourceHash and simulationHash; compare two reports only when both match.
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
