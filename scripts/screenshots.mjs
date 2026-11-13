@@ -33,9 +33,9 @@ try {
         const debug = window.__gameDebug,
           game = debug.getGame();
         while (game.phase === 'running' && game.time < seconds) {
-          if (game.choice) {
+          if (game.growth.choice) {
             if (untilChoice) break;
-            game.choose(game.automaticCard.id, game.choice.number);
+            game.choose(game.growth.automaticCard.id, game.growth.choice.number);
           }
           debug.advance(100);
         }

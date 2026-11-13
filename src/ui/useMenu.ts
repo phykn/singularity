@@ -24,7 +24,7 @@ export function useMenu(session: Session, pause: (paused: boolean) => void) {
 
   // Back to the arena after a pause, so Space and Enter tap the beat again.
   useEffect(() => {
-    if (wasPaused.current && !session.paused && game.phase === 'running' && !game.choice)
+    if (wasPaused.current && !session.paused && game.phase === 'running' && !game.growth.choice)
       arena.current?.focus({ preventScroll: true });
     wasPaused.current = session.paused;
   });

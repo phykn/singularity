@@ -1,11 +1,13 @@
 import { Game } from '../src/game/Game.ts';
-import { Session } from '../src/session/Session.ts';
-import type { SessionAudio } from '../src/session/Session.ts';
 import { CENTER } from '../src/game/geometry.ts';
 import { rules } from '../src/game/rules.ts';
-import type { Ranks } from '../src/game/rules.ts';
-import type { ParticleKind } from '../src/game/particles.ts';
+import type { ParticleKind } from '../src/game/rules.ts';
+import type { Ranks } from '../src/game/skills.ts';
 import type { Target } from '../src/game/types.ts';
+import { Session } from '../src/session/Session.ts';
+import type { SessionAudio } from '../src/session/Session.ts';
+
+export const tickRate = rules.time.tickRate;
 
 // A still particle at (x, y); `particle` picks its family and values.
 export function target(
@@ -35,28 +37,37 @@ export function target(
   };
 }
 
-// A running game with spawning off, the given ranks and only the given targets.
+// A running game without regular arrivals or basic fire, with the given ranks and targets.
+// The electron starts at the top of the orbit, (180, 128).
 export function fixture(ranks: Partial<Ranks> = {}, targets: Target[] = []): Game {
   const g = new Game(42, { combat: false });
   g.start();
-  Object.assign(g.ranks, ranks);
-  g.refresh();
+  Object.assign(g.growth.ranks, ranks);
+  g.growth.refresh();
   g.targets = targets;
   return g;
 }
 
+// A plain hit of 10 on one particle, as a fired attack.
+export const strike = (g: Game, t: Target) =>
+  g.combat.deal({ power: 10, damage: 10, range: 99, depth: 0, budget: { burst: false } }, t, 10);
+
+export const logged = <K extends Game['events'][number]['kind']>(g: Game, kind: K) =>
+  g.events.filter((e): e is Extract<Game['events'][number], { kind: K }> => e.kind === kind);
+export const fired = (g: Game, id: string) =>
+  logged(g, 'skill-effect').some((e) => e.data.id === id);
+
 // Takes the automatic card for every offer, as the paused-choice bot does.
 export function pick(g: Game): void {
-  while (g.choice) {
-    const card = g.automaticCard;
-    if (!card || !g.choose(card.id, g.choice.number)) break;
+  for (let choice = g.growth.choice; choice; choice = g.growth.choice) {
+    const card = g.growth.automaticCard;
+    if (!card || !g.choose(card.id, choice.number)) break;
   }
 }
 
-// Runs a game until its result (or `limit` seconds of ticks).
+// Plays automatic picks until the result (or `limit` seconds of ticks).
 export function finish(g: Game, limit = 1800): Game {
-  if (g.phase === 'ready') g.start();
-  const tickRate = g.rules.time.tickRate;
+  g.start();
   while (g.phase !== 'result' && g.elapsedTicks < limit * tickRate) {
     g.run(tickRate, true);
     pick(g);

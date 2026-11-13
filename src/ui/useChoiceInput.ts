@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, MouseEvent } from 'react';
-import type { Choice } from '../game/Game.ts';
+import type { Choice } from '../game/types.ts';
 
 // A pointer counts only if it went down after the cards had been up `guardMilliseconds`,
 // so a tap meant for the arena does not pick the card that appears under it.

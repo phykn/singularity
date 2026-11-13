@@ -1,12 +1,27 @@
-import type { Rarity, Ranks, Rules, SkillId } from './rules.ts';
+import type { Rarity, Rules, SkillId, StatId } from './rules.ts';
 
+export type Ranks = Record<SkillId, number>;
+export type Boosts = Record<StatId, number>;
 export type Rarities = Partial<Record<SkillId, Rarity>>;
+
+// Skills on their own timer.
 export const timedSkills = ['strike', 'satellite', 'spark', 'field'] as const;
 export type TimedSkill = (typeof timedSkills)[number];
 // Skills that fire alongside the basic attack and share its cooldown.
 export const linkedSkills: readonly SkillId[] = ['multi', 'repeat', 'chain', 'pierce', 'return'];
 
-// Each skill's current values from its rank and the rarity it was first taken at.
+// Bonuses that flatten as ranks grow: 1 + bonus * rank / (falloff + rank).
+const flatten = (bonus: number, falloff: number, rank: number) =>
+  1 + (bonus * rank) / (falloff + rank);
+export const powerScale = (rank: number, cfg: Rules) =>
+  flatten(cfg.combat.powerBonus, cfg.combat.powerFalloff, rank);
+export const rangeScale = (rank: number, cfg: Rules) =>
+  flatten(cfg.combat.rangeBonus, cfg.combat.rangeFalloff, rank);
+export const critChance = (rank: number, cfg: Rules) =>
+  Math.min(cfg.combat.crit.max, cfg.combat.crit.perRank * rank);
+
+// Each skill's current values from its rank, the rarity it was first taken at and the
+// range bonus (`reach`).
 export function skillValues(ranks: Ranks, rarities: Rarities, cfg: Rules, reach = 1) {
   const s = cfg.skills,
     tiers = cfg.growth.rarity;

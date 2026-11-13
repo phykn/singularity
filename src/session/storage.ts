@@ -1,5 +1,6 @@
-// Saved preferences. Keys and formats are the old game's, so saved values keep working.
-export const languageIds = ['ko', 'en', 'zh', 'ja'] as const;
+// What the browser keeps between visits: language, sound, the last seed and the best results.
+// A stored value that does not fit its format reads as absent.
+const languageIds = ['ko', 'en', 'zh', 'ja'] as const;
 export type Language = (typeof languageIds)[number];
 export const keys = {
   language: 'singularity.language',
@@ -25,12 +26,12 @@ export function save(storage: Storage, key: string, value: unknown): boolean {
   }
 }
 
-// Without a saved choice, the browser's language if it is one of the four, otherwise English.
+// Without a saved choice, the browser's first language if it is one of the four, otherwise
+// English.
 export function readLanguage(storage: Storage, browser: readonly string[]): Language {
-  const saved = read(storage, keys.language);
-  if (languageIds.includes(saved as Language)) return saved as Language;
-  const spoken = browser.map((tag) => tag.slice(0, 2).toLowerCase());
-  return languageIds.find((id) => id === spoken[0]) ?? 'en';
+  const saved = read(storage, keys.language),
+    spoken = browser[0]?.slice(0, 2).toLowerCase();
+  return languageIds.find((id) => id === saved) ?? languageIds.find((id) => id === spoken) ?? 'en';
 }
 
 // Sound is on unless the player turned it off.
@@ -46,54 +47,50 @@ export function newSeed(storage: Storage, previous?: number): number {
   return random[0];
 }
 
-// Best results, stored exactly as the old game stored them.
-export type BestRecord = {
+type BestRecord = {
   outcome: 'success' | 'collapse-failure';
   xp: number;
   level: number;
   seed: number;
   collisionTime: number;
 };
-export type BeyondRecord = { seconds: number; xp: number; seed: number };
-type Finished = Pick<BestRecord, 'xp' | 'level' | 'seed' | 'collisionTime'> & {
+type BeyondRecord = { seconds: number; xp: number; seed: number };
+// The part of a run's result that records are made from.
+type Finished = Omit<BestRecord, 'outcome'> & {
   outcome: string;
   endless: { seconds: number; xp: number } | null;
 };
+
 const count = (n: unknown): n is number => Number.isSafeInteger(n) && (n as number) >= 0;
 const span = (n: unknown): n is number => Number.isFinite(n) && (n as number) >= 0;
-const seedLike = (n: unknown) => count(n) && n <= 0xffffffff;
+const seedLike = (n: unknown): n is number => count(n) && n <= 0xffffffff;
+const cleared = (outcome: unknown): outcome is BestRecord['outcome'] =>
+  outcome === 'success' || outcome === 'collapse-failure';
 
 export function readRecord(storage: Storage): BestRecord | null {
-  const v = read(storage, keys.record) as Record<string, unknown> | null;
-  if (!v || (v.outcome !== 'success' && v.outcome !== 'collapse-failure')) return null;
-  if (!count(v.xp) || !count(v.level) || v.level < 1 || !seedLike(v.seed)) return null;
-  if (!span(v.collisionTime)) return null;
-  return {
-    outcome: v.outcome,
-    xp: v.xp,
-    level: v.level,
-    seed: v.seed as number,
-    collisionTime: v.collisionTime,
-  };
+  const v = read(storage, keys.record) as Partial<Record<keyof BestRecord, unknown>> | null;
+  if (!v || !cleared(v.outcome) || !count(v.xp) || !count(v.level) || v.level < 1) return null;
+  if (!seedLike(v.seed) || !span(v.collisionTime)) return null;
+  const { outcome, xp, level, seed, collisionTime } = v;
+  return { outcome, xp, level, seed, collisionTime };
 }
 export function readBeyond(storage: Storage): BeyondRecord | null {
-  const v = read(storage, keys.beyond) as Record<string, unknown> | null;
+  const v = read(storage, keys.beyond) as Partial<Record<keyof BeyondRecord, unknown>> | null;
   if (!v || !span(v.seconds) || !count(v.xp) || !seedLike(v.seed)) return null;
-  return { seconds: v.seconds, xp: v.xp, seed: v.seed as number };
+  return { seconds: v.seconds, xp: v.xp, seed: v.seed };
 }
 
 // A clear beats a loss, then more XP, then a later end. Endless results never count here.
 export function bestRecord(current: BestRecord | null, next: Finished | BestRecord) {
-  if ('endless' in next && next.endless) return current;
-  if (next.outcome !== 'success' && next.outcome !== 'collapse-failure') return current;
-  const score = (r: BestRecord | Finished) => [+(r.outcome === 'success'), r.xp, r.collisionTime];
+  if (('endless' in next && next.endless) || !cleared(next.outcome)) return current;
+  const score = (r: Finished | BestRecord) => [+(r.outcome === 'success'), r.xp, r.collisionTime];
   if (current) {
     const old = score(current),
       fresh = score(next),
       i = old.findIndex((value, j) => value !== fresh[j]);
     if (i < 0 || old[i] > fresh[i]) return current;
   }
-  const { outcome, xp, level, seed, collisionTime } = next as BestRecord;
+  const { outcome, xp, level, seed, collisionTime } = next;
   return { outcome, xp, level, seed, collisionTime };
 }
 // Longer survival beyond the singularity, then more XP gained there.
@@ -107,6 +104,8 @@ export function bestBeyond(current: BeyondRecord | null, next: Finished | Beyond
     : current;
 }
 
+type Mode = 'record' | 'beyond';
+
 // Keeps the best of each mode in memory and in storage. Another tab may have written a
 // better record meanwhile, so each write merges what is stored first; a failed write
 // is retried later, at most one pending record per mode.
@@ -116,7 +115,7 @@ export class Records {
   // Whether the last recorded result became the best of its mode.
   improved = false;
   private readonly storage: () => Storage;
-  private pending = new Map<'record' | 'beyond', number>();
+  private pending = new Map<Mode, number>();
 
   constructor(storage: () => Storage) {
     this.storage = storage;
@@ -132,13 +131,12 @@ export class Records {
   record(result: Finished, wall: number): boolean {
     const mode = result.endless ? 'beyond' : 'record',
       before = mode === 'record' ? this.best : this.beyond;
-    if (mode === 'record') this.best = bestRecord(this.best, result);
-    else this.beyond = bestBeyond(this.beyond, result);
+    this.merge(mode, result);
     this.improved = before !== (mode === 'record' ? this.best : this.beyond);
     return this.persist(mode, wall);
   }
 
-  // Undefined when no write was due.
+  // Writes that failed at least a second ago; undefined when none was due.
   retry(wall: number): boolean | undefined {
     let ok: boolean | undefined;
     for (const [mode, at] of this.pending)
@@ -146,19 +144,18 @@ export class Records {
     return ok;
   }
 
-  private persist(mode: 'record' | 'beyond', wall: number): boolean {
+  private merge(mode: Mode, next: Finished | BestRecord | BeyondRecord | null): void {
+    if (!next) return;
+    if (mode === 'record') this.best = bestRecord(this.best, next as Finished | BestRecord);
+    else this.beyond = bestBeyond(this.beyond, next as Finished | BeyondRecord);
+  }
+
+  private persist(mode: Mode, wall: number): boolean {
     let ok = false;
     try {
       const store = this.storage();
-      if (mode === 'record') {
-        const stored = readRecord(store);
-        if (stored) this.best = bestRecord(this.best, stored);
-        ok = save(store, keys.record, this.best);
-      } else {
-        const stored = readBeyond(store);
-        if (stored) this.beyond = bestBeyond(this.beyond, stored);
-        ok = save(store, keys.beyond, this.beyond);
-      }
+      this.merge(mode, mode === 'record' ? readRecord(store) : readBeyond(store));
+      ok = save(store, keys[mode], mode === 'record' ? this.best : this.beyond);
     } catch {
       /* Keep the best in memory and retry. */
     }

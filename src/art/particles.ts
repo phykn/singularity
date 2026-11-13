@@ -1,5 +1,5 @@
-import type { ParticleKind } from '../game/particles.ts';
-import type { BossKind } from '../game/bosses.ts';
+import type { ParticleKind } from '../game/rules.ts';
+import type { BossKind } from '../game/rules.ts';
 
 // The electron is drawn in code. Digits index the palette: 1 rim, 2 shade, 3 body, 4 highlight.
 type Cell = (dx: number, dy: number) => string;

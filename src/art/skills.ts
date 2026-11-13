@@ -12,7 +12,7 @@ export const evolvedCells = Object.fromEntries(
 ) as Record<SkillId, { x: number; y: number }>;
 export const iconAtlasSize = { width: 256, height: 192 };
 
-export const controlIds = [
+const controlIds = [
   'github',
   'star',
   'help',

@@ -1,70 +1,45 @@
+import { strikeBeat } from './beats.ts';
 import { Combat } from './combat.ts';
-import { bossPhase } from './bosses.ts';
-import type { BossKind } from './bosses.ts';
-import { formationSlots, formationsAt, interleave } from './formations.ts';
-import type { FormationId, Shape } from './formations.ts';
-import { CENTER, TAU, clamp, distance, goldenAngle, orbit } from './geometry.ts';
+import type { Event, EventKind, Events } from './events.ts';
+import { CENTER, distance, orbit } from './geometry.ts';
 import type { Point } from './geometry.ts';
-import { familyBase, particleKind, particleMotion } from './particles.ts';
-import type { Family, Mix, ParticleKind } from './particles.ts';
-import { eligibleUpgrades, offerCards } from './growth.ts';
+import { Giants } from './giants.ts';
+import { Growth } from './growth.ts';
+import { particleMotion } from './particles.ts';
 import { Random } from './random.ts';
-import {
-  blankBoosts,
-  blankRanks,
-  coreRadius,
-  evolutionChance,
-  isPact,
-  isSkill,
-  isStat,
-  levelForXp,
-  orbitTarget,
-  pactIds,
-  powerScale,
-  rangeScale,
-  rarityIds,
-  recoveryMass,
-  rollRarity,
-  rules as defaultRules,
-  rulesHash,
-  skillIds,
-  xpForLevel,
-} from './rules.ts';
-import type { Card, PactId, PopStyle, Rarity, Rules, SkillId, UpgradeId } from './rules.ts';
-import { skillValues } from './skills.ts';
-import type { SkillValues } from './skills.ts';
+import { rules as defaultRules, rulesHash } from './rules.ts';
+import type { BossKind, PopStyle, Rules, UpgradeId } from './rules.ts';
+import { Spawner } from './spawn.ts';
 import type {
   BannerKind,
+  Beat,
   DamageNumber,
   Effect,
   EffectInput,
-  Event,
   Input,
   Outcome,
   Phase,
   Result,
   RunRecord,
-  Selection,
   Target,
+  Trigger,
 } from './types.ts';
 
-type Stage = Rules['stages'][number];
-type Giant = Rules['bosses'][number] | Rules['higgs'];
-type Member = Omit<Target, 'id' | 'x' | 'y' | 'born' | 'maxHp'>;
-type Shared = { speed: number; turn: number };
-export type Choice = { cards: Card[]; number: number };
-// A formation shown as faint dots until `time`; wave formations wait for their wave.
-export type Pending = { planned: number; time: number; members: Member[]; wave?: number };
-type Wave = { time: number; angle: number; scale: number };
-
-const damageNumberSeconds = 0.72,
-  maxDamageNumbers = 64,
+export const damageNumberSeconds = 0.72;
+const maxDamageNumbers = 64,
   maxEffects = 160;
 
+// One run: a seeded simulation advanced in fixed ticks. It owns the clock, the phases, the
+// orbit and the core, the particles on the field and what the views read; arrivals, giants,
+// growth and combat each have their own class.
 export class Game {
   readonly rules: Rules;
   readonly seed: number;
+  // Off in tests that place their own targets: no regular arrivals and no basic fire.
   readonly combatEnabled: boolean;
+  readonly spawner: Spawner;
+  readonly giants: Giants;
+  readonly growth: Growth;
   readonly combat: Combat;
   phase: Phase = 'ready';
   // Running combat ticks; `elapsedTicks` also counts phase transitions.
@@ -72,64 +47,34 @@ export class Game {
   elapsedTicks = 0;
   phaseTicks = 0;
   pendingTicks = 0;
-  xp = 0;
   mass = 0;
   radius: number;
   angle = -Math.PI / 2;
-  ranks = blankRanks();
-  boosts = blankBoosts();
-  // The rarity a skill was first taken at; it keeps it for the run.
-  rarities: Partial<Record<UpgradeId, Rarity>> = {};
-  evolved: Partial<Record<SkillId, boolean>> = {};
-  pacts: Partial<Record<PactId, boolean>> = {};
-  forms: SkillValues;
-  choice: Choice | null = null;
-  selections: Selection[] = [];
   targets: Target[] = [];
-  pending: Pending[] = [];
-  waves: Wave[];
-  waveCount = 0;
-  rushSpawns = 0;
+  nextId = 0;
   banner: { kind: BannerKind; until: number; boss?: BossKind } | null = null;
-  bossCount = 0;
-  bossesDown = 0;
-  // Ended bosses + 1; a later boss that ends first waits for the earlier one.
-  round = 1;
   effects: Effect[] = [];
   damageNumbers: DamageNumber[] = [];
   events: Event[] = [];
+  // Events trimmed from the front of the log.
   eventOffset = 0;
   inputs: Input[] = [];
   result: Result | null = null;
   // The cleared run, kept while endless mode runs past it.
   clearResult: Result | null = null;
-  collisionTime = 0;
-  private readonly recordEvents: boolean;
-  private readonly random: Record<'spawn' | 'cards' | 'rarity' | 'crit', Random>;
   outcome: Outcome = 'collapse-failure';
-  trigger: Result['trigger'] = 'gravity';
-  private nextSpawn = 0;
-  private plannedWave = -1;
-  private kills: { tick: number; energy: number }[] = [];
-  private killEnergy = 0;
-  private rushUntil = 0;
-  private bossOrder: number[] = [];
-  // Endless mode: the tick it began and the endless second the current round began.
-  private beyondTick = 0;
-  private roundFrom = 0;
-  private bossesEnded = new Set<number>();
-  private criticalEntered = false;
-  private finalEntered = false;
-  private finalDown = false;
-  private batches = 0;
-  private nextId = 0;
-  private nextDamageId = 0;
-  private orbitRecovery = 0;
-  private xpRemainder = 0;
-  private nextHorizon = 0;
-  private popTick = -1;
+  trigger: Trigger = 'gravity';
+  collisionTime = 0;
   // The tick of the last accepted beat; a second tap in one tick is ignored.
   beatTick = -1;
+  private readonly recordEvents: boolean;
+  // Seeded apart so critical rolls never shift spawns or cards.
+  readonly crit: Random;
+  private beyondTick = 0;
+  private criticalEntered = false;
+  private orbitRecovery = 0;
+  private nextDamageId = 0;
+  private popTick = -1;
   private popOrder: Partial<Record<PopStyle, number>> = {};
 
   constructor(
@@ -142,26 +87,10 @@ export class Game {
     this.recordEvents = options.recordEvents ?? true;
     this.radius = this.rules.orbit.radius;
     const stream = (name: string) => new Random(this.seed, name);
-    this.random = {
-      spawn: stream('spawn'),
-      cards: stream('cards'),
-      rarity: stream('rarity'),
-      crit: stream('crit'),
-    };
-    const angles = stream('wave'),
-      late = this.rules.late;
-    this.waves = this.rules.stages
-      .filter((s) => s.wave > 0)
-      .map((s) => ({ time: s.start, angle: angles.next() * TAU, scale: s.wave }));
-    // Repeats follow the listed waves every `late.waveRepeatSeconds`.
-    const last = this.waves.at(-1)!;
-    for (let i = 1; last && i <= 60; i++)
-      this.waves.push({
-        time: last.time + i * late.waveRepeatSeconds,
-        angle: (last.angle + i * goldenAngle) % TAU,
-        scale: late.waveScale,
-      });
-    this.forms = skillValues(this.ranks, this.rarities, this.rules);
+    this.crit = stream('crit');
+    this.spawner = new Spawner(this, stream('spawn'), stream('wave'));
+    this.giants = new Giants(this);
+    this.growth = new Growth(this, stream('cards'), stream('rarity'));
     this.combat = new Combat(this);
   }
 
@@ -174,23 +103,24 @@ export class Game {
   get eventCount(): number {
     return this.eventOffset + this.events.length;
   }
-  get level(): number {
-    return levelForXp(this.xp, this.rules);
-  }
-  get levelProgress(): { current: number; required: number } {
-    const previous = xpForLevel(this.level, this.rules);
-    return {
-      current: this.xp - previous,
-      required: xpForLevel(this.level + 1, this.rules) - previous,
-    };
+  get position(): Point {
+    return orbit(this.angle, this.radius);
   }
   get core(): number {
-    return coreRadius(this.mass, this.rules);
+    const o = this.rules.orbit;
+    return o.coreRadius + Math.min(o.coreGrowthMax, o.coreGrowth * this.mass);
   }
-  // Critical breach pulls the orbit inward by `critical.pull`.
+  // Mass pulls the orbit inward; the critical breach pulls it `critical.pull` further.
   get targetRadius(): number {
-    const radius = orbitTarget(this.mass, this.rules);
+    const o = this.rules.orbit,
+      radius = Math.max(0, Math.min(o.radius, o.radius - o.gravityPerMass * this.mass));
     return this.critical ? Math.max(0, radius - this.rules.critical.pull) : radius;
+  }
+  get margin(): number {
+    return this.radius - this.core - this.rules.orbit.electronRadius;
+  }
+  get danger(): boolean {
+    return this.margin < this.rules.orbit.dangerMargin;
   }
   get critical(): boolean {
     return !this.endless && this.time >= this.rules.critical.time;
@@ -204,170 +134,36 @@ export class Game {
   get canContinue(): boolean {
     return this.phase === 'result' && this.result?.outcome === 'success' && !this.endless;
   }
-  // How far the current endless round is toward its giant, from 0 to 1.
-  get roundProgress(): number {
-    return Math.min(1, (this.endlessSeconds - this.roundFrom) / this.rules.endless.roundSeconds);
-  }
-  // Endless rounds cleared so far; each one is a step harder.
-  get endlessRounds(): number {
-    return this.endless ? this.round - this.rules.bosses.length - 2 : 0;
-  }
-  // How far the run is toward the Higgs particle's arrival, from 0 to 1.
-  get finalProgress(): number {
-    return Math.min(1, this.time / this.rules.higgs.time);
-  }
-  get boss(): Target | undefined {
-    return this.targets.find((t) => t.final) ?? this.targets.find((t) => t.kind === 'boss');
-  }
   // Late particles grow tougher and faster by the minute after the last stage starts. Endless
   // mode keeps the clear's strength and multiplies it once per round cleared.
   get enemyStrength(): { hp: number; speed: number } {
-    const late = this.rules.late,
-      e = this.rules.endless,
-      at = this.clearResult?.collisionTime ?? this.time,
-      minutes = Math.max(0, (at - this.rules.stages.at(-1)!.start) / 60);
-    const hp = 1 + minutes * late.hpPerMinute,
+    const { late, endless, critical, stages } = this.rules,
+      time = this.clearResult?.collisionTime ?? this.time,
+      minutes = Math.max(0, (time - stages.at(-1)!.start) / 60),
+      hp = 1 + minutes * late.hpPerMinute,
       speed = Math.min(late.maxSpeedScale, 1 + minutes * late.speedPerMinute);
     if (this.endless) {
-      const steps = this.endlessRounds;
+      const steps = this.giants.endlessRounds;
       return {
-        hp: hp * e.roundHpMultiplier ** Math.min(steps, 600),
-        speed: speed * Math.min(e.maxSpeedScale, 1 + steps * e.roundSpeedStep),
+        hp: hp * endless.roundHpMultiplier ** Math.min(steps, 600),
+        speed: speed * Math.min(endless.maxSpeedScale, 1 + steps * endless.roundSpeedStep),
       };
     }
-    const c = this.rules.critical;
-    return this.critical ? { hp: hp * c.hpScale, speed: speed * c.speedScale } : { hp, speed };
+    return this.critical
+      ? { hp: hp * critical.hpScale, speed: speed * critical.speedScale }
+      : { hp, speed };
   }
-  // After the last stage starts, each wave cycle opens with an assault, then a lull.
-  get wavePhase(): 'steady' | 'assault' | 'recovery' {
-    const e = this.rules.endless,
-      late = this.endless
-        ? { repeat: e.cycleSeconds, assault: e.assaultSeconds, recovery: e.recoverySeconds }
-        : {
-            repeat: this.rules.late.waveRepeatSeconds,
-            assault: this.rules.late.assaultSeconds,
-            recovery: this.rules.late.recoverySeconds,
-          },
-      age = this.endless
-        ? this.endlessSeconds - this.rules.spawn.waveWarningSeconds
-        : this.time - this.rules.stages.at(-1)!.start;
-    if (age < 0) return 'steady';
-    const at = age % late.repeat;
-    if (at < late.assault) return 'assault';
-    return at < late.assault + late.recovery ? 'recovery' : 'steady';
-  }
-  get rushing(): boolean {
-    return (
-      this.phase === 'running' &&
-      this.wavePhase !== 'recovery' &&
-      this.tick < this.rushUntil &&
-      this.targets.length < this.staged((s) => s.rush.maxTargets)
-    );
-  }
-  get upcomingWave(): Wave | undefined {
-    return this.waves[this.waveCount];
-  }
-  get warningWave(): Wave | null {
-    const wave = this.upcomingWave;
-    return this.phase === 'running' &&
-      this.combatEnabled &&
-      wave &&
-      wave.time - this.time <= this.rules.spawn.waveWarningSeconds
-      ? wave
-      : null;
-  }
-  get margin(): number {
-    return this.radius - this.core - this.rules.orbit.electronRadius;
-  }
-  get position(): Point {
-    return orbit(this.angle, this.radius);
-  }
-  get range(): number {
-    return this.rules.orbit.range * rangeScale(this.boosts.range, this.rules);
-  }
-  get damage(): number {
-    return this.rules.combat.baseDamage * powerScale(this.boosts.power, this.rules);
-  }
-  get rate(): number {
-    return (1 + this.rules.combat.ratePerRank * this.boosts.rate) * this.combat.heatScale;
-  }
-  get attackInterval(): number {
-    return this.rules.combat.attackSeconds / this.rate;
-  }
-  // Skill values follow ranks, rarities and range; call after changing any of them.
-  refresh(): void {
-    this.forms = skillValues(
-      this.ranks,
-      this.rarities,
-      this.rules,
-      rangeScale(this.boosts.range, this.rules),
-    );
-  }
-  // Slots grow as giant particles fall (`growth.slotKills`).
-  get skillSlots(): number {
-    const g = this.rules.growth;
-    return g.skillSlots + g.slotKills.filter((kills) => this.bossesDown >= kills).length;
-  }
-  get ownedSkills(): SkillId[] {
-    return skillIds.filter((id) => this.ranks[id] > 0);
-  }
-  // Overclock gives up mass release.
-  get recoverable(): boolean {
-    return this.mass >= this.rules.growth.recovery.minMass && !this.pacts.overclock;
-  }
-  get danger(): boolean {
-    return this.margin < this.rules.orbit.dangerMargin;
-  }
-  rank(id: UpgradeId): number {
-    if (isPact(id)) return this.pacts[id] ? 1 : 0;
-    return isSkill(id) ? this.ranks[id] : isStat(id) ? this.boosts[id] : 0;
-  }
-  get pactCount(): number {
-    return pactIds.filter((id) => this.pacts[id]).length;
-  }
-  // Evolution and pact cards are judged as offered; the rest by rank, slots and mass.
-  canUpgrade(id: UpgradeId): boolean {
-    const card = this.choice?.cards.find((entry) => entry.id === id);
-    if (card?.evolve) return !this.evolved[id as SkillId];
-    if (isPact(id))
-      return !!card && !this.pacts[id] && this.pactCount < this.rules.growth.pacts.max;
-    return eligibleUpgrades(this.ranks, this.rules, this.recoverable, this.skillSlots).includes(id);
-  }
-  // Mass release in danger, then an evolution, a pact only while the orbit is safe,
-  // then early attack upgrades, then the highest rarity.
-  get automaticCard(): Card | undefined {
-    const safe = this.margin > this.rules.orbit.autoPactMargin,
-      cards =
-        this.choice?.cards.filter(
-          (card) => this.canUpgrade(card.id) && (safe || !isPact(card.id)),
-        ) ?? [],
-      g = this.rules.growth;
-    return (
-      cards.find((card) => card.id === 'recover' && this.danger) ??
-      cards.find((card) => card.evolve) ??
-      cards.find((card) => isPact(card.id)) ??
-      cards.find(
-        ({ id }) => (id === 'power' || id === 'rate') && this.boosts[id] < g.autoStatRank,
-      ) ??
-      cards.reduce<Card | undefined>(
-        (a, b) => (!a || rarityIds.indexOf(b.rarity) > rarityIds.indexOf(a.rarity) ? b : a),
-        undefined,
-      )
-    );
-  }
-  get stage(): number {
-    return this.rules.stages.filter((s) => this.time >= s.start).length - 1;
-  }
+  // How far the current transition has run, from 0 to 1.
   get phaseProgress(): number {
-    const t = this.rules.time;
-    const seconds =
-      this.phase === 'collapse'
-        ? t.collisionSeconds
-        : this.phase === 'crossing'
-          ? t.beyondSeconds
-          : this.outcome === 'success'
-            ? t.successEndingSeconds
-            : t.failureEndingSeconds;
+    const t = this.rules.time,
+      seconds =
+        this.phase === 'collapse'
+          ? t.collisionSeconds
+          : this.phase === 'crossing'
+            ? t.beyondSeconds
+            : this.outcome === 'success'
+              ? t.successEndingSeconds
+              : t.failureEndingSeconds;
     return this.phaseTicks / (seconds * t.tickRate);
   }
   get record(): RunRecord {
@@ -378,57 +174,66 @@ export class Game {
       inputs: this.inputs.map((input) => ({ ...input })),
     };
   }
-  // Seeded apart so critical rolls never shift spawns or cards.
-  critRoll(): number {
-    return this.random.crit.next();
-  }
 
   start(): void {
     if (this.phase !== 'ready') return;
     this.phase = 'running';
     this.log('start', { seed: this.seed });
-    if (!this.combatEnabled) return;
-    this.spawnBatch();
-    this.nextSpawn = this.staged((s) => s.spawnSeconds) * this.rules.time.tickRate;
+    if (this.combatEnabled) this.spawner.start();
+  }
+
+  // The four inputs land between ticks and are recorded for replay; each reports whether
+  // the run accepted it.
+
+  // Takes a card on offer; stale or unknown picks do nothing.
+  choose(id: UpgradeId, number: number): boolean {
+    const choice = this.growth.choice,
+      card = choice?.cards.find((c) => c.id === id);
+    if (this.phase !== 'running' || choice?.number !== number || !card) return false;
+    if (!this.growth.canUpgrade(id)) return false;
+    this.inputs.push({ tick: this.elapsedTicks, kind: 'card', id, number });
+    this.growth.take(card);
+    return true;
+  }
+
+  // An accepted beat strikes; the third also sheds `finishMass`. Beat 0 is a missed beat,
+  // which matters only to the Pulse pact.
+  resonate(beat: Beat): boolean {
+    if (this.phase !== 'running' || this.growth.choice || this.beatTick === this.elapsedTicks)
+      return false;
+    this.beatTick = this.elapsedTicks;
+    this.inputs.push({ tick: this.elapsedTicks, kind: 'beat', beat });
+    this.log('resonance', { beat });
+    const pacts = this.growth.pacts;
+    if (beat === 0) {
+      if (pacts.pulse) this.mass += this.rules.pacts.pulse.missMass;
+      return true;
+    }
+    strikeBeat(this.combat, beat);
+    // Overclock gives up mass release, this one included.
+    if (beat === 3 && !pacts.overclock) this.releaseMass(this.rules.combat.resonance.finishMass);
+    return true;
   }
 
   // Past a clear: the core, orbit and field reset and round seven begins; the build stays.
   continueBeyond(): boolean {
     if (!this.canContinue) return false;
     this.inputs.push({ tick: this.elapsedTicks, kind: 'beyond' });
-    const tickRate = this.rules.time.tickRate,
-      warning = this.rules.spawn.waveWarningSeconds,
-      last = this.waves.at(-1)!;
     this.clearResult = this.result;
     this.result = null;
     this.phase = 'crossing';
     this.phaseTicks = this.pendingTicks = 0;
-    this.mass = this.orbitRecovery = this.xpRemainder = 0;
+    this.mass = this.orbitRecovery = this.growth.remainder = 0;
     this.radius = this.rules.orbit.radius;
-    this.choice = this.banner = null;
+    this.growth.choice = this.banner = null;
     this.targets = [];
-    this.pending = [];
     this.effects = [];
     this.damageNumbers = [];
-    this.finalDown = false;
-    this.kills = [];
-    this.killEnergy = this.rushUntil = this.rushSpawns = 0;
     this.combat.clear();
-    // A wave every `cycleSeconds`, the first after one warning.
-    this.waves = Array.from({ length: 600 }, (_, i) => ({
-      time: this.time + warning + i * this.rules.endless.cycleSeconds,
-      angle: (last.angle + (i + 1) * goldenAngle) % TAU,
-      scale: this.rules.late.waveScale,
-    }));
-    this.waveCount = 0;
-    this.plannedWave = -1;
-    this.nextSpawn = this.tick + warning * tickRate;
+    this.spawner.beyond();
+    this.giants.beyond();
     this.beyondTick = this.tick;
-    this.round = this.rules.bosses.length + 2;
-    this.roundFrom = 0;
-    // Slot r - 1 holds round r's giant; the cleared rounds' slots are behind.
-    this.bossOrder.length = this.round - 1;
-    this.log('beyond', { round: this.round });
+    this.log('beyond', { round: this.giants.round });
     return true;
   }
 
@@ -439,20 +244,21 @@ export class Game {
     this.outcome = 'retired';
     this.trigger = 'quit';
     this.collisionTime = this.time;
-    this.choice = null;
+    this.growth.choice = null;
     this.combat.clear();
-    this.finishResult();
+    this.finish();
     return true;
   }
 
-  // With `holdAtChoice`, combat stops as soon as cards are on offer.
+  // Wall-clock milliseconds into whole ticks, at most `tickLimit` of them. With
+  // `holdAtChoice`, combat stops as soon as cards are on offer.
   advance(milliseconds: number, tickLimit = Infinity, holdAtChoice = false): void {
     if (this.phase === 'ready' || this.phase === 'result') return;
     this.pendingTicks += (milliseconds * this.rules.time.tickRate) / 1000;
     const count = Math.min(Math.floor(this.pendingTicks + 1e-8), tickLimit);
     this.pendingTicks -= count;
     this.run(count, holdAtChoice);
-    if (holdAtChoice && this.choice) this.pendingTicks = 0;
+    if (holdAtChoice && this.growth.choice) this.pendingTicks = 0;
   }
 
   // Up to `ticks` fixed steps, stopping at the result.
@@ -462,295 +268,38 @@ export class Game {
       i < ticks &&
       this.phase !== 'result' &&
       this.phase !== 'ready' &&
-      !(holdAtChoice && this.choice);
+      !(holdAtChoice && this.growth.choice);
       i++
     ) {
       this.elapsedTicks++;
       if (this.phase === 'running') this.step();
       else this.transition();
-      this.expireEffects();
+      const now = this.seconds;
+      this.effects = this.effects.filter((fx) => now < fx.born + fx.life);
+      this.damageNumbers = this.damageNumbers.filter((d) => now < d.born + damageNumberSeconds);
     }
   }
 
   private step(): void {
     this.tick++;
-    if (this.finalDown) return this.beginCollapse('boss');
-    this.enterMilestones();
-    if (this.combatEnabled) this.spawn();
-    this.moveTargets();
-    this.bossActions();
-    this.angle += this.rules.orbit.speed / this.radius / this.rules.time.tickRate;
-    this.combat.update();
-    // Horizon: the core gains one mass every `massSeconds`.
-    if (this.pacts.horizon && this.combatEnabled && this.time + 1e-8 >= this.nextHorizon) {
-      this.nextHorizon = this.time + this.rules.pacts.horizon.massSeconds;
-      this.mass++;
-    }
-    if (this.finalDown) return this.beginCollapse('boss');
-    if (this.absorbTargets()) return this.beginCollapse('boss-absorbed');
-    // A giant particle on the field feeds the core.
-    const boss = this.boss;
-    if (
-      boss &&
-      this.tick % Math.round(this.giant(boss).feedSeconds * this.rules.time.tickRate) === 0
-    )
-      this.mass++;
-    this.updateOrbit();
-    if (this.margin <= 0) this.beginCollapse('gravity');
-  }
-
-  private spawn(): void {
-    const tickRate = this.rules.time.tickRate;
-    if (this.tick + 1e-8 >= this.nextSpawn) {
-      const rushing = this.rushing;
-      this.spawnBatch();
-      if (rushing) this.log('rush', { count: ++this.rushSpawns });
-      this.nextSpawn +=
-        this.staged((s) => (rushing ? s.rush.spawnSeconds : s.spawnSeconds)) *
-        tickRate *
-        (this.wavePhase === 'recovery' ? this.rules.late.recoverySpawnScale : 1) *
-        (this.critical ? this.rules.critical.spawnScale : 1) *
-        (this.pacts.greed ? 1 / (1 + this.rules.pacts.greed.spawn) : 1) *
-        (1 + this.random.spawn.spread() * this.rules.spawn.variation.intervalFraction);
-    }
-    const wave = this.upcomingWave;
-    if (
-      wave &&
-      this.plannedWave !== this.waveCount &&
-      this.time + 1e-8 >= wave.time - this.rules.formations.previewSeconds
-    ) {
-      this.plannedWave = this.waveCount;
-      this.planWave(wave);
-    }
-    if (wave && this.time >= wave.time) {
-      const index = this.pending.findIndex((p) => p.wave === this.waveCount);
-      if (index !== -1) this.place(this.pending.splice(index, 1)[0].members);
-      this.log('wave', { number: ++this.waveCount, angle: wave.angle });
-    }
-    const ready = this.pending.filter((p) => p.wave === undefined && this.time + 1e-8 >= p.time);
-    if (!ready.length) return;
-    this.pending = this.pending.filter((p) => !ready.includes(p));
-    for (const p of ready) this.place(p.members);
-  }
-
-  // Waves always come as formations from two sides, planned while their warning shows.
-  private planWave(wave: Wave): void {
-    const cfg = this.rules.spawn,
-      small = Math.round((cfg.waveSmall / 2) * wave.scale),
-      dense = Math.round((cfg.waveDense / 2) * wave.scale),
-      stage = this.stageAt(wave.time),
-      shapes = formationsAt(wave.time, this.rules.formations),
-      shape = this.random.spawn.pick(shapes);
-    let members: Member[];
-    if (shape === 'ring')
-      members = this.formation('ring', small * 2, dense * 2, wave.angle, 1, stage);
-    else {
-      const [first, second] = shape === 'pincer' ? this.pincerSides(shapes) : [shape, shape];
-      members = [
-        ...this.formation(first, small, dense, wave.angle, 1, stage),
-        ...this.formation(second, small, dense, wave.angle + Math.PI, -1, stage),
-      ];
-    }
-    this.pending.push({ planned: this.time, time: wave.time, members, wave: this.waveCount });
-    this.log('formation', { shape, wave: this.waveCount + 1, count: members.length });
-  }
-
-  // A pincer sends two shapes, never rings, from opposite sides.
-  private pincerSides(shapes: readonly FormationId[]): [Shape, Shape] {
-    const sides = shapes.filter((id): id is Shape => id !== 'pincer' && id !== 'ring');
-    return [this.random.spawn.pick(sides), this.random.spawn.pick(sides)];
-  }
-
-  private stageAt(time: number): number {
-    return this.rules.stages.filter((s) => time >= s.start).length - 1;
-  }
-
-  private get mix(): Mix {
-    const assault = this.wavePhase === 'assault',
-      late = this.rules.late;
-    return {
-      muon: assault ? late.muonProbability : this.ramped((s) => s.shares.muon),
-      neutrino: this.ramped((s) => s.shares.neutrino),
-      meson: this.ramped((s) => s.shares.meson),
-      neutron: assault ? late.neutronProbability : this.ramped((s) => s.shares.neutron),
-    };
-  }
-
-  private giant(target: Target): Giant {
-    return this.rules.bosses.find((b) => b.kind === target.boss) ?? this.rules.higgs;
-  }
-
-  // Bosses keep their times even while an earlier one is still alive. In endless mode one
-  // giant comes `roundSeconds` into each round, in boss order, and only once its round's
-  // giant has ended does the next round, and the next step in strength, begin.
-  private enterMilestones(): void {
-    if (this.endless) {
-      const bosses = this.rules.bosses,
-        giant = bosses[this.endlessRounds % bosses.length];
-      if (
-        this.bossOrder.length < this.round &&
-        this.endlessSeconds - this.roundFrom + 1e-8 >= this.rules.endless.roundSeconds
-      )
-        this.addBoss(giant, giant.kind, 'boss');
-      return;
-    }
-    const next = this.rules.bosses[this.bossCount];
-    if (next && this.time >= next.time) {
-      this.bossCount++;
-      this.addBoss(next, next.kind, 'boss');
-    } else if (!next && !this.finalEntered && this.time >= this.rules.higgs.time) {
-      this.finalEntered = true;
-      this.addBoss(this.rules.higgs, 'higgs', 'final-boss');
-      this.log('charged', { time: this.time });
-    }
+    if (this.giants.higgsDown) return this.collapse('boss');
+    this.giants.arrive();
     if (!this.criticalEntered && this.critical) {
       this.criticalEntered = true;
       this.log('critical', { time: this.time });
       this.banner = { kind: 'critical', until: this.time + this.rules.time.bannerSeconds };
     }
-  }
-
-  private addBoss(giant: Giant, kind: BossKind, banner: BannerKind, scale = 1): void {
-    const theta = this.random.spawn.next() * TAU,
-      radius = this.rules.orbit.spawnRadius,
-      hp = Math.round(giant.hp * this.enemyStrength.hp),
-      reward = 'xp' in giant ? giant : { xp: 0, mass: 0 };
-    const target: Target = {
-      id: this.nextId++,
-      ...orbit(theta, radius),
-      angle: theta,
-      radius,
-      kind: 'boss',
-      boss: kind,
-      particle: 'neutron',
-      born: this.time,
-      hp,
-      maxHp: hp,
-      xp: reward.xp * scale,
-      mass: reward.mass * scale,
-      speed: giant.speed,
-      turn: giant.turn,
-      size: giant.size,
-      summonCount: giant.summonCount,
-      ...(kind === 'higgs' && { final: true }),
-    };
-    this.targets.push(target);
-    this.bossOrder.push(target.id);
-    this.banner = { kind: banner, until: this.time + this.rules.time.bannerSeconds, boss: kind };
-    this.log(banner, { id: target.id, hp, boss: kind });
-    if (kind === 'gluon') {
-      const b = (giant as Rules['bosses'][number]).behavior;
-      this.spawnAround(target, 'quark', b.tethered, b.distance, target);
-    }
-  }
-
-  // Giant particle rules that act on their surroundings, once per tick.
-  private bossActions(): void {
-    const tickRate = this.rules.time.tickRate;
-    for (const boss of this.targets.filter((t) => t.boss)) {
-      const age = this.time - boss.born,
-        ticks = Math.round(age * tickRate),
-        giant = this.giant(boss),
-        b = 'behavior' in giant ? giant.behavior : {};
-      if (boss.boss === 'w') {
-        // The W boson turns nearby quarks into dashing muons.
-        if (ticks <= 0 || ticks % Math.round(b.seconds * tickRate)) continue;
-        const near = this.targets
-          .filter((t) => t.particle === 'quark' && t.tether === undefined)
-          .map((t) => ({ t, d: distance(t, boss) }))
-          .filter(({ d }) => d <= b.radius)
-          .sort((x, y) => x.d - y.d || x.t.id - y.t.id)
-          .slice(0, b.count);
-        for (const { t } of near) {
-          t.particle = 'muon';
-          t.born = this.time;
-        }
-        if (!near.length) continue;
-        this.addEffect({
-          kind: 'convert',
-          from: boss,
-          to: boss,
-          radius: b.radius,
-          width: 1,
-          life: 0.5,
-          particle: 'muon',
-        });
-        this.log('convert', { id: boss.id, ids: near.map(({ t }) => t.id) });
-      } else if (boss.boss === 'tau') {
-        // The tau drops muons as each dash ends.
-        if (
-          ticks > 0 &&
-          this.bossPhase(boss, -1 / tickRate)!.dashing &&
-          !this.bossPhase(boss)!.dashing
-        )
-          this.spawnAround(boss, 'muon', b.drops, boss.size + 4);
-      } else if (boss.boss === 'higgs') {
-        // Particles inside the Higgs field slow down but grow tougher and heavier.
-        const field = this.higgsField(boss),
-          cfg = this.rules.higgs.field;
-        for (const t of this.targets) {
-          if (t.boss || t.higgs || distance(t, boss) > field) continue;
-          t.higgs = true;
-          t.speed *= cfg.speed;
-          t.hp *= cfg.hp;
-          t.maxHp *= cfg.hp;
-          t.mass *= cfg.mass;
-        }
-      }
-    }
-  }
-
-  higgsField(boss: Target): number {
-    const cfg = this.rules.higgs.field;
-    return boss.hp / boss.maxHp < cfg.wideFraction ? cfg.wideRadius : cfg.radius;
-  }
-
-  bossPhase(target: Target, offset = 0) {
-    if (!target.boss) return undefined;
-    const giant = this.giant(target);
-    return bossPhase(
-      target.boss,
-      this.time + offset - target.born,
-      'behavior' in giant ? giant.behavior : {},
-    );
-  }
-
-  // Members ringed around a particle; tethered ones travel with it.
-  private spawnAround(
-    center: Target,
-    particle: ParticleKind,
-    count: number,
-    spread: number,
-    tether?: Target,
-  ): void {
-    const family = this.rules.particles[particle].family;
-    const members = Array.from({ length: count }, (_, i) => {
-      const a = (i * TAU) / count + center.id,
-        x = center.x - CENTER.x + spread * Math.cos(a),
-        y = center.y - CENTER.y + spread * Math.sin(a);
-      const member = this.member(
-        family,
-        Math.atan2(y, x),
-        Math.hypot(x, y),
-        Math.sign(center.turn) || 1,
-        {
-          particle,
-          shared: tether && { speed: tether.speed, turn: tether.turn },
-        },
-      );
-      if (tether) member.tether = tether.id;
-      return member;
-    });
-    this.place(members);
-  }
-
-  private endBoss(id: number): void {
-    this.bossesEnded.add(id);
-    while (this.bossesEnded.has(this.bossOrder[this.round - 1])) {
-      this.round++;
-      this.roundFrom = this.endlessSeconds;
-      this.log('round', { round: this.round, time: this.time });
-    }
+    if (this.combatEnabled) this.spawner.update();
+    this.moveTargets();
+    this.giants.act();
+    this.angle += this.rules.orbit.speed / this.radius / this.rules.time.tickRate;
+    this.combat.update();
+    this.combat.pacts.horizon();
+    if (this.giants.higgsDown) return this.collapse('boss');
+    if (this.absorbTargets()) return this.collapse('boss-absorbed');
+    if (this.giants.feeding) this.mass++;
+    this.updateOrbit();
+    if (this.margin <= 0) this.collapse('gravity');
   }
 
   private transition(): void {
@@ -763,215 +312,21 @@ export class Game {
     } else if (this.phase === 'collapse') {
       this.phase = 'ending';
       this.log('ending', { outcome: this.outcome });
-    } else this.finishResult();
-  }
-
-  // Stage values climb geometrically toward the next stage's, so a stage start is no wall.
-  staged(pick: (stage: Stage) => number, stage = this.stage): number {
-    const stages = this.rules.stages,
-      next = stages[stage + 1];
-    if (!next) return pick(stages[stage]);
-    const progress = clamp((this.time - stages[stage].start) / (next.start - stages[stage].start));
-    return pick(stages[stage]) * (pick(next) / pick(stages[stage])) ** progress;
-  }
-
-  // Shares blend linearly from the previous stage's over the first `spawn.ramp` of a stage.
-  ramped(pick: (stage: Stage) => number): number {
-    const stage = this.stage,
-      stages = this.rules.stages;
-    if (!stage) return pick(stages[0]);
-    const start = stages[stage].start,
-      length = (stages[stage + 1]?.start ?? 2 * start - stages[stage - 1].start) - start;
-    const blend = Math.min(1, clamp((this.time - start) / length) / this.rules.spawn.ramp);
-    return pick(stages[stage - 1]) + (pick(stages[stage]) - pick(stages[stage - 1])) * blend;
-  }
-
-  spawnBatch(): void {
-    const r = this.random.spawn,
-      cfg = this.rules.spawn,
-      v = cfg.variation,
-      shapes = this.rules.formations;
-    const roll = r.next(),
-      angle = r.next() * TAU,
-      direction = r.next() < 0.5 ? -1 : 1;
-    const intro = this.batches < cfg.introBatches;
-    const smallChance =
-      this.wavePhase === 'assault'
-        ? this.rules.late.smallBatchProbability
-        : this.ramped((s) => s.smallChance);
-    const family: Family = intro || roll < smallChance ? 'small' : 'dense';
-    const size = family === 'small' ? cfg.smallBatchSize : cfg.denseBatchSize;
-    const count = intro
-      ? cfg.introBatchSize
-      : Math.max(
-          1,
-          Math.round(size * this.staged((s) => s.batchScale) * (1 + r.spread() * v.batchFraction)),
-        );
-    const center = intro
-      ? this.angle + v.introAngleMin + r.next() * (v.introAngleMax - v.introAngleMin)
-      : angle;
-    this.batches++;
-    const available = formationsAt(this.time, shapes);
-    if (intro || !available.length || count < shapes.minCount || r.next() >= shapes.chance)
-      return this.spawnGroup(family, count, center, direction);
-    // Sometimes a batch arrives as a formation, shown first as faint dots.
-    const shape = r.pick(available),
-      small = family === 'small' ? count : 0,
-      dense = family === 'dense' ? count : 0;
-    let members: Member[];
-    if (shape === 'pincer') {
-      const [first, second] = this.pincerSides(available);
-      members = [
-        ...this.formation(first, Math.ceil(small / 2), Math.ceil(dense / 2), center, direction),
-        ...this.formation(
-          second,
-          Math.floor(small / 2),
-          Math.floor(dense / 2),
-          center + Math.PI,
-          -direction,
-        ),
-      ];
-    } else members = this.formation(shape, small, dense, center, direction);
-    this.pending.push({ planned: this.time, time: this.time + shapes.previewSeconds, members });
-    this.log('formation', { shape, count: members.length });
-  }
-
-  // One shape of members that share speed and turn, so it holds until it pops.
-  private formation(
-    shape: Shape,
-    small: number,
-    dense: number,
-    angle: number,
-    direction: number,
-    stage = this.stage,
-  ): Member[] {
-    const cfg = this.rules.formations,
-      p = this.rules.particles,
-      hp = this.rules.stages[stage].hp;
-    if (shape === 'ring') {
-      small = Math.round(small * cfg.ring.scale);
-      dense = Math.round(dense * cfg.ring.scale);
-    }
-    if (shape === 'arrow' && !dense && small > 3) {
-      // An arrowhead is led by one large particle worth the small ones it replaces.
-      small -= Math.min(small - 3, Math.round(hp.dense / hp.small));
-      dense = 1;
-    }
-    const kinds: Family[] =
-      shape === 'ring'
-        ? interleave(dense, small)
-        : [...Array<Family>(dense).fill('dense'), ...Array<Family>(small).fill('small')];
-    const slots = formationSlots(shape, kinds.length, angle, this.rules.orbit.spawnRadius, cfg);
-    const base = (family: Family) => p[familyBase[family]];
-    const shared = {
-      speed:
-        Math.min(...kinds.map((k) => base(k).speed)) *
-        this.enemyStrength.speed *
-        (shape === 'clump' ? cfg.clump.speed : 1),
-      turn: shape === 'line' || shape === 'star' ? 0 : base(kinds[0] ?? 'small').turn * direction,
-    };
-    return kinds.map((family, i) =>
-      this.member(family, slots[i].theta, slots[i].radius, direction, { shared, stage }),
-    );
-  }
-
-  // Small particles come in tight packs along the arc; dense ones at even gaps.
-  private spawnGroup(
-    family: Family,
-    count: number,
-    angle: number,
-    direction: number,
-    origin = this.rules.orbit.spawnRadius,
-  ): void {
-    const r = this.random.spawn,
-      cfg = this.rules.spawn,
-      offsets: number[] = [];
-    if (family === 'small') {
-      const { size, spacing, gap } = cfg.pack;
-      for (let at = 0; offsets.length < count; at += gap - spacing) {
-        const pack = size[0] + Math.floor(r.next() * (size[1] - size[0] + 1));
-        for (let i = 0; i < pack && offsets.length < count; i++, at += spacing) offsets.push(at);
-      }
-    } else for (let i = 0; i < count; i++) offsets.push(i * cfg.denseSpacing);
-    const middle = (offsets[0] + offsets.at(-1)!) / 2;
-    this.place(
-      offsets.map((offset) =>
-        this.member(
-          family,
-          angle + offset - middle + r.spread() * cfg.variation.angleJitter,
-          origin + r.next() * cfg.variation.radiusSpread,
-          direction,
-        ),
-      ),
-    );
-  }
-
-  // The species is drawn from the stage's mix unless given; `shared` keeps a
-  // formation or a tether moving together; species scale from their family.
-  private member(
-    family: Family,
-    angle: number,
-    radius: number,
-    direction: number,
-    {
-      particle,
-      shared,
-      stage = this.stage,
-    }: { particle?: ParticleKind; shared?: Shared; stage?: number } = {},
-  ): Member {
-    particle ??= particleKind(family, this.random.spawn.next(), this.mix);
-    const p = this.rules.particles[particle],
-      base = this.rules.particles[familyBase[family]],
-      strength = this.enemyStrength;
-    const speed =
-      shared?.speed ??
-      base.speed *
-        strength.speed *
-        (1 + this.random.spawn.spread() * this.rules.spawn.variation.speedFraction);
-    return {
-      kind: family,
-      particle,
-      angle,
-      radius,
-      hp: Math.round(this.staged((s) => s.hp[family], stage) * p.hp * strength.hp),
-      xp: p.xp,
-      mass: p.mass,
-      size: p.size,
-      speed: (speed * p.speed) / base.speed,
-      turn: (shared?.turn ?? base.turn * direction) * (base.turn ? p.turn / base.turn : 1),
-    };
-  }
-
-  private place(members: Member[]): void {
-    const placed = [];
-    for (const member of members) {
-      if (this.endless && this.targets.length >= this.rules.endless.maxTargets) break;
-      const target: Target = {
-        ...member,
-        id: this.nextId++,
-        ...orbit(member.angle, member.radius),
-        born: this.time,
-        maxHp: member.hp,
-        ...(this.rules.particles[member.particle].veiled && { veiled: true }),
-      };
-      this.targets.push(target);
-      placed.push({ id: target.id, particle: target.particle, angle: target.angle, hp: target.hp });
-    }
-    if (placed.length) this.log('spawn', { placed });
+    } else this.finish();
   }
 
   private moveTargets(): void {
     const tickRate = this.rules.time.tickRate;
     for (const t of this.targets) {
       const motion = particleMotion(this.rules.particles[t.particle], this.time - t.born),
-        boss = this.bossPhase(t)?.speed ?? 1;
+        boss = this.giants.phase(t)?.speed ?? 1;
       t.radius = Math.max(0, t.radius - (t.speed * motion.speed * boss) / tickRate);
       t.angle += (t.turn * motion.turn) / tickRate;
       Object.assign(t, orbit(t.angle, t.radius));
     }
   }
 
-  // Missed particles feed the core; reports whether the final boss reached it.
+  // Missed particles feed the core; reports whether the Higgs reached it.
   private absorbTargets(): boolean {
     const core = this.core,
       absorbed = this.targets
@@ -981,7 +336,7 @@ export class Game {
       this.mass += t.mass;
       if (t.kind === 'boss') {
         this.log('boss-absorbed', { id: t.id, mass: this.mass });
-        this.endBoss(t.id);
+        this.giants.end(t.id);
       }
       this.addEffect({
         kind: 'absorb',
@@ -997,13 +352,14 @@ export class Game {
     return absorbed.some((t) => t.final);
   }
 
+  // Shed mass lets the orbit recover outward before gravity settles it again.
   releaseMass(amount: number): number {
-    const removed = Math.min(this.mass, amount),
-      room = this.rules.orbit.radius - this.radius;
+    const o = this.rules.orbit,
+      removed = Math.min(this.mass, amount);
     this.mass -= removed;
     this.orbitRecovery = Math.min(
-      room,
-      this.orbitRecovery + removed * this.rules.orbit.gravityPerMass,
+      o.radius - this.radius,
+      this.orbitRecovery + removed * o.gravityPerMass,
     );
     return removed;
   }
@@ -1027,6 +383,8 @@ export class Game {
     this.radius += Math.sign(change) * Math.min(Math.abs(change), speed);
   }
 
+  // One hit on one particle, and everything its pop sets off: the kill effect, a meson's
+  // split, XP and a level-up, a giant's fall and the rush.
   damageTarget(
     target: Target,
     damage: number,
@@ -1038,28 +396,18 @@ export class Game {
     const index = this.targets.indexOf(target);
     if (index === -1) return;
     target.hitAt = this.time;
+    const { id, kind, particle, x, y } = target;
     if (target.veiled) {
       target.veiled = false;
-      this.log('reveal', { id: target.id, x: target.x, y: target.y });
+      this.log('reveal', { id, x, y });
       return;
     }
-    if (this.bossPhase(target)?.immune) return;
-    // The gluon shrugs off most damage while it still holds quarks.
-    if (target.boss === 'gluon' && this.targets.some((t) => t.tether === target.id))
-      damage *= (this.giant(target) as Rules['bosses'][number]).behavior.damageScale;
+    if (this.giants.phase(target)?.immune) return;
+    damage *= this.giants.shield(target);
     target.hp = Math.max(0, target.hp - damage);
     if (target.hp < 1e-8) target.hp = 0;
-    if (target.kind === 'boss') this.summonEscorts(target);
-    const { x, y } = target;
-    this.log('hit', {
-      id: target.id,
-      kind: target.kind,
-      particle: target.particle,
-      damage,
-      x,
-      y,
-      ...(crit && { crit }),
-    });
+    if (kind === 'boss') this.giants.summon(target);
+    this.log('hit', { id, kind, particle, damage, x, y, ...(crit && { crit }) });
     this.damageNumbers.push({
       id: this.nextDamageId++,
       x,
@@ -1070,6 +418,7 @@ export class Game {
     });
     if (this.damageNumbers.length > maxDamageNumbers) this.damageNumbers.shift();
     if (target.hp > 0) return;
+
     this.targets.splice(index, 1);
     const delay = this.popDelay(style, target, from);
     this.addEffect({
@@ -1078,56 +427,34 @@ export class Game {
       to: this.position,
       // Kills that pop all at once throw bigger debris.
       radius:
-        (target.final ? 54 : target.kind === 'boss' ? 36 : target.kind === 'dense' ? 11 : 6) *
+        (target.final ? 54 : kind === 'boss' ? 36 : kind === 'dense' ? 11 : 6) *
         (style === 'burst' ? this.rules.combat.pops.burst.debris : 1),
       width: damage,
       life: 0.4 + delay,
-      particle: target.particle,
+      particle,
       ...(target.boss && { boss: target.boss }),
       delay,
     });
     // A meson splits into quarks as it pops.
-    const split = this.rules.particles[target.particle].split;
-    if (split && target.kind !== 'boss') this.spawnAround(target, 'quark', split, 3);
-    const previous = this.level;
-    this.gainXp(target.xp);
-    if (target.kind === 'boss') this.endBoss(target.id);
-    if (target.final) {
-      this.finalDown = true;
-      this.log('final-boss-down', { id: target.id });
-    } else if (target.kind === 'boss') {
-      const slots = this.skillSlots;
-      this.bossesDown++;
-      this.banner = {
-        kind: this.skillSlots > slots ? 'slot-open' : 'boss-down',
-        until: this.time + this.rules.time.bannerSeconds,
-        boss: target.boss,
-      };
-      this.log('boss-down', { id: target.id, slots: this.skillSlots });
-    }
-    this.recordKillEnergy(target.xp);
-    this.log('kill', {
-      id: target.id,
-      kind: target.kind,
-      particle: target.particle,
-      xp: this.xp,
-      x,
-      y,
-      delay,
-      style,
+    const split = this.rules.particles[particle].split;
+    if (split && kind !== 'boss') this.spawner.spawnAround(target, 'quark', split, 3);
+    const growth = this.growth,
+      previous = growth.level;
+    growth.gain(target.xp);
+    if (kind === 'boss') this.giants.fall(target);
+    this.spawner.killed(target.xp);
+    this.log('kill', { id, kind, particle, xp: growth.xp, x, y, delay, style });
+    if (growth.level === previous) return;
+    this.log('level', { level: growth.level, xp: growth.xp });
+    this.addEffect({
+      kind: 'level',
+      from: this.position,
+      to: this.position,
+      radius: 24,
+      width: 1,
+      life: 0.5,
     });
-    if (this.level > previous) {
-      this.log('level', { level: this.level, xp: this.xp });
-      this.addEffect({
-        kind: 'level',
-        from: this.position,
-        to: this.position,
-        radius: 24,
-        width: 1,
-        life: 0.5,
-      });
-      this.openChoice();
-    }
+    growth.open();
   }
 
   // Kills in one tick pop in their style's rhythm: lines in order along the line,
@@ -1145,218 +472,47 @@ export class Game {
     return Math.min(cfg[style].max, order * cfg[style].stagger);
   }
 
-  private openChoice(): void {
-    if (this.phase !== 'running' || this.choice || this.selections.length >= this.level - 1) return;
-    const number = this.selections.length + 1;
-    const ids = offerCards(
-      {
-        ranks: this.ranks,
-        boosts: this.boosts,
-        number,
-        danger: this.danger,
-        recoverable: this.recoverable,
-        slots: this.skillSlots,
-      },
-      this.random.cards,
-      this.rules,
-    );
-    // Stats are always common; a skill keeps the rarity it was first taken at.
-    const offered = ids.map((id): Card => {
-      const rolled = rollRarity(this.random.rarity.next(), this.boosts.luck, this.rules);
-      return { id, rarity: isStat(id) ? 'common' : (this.rarities[id] ?? rolled) };
-    });
-    const evolution = this.evolutionOffer(),
-      evolutions: Card[] = evolution
-        ? [{ id: evolution, rarity: this.rarities[evolution] ?? 'common', evolve: true }]
-        : [];
-    const pact = !evolution && !this.danger ? this.pactOffer(number) : undefined;
-    if (pact) offered[offered.length - 1] = { id: pact, rarity: 'common' };
-    // In danger the recovery card stays first; an evolution takes the next place.
-    const lead = offered[0]?.id === 'recover' ? offered.slice(0, 1) : [],
-      cards = [...lead, ...evolutions, ...offered.slice(lead.length)].slice(
-        0,
-        this.rules.growth.choiceCount,
-      );
-    this.choice = { cards, number };
-    this.log('cards', { number, cards });
-  }
-
-  // While a rank-5 skill is unevolved, each offer may carry its evolution; luck raises
-  // the chance up to its maximum, and no run of misses forces one.
-  private evolutionOffer(): SkillId | undefined {
-    const ready = this.ownedSkills.filter(
-      (id) => this.ranks[id] >= this.rules.growth.maxRank && !this.evolved[id],
-    );
-    if (!ready.length) return undefined;
-    if (this.random.cards.next() >= evolutionChance(this.boosts.luck, this.rules)) return undefined;
-    return ready[Math.floor(this.random.cards.next() * ready.length)];
-  }
-
-  private pactOffer(number: number): PactId | undefined {
-    const cfg = this.rules.growth.pacts;
-    if (
-      number % cfg.interval ||
-      this.ownedSkills.length < cfg.minSkills ||
-      this.pactCount >= cfg.max
-    )
-      return undefined;
-    const open = pactIds.filter((id) => !this.pacts[id]);
-    return open.length ? open[Math.floor(this.random.cards.next() * open.length)] : undefined;
-  }
-
-  // Takes a card between ticks and records it for replay; stale or unknown picks do nothing.
-  choose(id: UpgradeId, number: number): boolean {
-    const card = this.choice?.cards.find((c) => c.id === id);
-    if (this.phase !== 'running' || this.choice?.number !== number || !card || !this.canUpgrade(id))
-      return false;
-    this.inputs.push({ tick: this.elapsedTicks, kind: 'card', id, number });
-    const oldRate = this.rate;
-    if (card.evolve) {
-      this.evolved[id as SkillId] = true;
-      this.log('evolve', { id });
-    } else if (isPact(id)) {
-      this.pacts[id] = true;
-      if (id === 'horizon') this.nextHorizon = this.time + this.rules.pacts.horizon.massSeconds;
-      this.log('pact', { id, mass: this.mass });
-    } else if (isSkill(id)) {
-      this.rarities[id] ??= card.rarity;
-      this.ranks[id]++;
-      this.refresh();
-      this.combat.learn(id);
-    } else if (isStat(id)) this.boosts[id]++;
-    else if (id === 'recover') {
-      const removed = this.releaseMass(recoveryMass(card.rarity, this.rules));
-      this.log('recover', { removed, mass: this.mass });
-    }
-    this.refresh();
-    if (this.rate !== oldRate) this.combat.rescale(oldRate);
-    const selection = {
-      time: this.time,
-      id,
-      rank: this.rank(id),
-      rarity: card.rarity,
-      evolve: !!card.evolve,
-    };
-    this.selections.push(selection);
-    this.log('skill', selection);
-    this.addEffect({
-      kind: 'upgrade',
-      from: id === 'recover' ? CENTER : this.position,
-      to: this.position,
-      radius: id === 'recover' ? this.core + 14 : id === 'range' ? this.range : 18,
-      width: 1,
-      life: 0.7,
-      source: id,
-      rarity: card.rarity,
-      anchor: id === 'recover' ? undefined : 'electron',
-    });
-    this.choice = null;
-    this.openChoice();
-    return true;
-  }
-
-  // Kills that come fast enough start a rush: batches arrive quicker for a while.
-  private recordKillEnergy(energy: number): void {
-    const rush = this.rules.spawn.rush,
-      window = rush.windowSeconds * this.rules.time.tickRate;
-    this.kills.push({ tick: this.tick, energy });
-    this.killEnergy += energy;
-    let expired = 0;
-    while (expired < this.kills.length && this.tick - this.kills[expired].tick >= window)
-      this.killEnergy -= this.kills[expired++].energy;
-    if (expired) this.kills.splice(0, expired);
-    if (this.killEnergy < rush.energyThreshold) return;
-    this.rushUntil = this.tick + window;
-    if (this.rushing)
-      this.nextSpawn = Math.min(
-        this.nextSpawn,
-        this.tick + this.staged((s) => s.rush.spawnSeconds) * this.rules.time.tickRate,
-      );
-  }
-
-  private summonEscorts(boss: Target): void {
-    const fractions = this.giant(boss).summonFractions;
-    boss.summons ??= 0;
-    while (boss.summons < fractions.length && boss.hp / boss.maxHp <= fractions[boss.summons]) {
-      boss.summons++;
-      // The top quark splits into a swarm of mesons instead of calling quarks.
-      if (boss.boss === 'top') this.spawnAround(boss, 'meson', boss.summonCount!, boss.size + 8);
-      else this.spawnGroup('small', boss.summonCount!, boss.angle, 1, boss.radius);
-    }
-  }
-
-  // An accepted beat: beats 1 and 2 strike the nearest particle, the third strikes every
-  // particle once and sheds `finishMass`. Tempo sweeps along the orbit on each.
-  // Beat 0 is a missed beat; it matters only to the Pulse pact.
-  resonate(beat: 0 | 1 | 2 | 3): boolean {
-    if (this.phase !== 'running' || this.choice || this.beatTick === this.elapsedTicks)
-      return false;
-    this.beatTick = this.elapsedTicks;
-    this.inputs.push({ tick: this.elapsedTicks, kind: 'beat', beat });
-    this.log('resonance', { beat });
-    if (beat === 0) {
-      if (this.pacts.pulse) this.mass += this.rules.pacts.pulse.missMass;
-      return true;
-    }
-    this.combat.resonate(beat);
-    this.combat.sweep(beat);
-    // Overclock gives up mass release, this one included.
-    if (beat === 3 && !this.pacts.overclock)
-      this.releaseMass(this.rules.combat.resonance.finishMass);
-    return true;
-  }
-
-  private gainXp(amount: number): void {
-    const scale =
-        (this.critical ? this.rules.critical.xpScale : 1) *
-        (this.pacts.greed ? 1 + this.rules.pacts.greed.xp : 1),
-      gained = amount * scale + this.xpRemainder,
-      whole = Math.floor(gained + 1e-8);
-    this.xpRemainder = Math.max(0, gained - whole);
-    this.xp += whole;
-  }
-
-  private beginCollapse(trigger: 'gravity' | 'boss-absorbed' | 'boss'): void {
+  private collapse(trigger: Exclude<Trigger, 'quit'>): void {
     this.outcome = trigger === 'boss' ? 'success' : 'collapse-failure';
     this.trigger = trigger;
     this.collisionTime = this.time;
     this.phase = 'collapse';
     this.phaseTicks = 0;
     this.damageNumbers = [];
-    this.choice = null;
-    this.log('collision', { trigger, outcome: this.outcome, xp: this.xp, mass: this.mass });
+    this.growth.choice = null;
+    this.log('collision', {
+      trigger,
+      outcome: this.outcome,
+      xp: this.growth.xp,
+      mass: this.mass,
+    });
   }
 
-  private finishResult(): void {
+  private finish(): void {
+    const growth = this.growth;
     this.phase = 'result';
     this.result = {
       outcome: this.outcome,
-      xp: this.xp,
-      level: this.level,
+      xp: growth.xp,
+      level: growth.level,
       mass: this.mass,
       seed: this.seed,
       collisionTime: this.collisionTime,
       seconds: this.seconds,
-      round: this.round,
+      round: this.giants.round,
       trigger: this.trigger,
-      ranks: { ...this.ranks },
-      boosts: { ...this.boosts },
-      rarities: { ...this.rarities },
-      evolved: { ...this.evolved },
-      pacts: { ...this.pacts },
-      selections: this.selections.map((s) => ({ ...s })),
+      ranks: { ...growth.ranks },
+      boosts: { ...growth.boosts },
+      rarities: { ...growth.rarities },
+      evolved: { ...growth.evolved },
+      pacts: { ...growth.pacts },
+      selections: growth.selections.map((s) => ({ ...s })),
       endless: this.clearResult && {
         seconds: this.endlessSeconds,
-        xp: this.xp - this.clearResult.xp,
+        xp: growth.xp - this.clearResult.xp,
       },
     };
     this.log('result', { outcome: this.outcome });
-  }
-
-  private expireEffects(): void {
-    const now = this.seconds;
-    this.effects = this.effects.filter((fx) => now < fx.born + fx.life);
-    this.damageNumbers = this.damageNumbers.filter((d) => now < d.born + damageNumberSeconds);
   }
 
   addEffect(input: EffectInput): void {
@@ -1371,6 +527,7 @@ export class Game {
       rarity: input.rarity ?? 'common',
       born: this.seconds,
     });
+    // Past the limit the oldest decoration goes first.
     if (this.effects.length > maxEffects) {
       const discard = this.effects.findIndex((fx) =>
         ['kill', 'absorb', 'charge', 'field'].includes(fx.kind),
@@ -1379,8 +536,8 @@ export class Game {
     }
   }
 
-  log(kind: string, data: Record<string, unknown>): void {
-    this.events.push({ time: this.time, kind, data });
+  log<K extends EventKind>(kind: K, data: Events[K]): void {
+    this.events.push({ time: this.time, kind, data } as Event);
     // The browser keeps the last quarter second once the log grows long.
     if (!this.recordEvents && this.events.length > 1024) {
       const discard = this.events.findIndex((event) => event.time >= this.time - 0.25);

@@ -11,7 +11,7 @@ import {
 } from '../art/skills.ts';
 import type { ControlId } from '../art/skills.ts';
 import { particleFrames } from '../art/particles.ts';
-import type { ParticleKind } from '../game/particles.ts';
+import type { ParticleKind } from '../game/rules.ts';
 import { isSkill } from '../game/rules.ts';
 import type { UpgradeId } from '../game/rules.ts';
 

@@ -3,23 +3,23 @@ import type { UpgradeId } from '../game/rules.ts';
 import type { Result } from '../game/types.ts';
 import { Rhythm } from './rhythm.ts';
 
-export const speeds = [1, 1.5, 2] as const;
-export type Speed = (typeof speeds)[number];
+const speeds = [1, 1.5, 2] as const;
 // A slow frame advances at most this many ticks and never catches up later.
-export const frameTickLimit = 8;
-const redrawMilliseconds = 80;
+const frameTickLimit = 8,
+  redrawMilliseconds = 80;
 
 export type SessionAudio = {
   enabled: boolean;
+  // False when the browser refused to open audio, null when a later request replaced this one.
   unlock(): Promise<boolean | null>;
   suspend(): void;
   update(game: Game, from: number): void;
   play(kind: string): void;
   destroy(): void;
 };
-export type SessionHooks = {
+type SessionHooks = {
   sound(): boolean;
-  // The browser refused to open audio; sound stays off for this run without saving.
+  // The browser refused to open audio; sound stays off for this page without saving.
   audioFailed(): void;
   record(result: Result): void;
   redraw(): void;
@@ -33,20 +33,21 @@ export class Session {
   rhythm: Rhythm;
   ready = false;
   paused = false;
-  speed: Speed = 1;
+  speed: (typeof speeds)[number] = 1;
   // Combat stops while cards are on offer; when off, they pick themselves after a countdown.
   pauseOnChoice = true;
   choiceLeft = 0;
-  private choiceNumber = 0;
   private readonly audio: SessionAudio;
   private readonly hooks: SessionHooks;
   private wall = 0;
-  private drawnAt = -Infinity;
-  private drawnTick = -1;
-  private cursor: number;
-  private recorded: Result | null = null;
+  private choiceNumber = 0;
   // Wall milliseconds the model holds still after an accepted beat.
   private hitStop = 0;
+  // The event count the audio has heard up to.
+  private cursor: number;
+  private recorded: Result | null = null;
+  private drawnAt = -Infinity;
+  private drawnTick = -1;
 
   constructor(game: Game, audio: SessionAudio, hooks: SessionHooks) {
     this.game = game;
@@ -56,34 +57,33 @@ export class Session {
     this.rhythm = new Rhythm(game.seed);
   }
 
-  get rhythmAvailable(): boolean {
-    return this.live && this.game.phase === 'running' && !this.game.choice;
-  }
-
   get live(): boolean {
-    return (
-      this.ready && !this.paused && this.game.phase !== 'ready' && this.game.phase !== 'result'
-    );
+    const phase = this.game.phase;
+    return this.ready && !this.paused && phase !== 'ready' && phase !== 'result';
+  }
+  get rhythmAvailable(): boolean {
+    return this.live && this.game.phase === 'running' && !this.game.growth.choice;
   }
 
   setReady(ready: boolean, wall: number): void {
     this.ready = ready;
     this.wall = wall;
     if (!ready) this.audio.suspend();
-    else if (this.live && this.hooks.sound()) void this.unlock();
+    else if (this.live) this.openAudio();
     this.hooks.redraw();
   }
 
   // START is the gesture that lets the browser open audio, so the context opens inside it.
   start(wall: number): void {
     if (!this.ready || this.game.phase !== 'ready') return;
-    if (this.hooks.sound()) void this.unlock();
+    this.openAudio();
     this.wall = wall;
     this.paused = false;
     this.game.start();
     this.hooks.redraw();
   }
 
+  // A new run under the same session: speed and pause reset, the choice preference stays.
   replace(game: Game, wall: number): void {
     this.audio.suspend();
     this.game = game;
@@ -98,15 +98,15 @@ export class Session {
     this.hooks.redraw();
   }
 
-  // Endless mode from a cleared result, and its end by choice.
   continueBeyond(wall: number): void {
     if (!this.game.continueBeyond()) return;
     this.wall = wall;
     this.paused = false;
-    this.rhythm = new Rhythm(this.game.seed ^ this.game.round);
-    if (this.hooks.sound()) void this.unlock();
+    this.rhythm = new Rhythm(this.game.seed ^ this.game.giants.round);
+    this.openAudio();
     this.hooks.redraw();
   }
+
   retire(wall: number): void {
     this.frame(wall);
     this.paused = false;
@@ -121,7 +121,7 @@ export class Session {
     if (paused) {
       this.rhythm.cancel();
       this.audio.suspend();
-    } else if (this.ready && this.hooks.sound()) void this.unlock();
+    } else if (this.ready) this.openAudio();
     this.hooks.redraw();
   }
 
@@ -157,11 +157,6 @@ export class Session {
     this.hooks.redraw();
   }
 
-  // A missed beat costs mass only under the Pulse pact.
-  private missBeat(): void {
-    if (this.game.pacts.pulse && this.rhythmAvailable) this.game.resonate(0);
-  }
-
   // A manual pick after its countdown ran out is ignored.
   select(id: UpgradeId, number: number, wall: number): boolean {
     if (!this.live) return false;
@@ -171,26 +166,12 @@ export class Session {
     return taken;
   }
 
-  // The countdown runs on the wall clock, whatever the playback speed.
-  private countdown(ms: number): void {
-    const choice = this.game.choice;
-    if (!choice || this.pauseOnChoice || choice.number !== this.choiceNumber) return;
-    this.choiceLeft -= ms;
-    const card = this.game.automaticCard;
-    if (this.choiceLeft <= 0 && card) this.game.choose(card.id, choice.number);
-  }
-
+  // Turning sound on at the title plays a preview.
   async setSound(sound: boolean): Promise<void> {
     if (!sound) return this.audio.suspend();
     if (this.game.phase === 'ready') {
       if (await this.unlock()) this.audio.play('preview');
     } else if (this.live) await this.unlock();
-  }
-
-  private async unlock(): Promise<boolean | null> {
-    const enabled = await this.audio.unlock();
-    if (enabled === false) this.hooks.audioFailed();
-    return enabled;
   }
 
   frame(wall: number): void {
@@ -201,15 +182,20 @@ export class Session {
     this.wall = wall;
     this.hitStop -= held;
     if (this.ready && !this.paused) {
+      // On the title the electron just circles.
       if (game.phase === 'ready')
         game.angle += (game.rules.orbit.speed / game.radius) * (ms / 1000);
       else {
         this.countdown(ms);
-        const speed = game.phase === 'crossing' ? 1 : this.speed;
-        game.advance((ms - held) * speed, frameTickLimit, this.pauseOnChoice);
+        game.advance(
+          (ms - held) * (game.phase === 'crossing' ? 1 : this.speed),
+          frameTickLimit,
+          this.pauseOnChoice,
+        );
         game.pendingTicks = Math.min(game.pendingTicks, 1);
-        if (game.choice && game.choice.number !== this.choiceNumber) {
-          this.choiceNumber = game.choice.number;
+        const choice = game.growth.choice;
+        if (choice && choice.number !== this.choiceNumber) {
+          this.choiceNumber = choice.number;
           this.choiceLeft = game.rules.time.choiceSeconds * 1000;
           this.hooks.redraw();
         }
@@ -221,7 +207,7 @@ export class Session {
       available && this.rhythmAvailable,
       game.angle,
       (game.rules.orbit.speed / game.radius / 1000) * this.speed,
-      Boolean(game.choice) && game.phase === 'running' && !this.paused,
+      Boolean(game.growth.choice) && game.phase === 'running' && !this.paused,
     );
     // A gate that passes unanswered after the first hit is a miss too.
     if (this.rhythm.feedback === 'miss' && this.rhythm.feedbackAge === 0) this.missBeat();
@@ -239,5 +225,30 @@ export class Session {
 
   dispose(): void {
     this.audio.destroy();
+  }
+
+  // A missed beat costs mass only under the Pulse pact.
+  private missBeat(): void {
+    if (this.game.growth.pacts.pulse && this.rhythmAvailable) this.game.resonate(0);
+  }
+
+  // The countdown runs on the wall clock, whatever the playback speed.
+  private countdown(ms: number): void {
+    const growth = this.game.growth,
+      choice = growth.choice;
+    if (!choice || this.pauseOnChoice || choice.number !== this.choiceNumber) return;
+    this.choiceLeft -= ms;
+    const card = growth.automaticCard;
+    if (this.choiceLeft <= 0 && card) this.game.choose(card.id, choice.number);
+  }
+
+  private openAudio(): void {
+    if (this.hooks.sound()) void this.unlock();
+  }
+
+  private async unlock(): Promise<boolean | null> {
+    const enabled = await this.audio.unlock();
+    if (enabled === false) this.hooks.audioFailed();
+    return enabled;
   }
 }

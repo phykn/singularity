@@ -1,7 +1,5 @@
-import type { Rules } from './rules.ts';
+import type { ParticleKind, Rules } from './rules.ts';
 
-export const particleIds = ['quark', 'proton', 'muon', 'neutron', 'neutrino', 'meson'] as const;
-export type ParticleKind = (typeof particleIds)[number];
 export type Family = 'small' | 'dense';
 // Formations share their family's base speed and turn; species scale from it.
 export const familyBase = { small: 'quark', dense: 'proton' } as const;
@@ -9,15 +7,14 @@ export const familyBase = { small: 'quark', dense: 'proton' } as const;
 // A dashing particle pauses, then rushes; one cycle covers the same distance as steady motion.
 export function particleMotion(cfg: Rules['particles'][ParticleKind], age: number) {
   const dash = cfg.dash;
-  if (!dash) return { speed: 1, turn: 1, charging: false, dashing: false };
-  const at = (age + 1e-8) % dash.cycle;
-  const charging = at < dash.chargeSeconds,
+  if (!dash) return { speed: 1, turn: 1, charging: false };
+  const at = (age + 1e-8) % dash.cycle,
+    charging = at < dash.chargeSeconds,
     dashing = !charging && at < dash.chargeSeconds + dash.dashSeconds;
   return {
     speed: charging ? 0 : dashing ? dash.speed : 1,
     turn: charging || dashing ? 0 : dash.turn,
     charging,
-    dashing,
   };
 }
 

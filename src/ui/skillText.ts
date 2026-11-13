@@ -1,15 +1,10 @@
 // The numbers on cards, skill details and the guide, from the same values combat uses.
 import type { Game } from '../game/Game.ts';
-import {
-  blankRanks,
-  critChance,
-  evolutionChance,
-  powerScale,
-  rangeScale,
-  recoveryMass,
-} from '../game/rules.ts';
+import { evolutionChance, recoveryMass } from '../game/growth.ts';
+import { skillIds } from '../game/rules.ts';
 import type { PactId, Rarity, Rules, SkillId, UpgradeId } from '../game/rules.ts';
-import { skillValues } from '../game/skills.ts';
+import { critChance, powerScale, rangeScale, skillValues } from '../game/skills.ts';
+import type { Ranks } from '../game/skills.ts';
 import type { Copy } from './text/index.ts';
 import type { LinkEffect } from './text/ko.ts';
 
@@ -59,7 +54,11 @@ export function pactText(id: PactId, c: Copy, p: Rules['pacts']) {
 }
 
 const valuesAt = (id: UpgradeId, rank: number, rarity: Rarity, cfg: Rules) =>
-  skillValues({ ...blankRanks(), [id]: rank }, { [id]: rarity }, cfg);
+  skillValues(
+    { ...Object.fromEntries(skillIds.map((skill) => [skill, 0])), [id]: rank } as Ranks,
+    { [id]: rarity },
+    cfg,
+  );
 
 // What an upgrade does at a rank.
 export function skillValue(
@@ -127,11 +126,11 @@ export function skillValue(
 export const currentSkillValue = (game: Game, id: UpgradeId, c: Copy) =>
   skillValue(
     id,
-    game.rank(id),
-    game.rarities[id as SkillId] ?? 'common',
+    game.growth.rank(id),
+    game.growth.rarities[id as SkillId] ?? 'common',
     c,
     game.rules,
-    game.forms,
+    game.growth.values,
   );
 
 // What taking the card changes, from the current rank to the next.

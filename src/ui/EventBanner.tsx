@@ -11,7 +11,7 @@ export function EventBanner({ game, language }: { game: Game; language: Language
   return (
     <div className="event-banner" data-kind={banner.kind} role="status" key={banner.kind}>
       {c.banners[banner.kind].replace('{name}', name).replace('{NAME}', name.toUpperCase())}
-      {banner.kind === 'boss' && ` ${game.bossCount}/${game.rules.bosses.length}`}
+      {banner.kind === 'boss' && ` ${game.giants.count}/${game.rules.bosses.length}`}
     </div>
   );
 }

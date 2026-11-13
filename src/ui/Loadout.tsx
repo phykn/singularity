@@ -19,16 +19,16 @@ export function Loadout({
 }) {
   const c = copy[language],
     max = game.rules.growth.maxRank,
-    open = game.skillSlots,
+    open = game.growth.skillSlots,
     slots = game.rules.growth.skillSlots + game.rules.growth.slotKills.length,
-    owned = game.ownedSkills,
-    { current, required } = game.levelProgress;
+    owned = game.growth.ownedSkills,
+    { current, required } = game.growth.levelProgress;
   return (
     <div className="play-footer">
       <div className="xp-status">
         <div>
           <span className="level">
-            Lv. <b>{String(game.level).padStart(2, '0')}</b>
+            Lv. <b>{String(game.growth.level).padStart(2, '0')}</b>
           </span>
           <b>{`${current} / ${required}`}</b>
         </div>
@@ -60,7 +60,7 @@ export function Loadout({
             );
           const status = game.combat.status(id),
             filling = status.mode !== 'conditional',
-            evolved = !!game.evolved[id];
+            evolved = !!game.growth.evolved[id];
           return (
             <div className="slot-cell" key={id}>
               <div
@@ -69,14 +69,14 @@ export function Loadout({
                 data-mode={status.mode}
                 data-active={status.active}
                 data-fired={status.fired}
-                data-rarity={game.rarities[id]}
+                data-rarity={game.growth.rarities[id]}
                 data-evolved={evolved}
                 style={{ '--skill': skillColor(id) } as CSSProperties}
                 role={filling ? 'progressbar' : 'img'}
                 aria-valuemin={filling ? 0 : undefined}
                 aria-valuemax={filling ? 100 : undefined}
                 aria-valuenow={filling ? Math.floor(status.progress * 100) : undefined}
-                aria-label={`${c.rarities[game.rarities[id] ?? 'common']} ${evolved ? c.evolutions[id].name : c.upgrades[id].name}, ${c.rank} ${game.rank(id)}/${max}${evolved ? ', ' + c.evolve : ''}`}
+                aria-label={`${c.rarities[game.growth.rarities[id] ?? 'common']} ${evolved ? c.evolutions[id].name : c.upgrades[id].name}, ${c.rank} ${game.growth.rank(id)}/${max}${evolved ? ', ' + c.evolve : ''}`}
                 title={`${c.upgrades[id].name} · ${currentSkillValue(game, id, c)}`}
               >
                 {filling && (
@@ -88,12 +88,12 @@ export function Loadout({
                 <span className="slot-art">
                   <SkillIcon id={id} size={32} evolved={evolved} />
                 </span>
-                {game.rank(id) >= max ? (
+                {game.growth.rank(id) >= max ? (
                   <span className="slot-max" aria-hidden="true">
                     {evolved ? 'EVO' : 'MAX'}
                   </span>
                 ) : (
-                  <Rank value={game.rank(id)} max={max} />
+                  <Rank value={game.growth.rank(id)} max={max} />
                 )}
               </div>
               <button

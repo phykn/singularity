@@ -1,4 +1,4 @@
-import type { ParticleKind } from '../../game/particles.ts';
+import type { ParticleKind } from '../../game/rules.ts';
 import type { PactId, SkillId } from '../../game/rules.ts';
 // Skills whose effect rides on another skill's attacks.
 export type LinkEffect = 'repeat' | 'multi' | 'chain' | 'pierce' | 'return' | 'burst' | 'charge';

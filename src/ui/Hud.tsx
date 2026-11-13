@@ -1,5 +1,6 @@
 import type { Game } from '../game/Game.ts';
-import { critChance, statIds } from '../game/rules.ts';
+import { statIds } from '../game/rules.ts';
+import { critChance } from '../game/skills.ts';
 import type { StatId } from '../game/rules.ts';
 import { formatTime } from './format.ts';
 import { ChargeIcon, ControlIcon, SkillIcon } from './icons.tsx';
@@ -13,10 +14,15 @@ const whole = compact(0),
 
 // The value each stat shows: damage, rate multiplier, range, crit percent, luck rank.
 function statValue(game: Game, id: StatId): string {
-  if (id === 'rate') return fraction.format(game.rate) + '×';
-  if (id === 'crit') return whole.format(critChance(game.boosts.crit, game.rules) * 100) + '%';
+  if (id === 'rate') return fraction.format(game.combat.rate) + '×';
+  if (id === 'crit')
+    return whole.format(critChance(game.growth.boosts.crit, game.rules) * 100) + '%';
   return whole.format(
-    id === 'power' ? game.damage : id === 'range' ? game.range : game.boosts.luck,
+    id === 'power'
+      ? game.combat.damage
+      : id === 'range'
+        ? game.combat.range
+        : game.growth.boosts.luck,
   );
 }
 
@@ -36,23 +42,25 @@ export function Hud({
   // Endless mode counts rounds and time beyond instead of the way to the Higgs.
   const c = copy[language],
     endless = game.endless,
-    progress = endless ? game.roundProgress : game.finalProgress,
+    progress = endless ? game.giants.roundProgress : game.giants.higgsProgress,
     percent = Math.floor(progress * 100),
     due = progress >= 1,
-    boss = game.phase === 'running' ? game.boss : undefined;
+    boss = game.phase === 'running' ? game.giants.boss : undefined;
   return (
     <section className="hud" aria-label={c.hud} data-critical={game.critical}>
       <div className="hud-top">
         <div
           className={`charge ${due ? 'energy-full' : ''}`}
           role="progressbar"
-          aria-label={endless ? `${c.round} ${game.round}` : due ? c.finalBossDue : c.singularity}
+          aria-label={
+            endless ? `${c.round} ${game.giants.round}` : due ? c.finalBossDue : c.singularity
+          }
           aria-valuenow={percent}
           aria-valuemin={0}
           aria-valuemax={100}
         >
           <ChargeIcon progress={percent / 100} />
-          <b>{endless ? `R${game.round}` : `${percent}%`}</b>
+          <b>{endless ? `R${game.giants.round}` : `${percent}%`}</b>
         </div>
         <div className="boosts">
           {statIds.map((id) => (

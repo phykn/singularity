@@ -152,11 +152,11 @@ async function smoke(page) {
 async function offer(page) {
   return page.evaluate(() => {
     const debug = window.__gameDebug;
-    for (let i = 0; i < 2400 && !debug.getGame().choice; i++) debug.advance(100);
-    return debug.getGame().choice?.number ?? null;
+    for (let i = 0; i < 2400 && !debug.getGame().growth.choice; i++) debug.advance(100);
+    return debug.getGame().growth.choice?.number ?? null;
   });
 }
-const picks = (page) => page.evaluate(() => window.__gameDebug.getGame().selections.length);
+const picks = (page) => page.evaluate(() => window.__gameDebug.getGame().growth.selections.length);
 
 async function choices(page) {
   await open(page);
@@ -187,16 +187,20 @@ async function choices(page) {
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowLeft');
   await page.keyboard.press('Enter');
-  const taken = await page.evaluate(() => window.__gameDebug.getGame().selections.at(-1).id);
+  const taken = await page.evaluate(() => window.__gameDebug.getGame().growth.selections.at(-1).id);
   assert.equal(taken, focused);
   pass('keyboard moves between cards and Enter picks', { id: taken });
 
   assert.equal(await offer(page), 3);
   await page.getByRole('switch').click();
   assert.equal(await page.getByRole('switch').getAttribute('aria-checked'), 'false');
-  await page.waitForFunction(() => window.__gameDebug.getGame().selections.length >= 3, null, {
-    timeout: 7000,
-  });
+  await page.waitForFunction(
+    () => window.__gameDebug.getGame().growth.selections.length >= 3,
+    null,
+    {
+      timeout: 7000,
+    },
+  );
   pass('with choice pause off the countdown picks by itself');
 }
 
@@ -209,7 +213,7 @@ async function lateGame(page) {
       ([seconds, skipGiants]) => {
         const debug = window.__gameDebug,
           game = debug.getGame();
-        if (skipGiants) game.bossCount = game.rules.bosses.length;
+        if (skipGiants) game.giants.count = game.rules.bosses.length;
         game.tick = Math.round(seconds * game.rules.time.tickRate) - 1;
         debug.advance(1000 / game.rules.time.tickRate);
       },
@@ -336,9 +340,9 @@ async function languageLayout(page) {
         const debug = window.__gameDebug;
         debug.restart(10004, false);
         const game = debug.getGame();
-        game.xp = 500000;
+        game.growth.xp = 500000;
         game.mass = 900;
-        game.bossCount = game.rules.bosses.length;
+        game.giants.count = game.rules.bosses.length;
         game.tick = game.rules.higgs.time * game.rules.time.tickRate - 1;
         debug.advance(20);
       });
@@ -346,7 +350,7 @@ async function languageLayout(page) {
       await page.evaluate(() => {
         const debug = window.__gameDebug;
         debug.restart(10004);
-        for (let i = 0; i < 1200 && !debug.getGame().choice; i++) debug.advance(100);
+        for (let i = 0; i < 1200 && !debug.getGame().growth.choice; i++) debug.advance(100);
       });
       await page.locator('.card').first().waitFor();
       await layout(page, id, '.choices');
@@ -365,7 +369,7 @@ async function languageLayout(page) {
         const debug = window.__gameDebug;
         debug.restart(10004, false);
         const game = debug.getGame();
-        game.bossCount = game.rules.bosses.length;
+        game.giants.count = game.rules.bosses.length;
         game.tick = game.rules.higgs.time * game.rules.time.tickRate - 1;
         debug.advance(20);
         game.damageTarget(
@@ -441,16 +445,16 @@ function crowd(page, count, hp, rate = 1) {
       debug.restart(1705);
       const game = debug.getGame(),
         kinds = Object.keys(game.rules.particles);
-      game.nextSpawn = Infinity;
-      game.pending = [];
+      game.spawner.nextBatch = Infinity;
+      game.spawner.pending = [];
       game.recordEvents = false;
-      Object.assign(game.ranks, { pierce: 5, multi: 5, repeat: 5, chain: 5 });
-      Object.assign(game.boosts, {
+      Object.assign(game.growth.ranks, { pierce: 5, multi: 5, repeat: 5, chain: 5 });
+      Object.assign(game.growth.boosts, {
         power: 4,
         range: 4,
         rate: (rate - 1) / game.rules.combat.ratePerRank,
       });
-      game.refresh();
+      game.growth.refresh();
       game.targets = Array.from({ length: count }, (_, id) => {
         const particle = kinds[id % kinds.length],
           p = game.rules.particles[particle],
@@ -549,7 +553,7 @@ async function crowds(page) {
       const row = await page.evaluate(() => {
         const game = window.__gameDebug.getGame();
         return {
-          rate: game.rate,
+          rate: game.combat.rate,
           phase: game.phase,
           targets: game.targets.length,
           audio: window.soundContexts.at(-1)?.state,
@@ -777,7 +781,7 @@ async function audioPreviews(page) {
   await page.getByRole('button', { name: 'Resume', exact: true }).click();
   await page.waitForFunction(() => window.mixed.ms.length > 0, null, { timeout: 5000 });
   await page.evaluate(async () => {
-    const { particleIds } = await import('/src/game/particles.ts');
+    const { particleIds } = await import('/src/game/rules.ts');
     const styles = ['tap', 'burst', 'domino', 'release', 'sweep'],
       game = window.__gameDebug.getGame();
     window.mixed.cues = window.sources.started = 0;

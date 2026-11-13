@@ -34,7 +34,6 @@ test('sound is on unless saved off', () => {
   assert.equal(readSound(storage({ [keys.sound]: 'nonsense' })), true);
 });
 
-// Values exactly as the old game wrote them.
 const oldRecord = { outcome: 'success', xp: 5200, level: 31, seed: 12345, collisionTime: 1010.5 },
   oldBeyond = { seconds: 214.25, xp: 900, seed: 777 };
 const finished = (o: Partial<Parameters<typeof bestRecord>[1]> = {}) => ({
@@ -47,7 +46,7 @@ const finished = (o: Partial<Parameters<typeof bestRecord>[1]> = {}) => ({
   ...o,
 });
 
-test('old saved records read back; broken ones read as none', () => {
+test('saved records read back; broken ones read as none', () => {
   const s = storage({
     [keys.record]: JSON.stringify(oldRecord),
     [keys.beyond]: JSON.stringify(oldBeyond),

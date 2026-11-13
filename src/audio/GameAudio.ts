@@ -1,17 +1,12 @@
 import type { Game } from '../game/Game.ts';
+import type { EventKind } from '../game/events.ts';
 import { CENTER, distance } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
-import { particleIds } from '../game/particles.ts';
-import type { ParticleKind } from '../game/particles.ts';
-import type { PopStyle } from '../game/rules.ts';
+import { particleIds } from '../game/rules.ts';
+import type { ParticleKind, PopStyle } from '../game/rules.ts';
 import { beyondFrame, endingFrame } from '../render/timeline.ts';
 import type { SoundCue, SoundSpace } from './SoundComposer.ts';
 import { SoundMixer } from './SoundMixer.ts';
-
-const space = (point: Point, listener: Point): SoundSpace => ({
-  pan: (point.x - CENTER.x) / 520,
-  depth: Math.min(1, distance(point, listener) / 300),
-});
 
 // Each pop style has its keystroke: a full tap, two keys slammed together,
 // a roll onto the neighbouring key, the enter key struck hard, a light brush.
@@ -28,7 +23,7 @@ const particleCues: Partial<Record<ParticleKind, string>> = {
   neutrino: 'lift',
   meson: 'double',
 };
-const eventCues: Record<string, string> = {
+const eventCues: Partial<Record<EventKind, string>> = {
   wave: 'wave',
   critical: 'wave',
   boss: 'wave',
@@ -38,24 +33,22 @@ const eventCues: Record<string, string> = {
   evolve: 'charged',
 };
 
-type Hit = Point & { id: number; crit?: boolean };
-type Kill = {
-  id: number;
-  kind?: string;
-  delay?: number;
-  style?: PopStyle;
-  particle?: ParticleKind;
-};
+const space = (point: Point, listener: Point): SoundSpace => ({
+  pan: (point.x - CENTER.x) / 520,
+  depth: Math.min(1, distance(point, listener) / 300),
+});
 
 // Turns logged game events into sound. Only real hits sound; the kill reshapes its hit.
 export class GameAudio {
+  enabled = false;
   private context: AudioContext | null = null;
   private mixer: SoundMixer | null = null;
   private model: Game | null = null;
+  // The transition whose sound is playing, so it starts once.
   private stage = '';
   private request = 0;
-  enabled = false;
 
+  // False when the browser refused; null when a later unlock or suspend replaced this one.
   async unlock(): Promise<boolean | null> {
     const request = ++this.request;
     try {
@@ -90,6 +83,7 @@ export class GameAudio {
     this.context = null;
   }
 
+  // Sounds the events logged since `from`, or the transition the run is in.
   update(game: Game, from: number): void {
     const ctx = this.context,
       mixer = this.mixer;
@@ -102,9 +96,11 @@ export class GameAudio {
     if (game.phase === 'ready') return;
     const crossing = beyondFrame(game);
     if (crossing) {
-      const stage = crossing.stage,
-        voiced = stage === 'contract' || stage === 'open';
-      return this.enter('beyond-' + stage, voiced ? 'beyond-' + stage : '');
+      const stage = 'beyond-' + crossing.stage;
+      return this.enter(
+        stage,
+        crossing.stage === 'contract' || crossing.stage === 'open' ? stage : '',
+      );
     }
     const ending = endingFrame(game);
     if (ending) {
@@ -119,35 +115,33 @@ export class GameAudio {
       listener = game.position;
     let accents = 0;
     for (let i = Math.max(0, from - game.eventOffset); i < game.events.length; i++) {
-      const { kind, data } = game.events[i];
-      if (kind === 'hit') {
-        const hit = data as Hit,
-          cue: SoundCue = { kind: 'hit', space: space(hit, listener) };
-        hits.set(hit.id, cue);
+      const event = game.events[i];
+      if (event.kind === 'hit') {
+        const cue: SoundCue = { kind: 'hit', space: space(event.data, listener) };
+        hits.set(event.data.id, cue);
         cues.push(cue);
         // A critical hit adds one hard stroke; a few per batch keep them as accents.
-        if (hit.crit && accents++ < 2) cues.push({ kind: 'crit', space: cue.space });
-      } else if (kind === 'kill') {
+        if (event.data.crit && accents++ < 2) cues.push({ kind: 'crit', space: cue.space });
+      } else if (event.kind === 'kill') {
         // The killing hit becomes its style's keystroke, sounding when the particle pops.
-        const kill = data as Kill,
-          cue = hits.get(kill.id);
+        const { id, kind, particle, style, delay } = event.data,
+          cue = hits.get(id);
         if (!cue) continue;
-        cue.kind =
-          kill.kind === 'boss'
-            ? 'enter'
-            : ((kill.particle && particleCues[kill.particle]) ?? popCues[kill.style ?? 'tap']);
-        if (kill.delay) cue.delay = kill.delay;
-        if (kill.particle) cue.voice = particleIds.indexOf(kill.particle);
-      } else if (kind === 'thunder') cues.push({ kind: 'thunder' });
-      else if (kind === 'build') cues.push({ kind: 'build', variant: (data.step as number) - 1 });
-      else if (
-        kind === 'cards' &&
-        (data.cards as { rarity: string }[]).some((c) => c.rarity !== 'common')
-      )
-        cues.push({ kind: 'rare' });
-      else if (eventCues[kind]) cues.push({ kind: eventCues[kind] });
+        cue.kind = kind === 'boss' ? 'enter' : (particleCues[particle] ?? popCues[style]);
+        if (delay) cue.delay = delay;
+        cue.voice = particleIds.indexOf(particle);
+      } else if (event.kind === 'thunder') cues.push({ kind: 'thunder' });
+      else if (event.kind === 'build') cues.push({ kind: 'build', variant: event.data.step - 1 });
+      else if (event.kind === 'cards') {
+        if (event.data.cards.some((card) => card.rarity !== 'common')) cues.push({ kind: 'rare' });
+      } else if (eventCues[event.kind]) cues.push({ kind: eventCues[event.kind]! });
     }
     mixer.playBatch(cues, ctx.currentTime);
+  }
+
+  play(kind: string): void {
+    const ctx = this.context;
+    if (this.enabled && ctx && ctx.state === 'running') this.mixer?.play(kind, ctx.currentTime);
   }
 
   // Transitions stop whatever is still ringing and may open with their own sound.
@@ -156,10 +150,5 @@ export class GameAudio {
     this.stage = stage;
     this.mixer?.stop();
     if (sound) this.play(sound);
-  }
-
-  play(kind: string): void {
-    const ctx = this.context;
-    if (this.enabled && ctx && ctx.state === 'running') this.mixer?.play(kind, ctx.currentTime);
   }
 }

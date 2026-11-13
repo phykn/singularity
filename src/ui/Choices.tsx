@@ -1,6 +1,7 @@
 import type { Game } from '../game/Game.ts';
 import { isPact, isSkill, isStat } from '../game/rules.ts';
-import type { Card, UpgradeId } from '../game/rules.ts';
+import type { UpgradeId } from '../game/rules.ts';
+import type { Card } from '../game/types.ts';
 import { ControlIcon, Rank, SkillIcon } from './icons.tsx';
 import { pactText, skillChange, skillLinks } from './skillText.ts';
 import { copy } from './text/index.ts';
@@ -25,8 +26,8 @@ export function Choices({
   onTogglePause: () => void;
 }) {
   const c = copy[language],
-    choice = game.phase === 'running' ? game.choice : null,
-    automatic = game.automaticCard?.id,
+    choice = game.phase === 'running' ? game.growth.choice : null,
+    automatic = game.growth.automaticCard?.id,
     { cards, pointerReady, accept, navigate } = useChoiceInput(choice, interactive);
   if (!choice) return null;
   const max = game.rules.growth.maxRank,
@@ -39,8 +40,8 @@ export function Choices({
       const e = c.evolutions[id];
       return { title: e.name, value: e.summary, description: e.description, cost: '', links: [] };
     }
-    const rank = game.rank(id),
-      links = isSkill(id) ? skillLinks(id, game.ownedSkills) : [];
+    const rank = game.growth.rank(id),
+      links = isSkill(id) ? skillLinks(id, game.growth.ownedSkills) : [];
     if (isPact(id)) {
       const { gain, cost } = pactText(id, c, game.rules.pacts);
       return {
@@ -51,7 +52,7 @@ export function Choices({
         links,
       };
     }
-    const prior = game.rarities[id] ?? rarity;
+    const prior = (isSkill(id) ? game.growth.rarities[id] : undefined) ?? rarity;
     return {
       title: c.upgrades[id].short,
       value: skillChange(id, rank, rarity, prior, c, game.rules, game.mass),
@@ -89,7 +90,7 @@ export function Choices({
       <div className="cards" data-ready={pointerReady} ref={cards} onKeyDown={navigate}>
         {choice.cards.map((card) => {
           const { id, rarity, evolve } = card,
-            rank = game.rank(id),
+            rank = game.growth.rank(id),
             text = words(card);
           return (
             <button
@@ -111,7 +112,7 @@ export function Choices({
                 ...(id === automatic ? [c.auto] : []),
               ].join(', ')}
               onClick={(event) => accept(event) && onSelect(id, choice.number)}
-              disabled={!interactive || !game.canUpgrade(id)}
+              disabled={!interactive || !game.growth.canUpgrade(id)}
             >
               <span className="card-label">
                 {tag(card) && <b>{tag(card)}</b>}

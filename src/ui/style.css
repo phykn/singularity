@@ -602,16 +602,6 @@ svg {
   height: 100%;
   background: var(--blue);
 }
-.save-notice {
-  position: absolute;
-  top: 8px;
-  left: var(--gutter);
-  right: var(--gutter);
-  z-index: 2;
-  color: #ffcf89;
-  font-size: 12px;
-  text-align: center;
-}
 .render-status {
   position: absolute;
   top: 50%;
@@ -699,8 +689,7 @@ svg {
   touch-action: pinch-zoom;
   transition: opacity 0.12s ease;
 }
-.card,
-.choice-echo {
+.card {
   min-width: 0;
   height: 116px;
   display: grid;
@@ -729,8 +718,7 @@ svg {
 .card.auto .card-label {
   color: var(--blue);
 }
-.card strong,
-.choice-echo strong {
+.card strong {
   font-size: 12px;
   line-height: 16px;
   white-space: nowrap;
@@ -944,29 +932,6 @@ svg {
 .skill-details .skill-value {
   color: var(--blue);
 }
-.settings-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 8px;
-}
-.setting-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 0 4px;
-  background: transparent;
-  min-height: 52px;
-  font-size: 12px;
-}
-.setting-row > span:last-child {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--muted);
-  font-size: 12px;
-}
 .switch {
   width: 32px;
   height: 20px;
@@ -980,11 +945,9 @@ svg {
   height: 14px;
   background: #a7b1bf;
 }
-.setting-row[aria-pressed='true'] .switch,
 .title-sound[aria-pressed='true'] .switch {
   background: var(--blue);
 }
-.setting-row[aria-pressed='true'] .switch::before,
 .title-sound[aria-pressed='true'] .switch::before {
   transform: translateX(12px);
   background: #10252c;
@@ -1002,12 +965,6 @@ svg {
 .result-time {
   color: var(--muted);
   font-size: 12px;
-}
-.beyond-symbol {
-  color: #b0a0ff;
-  font-size: 24px;
-  width: 38px;
-  text-align: center;
 }
 .beyond-button {
   display: flex;
@@ -1029,42 +986,11 @@ svg {
   align-items: center;
   gap: 10px;
 }
-.collapse-symbol {
-  color: #ffd08a;
-}
-.singularity-symbol {
-  color: #ffda86;
-}
 .result.success .result-heading h2 {
   color: #ffe1a0;
 }
 .play-footer {
   opacity: var(--scene-hud, 1);
-}
-.result-goal {
-  width: min(100%, 208px);
-  margin: 12px auto 0;
-  color: #8fa0af;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-.result-goal b {
-  color: #f1fcff;
-}
-.result-goal-track {
-  height: 6px;
-  margin-top: 8px;
-  padding: 1px;
-  border: 1px solid #4d5358;
-  background: #0c1218;
-}
-.result-goal-track i {
-  display: block;
-  height: 100%;
-  background: #ffd08a;
-}
-.result-numbers.result-pair {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .result .dialog-body {
   padding-top: 8px;
@@ -1164,12 +1090,6 @@ svg {
 }
 .result th:first-child {
   text-align: left;
-}
-.result-particle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
 }
 @media (max-width: 380px) {
   .boosts {
@@ -1316,9 +1236,6 @@ svg {
   .pause-panel .dialog-body {
     padding: 20px 16px;
   }
-  .pause-panel .setting-row {
-    min-height: 44px;
-  }
   .pause-panel .dialog-actions {
     gap: 4px;
   }
@@ -1446,29 +1363,6 @@ b {
   color: #e8f5fb;
   box-shadow: 0 2px #8ce8fb;
 }
-.upgrade-feedback {
-  position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  min-height: 36px;
-  max-width: calc(100% - 24px);
-  color: #dcebf3;
-  background: #0d151de8;
-  border-left: 2px solid var(--skill);
-  font-size: 12px;
-  line-height: 16px;
-  white-space: nowrap;
-  pointer-events: none;
-  animation: feedback-in 0.28s steps(4) both;
-}
-.upgrade-feedback span {
-  color: var(--skill);
-}
 .slot.locked {
   border-style: dashed;
   border-color: #1d2833;
@@ -1480,10 +1374,6 @@ b {
   background: #2c3440;
 }
 @media (max-height: 600px) and (min-width: 520px) {
-  .upgrade-feedback {
-    top: auto;
-    bottom: 12px;
-  }
   .arena-caption h1 {
     font-size: 24px;
     letter-spacing: 0;
@@ -1496,20 +1386,6 @@ b {
     line-height: 1;
   }
 }
-
-.choice-receipt {
-  z-index: 3;
-  pointer-events: none;
-  animation: choice-leave 0.24s steps(4) both;
-}
-.choice-echo {
-  opacity: 0.15;
-}
-.choice-echo[data-selected='true'] {
-  opacity: 1;
-  border: 1px solid var(--rarity);
-  animation: choice-pick 0.24s steps(4) both;
-}
 .slot[data-acquired='true'] .slot-art {
   animation: slot-upgrade 0.36s steps(5) both;
 }
@@ -1518,33 +1394,6 @@ b {
 }
 .result-modal {
   animation: result-reveal 0.24s steps(6) both;
-}
-.is-homecoming .arena-caption,
-.is-homecoming .preparation,
-.is-homecoming .header-actions {
-  animation: result-reveal 0.55s steps(8) both;
-}
-@keyframes choice-pick {
-  0% {
-    background: #395969;
-    transform: translateY(-2px);
-  }
-  45% {
-    background: #2d4859;
-  }
-  100% {
-    background: #152430;
-    transform: translateY(0);
-  }
-}
-@keyframes choice-leave {
-  0%,
-  55% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
 }
 @keyframes slot-upgrade {
   0% {
@@ -1569,16 +1418,6 @@ b {
   }
   100% {
     transform: translateY(0);
-  }
-}
-@keyframes feedback-in {
-  from {
-    opacity: 0.4;
-    margin-top: 4px;
-  }
-  to {
-    opacity: 1;
-    margin-top: 0;
   }
 }
 @keyframes result-reveal {
@@ -1639,20 +1478,16 @@ b {
   background: #0d2a1fe8;
   border-color: #79ecaa;
 }
-.card[data-evolve='true'],
-.choice-echo[data-evolve='true'] {
+.card[data-evolve='true'] {
   box-shadow: inset 0 0 0 2px #ffdf78;
 }
-.card[data-evolve='true'] .card-label b,
-.choice-echo[data-evolve='true'] .card-label b {
+.card[data-evolve='true'] .card-label b {
   color: #ffdf78;
 }
-.card[data-pact='true'],
-.choice-echo[data-pact='true'] {
+.card[data-pact='true'] {
   box-shadow: inset 0 0 0 2px #ff536b;
 }
 .card[data-pact='true'] .card-label b,
-.choice-echo[data-pact='true'] .card-label b,
 .pact-cost {
   color: #ff8d9c;
 }

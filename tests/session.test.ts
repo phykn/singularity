@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { Game } from '../src/game/Game.ts';
-import { frameTickLimit } from '../src/session/Session.ts';
+import type { Session } from '../src/session/Session.ts';
 import { session } from './helpers.ts';
 
 test('speed cycles 1, 1.5, 2 and back to 1', () => {
@@ -36,9 +35,9 @@ test('one frame advances at most eight ticks and never catches up', () => {
   const { s } = session();
   s.start(0);
   s.frame(1000);
-  assert.equal(s.game.elapsedTicks, frameTickLimit);
+  assert.equal(s.game.elapsedTicks, 8);
   s.frame(1016);
-  assert.ok(s.game.elapsedTicks <= frameTickLimit + 2);
+  assert.ok(s.game.elapsedTicks <= 10);
 });
 
 test('START opens audio only when sound is on', () => {
@@ -64,7 +63,7 @@ test('the result is recorded once', () => {
 function untilChoice(s: Session): number {
   let wall = 0;
   s.start(0);
-  while (!s.game.choice && wall < 120_000) s.frame((wall += 16));
+  while (!s.game.growth.choice && wall < 120_000) s.frame((wall += 16));
   return wall;
 }
 
@@ -74,7 +73,7 @@ test('a paused choice holds combat until a card is taken', () => {
   const ticks = s.game.elapsedTicks;
   s.frame((wall += 10_000));
   assert.equal(s.game.elapsedTicks, ticks);
-  const { cards, number } = s.game.choice!;
+  const { cards, number } = s.game.growth.choice!;
   assert.equal(s.select(cards[0].id, number, wall), true);
 });
 
@@ -82,14 +81,14 @@ test('with choice pause off, the countdown picks after choiceSeconds of wall tim
   const { s } = session();
   s.toggleChoicePause(0);
   let wall = untilChoice(s);
-  const number = s.game.choice!.number;
+  const number = s.game.growth.choice!.number;
   s.cycleSpeed(wall);
   s.cycleSpeed(wall);
   for (let end = wall + s.game.rules.time.choiceSeconds * 1000 - 50; wall < end;)
     s.frame((wall += 16));
-  assert.equal(s.game.choice?.number, number, 'still open just before the deadline');
+  assert.equal(s.game.growth.choice?.number, number, 'still open just before the deadline');
   s.frame((wall += 100));
-  assert.equal(s.game.selections.length, number);
-  assert.notEqual(s.game.choice?.number, number);
+  assert.equal(s.game.growth.selections.length, number);
+  assert.notEqual(s.game.growth.choice?.number, number);
   assert.equal(s.select('power', number, wall), false);
 });

@@ -19,10 +19,10 @@ export function SkillDetails({
   onClose: () => void;
 }) {
   const c = copy[language],
-    rank = game.rank(id),
-    rarity = game.rarities[id] ?? 'common',
+    rank = game.growth.rank(id),
+    rarity = game.growth.rarities[id] ?? 'common',
     max = game.rules.growth.maxRank,
-    evolved = !!game.evolved[id];
+    evolved = !!game.growth.evolved[id];
   return (
     <Dialog titleId="skill-title" className="skill-details">
       <div className="dialog-title" data-rarity={rarity}>

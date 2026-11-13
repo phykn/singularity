@@ -1,17 +1,18 @@
-import { goldenAngle } from './geometry.ts';
+import { TAU, goldenAngle } from './geometry.ts';
+import type { Family } from './particles.ts';
 import type { Rules } from './rules.ts';
 
-export const formationIds = ['line', 'clump', 'arrow', 'ring', 'star', 'spiral', 'pincer'] as const;
+const formationIds = ['line', 'clump', 'arrow', 'ring', 'star', 'spiral', 'pincer'] as const;
 export type FormationId = (typeof formationIds)[number];
+// A pincer is two of the other shapes from opposite sides.
 export type Shape = Exclude<FormationId, 'pincer'>;
-type Slot = { theta: number; radius: number };
 
 // Each shape debuts at its own time, so first sightings spread through the run.
 export const formationsAt = (seconds: number, cfg: Rules['formations']): FormationId[] =>
   formationIds.filter((id) => seconds >= cfg[id].debut);
 
 // Spreads the large members of a ring evenly among the small ones.
-export function interleave(dense: number, small: number): ('small' | 'dense')[] {
+export function interleave(dense: number, small: number): Family[] {
   const total = dense + small;
   return Array.from({ length: total }, (_, i) =>
     Math.floor(((i + 1) * dense) / total) > Math.floor((i * dense) / total) ? 'dense' : 'small',
@@ -25,27 +26,26 @@ export function formationSlots(
   angle: number,
   origin: number,
   cfg: Rules['formations'],
-): Slot[] {
+): { theta: number; radius: number }[] {
   return Array.from({ length: count }, (_, i) => {
     if (shape === 'line') return { theta: angle, radius: origin + i * cfg.line.spacing };
-    if (shape === 'ring') return { theta: angle + (i * Math.PI * 2) / count, radius: origin };
+    if (shape === 'ring') return { theta: angle + (i * TAU) / count, radius: origin };
     if (shape === 'spiral')
       return {
-        theta: angle + (i * Math.PI * 2 * cfg.spiral.turns) / count,
+        theta: angle + (i * TAU * cfg.spiral.turns) / count,
         radius: origin + i * cfg.spiral.step,
       };
     if (shape === 'star') {
       const arms = count >= 12 ? 6 : count >= 8 ? 5 : 4;
       return {
-        theta: angle + ((i % arms) * Math.PI * 2) / arms,
+        theta: angle + ((i % arms) * TAU) / arms,
         radius: origin + Math.floor(i / arms) * cfg.star.spacing,
       };
     }
     if (shape === 'arrow') {
-      const step = Math.ceil(i / 2),
-        side = i % 2 ? 1 : -1;
+      const step = Math.ceil(i / 2);
       return {
-        theta: angle + side * step * cfg.arrow.spread,
+        theta: angle + (i % 2 ? 1 : -1) * step * cfg.arrow.spread,
         radius: origin + step * cfg.arrow.step,
       };
     }

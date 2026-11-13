@@ -1,6 +1,6 @@
 import { iconIds } from '../art/skills.ts';
-import { particleIds } from '../game/particles.ts';
-import type { ParticleKind } from '../game/particles.ts';
+import { particleIds } from '../game/rules.ts';
+import type { ParticleKind } from '../game/rules.ts';
 import { isPact, isSkill, isStat, rarityIds } from '../game/rules.ts';
 import type { Rules } from '../game/rules.ts';
 import { Dialog } from './Dialog.tsx';

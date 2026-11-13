@@ -17,6 +17,7 @@ import { drawAccretion, drawCollapse, drawSingularity } from './ending.ts';
 import { DamageLabels, SpritePool, createParticleTextures } from './sprites.ts';
 import { drawRhythm } from './rhythm.ts';
 import { arenaViewport, beyondFrame, endingFrame } from './timeline.ts';
+import type { EndingFrame } from './timeline.ts';
 
 // Phaser.TintModes.ADD: brightens without flattening, so crowded hits keep each shape and colour.
 const addTint = 2;
@@ -66,25 +67,31 @@ export class Scene extends Phaser.Scene {
     this.contacts.clear();
     this.g.clear();
     this.fx.clear();
-    this.frame(this.session.game);
+    const game = this.session.game,
+      ending = endingFrame(game),
+      crossing = beyondFrame(game, this.reducedMotion.matches);
+    this.place(game, !!ending);
+    if (game.phase !== 'running') this.drawLabels(game, false);
+    if (game.phase === 'ready') this.drawTitle(game);
+    else if (crossing) this.drawBeyond(crossing, game.seed);
+    else if (ending) this.drawEnding(game, ending);
+    else this.drawRun(game);
     this.sprites.end();
     this.fxSprites.end();
   }
 
-  private frame(game: Game): void {
+  // Fits the arena to the canvas; a heavy impact shakes it for a moment.
+  private place(game: Game, ending: boolean): void {
     const width = this.scale.width,
-      height = this.scale.height,
-      { scale, centerY } = arenaViewport(width, height);
+      { scale, centerY } = arenaViewport(width, this.scale.height);
     if (this.model !== game) {
       this.model = game;
       this.shakeAt = -Infinity;
     }
-    const ending = endingFrame(game),
-      clock = game.seconds;
-    this.watchImpact(game, !!ending);
-    const age = clock - this.shakeAt,
-      shaking = !ending && !this.reducedMotion.matches && age < 0.06 * this.shake;
-    const dx = shaking ? (age % 0.06 < 0.03 ? 1 : -1) * this.shake : 0,
+    this.watchImpact(game, ending);
+    const age = game.seconds - this.shakeAt,
+      shaking = !ending && !this.reducedMotion.matches && age < 0.06 * this.shake,
+      dx = shaking ? (age % 0.06 < 0.03 ? 1 : -1) * this.shake : 0,
       dy = shaking ? this.shake : 0;
     this.view = {
       width,
@@ -95,65 +102,88 @@ export class Scene extends Phaser.Scene {
     };
     for (const layer of [this.g, this.fx])
       layer.setPosition(this.view.x, this.view.y).setScale(scale);
-    if (game.phase !== 'running') this.labels.draw([], 0, width, height, centerY, scale);
-    if (game.phase === 'ready') {
-      this.drawOrbit(game.radius, BLUE, 0.32, false);
-      this.drawTrail(game.angle, game.radius, 8, BLUE);
-      this.drawElectron(game.position, 1);
-      return;
+  }
+
+  private drawLabels(game: Game, shown: boolean): void {
+    const { width, centerY, scale } = this.view;
+    this.labels.draw(
+      shown ? game.damageNumbers : [],
+      game.seconds,
+      width,
+      this.scale.height,
+      centerY,
+      scale,
+    );
+  }
+
+  private drawTitle(game: Game): void {
+    this.drawOrbit(game.radius, BLUE, 0.32, false);
+    this.drawTrail(game.angle, game.radius, 8, BLUE);
+    this.drawElectron(game.position, 1);
+  }
+
+  // The orbit turns gold once the Higgs is due, red in the critical breach, amber in danger.
+  private orbitColor(game: Game): number {
+    return game.giants.higgsProgress >= 1 ? GOLD : BLUE;
+  }
+
+  private drawRun(game: Game): void {
+    const { scale, width, centerY } = this.view,
+      clock = game.seconds,
+      danger = game.danger,
+      color = this.orbitColor(game),
+      opacity = danger ? 0.8 : 0.32;
+    this.drawOrbit(
+      game.radius,
+      danger ? AMBER : game.critical ? RED : color,
+      game.critical ? Math.max(opacity, 0.45 + 0.3 * Math.sin(clock * 8)) : opacity,
+      danger,
+    );
+    if (game.mass > 0) this.drawCore(game.core);
+    this.drawArrivals(game);
+    for (const target of game.targets) this.drawTarget(game, target, null, clock);
+    const electron = game.position,
+      satellites = game.combat.satellites,
+      surging = game.combat.charges.surging,
+      anchors = { electron, satellites, orbit: game.radius };
+    for (const point of satellites)
+      this.sprites.draw(this.screen(point), 'electron', 0.5, 1).clearTint();
+    for (const effect of visibleEffects(game.effects))
+      drawEffect(this.fx, effect, clock, scale, this.paint, anchors);
+    for (const { point, color: ink, alpha, radius } of this.contacts.values()) {
+      this.fx.lineStyle(1 / scale, ink, alpha * 0.65);
+      this.fx.strokeCircle(point.x, point.y, radius / scale);
     }
-    const crossing = beyondFrame(game, this.reducedMotion.matches);
-    if (crossing) return this.drawBeyond(crossing, game.seed);
-    const danger = game.margin < game.rules.orbit.dangerMargin,
-      color = game.finalProgress >= 1 ? GOLD : BLUE;
-    if (!ending || (ending.success && ending.electron)) {
-      const opacity = (danger ? 0.8 : 0.32) * (1 - (ending?.absorb ?? 0)),
-        critical = game.critical && !ending;
+    this.drawTrail(game.angle, game.radius, surging ? 12 : 8, surging ? skillColors.surge : color);
+    this.drawElectron(electron, 1, color, surging);
+    if (!this.session.paused)
+      drawRhythm(
+        this.fx,
+        this.session.rhythm,
+        game.radius,
+        scale,
+        electron,
+        this.reducedMotion.matches,
+        Math.hypot(width / (2 * scale), Math.max(centerY, this.scale.height - centerY) / scale),
+      );
+    this.drawLabels(game, true);
+  }
+
+  // A loss breaks the orbit against the core; a clear draws everything into a singularity.
+  private drawEnding(game: Game, ending: EndingFrame): void {
+    const scale = this.view.scale,
+      danger = game.danger;
+    if (ending.success && ending.electron)
       this.drawOrbit(
-        ending?.electron ? ending.radius : game.radius,
-        danger ? AMBER : critical ? RED : color,
-        critical ? Math.max(opacity, 0.45 + 0.3 * Math.sin(clock * 8)) : opacity,
+        ending.radius,
+        danger ? AMBER : this.orbitColor(game),
+        (danger ? 0.8 : 0.32) * (1 - ending.absorb),
         danger,
       );
-    }
-    if (game.mass > 0 && (!ending || !ending.success || ending.electron))
-      this.drawCore(game.core * (ending?.core ?? 1));
-    if (ending && !ending.success) drawCollapse(this.g, ending, scale);
-    if (!ending) this.drawArrivals(game);
-    for (const target of game.targets) this.drawTarget(game, target, ending, clock);
-    if (!ending) {
-      const electron = game.position,
-        satellites = game.combat.satellites,
-        surging = game.combat.surging,
-        anchors = { electron, satellites, orbit: game.radius };
-      for (const point of satellites)
-        this.sprites.draw(this.screen(point), 'electron', 0.5, 1).clearTint();
-      for (const effect of visibleEffects(game.effects))
-        drawEffect(this.fx, effect, clock, scale, this.paint, anchors);
-      for (const { point, color: ink, alpha, radius } of this.contacts.values()) {
-        this.fx.lineStyle(1 / scale, ink, alpha * 0.65);
-        this.fx.strokeCircle(point.x, point.y, radius / scale);
-      }
-      this.drawTrail(
-        game.angle,
-        game.radius,
-        surging ? 12 : 8,
-        surging ? skillColors.surge : color,
-      );
-      this.drawElectron(electron, 1, color, surging);
-      if (!this.session.paused)
-        drawRhythm(
-          this.fx,
-          this.session.rhythm,
-          game.radius,
-          scale,
-          electron,
-          this.reducedMotion.matches,
-          Math.hypot(width / (2 * scale), Math.max(centerY, height - centerY) / scale),
-        );
-      this.labels.draw(game.damageNumbers, clock, width, height, centerY, scale);
-      return;
-    }
+    if (game.mass > 0 && (!ending.success || ending.electron))
+      this.drawCore(game.core * ending.core);
+    if (!ending.success) drawCollapse(this.g, ending, scale);
+    for (const target of game.targets) this.drawTarget(game, target, ending, game.seconds);
     if (ending.electron) {
       const length = ending.success ? Math.round(16 - 10 * ending.absorb) : 34;
       this.drawTrail(ending.angle, ending.radius, length, ending.success ? GOLD : AMBER, true);
@@ -183,12 +213,7 @@ export class Scene extends Phaser.Scene {
     }
   }
 
-  private drawTarget(
-    game: Game,
-    target: Target,
-    ending: ReturnType<typeof endingFrame>,
-    clock: number,
-  ): void {
+  private drawTarget(game: Game, target: Target, ending: EndingFrame | null, clock: number): void {
     if (ending && !ending.success && ending.quiet) return;
     const absorb = ending?.absorb ?? 0,
       scale = this.view.scale;
@@ -235,7 +260,7 @@ export class Scene extends Phaser.Scene {
     if (target.kind === 'boss') {
       this.g.lineStyle((target.final ? 2 : 1) / scale, RED, 0.55 + 0.35 * Math.sin(clock * 6));
       this.g.strokeCircle(p.x, p.y, target.size + 4);
-    } else if (target.hp > 0 && target.maxHp > game.damage + 1e-8) {
+    } else if (target.hp > 0 && target.maxHp > game.combat.damage + 1e-8) {
       // Health shows only on particles one basic hit cannot pop.
       const width = 12,
         filled = Math.max(1, Math.round(width * Math.min(1, target.hp / target.maxHp)));
@@ -263,7 +288,7 @@ export class Scene extends Phaser.Scene {
         alpha = Math.sin(clock * 40) > 0 ? 1 : 0.35;
     } else if (target.particle === 'meson') rotation = age * 6;
     if (target.boss === 'tau') rotation = target.angle + Math.PI;
-    const boss = game.bossPhase(target);
+    const boss = game.giants.phase(target);
     if (boss?.immune) alpha = 0.3;
     else if (boss?.warning || boss?.charging) alpha = blink;
     return { alpha, rotation };
@@ -273,7 +298,7 @@ export class Scene extends Phaser.Scene {
   private drawArrivals(game: Game): void {
     const g = this.g,
       pixel = 1 / this.view.scale,
-      wave = game.warningWave;
+      wave = game.spawner.warningWave;
     if (wave) {
       const elapsed = game.time - wave.time + game.rules.spawn.waveWarningSeconds,
         alpha = 0.3 + 0.65 * (0.5 + 0.5 * Math.cos(elapsed * Math.PI * 4));
@@ -291,7 +316,7 @@ export class Scene extends Phaser.Scene {
         g.fillRect(mark.x - 2 * pixel, mark.y + 5 * pixel, 4 * pixel, 3 * pixel);
       }
     }
-    for (const spawn of game.pending) {
+    for (const spawn of game.spawner.pending) {
       const span = Math.max(1e-3, spawn.time - spawn.planned);
       g.fillStyle(WHITE, 0.12 + 0.18 * clamp((game.time - spawn.planned) / span));
       for (const m of spawn.members) {
@@ -314,7 +339,7 @@ export class Scene extends Phaser.Scene {
       }
     }
     if (target.boss === 'higgs') {
-      const field = game.higgsField(target);
+      const field = game.giants.higgsField(target);
       g.lineStyle(pixel, GOLD, 0.25 + 0.1 * Math.sin(clock * 3)).strokeCircle(
         target.x,
         target.y,

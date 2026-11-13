@@ -14,66 +14,70 @@ type Voice = {
   level: number;
   ducked: boolean;
   stopping: boolean;
+  // When the strokes inside the buffer land.
   attacks: number[];
 };
 
+// A stroke keeps its full level this long before an older batch's tail drops under a newer one.
+const strokeSeconds = 0.014,
+  // Everything but the up-front buses steps back while a rhythm sound rings.
+  underRhythm = 0.8;
+
+// Plays buffers through one shared chain (low-pass, compressor, saturation, master) and
+// keeps overlapping batches apart: a new batch of hits ducks the tails of older ones.
 export class SoundMixer {
+  private readonly context: BaseAudioContext;
+  private readonly composer: SoundComposer;
+  private readonly chain: AudioNode[];
   private voices = new Set<Voice>();
-  private composer: SoundComposer;
   private rhythmUntil = 0;
-  private filter: BiquadFilterNode;
-  private compressor: DynamicsCompressorNode;
-  private saturation: WaveShaperNode;
-  private master: GainNode;
-  private context: BaseAudioContext;
+
   constructor(context: BaseAudioContext, seed = Math.floor(Math.random() * 4294967296)) {
     this.context = context;
-    this.filter = context.createBiquadFilter();
-    this.filter.type = 'lowpass';
-    this.filter.frequency.value = 9000;
-    this.filter.Q.value = 0.7;
-    this.compressor = context.createDynamicsCompressor();
-    this.compressor.threshold.value = -18;
-    this.compressor.knee.value = 14;
-    this.compressor.ratio.value = 4;
-    this.compressor.attack.value = 0.004;
-    this.compressor.release.value = 0.12;
-    this.saturation = context.createWaveShaper();
-    const curve = new Float32Array(4097);
+    const filter = context.createBiquadFilter(),
+      compressor = context.createDynamicsCompressor(),
+      saturation = context.createWaveShaper(),
+      master = context.createGain(),
+      curve = new Float32Array(4097);
+    filter.type = 'lowpass';
+    filter.frequency.value = 9000;
+    filter.Q.value = 0.7;
+    compressor.threshold.value = -18;
+    compressor.knee.value = 14;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.004;
+    compressor.release.value = 0.12;
     for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh((i / (curve.length - 1)) * 2 - 1);
-    this.saturation.curve = curve;
-    this.master = context.createGain();
-    this.master.gain.value = 0.78;
-    this.filter
-      .connect(this.compressor)
-      .connect(this.saturation)
-      .connect(this.master)
-      .connect(context.destination);
+    saturation.curve = curve;
+    master.gain.value = 0.78;
+    filter.connect(compressor).connect(saturation).connect(master).connect(context.destination);
+    this.chain = [filter, compressor, saturation, master];
     this.composer = new SoundComposer(context, seed);
   }
 
-  // One sound with its own distance filter and pan.
+  // One sound with its own distance filter and pan; false for an unknown kind.
   play(kind: string, at = this.context.currentTime, space?: SoundSpace): boolean {
     if (!Object.hasOwn(soundDefinitions, kind)) return false;
-    const id = kind as SoundKind,
-      spec = soundDefinitions[id],
+    const spec = soundDefinitions[kind as SoundKind],
       ctx = this.context,
       // Rendering a sample the first time takes a moment; start after it.
-      buffer = this.composer.sample(id),
+      buffer = this.composer.sample(kind as SoundKind),
       start = Math.max(at, ctx.currentTime),
-      { pan, depth } = placement(spec.bus, space);
-    const panner = ctx.createStereoPanner(),
+      { pan, depth } = placement(spec.bus, space),
+      panner = ctx.createStereoPanner(),
       tone = ctx.createBiquadFilter();
     tone.type = 'lowpass';
     tone.Q.value = 0.5;
     tone.frequency.setValueAtTime(distanceCutoff(depth), start);
     panner.pan.setValueAtTime(pan, start);
-    const level = spec.gain * (1 - depth * 0.3);
-    this.launch(spec.bus, buffer, start, level, [0], { pan: panner, tone });
+    this.launch(spec.bus, buffer, start, spec.gain * (1 - depth * 0.3), [0], {
+      pan: panner,
+      tone,
+    });
     return true;
   }
 
-  // A batch arrives already mixed and placed, one buffer per bus.
+  // A batch arrives already mixed and placed, one buffer per bus; returns the cues it took.
   playBatch(cues: readonly SoundCue[], at = this.context.currentTime): number {
     if (!cues.length) return 0;
     const batch = this.composer.compose(cues),
@@ -81,6 +85,24 @@ export class SoundMixer {
     for (const [bus, buffer] of batch.buffers)
       this.launch(bus, buffer, start, 1, bus === 'hit' ? batch.attacks : []);
     return batch.count;
+  }
+
+  stop(at = this.context.currentTime, immediate = false): void {
+    this.rhythmUntil = 0;
+    for (const voice of this.voices) {
+      if (voice.stopping && !immediate) continue;
+      voice.stopping = true;
+      voice.gain.gain.cancelAndHoldAtTime(at);
+      voice.gain.gain.setTargetAtTime(0, at, 0.002);
+      voice.source.stop(Math.min(voice.end, at + (immediate ? 0 : 0.008)));
+      if (immediate) this.release(voice);
+    }
+  }
+
+  dispose(): void {
+    this.stop(this.context.currentTime, true);
+    for (const node of this.chain) node.disconnect();
+    this.composer.clear();
   }
 
   // `attacks` are the strokes inside the buffer, as offsets from its start.
@@ -93,15 +115,18 @@ export class SoundMixer {
     nodes?: { pan: StereoPannerNode; tone: BiquadFilterNode },
   ): void {
     const source = this.context.createBufferSource(),
-      gain = this.context.createGain();
+      gain = this.context.createGain(),
+      end = start + buffer.duration;
     source.buffer = buffer;
-    const end = start + buffer.duration;
-    gain.gain.setValueAtTime(level * (!upfront(bus) && this.rhythmUntil > start ? 0.8 : 1), start);
+    gain.gain.setValueAtTime(
+      level * (!upfront(bus) && this.rhythmUntil > start ? underRhythm : 1),
+      start,
+    );
     if (bus === 'hit') this.separateHits(start);
     if (bus === 'rhythm') this.emphasize(start, end);
     source.connect(gain);
-    if (nodes) gain.connect(nodes.tone).connect(nodes.pan).connect(this.filter);
-    else gain.connect(this.filter);
+    if (nodes) gain.connect(nodes.tone).connect(nodes.pan).connect(this.chain[0]);
+    else gain.connect(this.chain[0]);
     const voice: Voice = {
       bus,
       start,
@@ -120,21 +145,17 @@ export class SoundMixer {
     source.stop(end);
   }
 
+  // A new batch of hits ducks the hit batches still ringing.
   private separateHits(at: number): void {
     for (const voice of this.voices) {
-      if (
-        voice.stopping ||
-        voice.bus !== 'hit' ||
-        voice.ducked ||
-        voice.start >= at ||
-        voice.end <= at
-      )
-        continue;
+      if (voice.stopping || voice.bus !== 'hit' || voice.ducked) continue;
+      if (voice.start >= at || voice.end <= at) continue;
       voice.ducked = true;
-      this.hitGain(voice, at, voice.level * (this.rhythmUntil > at ? 0.8 : 1));
+      this.hitGain(voice, at, voice.level * (this.rhythmUntil > at ? underRhythm : 1));
     }
   }
 
+  // A ducked batch keeps each of its strokes at `level` and drops to 40% between them.
   private hitGain(voice: Voice, at: number, level: number): void {
     const gain = voice.gain.gain;
     gain.cancelAndHoldAtTime(at);
@@ -144,25 +165,26 @@ export class SoundMixer {
     }
     let tailAt = at;
     for (const attack of voice.attacks)
-      if (attack <= at && attack + 0.014 > at) tailAt = Math.max(tailAt, attack + 0.014);
+      if (attack <= at && attack + strokeSeconds > at)
+        tailAt = Math.max(tailAt, attack + strokeSeconds);
     gain.setTargetAtTime(level * 0.4, tailAt, 0.003);
     for (const attack of voice.attacks) {
       if (attack <= at) continue;
       gain.setTargetAtTime(level, attack, 0.0008);
-      gain.setTargetAtTime(level * 0.4, attack + 0.014, 0.003);
+      gain.setTargetAtTime(level * 0.4, attack + strokeSeconds, 0.003);
     }
   }
 
+  // A rhythm sound pushes hits and previews back until it ends.
   private emphasize(at: number, end: number): void {
     this.rhythmUntil = Math.max(this.rhythmUntil, end);
     for (const voice of this.voices) {
-      if (voice.stopping || voice.end <= at || !['preview', 'hit'].includes(voice.bus)) continue;
-      if (voice.bus === 'hit') {
-        this.hitGain(voice, at, voice.level * 0.8);
-        continue;
+      if (voice.stopping || voice.end <= at) continue;
+      if (voice.bus === 'hit') this.hitGain(voice, at, voice.level * underRhythm);
+      else if (voice.bus === 'preview') {
+        voice.gain.gain.cancelAndHoldAtTime(at);
+        voice.gain.gain.setTargetAtTime(voice.level * underRhythm, at, 0.006);
       }
-      voice.gain.gain.cancelAndHoldAtTime(at);
-      voice.gain.gain.setTargetAtTime(voice.level * 0.8, at, 0.006);
     }
   }
 
@@ -173,26 +195,5 @@ export class SoundMixer {
     voice.pan?.disconnect();
     voice.tone?.disconnect();
     this.voices.delete(voice);
-  }
-
-  stop(at = this.context.currentTime, immediate = false): void {
-    this.rhythmUntil = 0;
-    for (const voice of this.voices) {
-      if (voice.stopping && !immediate) continue;
-      voice.stopping = true;
-      voice.gain.gain.cancelAndHoldAtTime(at);
-      voice.gain.gain.setTargetAtTime(0, at, 0.002);
-      voice.source.stop(Math.min(voice.end, at + (immediate ? 0 : 0.008)));
-      if (immediate) this.release(voice);
-    }
-  }
-
-  dispose(): void {
-    this.stop(this.context.currentTime, true);
-    this.filter.disconnect();
-    this.compressor.disconnect();
-    this.saturation.disconnect();
-    this.master.disconnect();
-    this.composer.clear();
   }
 }

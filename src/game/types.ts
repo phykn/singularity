@@ -1,15 +1,19 @@
 import type { Point } from './geometry.ts';
-import type { BossKind } from './bosses.ts';
-import type { ParticleKind } from './particles.ts';
-import type { Boosts, PactId, Rarity, Ranks, SkillId, UpgradeId } from './rules.ts';
+import type { Family } from './particles.ts';
+import type { BossKind, PactId, ParticleKind, Rarity, SkillId, UpgradeId } from './rules.ts';
+import type { Boosts, Ranks, Rarities } from './skills.ts';
 
 export type Phase = 'ready' | 'running' | 'collapse' | 'ending' | 'result' | 'crossing';
 // Stored in best records; keep these strings.
 export type Outcome = 'success' | 'collapse-failure' | 'retired';
+export type Trigger = 'gravity' | 'boss-absorbed' | 'boss' | 'quit';
 export type BannerKind = 'critical' | 'boss' | 'boss-down' | 'slot-open' | 'final-boss';
+export type Card = { id: UpgradeId; rarity: Rarity; evolve?: boolean };
+export type Choice = { cards: Card[]; number: number };
+
 export type Target = Point & {
   id: number;
-  kind: 'small' | 'dense' | 'boss';
+  kind: Family | 'boss';
   particle: ParticleKind;
   born: number;
   hp: number;
@@ -32,9 +36,11 @@ export type Target = Point & {
   higgs?: boolean;
   summons?: number;
   summonCount?: number;
+  // When the Overclock current may zap this particle again.
   trailReady?: number;
   marked?: boolean;
 };
+
 export type Effect = {
   kind:
     | 'bolt'
@@ -61,6 +67,7 @@ export type Effect = {
   rank: number;
   rarity: Rarity;
   targetId?: number;
+  // Ends that follow the electron or a satellite (its index) while the effect shows.
   anchor?: 'electron' | number;
   endAnchor?: 'electron' | number;
   arc?: { start: number; sweep: number };
@@ -72,11 +79,13 @@ export type Effect = {
 export type EffectInput = Omit<Effect, 'born' | 'rank' | 'rarity' | 'damage'> &
   Partial<Pick<Effect, 'rank' | 'rarity' | 'damage'>>;
 export type DamageNumber = Point & { id: number; value: number; born: number; crit?: boolean };
-export type Event = { time: number; kind: string; data: Record<string, unknown> };
+
 // Inputs land between ticks: `tick` is the elapsed tick count when they were applied.
+// Beat 0 is a missed beat.
+export type Beat = 0 | 1 | 2 | 3;
 export type Input = { tick: number } & (
   | { kind: 'card'; id: UpgradeId; number: number }
-  | { kind: 'beat'; beat: 0 | 1 | 2 | 3 }
+  | { kind: 'beat'; beat: Beat }
   | { kind: 'beyond' }
   | { kind: 'retire' }
 );
@@ -97,10 +106,10 @@ export type Result = {
   collisionTime: number;
   seconds: number;
   round: number;
-  trigger: 'gravity' | 'boss-absorbed' | 'boss' | 'quit';
+  trigger: Trigger;
   ranks: Ranks;
   boosts: Boosts;
-  rarities: Partial<Record<UpgradeId, Rarity>>;
+  rarities: Rarities;
   evolved: Partial<Record<SkillId, boolean>>;
   pacts: Partial<Record<PactId, boolean>>;
   selections: Selection[];

@@ -3,8 +3,7 @@ import { rules as defaultRules, rulesHash } from './rules.ts';
 import type { Rules } from './rules.ts';
 import type { Input, RunRecord } from './types.ts';
 
-// Applies one recorded input between ticks; false if the run would not accept it now.
-export function apply(game: Game, input: Input): boolean {
+function apply(game: Game, input: Input): boolean {
   if (input.kind === 'card') return game.choose(input.id, input.number);
   if (input.kind === 'beat') return game.resonate(input.beat);
   return input.kind === 'beyond' ? game.continueBeyond() : game.retire();

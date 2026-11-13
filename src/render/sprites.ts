@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { particleArt, particlePalettes } from '../art/particles.ts';
+import { damageNumberSeconds } from '../game/Game.ts';
 import { CENTER, clamp } from '../game/geometry.ts';
 import type { Point } from '../game/geometry.ts';
 import type { DamageNumber } from '../game/types.ts';
@@ -63,7 +64,6 @@ export function createParticleTextures(scene: Phaser.Scene): void {
 }
 
 const fonts = ['damage-high', 'damage-normal', 'damage-low'];
-const damageSeconds = 0.72;
 
 // Integer damage labels from one shared digit atlas, in three brightnesses.
 export class DamageLabels {
@@ -141,7 +141,7 @@ export class DamageLabels {
           Math.round(clamp(width / 2 + (damage.x - CENTER.x) * scale, 10, width - 10)),
           Math.round(clamp(centerY + (damage.y - CENTER.y) * scale - 4 - age * 16, 12, height - 2)),
         )
-        .setAlpha(1 - clamp((age - 0.35) / (damageSeconds - 0.35)))
+        .setAlpha(1 - clamp((age - 0.35) / (damageNumberSeconds - 0.35)))
         .setActive(true)
         .setVisible(true);
     });

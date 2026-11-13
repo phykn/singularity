@@ -1,8 +1,8 @@
 import values from './rules.json' with { type: 'json' };
 
 type Check = (value: unknown, path: string, errors: string[]) => void;
-export type Spec<T> = { check: Check; optional?: boolean; type?: T };
-export type Infer<S> = S extends Spec<infer T> ? T : never;
+type Spec<T> = { check: Check; optional?: boolean; type?: T };
+type Infer<S> = S extends Spec<infer T> ? T : never;
 type Shape = Record<string, Spec<unknown>>;
 type Required<S extends Shape> = {
   [K in keyof S as S[K]['optional'] extends true ? never : K]: Infer<S[K]>;
